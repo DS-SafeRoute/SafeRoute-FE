@@ -2,45 +2,64 @@ import { globalStyle, createGlobalTheme } from '@vanilla-extract/css';
 
 export const vars = createGlobalTheme(':root', {
   color: {
-    primary: '#2563eb',
-    primaryHover: '#1d4ed8',
-    danger: '#dc2626',
-    warning: '#d97706',
-    success: '#16a34a',
-    bg: '#f8fafc',
-    surface: '#ffffff',
-    border: '#e2e8f0',
-    textPrimary: '#0f172a',
-    textSecondary: '#64748b',
-    textMuted: '#94a3b8',
+    // Brand
+    primary: '#2563EB',
+    primaryHover: '#104ED8',
+    primaryLight: '#DBEAFE',
+    primaryLight2: '#EFF6FF',
+    primaryDark: '#1E3A8A',
+
+    // Text
+    textHigh: '#101828',
+    textMid: '#4A5563',
+    textLow: '#99A1AF',
+
+    // Semantic
+    success: '#10B981',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    info: '#2563EB',
+    purple: '#8B5CF6',
+
+    // Neutrals
+    gray25: '#F9FAFB',
+    gray50: '#F3F4F6',
+    gray100: '#E5E7EB',
+    gray300: '#9CA3AF',
+    gray500: '#4B5563',
+    gray700: '#1F2937',
+    gray900: '#0A0F1A',
   },
   space: {
-    xs: '0.25rem',
-    sm: '0.5rem',
-    md: '1rem',
-    lg: '1.5rem',
-    xl: '2rem',
-    '2xl': '3rem',
+    s1: '0.4rem',
+    s2: '0.8rem',
+    s3: '1.2rem',
+    s4: '1.6rem',
+    s6: '2.4rem',
+    s8: '3.2rem',
+    s12: '4.8rem',
   },
   fontSize: {
-    xs: '0.75rem',
-    sm: '0.875rem',
-    base: '1rem',
-    lg: '1.125rem',
-    xl: '1.25rem',
-    '2xl': '1.5rem',
-    '3xl': '1.875rem',
+    h1: '4.8rem',
+    h2: '3rem',
+    h3: '2rem',
+    h4: '1.8rem',
+    body16: '1.6rem',
+    body14: '1.4rem',
+    caption: '1.2rem',
   },
   radius: {
-    sm: '4px',
+    sm: '6px',
     md: '8px',
     lg: '12px',
-    full: '9999px',
+    xl: '16px',
+    pill: '999px',
   },
   shadow: {
     sm: '0 1px 2px rgba(0,0,0,0.05)',
-    md: '0 4px 6px rgba(0,0,0,0.07)',
-    lg: '0 10px 15px rgba(0,0,0,0.1)',
+    card: '0 2px 8px rgba(0,0,0,0.08)',
+    md: '0 4px 12px rgba(0,0,0,0.1)',
+    lg: '0 8px 24px rgba(0,0,0,0.12)',
   },
 });
 
@@ -56,10 +75,11 @@ globalStyle('html', {
 
 globalStyle('body', {
   fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  fontSize: '1.6rem',
-  color: vars.color.textPrimary,
-  backgroundColor: vars.color.bg,
+  fontSize: vars.fontSize.body16,
+  color: vars.color.textHigh,
+  backgroundColor: vars.color.gray25,
   lineHeight: 1.5,
+  letterSpacing: '-0.02em',
 });
 
 globalStyle('button', {
