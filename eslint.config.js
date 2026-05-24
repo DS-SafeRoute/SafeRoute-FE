@@ -24,6 +24,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-var': 'error',
+      'prefer-const': 'error',
+      'prefer-template': 'error',
+      'eqeqeq': 'error',
+      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
 );
