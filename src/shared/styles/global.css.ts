@@ -1,6 +1,9 @@
 import { globalStyle, createGlobalTheme } from '@vanilla-extract/css';
 
 export const vars = createGlobalTheme(':root', {
+  fontFamily: {
+    base: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
   color: {
     // Brand
     primary: '#2563EB',
@@ -39,14 +42,76 @@ export const vars = createGlobalTheme(':root', {
     s8: '3.2rem',
     s12: '4.8rem',
   },
-  fontSize: {
-    h1: '4.8rem',
-    h2: '3rem',
-    h3: '2rem',
-    h4: '1.8rem',
-    body16: '1.6rem',
-    body14: '1.4rem',
-    caption: '1.2rem',
+  fontWeight: {
+    regular: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+  },
+  typography: {
+    h1: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '4.8rem',
+      fontWeight: '700',
+      lineHeight: '1.25',
+      letterSpacing: '-0.02em',
+    },
+    h2: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '3rem',
+      fontWeight: '700',
+      lineHeight: '1.3',
+      letterSpacing: '-0.02em',
+    },
+    h3: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '2rem',
+      fontWeight: '600',
+      lineHeight: '1.4',
+      letterSpacing: '-0.02em',
+    },
+    h4: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '1.8rem',
+      fontWeight: '600',
+      lineHeight: '1.4',
+      letterSpacing: '-0.02em',
+    },
+    body16: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '1.6rem',
+      fontWeight: '400',
+      lineHeight: '1.5',
+      letterSpacing: '-0.02em',
+    },
+    body14: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '1.4rem',
+      fontWeight: '400',
+      lineHeight: '1.5',
+      letterSpacing: '-0.02em',
+    },
+    body14Medium: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '1.4rem',
+      fontWeight: '500',
+      lineHeight: '1.5',
+      letterSpacing: '-0.02em',
+    },
+    caption: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '1.2rem',
+      fontWeight: '400',
+      lineHeight: '1.5',
+      letterSpacing: '-0.02em',
+    },
+    captionMedium: {
+      fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '1.2rem',
+      fontWeight: '500',
+      lineHeight: '1.5',
+      letterSpacing: '-0.02em',
+    },
   },
   radius: {
     sm: '6px',
@@ -74,12 +139,13 @@ globalStyle('html', {
 });
 
 globalStyle('body', {
-  fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  fontSize: vars.fontSize.body16,
+  fontFamily: vars.fontFamily.base,
+  fontSize: vars.typography.body16.fontSize,
+  fontWeight: vars.typography.body16.fontWeight,
   color: vars.color.textHigh,
   backgroundColor: vars.color.gray25,
-  lineHeight: 1.5,
-  letterSpacing: '-0.02em',
+  lineHeight: vars.typography.body16.lineHeight,
+  letterSpacing: vars.typography.body16.letterSpacing,
 });
 
 globalStyle('button', {
