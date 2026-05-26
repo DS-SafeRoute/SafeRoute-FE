@@ -161,12 +161,8 @@ globalStyle('html', {
 
 globalStyle('body', {
   fontFamily: vars.fontFamily.base,
-  fontSize: vars.typography.body16.fontSize,
-  fontWeight: vars.typography.body16.fontWeight,
   color: vars.color.textHigh,
-  backgroundColor: vars.color.gray25,
-  lineHeight: vars.typography.body16.lineHeight,
-  letterSpacing: vars.typography.body16.letterSpacing,
+  backgroundColor: vars.color.white,
 });
 
 globalStyle('button', {
