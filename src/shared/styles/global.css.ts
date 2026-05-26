@@ -24,18 +24,18 @@ export const vars = createGlobalTheme(':root', {
     // Semantic
     success: '#10B981',
     successLight: '#D1FAE5',
-    successText: '#047857',
+    successText: '#065F46',
     warning: '#F59E0B',
     warningLight: '#FEF3C7',
-    warningText: '#B45309',
+    warningText: '#92400E',
     danger: '#EF4444',
     dangerLight: '#FEE2E2',
-    dangerText: '#B42318',
+    dangerText: '#991B1B',
     info: '#2563EB',
     infoLight: '#DBEAFE',
     purple: '#8B5CF6',
     purpleLight: '#EDE9FE',
-    purpleText: '#6D28D9',
+    purpleText: '#5B21B6',
 
     // Neutrals
     white: '#FFFFFF',
