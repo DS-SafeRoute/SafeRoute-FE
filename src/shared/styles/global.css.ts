@@ -11,20 +11,32 @@ export const vars = createGlobalTheme(':root', {
     primaryLight: '#DBEAFE',
     primaryLight2: '#EFF6FF',
     primaryDark: '#1E3A8A',
+    infoText: '#1E40AF',
 
     // Text
     textHigh: '#101828',
     textMid: '#4A5563',
     textLow: '#99A1AF',
+    textInverse: '#FFFFFF',
 
     // Semantic
     success: '#10B981',
+    successLight: '#D1FAE5',
+    successText: '#047857',
     warning: '#F59E0B',
+    warningLight: '#FEF3C7',
+    warningText: '#B45309',
     danger: '#EF4444',
+    dangerLight: '#FEE2E2',
+    dangerText: '#B42318',
     info: '#2563EB',
+    infoLight: '#DBEAFE',
     purple: '#8B5CF6',
+    purpleLight: '#EDE9FE',
+    purpleText: '#6D28D9',
 
     // Neutrals
+    white: '#FFFFFF',
     gray25: '#F9FAFB',
     gray50: '#F3F4F6',
     gray100: '#E5E7EB',
