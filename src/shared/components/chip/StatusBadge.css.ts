@@ -8,39 +8,39 @@ export const badge = recipe({
     alignItems: 'center',
     justifyContent: 'center',
     gap: vars.space.s1,
-    minWidth: '4.1rem',
-    width: 'fit-content',
-    height: '2.4rem',
-    padding: '0.3rem 1rem',
     borderRadius: vars.radius.pill,
+    padding: '0.3rem 1rem',
+    width: 'fit-content',
+    minWidth: '4.1rem',
+    height: '2.4rem',
     whiteSpace: 'nowrap',
     ...vars.typography.captionBold,
   },
   variants: {
     color: {
       neutral: {
-        color: vars.color.textMid,
         backgroundColor: vars.color.gray50,
+        color: vars.color.textMid,
       },
       blue: {
-        color: vars.color.infoText,
         backgroundColor: vars.color.infoLight,
+        color: vars.color.infoText,
       },
       green: {
-        color: vars.color.successText,
         backgroundColor: vars.color.successLight,
+        color: vars.color.successText,
       },
       yellow: {
-        color: vars.color.warningText,
         backgroundColor: vars.color.warningLight,
+        color: vars.color.warningText,
       },
       red: {
-        color: vars.color.dangerText,
         backgroundColor: vars.color.dangerLight,
+        color: vars.color.dangerText,
       },
       purple: {
-        color: vars.color.purpleText,
         backgroundColor: vars.color.purpleLight,
+        color: vars.color.purpleText,
       },
     },
   },
@@ -50,9 +50,9 @@ export const badge = recipe({
 });
 
 export const dot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  backgroundColor: 'currentColor',
   width: '0.6rem',
   height: '0.6rem',
-  borderRadius: '50%',
-  flexShrink: 0,
-  backgroundColor: 'currentColor',
 });

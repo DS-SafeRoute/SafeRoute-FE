@@ -18,13 +18,13 @@ export const fieldShell = recipe({
     display: 'flex',
     alignItems: 'center',
     gap: '0.6rem',
-    height: '4.4rem',
-    padding: '1rem 1.4rem',
-    borderRadius: vars.radius.md,
+    transition: 'border-color 120ms ease, background-color 120ms ease',
     border: `1px solid ${vars.color.gray100}`,
+    borderRadius: vars.radius.md,
     backgroundColor: vars.color.white,
     ...vars.typography.body14,
-    transition: 'border-color 120ms ease, background-color 120ms ease',
+    padding: '1rem 1.4rem',
+    height: '4.4rem',
   },
   variants: {
     isError: {
@@ -41,8 +41,8 @@ export const fieldShell = recipe({
     },
     disabled: {
       true: {
-        backgroundColor: vars.color.gray50,
         borderColor: vars.color.gray100,
+        backgroundColor: vars.color.gray50,
         color: vars.color.textLow,
       },
       false: {},
@@ -62,31 +62,31 @@ export const fieldShell = recipe({
 });
 
 export const input = style({
-  width: '100%',
-  border: 'none',
   outline: 'none',
+  border: 'none',
   background: 'transparent',
-  color: vars.color.textHigh,
+  width: '100%',
   ...vars.typography.body14,
+  color: vars.color.textHigh,
   selectors: {
     '&::placeholder': {
       color: vars.color.textLow,
     },
     '&:disabled': {
-      color: vars.color.textLow,
       cursor: 'not-allowed',
+      color: vars.color.textLow,
     },
   },
 });
 
 export const iconButton = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
   width: '2.4rem',
   height: '2.4rem',
   color: vars.color.textLow,
-  flexShrink: 0,
   ':disabled': {
     cursor: 'not-allowed',
   },

@@ -6,14 +6,14 @@ export const chip = recipe({
   base: {
     display: 'inline-flex',
     alignItems: 'center',
-    textAlign: 'center',
-    height: '3.3rem',
-    padding: '0.6rem 1.2rem',
-    borderRadius: vars.radius.pill,
     border: `1px solid ${vars.color.gray100}`,
+    borderRadius: vars.radius.pill,
     backgroundColor: vars.color.white,
-    color: vars.color.textHigh,
+    padding: '0.6rem 1.2rem',
+    height: '3.3rem',
+    textAlign: 'center',
     whiteSpace: 'nowrap',
+    color: vars.color.textHigh,
   },
   variants: {
     selected: {
@@ -65,11 +65,11 @@ export const label = recipe({
 
 export const removeButton = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  color: 'currentColor',
   paddingLeft: '0.3rem',
-  flexShrink: 0,
+  color: 'currentColor',
 
   ':disabled': {
     cursor: 'not-allowed',

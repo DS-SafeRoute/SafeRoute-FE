@@ -172,16 +172,16 @@ globalStyle('html, body', {
 
 globalStyle('body', {
   backgroundColor: vars.color.white,
-  color: vars.color.textHigh,
-  fontFamily: vars.fontFamily.base,
   overflowX: 'hidden',
   overflowY: 'auto',
   scrollBehavior: 'smooth',
+  color: vars.color.textHigh,
+  fontFamily: vars.fontFamily.base,
 });
 
 globalStyle('button,input, textarea, select', {
-  background: 'none',
   border: 'none',
+  background: 'none',
   cursor: 'pointer',
   fontFamily: 'inherit',
   fontSize: 'inherit',
@@ -189,8 +189,8 @@ globalStyle('button,input, textarea, select', {
 });
 
 globalStyle('a', {
-  color: 'inherit',
   textDecoration: 'none',
+  color: 'inherit',
 });
 
 globalStyle('ul, ol', {
