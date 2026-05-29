@@ -20,6 +20,10 @@
     "*.{ts,tsx}": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "*.css.ts": [
+      "eslint --fix",
+      "prettier --write"
     ]
   },
   "dependencies": {
