@@ -3,31 +3,21 @@ import { globalStyle, createGlobalTheme } from '@vanilla-extract/css';
 const baseFontFamily = "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 export const vars = createGlobalTheme(':root', {
-  fontFamily: {
-    base: baseFontFamily,
-  },
   color: {
+    infoText: '#1E40AF',
     // Brand
     primary: '#2563EB',
+    primaryDark: '#1E3A8A',
     primaryHover: '#104ED8',
     primaryLight: '#DBEAFE',
     primaryLight2: '#EFF6FF',
-    primaryDark: '#1E3A8A',
-    infoText: '#1E40AF',
 
     // Text
     textHigh: '#101828',
-    textMid: '#4A5563',
-    textLow: '#99A1AF',
     textInverse: '#FFFFFF',
+    textLow: '#99A1AF',
+    textMid: '#4A5563',
 
-    // Semantic
-    success: '#10B981',
-    successLight: '#D1FAE5',
-    successText: '#065F46',
-    warning: '#F59E0B',
-    warningLight: '#FEF3C7',
-    warningText: '#92400E',
     danger: '#EF4444',
     dangerLight: '#FEE2E2',
     dangerText: '#991B1B',
@@ -36,9 +26,14 @@ export const vars = createGlobalTheme(':root', {
     purple: '#8B5CF6',
     purpleLight: '#EDE9FE',
     purpleText: '#5B21B6',
+    // Semantic
+    success: '#10B981',
+    successLight: '#D1FAE5',
+    successText: '#065F46',
+    warning: '#F59E0B',
+    warningLight: '#FEF3C7',
+    warningText: '#92400E',
 
-    // Neutrals
-    white: '#FFFFFF',
     gray25: '#F9FAFB',
     gray50: '#F3F4F6',
     gray100: '#E5E7EB',
@@ -46,6 +41,30 @@ export const vars = createGlobalTheme(':root', {
     gray500: '#4B5563',
     gray700: '#1F2937',
     gray900: '#0A0F1A',
+    // Neutrals
+    white: '#FFFFFF',
+  },
+  fontFamily: {
+    base: baseFontFamily,
+  },
+  fontWeight: {
+    bold: '700',
+    medium: '500',
+    regular: '400',
+    semibold: '600',
+  },
+  radius: {
+    lg: '12px',
+    md: '8px',
+    pill: '999px',
+    sm: '6px',
+    xl: '16px',
+  },
+  shadow: {
+    card: '1px 0 3px 0 rgba(0, 0, 0, 0.08)',
+    lg: '0 8px 24px rgba(0,0,0,0.12)',
+    md: '0 4px 12px rgba(0,0,0,0.1)',
+    sm: '0 1px 2px rgba(0,0,0,0.05)',
   },
   space: {
     s1: '0.4rem',
@@ -56,96 +75,84 @@ export const vars = createGlobalTheme(':root', {
     s8: '3.2rem',
     s12: '4.8rem',
   },
-  fontWeight: {
-    regular: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700',
-  },
   typography: {
-    h1: {
-      fontFamily: baseFontFamily,
-      fontSize: '4.8rem',
-      fontWeight: '700',
-      lineHeight: '1.25',
-      letterSpacing: '-0.02em',
-    },
-    h2: {
-      fontFamily: baseFontFamily,
-      fontSize: '3rem',
-      fontWeight: '700',
-      lineHeight: '1.3',
-      letterSpacing: '-0.02em',
-    },
-    h3: {
-      fontFamily: baseFontFamily,
-      fontSize: '2rem',
-      fontWeight: '600',
-      lineHeight: '1.4',
-      letterSpacing: '-0.02em',
-    },
-    h4: {
-      fontFamily: baseFontFamily,
-      fontSize: '1.8rem',
-      fontWeight: '600',
-      lineHeight: '1.4',
-      letterSpacing: '-0.02em',
-    },
-    body16: {
-      fontFamily: baseFontFamily,
-      fontSize: '1.6rem',
-      fontWeight: '400',
-      lineHeight: '1.5',
-      letterSpacing: '-0.02em',
-    },
     body14: {
       fontFamily: baseFontFamily,
       fontSize: '1.4rem',
       fontWeight: '400',
-      lineHeight: '1.5',
       letterSpacing: '-0.02em',
+      lineHeight: '1.5',
     },
     body14Medium: {
       fontFamily: baseFontFamily,
       fontSize: '1.4rem',
       fontWeight: '500',
-      lineHeight: '1.5',
       letterSpacing: '-0.02em',
+      lineHeight: '1.5',
+    },
+    body16: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.6rem',
+      fontWeight: '400',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.5',
     },
     caption: {
       fontFamily: baseFontFamily,
       fontSize: '1.2rem',
       fontWeight: '400',
-      lineHeight: '1.5',
       letterSpacing: '-0.02em',
-    },
-    captionMedium: {
-      fontFamily: baseFontFamily,
-      fontSize: '1.2rem',
-      fontWeight: '500',
       lineHeight: '1.5',
-      letterSpacing: '-0.02em',
     },
     captionBold: {
       fontFamily: baseFontFamily,
       fontSize: '1.2rem',
       fontWeight: '700',
-      lineHeight: '1.68rem',
       letterSpacing: '-0.012rem',
+      lineHeight: '1.68rem',
     },
-  },
-  radius: {
-    sm: '6px',
-    md: '8px',
-    lg: '12px',
-    xl: '16px',
-    pill: '999px',
-  },
-  shadow: {
-    sm: '0 1px 2px rgba(0,0,0,0.05)',
-    card: '0 2px 8px rgba(0,0,0,0.08)',
-    md: '0 4px 12px rgba(0,0,0,0.1)',
-    lg: '0 8px 24px rgba(0,0,0,0.12)',
+    captionMedium: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.2rem',
+      fontWeight: '500',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.5',
+    },
+    h1: {
+      fontFamily: baseFontFamily,
+      fontSize: '4.8rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.25',
+    },
+    h2: {
+      fontFamily: baseFontFamily,
+      fontSize: '3rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.3',
+    },
+    h3: {
+      fontFamily: baseFontFamily,
+      fontSize: '2rem',
+      fontWeight: '600',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.4',
+    },
+    h4: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.8rem',
+      fontWeight: '600',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.4',
+    },
+    titleBold: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.7rem',
+      fontWeight: '700',
+      letterSpacing: '-0.03em',
+      lineHeight: '1.4',
+    },
   },
 });
 
@@ -159,18 +166,26 @@ globalStyle('html', {
   fontSize: '62.5%',
 });
 
-globalStyle('body', {
-  fontFamily: vars.fontFamily.base,
-  color: vars.color.textHigh,
-  backgroundColor: vars.color.white,
+globalStyle('html, body', {
+  overscrollBehaviorY: 'none',
 });
 
-globalStyle('button', {
-  cursor: 'pointer',
-  border: 'none',
+globalStyle('body', {
+  backgroundColor: vars.color.white,
+  color: vars.color.textHigh,
+  fontFamily: vars.fontFamily.base,
+  overflowX: 'hidden',
+  overflowY: 'auto',
+  scrollBehavior: 'smooth',
+});
+
+globalStyle('button,input, textarea, select', {
   background: 'none',
+  border: 'none',
+  cursor: 'pointer',
   fontFamily: 'inherit',
   fontSize: 'inherit',
+  WebkitTapHighlightColor: 'transparent',
 });
 
 globalStyle('a', {
@@ -183,11 +198,6 @@ globalStyle('ul, ol', {
 });
 
 globalStyle('img', {
-  maxWidth: '100%',
   display: 'block',
-});
-
-globalStyle('input, textarea, select', {
-  fontFamily: 'inherit',
-  fontSize: 'inherit',
+  maxWidth: '100%',
 });
