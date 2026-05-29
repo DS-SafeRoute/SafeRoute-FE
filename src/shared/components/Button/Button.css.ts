@@ -11,47 +11,47 @@ const dangerDark = '#B91C1C';
 
 export const base = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
   gap: '0.6rem',
-  fontFamily: 'inherit',
-  fontWeight: 700,
-  letterSpacing: '-0.01em',
+  transition: 'background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease',
   border: '1.5px solid transparent',
   cursor: 'pointer',
-  transition: 'background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+  letterSpacing: '-0.01em',
   whiteSpace: 'nowrap',
-  flexShrink: 0,
+  fontFamily: 'inherit',
+  fontWeight: 700,
   selectors: {
     '&:disabled': {
-      cursor: 'not-allowed',
-      backgroundColor: vars.color.gray50,
       borderColor: vars.color.gray100,
-      color: vars.color.gray300,
+      backgroundColor: vars.color.gray50,
+      cursor: 'not-allowed',
       pointerEvents: 'none',
+      color: vars.color.gray300,
     },
   },
 });
 
 export const variantStyles = styleVariants({
   primary: {
-    backgroundColor: vars.color.primary,
     borderColor: vars.color.primary,
+    backgroundColor: vars.color.primary,
     color: '#fff',
     selectors: {
       '&:hover:not(:disabled)': {
-        backgroundColor: vars.color.primaryHover,
         borderColor: vars.color.primaryHover,
+        backgroundColor: vars.color.primaryHover,
       },
       '&:active:not(:disabled)': {
-        backgroundColor: vars.color.primaryDark,
         borderColor: vars.color.primaryDark,
+        backgroundColor: vars.color.primaryDark,
       },
     },
   },
   outlined: {
-    backgroundColor: '#fff',
     borderColor: vars.color.primary,
+    backgroundColor: '#fff',
     color: vars.color.primary,
     selectors: {
       '&:hover:not(:disabled)': { backgroundColor: vars.color.primaryLight2 },
@@ -59,41 +59,41 @@ export const variantStyles = styleVariants({
     },
   },
   danger: {
-    backgroundColor: vars.color.danger,
     borderColor: vars.color.danger,
+    backgroundColor: vars.color.danger,
     color: '#fff',
     selectors: {
       '&:hover:not(:disabled)': {
-        backgroundColor: dangerHover,
         borderColor: dangerHover,
+        backgroundColor: dangerHover,
       },
       '&:active:not(:disabled)': {
-        backgroundColor: dangerDark,
         borderColor: dangerDark,
+        backgroundColor: dangerDark,
       },
     },
   },
   dangerOutlined: {
-    backgroundColor: '#fff',
     borderColor: vars.color.danger,
+    backgroundColor: '#fff',
     color: vars.color.danger,
     selectors: {
       '&:hover:not(:disabled)': {
-        backgroundColor: '#FEF2F2',
         borderColor: dangerHover,
+        backgroundColor: '#FEF2F2',
         color: dangerHover,
       },
       '&:active:not(:disabled)': { backgroundColor: '#FEE2E2' },
     },
   },
   ghost: {
-    backgroundColor: '#fff',
     borderColor: vars.color.gray100,
+    backgroundColor: '#fff',
     color: vars.color.textMid,
     selectors: {
       '&:hover:not(:disabled)': {
-        backgroundColor: vars.color.gray25,
         borderColor: vars.color.gray300,
+        backgroundColor: vars.color.gray25,
       },
       '&:active:not(:disabled)': { backgroundColor: vars.color.gray50 },
     },
@@ -101,26 +101,26 @@ export const variantStyles = styleVariants({
 });
 
 export const sizeStyles = styleVariants({
-  sm: { height: '3.2rem', padding: '0 1.2rem', fontSize: '1.3rem', borderRadius: vars.radius.sm },
+  sm: { borderRadius: vars.radius.sm, padding: '0 1.2rem', height: '3.2rem', fontSize: '1.3rem' },
   md: {
-    height: '4.0rem',
-    padding: '0 1.6rem',
-    fontSize: vars.fontSize.body14,
     borderRadius: vars.radius.md,
+    padding: '0 1.6rem',
+    height: '4rem',
+    fontSize: vars.fontSize.body14,
   },
-  lg: { height: '4.8rem', padding: '0 2.0rem', fontSize: '1.5rem', borderRadius: '1.0rem' },
+  lg: { borderRadius: '1rem', padding: '0 2rem', height: '4.8rem', fontSize: '1.5rem' },
 });
 
 export const iconOnlySizes = styleVariants({
-  sm: { width: '3.2rem', padding: 0 },
-  md: { width: '4.0rem', padding: 0 },
-  lg: { width: '4.8rem', padding: 0 },
+  sm: { padding: 0, width: '3.2rem' },
+  md: { padding: 0, width: '4rem' },
+  lg: { padding: 0, width: '4.8rem' },
 });
 
 export const iconWrapper = style({
   display: 'flex',
-  alignItems: 'center',
   flexShrink: 0,
+  alignItems: 'center',
 });
 
 globalStyle(`${iconWrapper} svg`, {
@@ -132,11 +132,11 @@ export const fullWidthStyle = style({ width: '100%' });
 
 export const spinnerStyle = style({
   display: 'inline-block',
+  flexShrink: 0,
+  border: '2px solid currentColor',
+  borderRadius: '50%',
+  borderTopColor: 'transparent',
   width: '1.4rem',
   height: '1.4rem',
-  border: '2px solid currentColor',
-  borderTopColor: 'transparent',
-  borderRadius: '50%',
   animation: `${spin} 0.6s linear infinite`,
-  flexShrink: 0,
 });
