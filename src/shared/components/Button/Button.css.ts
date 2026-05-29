@@ -106,7 +106,7 @@ export const sizeStyles = styleVariants({
     borderRadius: vars.radius.md,
     padding: '0 1.6rem',
     height: '4rem',
-    fontSize: vars.fontSize.body14,
+    fontSize: vars.typography.body14.fontSize,
   },
   lg: { borderRadius: '1rem', padding: '0 2rem', height: '4.8rem', fontSize: '1.5rem' },
 });
