@@ -1,12 +1,13 @@
-import HomeIcon from '@/shared/assets/icons/ic-home.svg?react';
-import BuildingIcon from '@/shared/assets/icons/ic-building.svg?react';
-import MapIcon from '@/shared/assets/icons/ic-map.svg?react';
-import CameraIcon from '@/shared/assets/icons/ic-camera.svg?react';
-import VideoIcon from '@/shared/assets/icons/ic-video.svg?react';
-import FileTextIcon from '@/shared/assets/icons/ic-filetext.svg?react';
-import DashBoardIcon from '@/shared/assets/icons/ic-dashboard.svg?react';
-import LayersIcon from '@/shared/assets/icons/ic-layers.svg?react';
-import { ROUTES } from '@/shared/constants/path';
+import BuildingIcon from '@assets/icons/ic-building.svg?react';
+import CameraIcon from '@assets/icons/ic-camera.svg?react';
+import DashBoardIcon from '@assets/icons/ic-dashboard.svg?react';
+import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
+import HomeIcon from '@assets/icons/ic-home.svg?react';
+import LayersIcon from '@assets/icons/ic-layers.svg?react';
+import MapIcon from '@assets/icons/ic-map.svg?react';
+import VideoIcon from '@assets/icons/ic-video.svg?react';
+
+import { ROUTES } from '@constants/path';
 
 export const sidebarItems = [
   { label: '홈', icon: HomeIcon, path: ROUTES.HOME },

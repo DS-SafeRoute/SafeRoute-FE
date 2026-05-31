@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { vars } from '@/shared/styles/global.css';
+
+import { vars } from '@styles/global.css';
 
 export const root = style({
   display: 'flex',

@@ -1,5 +1,6 @@
+import TextField from '@components/inputField/TextField';
+
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import TextField from '../shared/components/inputField/TextField';
 
 const meta = {
   title: 'Shared/TextField',

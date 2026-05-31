@@ -1,10 +1,12 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import PlusIcon from '@/shared/assets/icons/ic-plus.svg?react';
-import DownloadIcon from '@/shared/assets/icons/ic-download.svg?react';
-import TrashIcon from '@/shared/assets/icons/ic-trash.svg?react';
-import EditIcon from '@/shared/assets/icons/ic-edit.svg?react';
-import ArrowRightIcon from '@/shared/assets/icons/ic-arrow-right.svg?react';
+import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
+import DownloadIcon from '@assets/icons/ic-download.svg?react';
+import EditIcon from '@assets/icons/ic-edit.svg?react';
+import PlusIcon from '@assets/icons/ic-plus.svg?react';
+import TrashIcon from '@assets/icons/ic-trash.svg?react';
+
 import { Button } from './Button';
+
+import type { Meta, StoryObj } from '@storybook/react-vite';
 
 const meta: Meta<typeof Button> = {
   title: 'Shared/Button',

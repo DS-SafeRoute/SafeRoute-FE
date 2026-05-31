@@ -1,5 +1,6 @@
+import StatusBadge from '@components/chip/StatusBadge';
+
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import StatusBadge from '../shared/components/chip/StatusBadge';
 
 const meta = {
   title: 'Shared/Chip/StatusBadge',

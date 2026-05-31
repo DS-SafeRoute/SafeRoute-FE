@@ -1,6 +1,9 @@
 import type { ComponentPropsWithoutRef, MouseEventHandler } from 'react';
+
 import clsx from 'clsx';
-import XIcon from '@/shared/assets/icons/ic-x.svg?react';
+
+import XIcon from '@assets/icons/ic-x.svg?react';
+
 import * as styles from './FilterChip.css';
 
 export type FilterChipProps = {

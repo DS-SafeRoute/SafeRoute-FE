@@ -1,7 +1,10 @@
 import type * as React from 'react';
+
 import { useLocation, useNavigate } from 'react-router';
-import LogoIcon from '@/shared/assets/icons/logo.svg?react';
-import LogoutIcon from '@/shared/assets/icons/ic-logout.svg?react';
+
+import LogoutIcon from '@assets/icons/ic-logout.svg?react';
+import LogoIcon from '@assets/icons/logo.svg?react';
+
 import * as styles from './Sidebar.css';
 
 interface SidebarProps {
