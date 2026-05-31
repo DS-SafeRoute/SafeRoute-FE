@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router';
+
 import AppLayout from '@/layout/AppLayout';
 import { ROUTES } from '@/shared/constants/path';
 

@@ -1,7 +1,10 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import type { ComponentPropsWithoutRef } from 'react';
+
 import clsx from 'clsx';
-import EyeIcon from '@/shared/assets/icons/ic-eye.svg?react';
+
+import EyeIcon from '@assets/icons/ic-eye.svg?react';
+
 import * as styles from './TextField.css';
 
 export type TextFieldProps = {

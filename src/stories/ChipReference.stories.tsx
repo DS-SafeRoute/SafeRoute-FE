@@ -1,7 +1,9 @@
 import { useState } from 'react';
+
+import FilterChip from '@components/chip/FilterChip';
+import StatusBadge from '@components/chip/StatusBadge';
+
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import FilterChip from '../shared/components/chip/FilterChip';
-import StatusBadge from '../shared/components/chip/StatusBadge';
 
 const meta = {
   title: 'Shared/Chip/Reference',

@@ -1,6 +1,9 @@
 import { Outlet } from 'react-router';
-import Sidebar from '@/shared/components/sideBar/Sidebar';
-import { sidebarItems } from '@/shared/constants/sidebar';
+
+import Sidebar from '@components/sideBar/Sidebar';
+
+import { sidebarItems } from '@constants/sidebar';
+
 import * as styles from './AppLayout.css';
 
 const AppLayout = () => (

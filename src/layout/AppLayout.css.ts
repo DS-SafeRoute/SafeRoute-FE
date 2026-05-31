@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
-import { vars } from '@/shared/styles/global.css';
+
+import { vars } from '@styles/global.css';
 
 export const container = style({
   display: 'flex',
