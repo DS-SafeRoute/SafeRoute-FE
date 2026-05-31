@@ -1,5 +1,7 @@
 import type { ComponentPropsWithoutRef } from 'react';
+
 import clsx from 'clsx';
+
 import * as styles from './StatusBadge.css';
 
 export type StatusBadgeColor = 'neutral' | 'blue' | 'green' | 'yellow' | 'red' | 'purple';
