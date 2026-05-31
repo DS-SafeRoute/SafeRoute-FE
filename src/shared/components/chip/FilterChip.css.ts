@@ -1,6 +1,7 @@
-import { recipe } from '@vanilla-extract/recipes';
 import { style } from '@vanilla-extract/css';
-import { vars } from '@/shared/styles/global.css';
+import { recipe } from '@vanilla-extract/recipes';
+
+import { vars } from '@styles/global.css';
 
 export const chip = recipe({
   base: {

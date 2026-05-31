@@ -1,5 +1,6 @@
 import { globalStyle, keyframes, style, styleVariants } from '@vanilla-extract/css';
-import { vars } from '../../styles/global.css';
+
+import { vars } from '@styles/global.css';
 
 const spin = keyframes({
   from: { transform: 'rotate(0deg)' },
