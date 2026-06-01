@@ -41,6 +41,8 @@ reviews:
     - 'tsconfig*.json'
     - 'package.json'
     - '.coderabbit.yaml'
+    - '*.md'
+    - 'docs/**'
     # 제외(deny-list)
     - '!node_modules/**'
     - '!dist/**'
@@ -148,7 +150,7 @@ reviews:
       instructions: |
         API 레이어 리뷰 시:
         - request 래퍼 사용(axios 직접 호출 금지), 공통 에러 포맷 정규화
-        - TanStack Query와의 통합(QueryKey Factory 사용) 
+        - TanStack Query와의 통합(QueryKey Factory 사용)
         - 재시도/취소 신호(AbortController) 처리 일관성
         - 타입 안정성 확보(응답 제네릭, 불변 데이터)
         - HTTP메서드 + 명사 네이밍 규칙 확인 (getUserList, postComment 등)
@@ -169,7 +171,7 @@ reviews:
         - 의미있는 이름 사용 여부 확인
         - 리터럴은 as const로 타입 좁히기
 
-    - path: 'src/**/*.ts'
+    - path: 'src/**/*.{ts,tsx}'
       instructions: |
         TypeScript 파일 리뷰 시:
         - 타입/인터페이스는 PascalCase 사용, Type/I/T 접두사·접미사 금지 (제네릭 T 제외)
