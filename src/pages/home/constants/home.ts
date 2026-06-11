@@ -10,3 +10,12 @@ export const HOME_GRADE_BADGE_COLOR = {
   B: 'blue',
   C: 'yellow',
 } as const;
+
+export const HOME_RECENT_TRAINING_TABLE_HEADERS = [
+  '훈련명',
+  '날짜',
+  '참가',
+  '대피시간',
+  '생존율',
+  '등급',
+] as const;

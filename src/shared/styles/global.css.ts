@@ -153,6 +153,13 @@ export const vars = createGlobalTheme(':root', {
       letterSpacing: '-0.03em',
       lineHeight: '1.4',
     },
+    title_b_28: {
+      fontFamily: baseFontFamily,
+      fontSize: '2.8rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.4',
+    },
   },
 });
 
