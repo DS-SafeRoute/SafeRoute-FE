@@ -4,12 +4,15 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import GNB from '@components/gnb';
-import Modal from '@components/modal';
 
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
 import OrganizationCard from './components/OrganizationCard/OrganizationCard';
 import { mockBuildings, mockOrganization } from './mocks/buildingsData';
+import BuildingAddModal from './modals/BuildingAddModal';
+import BuildingDeleteModal from './modals/BuildingDeleteModal';
+import BuildingEditModal from './modals/BuildingEditModal';
+import FloorPlanModal from './modals/FloorPlanModal';
 
 import type { Building } from './types/buildings';
 
@@ -17,6 +20,7 @@ type ModalState =
   | { type: 'add' }
   | { type: 'edit'; building: Building }
   | { type: 'delete'; building: Building }
+  | { type: 'floorPlan'; building: Building }
   | null;
 
 const BuildingsPage = () => {
@@ -26,8 +30,24 @@ const BuildingsPage = () => {
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
   const handleDelete = (building: Building) => setModal({ type: 'delete', building });
-  const handleFloorPlan = (_building: Building) => {
-    // TODO: 도면 관리 페이지로 이동
+  const handleFloorPlan = (building: Building) => setModal({ type: 'floorPlan', building });
+
+  const handleUpdateFloorPlans = (
+    buildingId: number,
+    patch: Partial<Pick<Building, 'aboveFloors' | 'belowFloors' | 'floorPlans'>>,
+  ) => {
+    setBuildings((prev) => prev.map((b) => (b.id === buildingId ? { ...b, ...patch } : b)));
+  };
+
+  const handleConfirmAdd = (building: Omit<Building, 'id'>) => {
+    const newId = Math.max(0, ...buildings.map((b) => b.id)) + 1;
+    setBuildings((prev) => [...prev, { id: newId, ...building }]);
+    setModal(null);
+  };
+
+  const handleConfirmEdit = (updated: Building) => {
+    setBuildings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    setModal(null);
   };
 
   const handleConfirmDelete = () => {
@@ -73,65 +93,33 @@ const BuildingsPage = () => {
       </div>
 
       {modal?.type === 'add' && (
-        <Modal
-          open
-          onClose={handleCloseModal}
-          title="건물 추가"
-          description="새 건물 정보를 입력합니다"
-          footer={
-            <>
-              <Button variant="ghost" onClick={handleCloseModal}>
-                취소
-              </Button>
-              <Button onClick={handleCloseModal}>추가 완료</Button>
-            </>
-          }
-        >
-          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem' }}>
-            건물 등록 폼 (추후 구현)
-          </p>
-        </Modal>
+        <BuildingAddModal open onClose={handleCloseModal} onConfirm={handleConfirmAdd} />
       )}
 
       {modal?.type === 'edit' && (
-        <Modal
+        <BuildingEditModal
           open
           onClose={handleCloseModal}
-          title="건물 정보 수정"
-          description={`'${modal.building.name}' 정보를 수정합니다`}
-          footer={
-            <>
-              <Button variant="ghost" onClick={handleCloseModal}>
-                취소
-              </Button>
-              <Button onClick={handleCloseModal}>수정 완료</Button>
-            </>
-          }
-        >
-          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem' }}>
-            건물 수정 폼 (추후 구현)
-          </p>
-        </Modal>
+          building={modal.building}
+          onConfirm={handleConfirmEdit}
+        />
       )}
 
       {modal?.type === 'delete' && (
-        <Modal
-          variant="confirm"
+        <BuildingDeleteModal
           open
           onClose={handleCloseModal}
-          title="건물 삭제"
-          description={`정말로 '${modal.building.name}'을(를) 삭제하시겠습니까?`}
-          warning="경고: 이 작업은 되돌릴 수 없습니다. 건물과 관련된 모든 도면 데이터가 영구적으로 삭제됩니다."
-          footer={
-            <>
-              <Button variant="ghost" onClick={handleCloseModal}>
-                취소
-              </Button>
-              <Button variant="danger" onClick={handleConfirmDelete}>
-                삭제
-              </Button>
-            </>
-          }
+          building={modal.building}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
+
+      {modal?.type === 'floorPlan' && (
+        <FloorPlanModal
+          open
+          onClose={handleCloseModal}
+          building={modal.building}
+          onUpdate={handleUpdateFloorPlans}
         />
       )}
     </>

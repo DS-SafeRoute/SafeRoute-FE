@@ -11,9 +11,12 @@ export interface Organization {
 export interface Building {
   id: number;
   name: string;
+  area: number;
   status: BuildingStatus;
   lastTrainingDate: string;
-  totalFloors: number;
+  aboveFloors: number;
+  belowFloors: number;
+  floorPlans: number[];
   cctvTotal: number;
   cctvOnline: number;
   iotTotal: number;

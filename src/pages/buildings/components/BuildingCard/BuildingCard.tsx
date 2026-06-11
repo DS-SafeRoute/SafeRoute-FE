@@ -1,8 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
+
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
-import EditIcon from '@assets/icons/ic-edit.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
-import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
@@ -19,7 +19,20 @@ interface BuildingCardProps {
 }
 
 const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardProps) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const isIotWarning = building.iotOnline < building.iotTotal;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <article className={styles.container}>
@@ -28,14 +41,50 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
           <span className={styles.name}>{building.name}</span>
           <span className={styles.lastTraining}>최근 훈련 · {building.lastTrainingDate}</span>
         </div>
-        <StatusBadge
-          label={building.status === 'normal' ? '정상' : '점검 필요'}
-          color={building.status === 'normal' ? 'green' : 'yellow'}
-          dot
-        />
+        <div className={styles.headerRight}>
+          <StatusBadge
+            label={building.status === 'normal' ? '정상' : '점검 필요'}
+            color={building.status === 'normal' ? 'green' : 'yellow'}
+            dot
+          />
+          <div ref={menuRef} className={styles.kebabWrapper}>
+            <button
+              type="button"
+              className={styles.kebabButton}
+              aria-label="더보기"
+              onClick={() => setMenuOpen((prev) => !prev)}
+            >
+              <span className={styles.kebabDot} />
+              <span className={styles.kebabDot} />
+              <span className={styles.kebabDot} />
+            </button>
+            {menuOpen && (
+              <div className={styles.menu}>
+                <button
+                  type="button"
+                  className={styles.menuItem}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEdit(building);
+                  }}
+                >
+                  수정
+                </button>
+                <button
+                  type="button"
+                  className={styles.menuItemDanger}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDelete(building);
+                  }}
+                >
+                  삭제
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-
-      <div className={styles.divider} />
 
       <div className={styles.stats}>
         <div className={styles.statItem}>
@@ -43,7 +92,9 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             <LayersIcon className={styles.statIcon} width={14} height={14} />
             층수
           </span>
-          <span className={styles.statValue}>{building.totalFloors}층</span>
+          <span className={styles.statValue}>
+            {building.aboveFloors}F{building.belowFloors > 0 ? ` / B${building.belowFloors}` : ''}
+          </span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -72,8 +123,6 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
         </div>
       </div>
 
-      <div className={styles.divider} />
-
       <div className={styles.footer}>
         <button
           type="button"
@@ -82,22 +131,6 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
         >
           도면 관리
           <ChevronRightIcon width={14} height={14} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.iconButton} ${styles.editButton}`}
-          aria-label="건물 수정"
-          onClick={() => onEdit(building)}
-        >
-          <EditIcon width={16} height={16} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.iconButton} ${styles.deleteButton}`}
-          aria-label="건물 삭제"
-          onClick={() => onDelete(building)}
-        >
-          <TrashIcon width={16} height={16} />
         </button>
       </div>
     </article>

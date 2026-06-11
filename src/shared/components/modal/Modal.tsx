@@ -42,6 +42,8 @@ const Modal = ({
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -49,17 +51,9 @@ const Modal = ({
     previousFocusRef.current = document.activeElement;
     document.body.style.overflow = 'hidden';
 
-    // 첫 포커스 이동
-    const focusables = modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
-    if (focusables && focusables.length > 0) {
-      focusables[0].focus();
-    } else {
-      modalRef.current?.focus();
-    }
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -91,7 +85,7 @@ const Modal = ({
       document.body.style.overflow = '';
       (previousFocusRef.current as HTMLElement | null)?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
