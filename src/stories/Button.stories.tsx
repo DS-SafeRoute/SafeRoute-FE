@@ -4,7 +4,7 @@ import EditIcon from '@assets/icons/ic-edit.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 
-import { Button } from './Button';
+import { Button } from '@components/Button';
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
