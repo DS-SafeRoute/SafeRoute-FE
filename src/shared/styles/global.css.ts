@@ -125,6 +125,13 @@ export const vars = createGlobalTheme(':root', {
       letterSpacing: '-0.02em',
       lineHeight: '1.5',
     },
+    caption13Bold: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.3rem',
+      fontWeight: '700',
+      letterSpacing: '-0.012rem',
+      lineHeight: '1.68rem',
+    },
     h1: {
       fontFamily: baseFontFamily,
       fontSize: '4.8rem',

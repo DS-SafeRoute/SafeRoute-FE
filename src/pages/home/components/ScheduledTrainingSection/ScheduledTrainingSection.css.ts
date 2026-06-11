@@ -77,11 +77,8 @@ export const metaLabel = style({
 });
 
 export const metaValue = style({
-  lineHeight: '1.4',
-  letterSpacing: '-0.03em',
-  color: vars.color.gray900,
-  fontSize: '1.6rem',
-  fontWeight: vars.fontWeight.bold,
+  color: vars.color.textHigh,
+  ...vars.typography.caption13Bold,
 });
 
 export const scheduleButton = style({
