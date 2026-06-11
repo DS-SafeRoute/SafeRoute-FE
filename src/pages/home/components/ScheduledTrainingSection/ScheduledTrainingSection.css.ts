@@ -8,6 +8,7 @@ export const scheduledCard = style({
   boxShadow: vars.shadow.card,
   backgroundColor: vars.color.white,
   padding: '2rem',
+  minWidth: '36rem',
 });
 
 export const sectionHeader = style({
