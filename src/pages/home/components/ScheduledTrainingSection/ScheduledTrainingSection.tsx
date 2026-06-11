@@ -55,6 +55,7 @@ const ScheduledTrainingSection = ({
       </div>
 
       <Button
+        type="button"
         size="lg"
         fullWidth
         className={styles.scheduleButton}

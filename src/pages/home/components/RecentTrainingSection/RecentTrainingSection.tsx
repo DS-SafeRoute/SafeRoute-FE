@@ -50,10 +50,7 @@ const RecentTrainingSection = ({ records, actionIcon }: RecentTrainingSectionPro
             <td className={styles.tableCell()}>
               <StatusBadge
                 label={record.grade}
-                color={
-                  HOME_GRADE_BADGE_COLOR[record.grade as keyof typeof HOME_GRADE_BADGE_COLOR] ??
-                  'neutral'
-                }
+                color={HOME_GRADE_BADGE_COLOR[record.grade] ?? 'neutral'}
               />
             </td>
           </tr>

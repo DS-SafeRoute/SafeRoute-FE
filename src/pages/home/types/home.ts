@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 
-import type { HOME_TRAINING_STATUS } from '../constants/home';
+import type { HOME_GRADE_BADGE_COLOR, HOME_TRAINING_STATUS } from '../constants/home';
 
 export type MetricIconTone = 'blue' | 'yellow' | 'green' | 'purple';
 export type TrendTone = 'positive' | 'negative';
@@ -30,7 +30,7 @@ export type TrainingRecord = {
   participants: string;
   evacuationTime: string;
   survivalRate: string;
-  grade: string;
+  grade: keyof typeof HOME_GRADE_BADGE_COLOR;
 };
 
 export type TrainingStatus = (typeof HOME_TRAINING_STATUS)[keyof typeof HOME_TRAINING_STATUS];
