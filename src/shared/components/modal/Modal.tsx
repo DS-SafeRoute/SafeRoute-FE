@@ -1,0 +1,147 @@
+import { useEffect, useRef, type ReactNode } from 'react';
+
+import { createPortal } from 'react-dom';
+
+import XIcon from '@assets/icons/ic-x.svg?react';
+
+import * as styles from './Modal.css';
+
+export type ModalSize = 'sm' | 'md' | 'lg';
+
+export type ModalProps = {
+  open: boolean;
+  onClose: () => void;
+  size?: ModalSize;
+  children?: ReactNode;
+  footer?: ReactNode;
+  title: string;
+  description?: string;
+  warning?: string;
+  variant?: 'form' | 'confirm';
+};
+
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const Modal = ({
+  open,
+  onClose,
+  size = 'md',
+  children,
+  footer,
+  title,
+  description,
+  warning,
+  variant = 'form',
+}: ModalProps) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<Element | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    previousFocusRef.current = document.activeElement;
+    document.body.style.overflow = 'hidden';
+
+    // 첫 포커스 이동
+    const focusables = modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
+    if (focusables && focusables.length > 0) {
+      focusables[0].focus();
+    } else {
+      modalRef.current?.focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      // focus trap
+      if (e.key !== 'Tab') return;
+      const elements = Array.from(modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+      if (elements.length === 0) return;
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+      (previousFocusRef.current as HTMLElement | null)?.focus();
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div ref={modalRef} className={styles.container({ size })} tabIndex={-1}>
+        {variant === 'form' && (
+          <div className={styles.header}>
+            <div className={styles.headerText}>
+              <h2 id="modal-title" className={styles.title}>
+                {title}
+              </h2>
+              {description && <p className={styles.description}>{description}</p>}
+            </div>
+            <button
+              type="button"
+              className={styles.closeButton}
+              aria-label="닫기"
+              onClick={onClose}
+            >
+              <XIcon width={20} height={20} />
+            </button>
+          </div>
+        )}
+
+        {variant === 'confirm' && (
+          <div className={styles.confirmBody}>
+            <h2 id="modal-title" className={styles.confirmTitle}>
+              {title}
+            </h2>
+            {description && <p className={styles.confirmDescription}>{description}</p>}
+            {warning && <p className={styles.warningBox}>{warning}</p>}
+          </div>
+        )}
+
+        {children && <div className={styles.body}>{children}</div>}
+
+        {footer && <div className={styles.footer}>{footer}</div>}
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+export default Modal;
