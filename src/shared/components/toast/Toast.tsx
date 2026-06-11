@@ -65,6 +65,11 @@ const Toast = ({
     }
   };
 
+  const handlePointerCancel = () => {
+    isDraggingRef.current = false;
+    setDragX(0);
+  };
+
   const isDragging = dragX > 0;
   const dragOpacity = isDragging ? Math.max(0, 1 - dragX / 160) : undefined;
 
@@ -87,6 +92,7 @@ const Toast = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       <span className={styles.iconWrapper({ variant })}>{ICONS[variant]}</span>
       <div className={styles.body}>

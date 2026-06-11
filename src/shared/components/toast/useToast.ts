@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ToastProps, ToastVariant } from './Toast';
 
@@ -19,6 +19,14 @@ const useToast = () => {
   const [leavingIds, setLeavingIds] = useState<Set<string>>(new Set());
   const toastsRef = useRef<ToastItem[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   const syncToasts = useCallback((updater: (prev: ToastItem[]) => ToastItem[]) => {
     toastsRef.current = updater(toastsRef.current);
@@ -67,14 +75,13 @@ const useToast = () => {
         return existing.id;
       }
 
-      // 최대 개수 초과 시 가장 오래된 토스트 슬라이드아웃
+      // 최대 개수 초과 시 가장 오래된 토스트 슬라이드아웃 후 제거
       if (toastsRef.current.length >= MAX_TOASTS) {
         const evicted = toastsRef.current[0];
         const evictTimer = timersRef.current.get(evicted.id);
         if (evictTimer) clearTimeout(evictTimer);
         timersRef.current.delete(evicted.id);
-        setLeavingIds((prev) => new Set(prev).add(evicted.id));
-        setTimeout(() => remove(evicted.id), LEAVE_DURATION);
+        dismiss(evicted.id);
       }
 
       const id = `toast-${Date.now()}-${Math.random()}`;
@@ -86,7 +93,7 @@ const useToast = () => {
       scheduleRemoval(id, duration);
       return id;
     },
-    [syncToasts, scheduleRemoval, remove],
+    [syncToasts, scheduleRemoval, dismiss],
   );
 
   return { toasts, leavingIds, show, dismiss };
