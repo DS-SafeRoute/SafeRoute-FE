@@ -80,7 +80,6 @@ const HomePage = () => {
               ...item,
               icon: item.iconKey === 'success' ? sectionIcons.success : undefined,
             }))}
-            sectionIcon={sectionIcons.status}
           />
         </div>
       </div>

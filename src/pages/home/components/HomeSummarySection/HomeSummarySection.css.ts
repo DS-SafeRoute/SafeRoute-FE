@@ -2,12 +2,14 @@ import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-const summaryCardBase = style({
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: '1.2rem',
-  boxShadow: vars.shadow.card,
-  backgroundColor: vars.color.white,
-});
+import { sectionCardBase } from '../../HomePage.css';
+
+const summaryCardBase = style([
+  sectionCardBase,
+  {
+    borderRadius: '1.2rem',
+  },
+]);
 
 export const summaryGrid = style({
   display: 'grid',

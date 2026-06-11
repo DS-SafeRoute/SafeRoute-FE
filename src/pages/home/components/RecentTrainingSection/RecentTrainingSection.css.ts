@@ -3,15 +3,18 @@ import { recipe } from '@vanilla-extract/recipes';
 
 import { vars } from '@styles/global.css';
 
-export const recordsSection = style({
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: '2rem',
-  boxShadow: vars.shadow.card,
-  backgroundColor: vars.color.white,
-  padding: 0,
-  minHeight: '69rem',
-  overflow: 'hidden',
-});
+import { sectionCardBase } from '../../HomePage.css';
+
+export const recordsSection = style([
+  sectionCardBase,
+  {
+    borderRadius: '2rem',
+    padding: 0,
+    minWidth: 0,
+    minHeight: '69rem',
+    overflow: 'hidden',
+  },
+]);
 
 export const sectionHeader = style({
   display: 'flex',

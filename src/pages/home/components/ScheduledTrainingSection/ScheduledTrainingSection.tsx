@@ -10,7 +10,7 @@ import type { ScheduledTraining } from '../../types/home';
 type ScheduledTrainingSectionProps = {
   training: ScheduledTraining;
   onStart: () => void;
-  sectionIcon: ReactNode;
+  sectionIcon?: ReactNode;
   actionIcon: ReactNode;
 };
 
@@ -27,7 +27,7 @@ const ScheduledTrainingSection = ({
     <section className={styles.scheduledCard}>
       <div className={styles.sectionHeader}>
         <div className={styles.sectionTitleRow}>
-          <span className={styles.titleIcon}>{sectionIcon}</span>
+          {sectionIcon ? <span className={styles.titleIcon}>{sectionIcon}</span> : null}
           <h2 className={styles.sectionTitle}>{sectionTitle}</h2>
         </div>
       </div>

@@ -2,14 +2,17 @@ import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-export const systemCard = style({
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: '2rem',
-  boxShadow: vars.shadow.card,
-  backgroundColor: vars.color.white,
-  padding: '2rem',
-  minWidth: '36rem',
-});
+import { sectionCardBase } from '../../HomePage.css';
+
+export const systemCard = style([
+  sectionCardBase,
+  {
+    borderRadius: '2rem',
+    padding: '2rem',
+    width: '100%',
+    minWidth: 0,
+  },
+]);
 
 export const sectionHeader = style({
   display: 'flex',
