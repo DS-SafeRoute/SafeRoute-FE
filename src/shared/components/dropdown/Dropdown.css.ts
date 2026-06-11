@@ -3,6 +3,11 @@ import { recipe } from '@vanilla-extract/recipes';
 
 import { vars } from '@styles/global.css';
 
+export const container = style({
+  position: 'relative',
+  display: 'inline-block',
+});
+
 export const trigger = recipe({
   base: {
     position: 'relative',

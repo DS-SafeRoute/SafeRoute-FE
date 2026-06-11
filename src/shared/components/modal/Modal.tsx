@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 import { createPortal } from 'react-dom';
 
@@ -8,7 +8,7 @@ import * as styles from './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
 
-type BaseProps = {
+export type ModalProps = {
   open: boolean;
   onClose: () => void;
   size?: ModalSize;
@@ -17,37 +17,79 @@ type BaseProps = {
   title: string;
   description?: string;
   warning?: string;
+  variant?: 'form' | 'confirm';
 };
 
-// 폼 모달: 헤더(타이틀 + X) + 콘텐츠 + 푸터
-type FormModalProps = BaseProps & {
-  variant?: 'form';
-};
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
-// 확인 모달: 타이틀 + 설명 + 경고박스(선택) + 푸터, X 없음
-type ConfirmModalProps = BaseProps & {
-  variant: 'confirm';
-};
-
-export type ModalProps = FormModalProps | ConfirmModalProps;
-
-const Modal = (props: ModalProps) => {
-  const { open, onClose, size = 'md', children, footer } = props;
-  const variant = props.variant ?? 'form';
+const Modal = ({
+  open,
+  onClose,
+  size = 'md',
+  children,
+  footer,
+  title,
+  description,
+  warning,
+  variant = 'form',
+}: ModalProps) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<Element | null>(null);
 
   useEffect(() => {
     if (!open) return;
 
+    previousFocusRef.current = document.activeElement;
+    document.body.style.overflow = 'hidden';
+
+    // 첫 포커스 이동
+    const focusables = modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
+    if (focusables && focusables.length > 0) {
+      focusables[0].focus();
+    } else {
+      modalRef.current?.focus();
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      // focus trap
+      if (e.key !== 'Tab') return;
+      const elements = Array.from(modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+      if (elements.length === 0) return;
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      (previousFocusRef.current as HTMLElement | null)?.focus();
     };
   }, [open, onClose]);
 
@@ -63,14 +105,14 @@ const Modal = (props: ModalProps) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={styles.container({ size })}>
+      <div ref={modalRef} className={styles.container({ size })} tabIndex={-1}>
         {variant === 'form' && (
           <div className={styles.header}>
             <div className={styles.headerText}>
               <h2 id="modal-title" className={styles.title}>
-                {props.title}
+                {title}
               </h2>
-              {props.description && <p className={styles.description}>{props.description}</p>}
+              {description && <p className={styles.description}>{description}</p>}
             </div>
             <button
               type="button"
@@ -86,10 +128,10 @@ const Modal = (props: ModalProps) => {
         {variant === 'confirm' && (
           <div className={styles.confirmBody}>
             <h2 id="modal-title" className={styles.confirmTitle}>
-              {props.title}
+              {title}
             </h2>
-            {props.description && <p className={styles.confirmDescription}>{props.description}</p>}
-            {props.warning && <p className={styles.warningBox}>{props.warning}</p>}
+            {description && <p className={styles.confirmDescription}>{description}</p>}
+            {warning && <p className={styles.warningBox}>{warning}</p>}
           </div>
         )}
 

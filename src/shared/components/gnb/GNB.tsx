@@ -8,7 +8,7 @@ type BreadcrumbItem = {
   label: string;
 };
 
-type Props = {
+export type GNBProps = {
   breadcrumbs?: BreadcrumbItem[];
   title: string;
   description?: string;
@@ -16,13 +16,13 @@ type Props = {
   userRole?: string;
 };
 
-const GNB = ({ breadcrumbs, title, description, userName, userRole }: Props) => (
+const GNB = ({ breadcrumbs, title, description, userName, userRole }: GNBProps) => (
   <header className={styles.container}>
     <div className={styles.left}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav className={styles.breadcrumb} aria-label="breadcrumb">
           {breadcrumbs.map((item, index) => (
-            <span key={index} className={styles.breadcrumb}>
+            <span key={`${item.label}-${index}`} className={styles.breadcrumb}>
               {index > 0 && (
                 <ChevronRightIcon className={styles.breadcrumbSep} width={12} height={12} />
               )}

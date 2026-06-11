@@ -9,10 +9,14 @@ const meta = {
   args: {
     name: '김안전',
     size: 'md',
+    role: '관리자',
+    showNameGroup: false,
   },
   argTypes: {
     size: { control: 'inline-radio', options: ['sm', 'md', 'lg'] },
     status: { control: 'inline-radio', options: ['online', 'away', 'offline'] },
+    showNameGroup: { control: 'boolean' },
+    role: { control: 'text' },
   },
 } satisfies Meta<typeof Avatar>;
 

@@ -3,7 +3,7 @@ import * as styles from './Avatar.css';
 export type AvatarSize = 'sm' | 'md' | 'lg';
 export type AvatarStatus = 'online' | 'away' | 'offline';
 
-type Props = {
+export type AvatarProps = {
   name: string;
   size?: AvatarSize;
   status?: AvatarStatus;
@@ -12,7 +12,14 @@ type Props = {
   showNameGroup?: boolean;
 };
 
-const Avatar = ({ name, size = 'md', status, imageSrc, role, showNameGroup = false }: Props) => {
+const Avatar = ({
+  name,
+  size = 'md',
+  status,
+  imageSrc,
+  role,
+  showNameGroup = false,
+}: AvatarProps) => {
   const initial = name.charAt(0);
 
   const avatarEl = (

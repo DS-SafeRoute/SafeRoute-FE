@@ -10,7 +10,7 @@ export type DropdownOption<T extends string = string> = {
   value: T;
 };
 
-type Props<T extends string = string> = {
+export type DropdownProps<T extends string = string> = {
   options: DropdownOption<T>[];
   value: T;
   onChange: (value: T) => void;
@@ -24,7 +24,7 @@ const Dropdown = <T extends string = string>({
   onChange,
   placeholder = '선택',
   disabled = false,
-}: Props<T>) => {
+}: DropdownProps<T>) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -58,7 +58,7 @@ const Dropdown = <T extends string = string>({
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <div ref={containerRef} className={styles.container}>
       <button
         type="button"
         className={styles.trigger({ disabled })}
