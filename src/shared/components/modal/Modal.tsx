@@ -8,7 +8,7 @@ import * as styles from './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
 
-export type ModalProps = {
+export interface ModalProps {
   open: boolean;
   onClose: () => void;
   size?: ModalSize;
@@ -18,7 +18,7 @@ export type ModalProps = {
   description?: string;
   warning?: string;
   variant?: 'form' | 'confirm';
-};
+}
 
 const FOCUSABLE = [
   'a[href]',
