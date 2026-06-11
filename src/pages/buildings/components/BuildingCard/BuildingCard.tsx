@@ -1,5 +1,5 @@
-import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
+import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
@@ -35,6 +35,8 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
         />
       </div>
 
+      <div className={styles.divider} />
+
       <div className={styles.stats}>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -45,7 +47,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
-            <CameraIcon className={styles.statIcon} width={14} height={14} />
+            <CameraIcon className={styles.cctvIcon} width={14} height={14} />
             CCTV
           </span>
           <span className={styles.statValue}>
@@ -54,15 +56,23 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
-            <WifiIcon className={styles.statIcon} width={14} height={14} />
+            <WifiIcon className={styles.iotIcon} width={14} height={14} />
             IoT 유도등
           </span>
-          <span className={isIotWarning ? styles.statValueWarning : styles.statValue}>
-            {building.iotOnline}/{building.iotTotal}
-            {isIotWarning && ' ⚠'}
-          </span>
+          {isIotWarning ? (
+            <span className={styles.statValueWarning}>
+              {building.iotOnline}/{building.iotTotal}
+              <span>⚠</span>
+            </span>
+          ) : (
+            <span className={styles.statValue}>
+              {building.iotOnline}/{building.iotTotal}
+            </span>
+          )}
         </div>
       </div>
+
+      <div className={styles.divider} />
 
       <div className={styles.footer}>
         <button
@@ -71,7 +81,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
           onClick={() => onFloorPlan(building)}
         >
           도면 관리
-          <ArrowRightIcon width={14} height={14} />
+          <ChevronRightIcon width={14} height={14} />
         </button>
         <button
           type="button"
