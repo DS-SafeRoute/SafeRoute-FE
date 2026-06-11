@@ -4,6 +4,8 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import GNB from '@components/gnb';
+import ToastContainer from '@components/toast/ToastContainer';
+import useToast from '@components/toast/useToast';
 
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
@@ -26,6 +28,7 @@ type ModalState =
 const BuildingsPage = () => {
   const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
   const [modal, setModal] = useState<ModalState>(null);
+  const { toasts, leavingIds, show, dismiss } = useToast();
 
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
@@ -37,23 +40,42 @@ const BuildingsPage = () => {
     patch: Partial<Pick<Building, 'aboveFloors' | 'belowFloors' | 'floorPlans'>>,
   ) => {
     setBuildings((prev) => prev.map((b) => (b.id === buildingId ? { ...b, ...patch } : b)));
+    if (patch.floorPlans !== undefined) {
+      show({ title: '도면이 업데이트되었습니다.', variant: 'success' });
+    }
   };
 
   const handleConfirmAdd = (building: Omit<Building, 'id'>) => {
     const newId = Math.max(0, ...buildings.map((b) => b.id)) + 1;
     setBuildings((prev) => [...prev, { id: newId, ...building }]);
     setModal(null);
+    show({
+      title: '건물이 추가되었습니다.',
+      description: `${building.name}이(가) 등록되었습니다.`,
+      variant: 'success',
+    });
   };
 
   const handleConfirmEdit = (updated: Building) => {
     setBuildings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
     setModal(null);
+    show({
+      title: '건물 정보가 수정되었습니다.',
+      description: `${updated.name} 정보가 업데이트되었습니다.`,
+      variant: 'success',
+    });
   };
 
   const handleConfirmDelete = () => {
     if (modal?.type !== 'delete') return;
-    setBuildings((prev) => prev.filter((b) => b.id !== modal.building.id));
+    const { building } = modal;
+    setBuildings((prev) => prev.filter((b) => b.id !== building.id));
     setModal(null);
+    show({
+      title: '건물이 삭제되었습니다.',
+      description: `${building.name}이(가) 삭제되었습니다.`,
+      variant: 'default',
+    });
   };
 
   const handleCloseModal = () => setModal(null);
@@ -122,6 +144,8 @@ const BuildingsPage = () => {
           onUpdate={handleUpdateFloorPlans}
         />
       )}
+
+      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
     </>
   );
 };

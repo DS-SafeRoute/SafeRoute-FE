@@ -81,14 +81,14 @@ export const menu = style({
   borderRadius: vars.radius.lg,
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
   backgroundColor: vars.color.white,
-  minWidth: '10rem',
+  minWidth: '7.2rem',
   overflow: 'hidden',
 });
 
 export const menuItem = style({
   cursor: 'pointer',
   padding: `${vars.space.s3} ${vars.space.s4}`,
-  textAlign: 'left',
+  textAlign: 'center',
   color: vars.color.textHigh,
   ...vars.typography.body14,
   selectors: {
@@ -99,7 +99,7 @@ export const menuItem = style({
 export const menuItemDanger = style({
   cursor: 'pointer',
   padding: `${vars.space.s3} ${vars.space.s4}`,
-  textAlign: 'left',
+  textAlign: 'center',
   color: vars.color.danger,
   ...vars.typography.body14,
   selectors: {

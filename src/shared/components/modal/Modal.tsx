@@ -49,7 +49,9 @@ const Modal = ({
     if (!open) return;
 
     previousFocusRef.current = document.activeElement;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -83,6 +85,7 @@ const Modal = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
       (previousFocusRef.current as HTMLElement | null)?.focus();
     };
   }, [open]);
