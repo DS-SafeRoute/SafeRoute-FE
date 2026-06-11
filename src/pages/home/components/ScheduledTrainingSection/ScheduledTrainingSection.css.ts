@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -24,6 +24,7 @@ export const sectionTitleRow = style({
 
 export const titleIcon = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'center',
   width: '2rem',
   height: '2rem',
@@ -32,7 +33,7 @@ export const titleIcon = style({
 
 export const sectionTitle = style({
   color: vars.color.textHigh,
-  ...vars.typography.titleBold,
+  ...vars.typography.body14_bold,
 });
 
 export const scheduleInfoPanel = style({

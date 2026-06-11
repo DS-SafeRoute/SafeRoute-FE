@@ -76,6 +76,13 @@ export const vars = createGlobalTheme(':root', {
     s12: '4.8rem',
   },
   typography: {
+    body14_bold: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.4rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.5',
+    },
     body14: {
       fontFamily: baseFontFamily,
       fontSize: '1.4rem',
