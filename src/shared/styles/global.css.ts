@@ -76,6 +76,13 @@ export const vars = createGlobalTheme(':root', {
     s12: '4.8rem',
   },
   typography: {
+    body14Bold: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.4rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.5',
+    },
     body14: {
       fontFamily: baseFontFamily,
       fontSize: '1.4rem',
@@ -118,6 +125,13 @@ export const vars = createGlobalTheme(':root', {
       letterSpacing: '-0.02em',
       lineHeight: '1.5',
     },
+    caption13Bold: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.3rem',
+      fontWeight: '700',
+      letterSpacing: '-0.012rem',
+      lineHeight: '1.68rem',
+    },
     h1: {
       fontFamily: baseFontFamily,
       fontSize: '4.8rem',
@@ -151,6 +165,13 @@ export const vars = createGlobalTheme(':root', {
       fontSize: '1.7rem',
       fontWeight: '700',
       letterSpacing: '-0.03em',
+      lineHeight: '1.4',
+    },
+    titleBold28: {
+      fontFamily: baseFontFamily,
+      fontSize: '2.8rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
       lineHeight: '1.4',
     },
   },

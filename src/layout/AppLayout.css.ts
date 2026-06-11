@@ -4,7 +4,7 @@ import { vars } from '@styles/global.css';
 
 export const container = style({
   display: 'flex',
-  backgroundColor: vars.color.gray100,
+  backgroundColor: vars.color.gray50,
   height: '100%',
 });
 
