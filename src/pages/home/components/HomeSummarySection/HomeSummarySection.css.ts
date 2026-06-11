@@ -7,7 +7,7 @@ import { sectionCardBase } from '../../HomePage.css';
 const summaryCardBase = style([
   sectionCardBase,
   {
-    borderRadius: '1.2rem',
+    borderRadius: vars.radius.lg,
   },
 ]);
 
@@ -95,7 +95,7 @@ export const metricValueRow = style({
 
 export const metricValue = style({
   color: vars.color.gray900,
-  ...vars.typography.title_b_28,
+  ...vars.typography.titleBold28,
 });
 
 export const metricSuffix = style({

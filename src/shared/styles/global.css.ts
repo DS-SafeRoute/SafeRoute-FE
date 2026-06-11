@@ -76,7 +76,7 @@ export const vars = createGlobalTheme(':root', {
     s12: '4.8rem',
   },
   typography: {
-    body14_bold: {
+    body14Bold: {
       fontFamily: baseFontFamily,
       fontSize: '1.4rem',
       fontWeight: '700',
@@ -167,7 +167,7 @@ export const vars = createGlobalTheme(':root', {
       letterSpacing: '-0.03em',
       lineHeight: '1.4',
     },
-    title_b_28: {
+    titleBold28: {
       fontFamily: baseFontFamily,
       fontSize: '2.8rem',
       fontWeight: '700',

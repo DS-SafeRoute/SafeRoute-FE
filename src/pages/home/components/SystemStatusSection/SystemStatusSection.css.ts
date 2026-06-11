@@ -28,7 +28,7 @@ export const sectionTitleRow = style({
 
 export const sectionTitle = style({
   color: vars.color.textHigh,
-  ...vars.typography.body14_bold,
+  ...vars.typography.body14Bold,
 });
 
 export const systemList = style({
