@@ -50,6 +50,7 @@ const Modal = ({
 
     previousFocusRef.current = document.activeElement;
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const prevPaddingRight = document.body.style.paddingRight;
     document.body.style.overflow = 'hidden';
     document.body.style.paddingRight = `${scrollbarWidth}px`;
 
@@ -85,7 +86,7 @@ const Modal = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
+      document.body.style.paddingRight = prevPaddingRight;
       (previousFocusRef.current as HTMLElement | null)?.focus();
     };
   }, [open]);

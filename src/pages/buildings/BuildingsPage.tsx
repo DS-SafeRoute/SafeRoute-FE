@@ -40,7 +40,11 @@ const BuildingsPage = () => {
     patch: Partial<Pick<Building, 'aboveFloors' | 'belowFloors' | 'floorPlans'>>,
   ) => {
     setBuildings((prev) => prev.map((b) => (b.id === buildingId ? { ...b, ...patch } : b)));
-    if (patch.floorPlans !== undefined) {
+    if (
+      patch.floorPlans !== undefined &&
+      patch.aboveFloors === undefined &&
+      patch.belowFloors === undefined
+    ) {
       show({ title: '도면이 업데이트되었습니다.', variant: 'success' });
     }
   };
