@@ -2,7 +2,7 @@ import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-export const page = style({
+export const container = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s6,

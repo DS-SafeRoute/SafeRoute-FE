@@ -56,7 +56,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className={styles.page}>
+    <div className={styles.container}>
       <HomeSummarySection
         metrics={homeMetrics.map((metric) => ({
           ...metric,
