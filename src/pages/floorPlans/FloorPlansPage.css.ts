@@ -128,6 +128,24 @@ export const metaValueFailed = style({
   ...vars.typography.caption,
 });
 
+export const uploadButton = style({
+  border: `1px solid ${vars.color.primary}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primary,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} 0`,
+  width: '100%',
+  textAlign: 'center',
+  color: vars.color.white,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.primaryHover,
+      backgroundColor: vars.color.primaryHover,
+    },
+  },
+});
+
 export const manageButton = style({
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
@@ -139,9 +157,13 @@ export const manageButton = style({
   color: vars.color.textMid,
   ...vars.typography.body14,
   selectors: {
-    '&:hover': {
+    '&:hover:not(:disabled)': {
       borderColor: vars.color.gray300,
       backgroundColor: vars.color.gray25,
+    },
+    '&:disabled': {
+      opacity: '0.5',
+      cursor: 'not-allowed',
     },
   },
 });

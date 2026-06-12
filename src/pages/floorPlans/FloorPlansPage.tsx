@@ -1,13 +1,18 @@
+import { useState } from 'react';
+
 import { useNavigate } from 'react-router';
 
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import GNB from '@components/gnb';
+import ToastContainer from '@components/toast/ToastContainer';
+import useToast from '@components/toast/useToast';
 
 import * as styles from './FloorPlansPage.css';
 import { mockFloorBuildings } from './mocks/floorPlansData';
+import FloorUploadModal from './modals/FloorUploadModal';
 
-import type { Floor, SegmentationStatus } from './types/floorPlans';
+import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
 const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBadgeColor }> = {
   NONE: { label: '미등록', color: 'neutral' },
@@ -40,14 +45,27 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
   return <span className={styles.metaValue}>—</span>;
 };
 
+type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
+
 interface FloorCardProps {
-  floor: Floor;
+  floor: {
+    id: number;
+    floorNum: number;
+    mapImageUrl: string | null;
+    segmentationStatus: SegmentationStatus;
+    processedAt: string | null;
+  };
   buildingId: number;
   onManage: (buildingId: number, floorId: number) => void;
+  onUpload: (target: UploadTarget) => void;
+  buildingName: string;
 }
 
-const FloorCard = ({ floor, buildingId, onManage }: FloorCardProps) => {
+const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: FloorCardProps) => {
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
+  const isProcessing =
+    floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
+  const isNone = floor.segmentationStatus === 'NONE';
 
   return (
     <div className={styles.floorCard}>
@@ -73,22 +91,67 @@ const FloorCard = ({ floor, buildingId, onManage }: FloorCardProps) => {
         </div>
       </div>
 
-      <button
-        type="button"
-        className={styles.manageButton}
-        onClick={() => onManage(buildingId, floor.id)}
-      >
-        도면 관리
-      </button>
+      {isNone ? (
+        <button
+          type="button"
+          className={styles.uploadButton}
+          onClick={() =>
+            onUpload({ buildingId, buildingName, floorId: floor.id, floorNum: floor.floorNum })
+          }
+        >
+          도면 업로드
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={styles.manageButton}
+          disabled={isProcessing}
+          onClick={() => !isProcessing && onManage(buildingId, floor.id)}
+        >
+          {isProcessing ? '처리 중...' : '도면 관리'}
+        </button>
+      )}
     </div>
   );
 };
 
 const FloorPlansPage = () => {
   const navigate = useNavigate();
+  const { toasts, leavingIds, show, dismiss } = useToast();
+  const [buildings, setBuildings] = useState<FloorBuilding[]>(mockFloorBuildings);
+  const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
 
   const handleManage = (buildingId: number, floorId: number) => {
     void navigate(`/floorPlans/${buildingId}/${floorId}`);
+  };
+
+  const handleUploadConfirm = (file: File) => {
+    if (!uploadTarget) return;
+    setBuildings((prev) =>
+      prev.map((b) =>
+        b.id !== uploadTarget.buildingId
+          ? b
+          : {
+              ...b,
+              floors: b.floors.map((f) =>
+                f.id !== uploadTarget.floorId
+                  ? f
+                  : {
+                      ...f,
+                      mapImageUrl: URL.createObjectURL(file),
+                      segmentationStatus: 'PENDING' as const,
+                      processedAt: new Date().toISOString(),
+                    },
+              ),
+            },
+      ),
+    );
+    setUploadTarget(null);
+    show({
+      title: '도면이 업로드되었습니다.',
+      description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
+      variant: 'success',
+    });
   };
 
   return (
@@ -102,7 +165,7 @@ const FloorPlansPage = () => {
       />
 
       <div className={styles.container}>
-        {mockFloorBuildings.map((building) => (
+        {buildings.map((building) => (
           <section key={building.id} className={styles.buildingSection}>
             <div className={styles.buildingHeader}>
               <div className={styles.buildingDot} aria-hidden="true" />
@@ -116,13 +179,27 @@ const FloorPlansPage = () => {
                   key={floor.id}
                   floor={floor}
                   buildingId={building.id}
+                  buildingName={building.name}
                   onManage={handleManage}
+                  onUpload={setUploadTarget}
                 />
               ))}
             </div>
           </section>
         ))}
       </div>
+
+      {uploadTarget && (
+        <FloorUploadModal
+          open
+          onClose={() => setUploadTarget(null)}
+          buildingName={uploadTarget.buildingName}
+          floorNum={uploadTarget.floorNum}
+          onConfirm={handleUploadConfirm}
+        />
+      )}
+
+      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
     </>
   );
 };
