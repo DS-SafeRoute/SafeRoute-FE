@@ -34,7 +34,7 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
       setForm({ name: building.name, area: String(building.area) });
       setErrors({});
     }
-  }, [open, building]);
+  }, [open, building.id, building.name, building.area]);
 
   const handleChange = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
