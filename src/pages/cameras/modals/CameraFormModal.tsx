@@ -107,7 +107,7 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
     if (!form.rtspUrl.trim()) next.rtspUrl = 'RTSP URL을 입력해 주세요';
     else if (!form.rtspUrl.trim().startsWith('rtsp://')) next.rtspUrl = 'rtsp://로 시작해야 합니다';
     if (!form.ipAddress.trim()) next.ipAddress = 'IP 주소를 입력해 주세요';
-    if (form.fps.trim() && (!/^\d+$/.test(form.fps.trim()) || Number(form.fps) < 0))
+    if (form.fps.trim() && (!/^\d+$/.test(form.fps.trim()) || Number(form.fps) <= 0))
       next.fps = '올바른 FPS를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
