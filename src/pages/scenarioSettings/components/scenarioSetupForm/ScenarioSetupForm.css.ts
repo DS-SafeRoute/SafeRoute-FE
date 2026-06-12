@@ -32,14 +32,14 @@ export const floorPlan = style({
 export const room = style({
   position: 'absolute',
   inset: 0,
-  border: '2px solid #374151',
+  border: `2px solid  ${vars.color.gray500}`,
 });
 
 export const divider = style({
   position: 'absolute',
   top: 0,
   bottom: 0,
-  borderLeft: '2px solid #374151',
+  borderLeft: `2px solid  ${vars.color.gray500}`,
 });
 
 export const firstDivider = style({

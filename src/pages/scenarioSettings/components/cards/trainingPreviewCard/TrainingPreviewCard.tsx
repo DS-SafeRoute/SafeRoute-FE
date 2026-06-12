@@ -18,6 +18,7 @@ const TrainingPreviewCard = ({ status, metrics }: TrainingPreviewCardProps) => (
       <StatusBadge label={status.label} color={status.color} dot={status.dot} />
     </div>
 
+    {/* TODO: 실제 뷰어로 바꾸기 */}
     <div className={styles.previewBox}>3D Digital Twin Preview</div>
 
     <div className={styles.metricList}>

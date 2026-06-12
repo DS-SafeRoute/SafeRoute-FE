@@ -59,14 +59,14 @@ const HomePage = () => {
 
   return (
     <div className={styles.container}>
-      <div>
+      <header>
         <GNB
           title="홈"
           description="화재 대피 훈련 현황을 한눈에 확인하세요."
           userName="김안전"
           userRole="관리자"
         />
-      </div>
+      </header>
       <div className={styles.sectionContainer}>
         <HomeSummarySection
           metrics={homeMetrics.map((metric) => ({

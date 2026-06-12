@@ -72,6 +72,7 @@ export const vars = createGlobalTheme(':root', {
     s2: '0.8rem',
     s3: '1.2rem',
     s4: '1.6rem',
+    s5: '2rem',
     s6: '2.4rem',
     s8: '3.2rem',
     s12: '4.8rem',

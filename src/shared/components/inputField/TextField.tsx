@@ -1,6 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import type { ComponentPropsWithoutRef } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
 import clsx from 'clsx';
 

@@ -8,7 +8,7 @@ export const card = style([
   sectionCardBase,
   {
     backgroundColor: vars.color.gray200,
-    padding: '2rem',
+    padding: vars.space.s5,
   },
 ]);
 

@@ -19,14 +19,14 @@ import * as styles from './ScenarioSettingsPage.css';
 
 const ScenarioSettingsPage = () => (
   <div className={styles.container}>
-    <div>
+    <header>
       <GNB
         title="훈련 관리"
         description="화재 발생 위치와 조건을 설정하고 시나리오를 시작합니다"
         userName="김안전"
         userRole="관리자"
       />
-    </div>
+    </header>
     <div className={styles.sectionContainer}>
       <div className={styles.contentGrid}>
         <div className={styles.mainColumn}>

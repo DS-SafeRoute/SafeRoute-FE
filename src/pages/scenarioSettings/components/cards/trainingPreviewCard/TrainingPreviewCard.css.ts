@@ -7,7 +7,7 @@ import { vars } from '@styles/global.css';
 export const card = style([
   sectionCardBase,
   {
-    padding: '2rem',
+    padding: vars.space.s5,
   },
 ]);
 

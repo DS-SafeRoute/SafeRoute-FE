@@ -12,7 +12,7 @@ export const sectionContainer = style({
   display: 'flex',
   flex: 1,
   flexDirection: 'column',
-  padding: '2.4rem',
+  padding: vars.space.s6,
 });
 
 export const sectionCardBase = style({
@@ -25,7 +25,7 @@ export const sectionCardBase = style({
 export const mainSectionCard = style([
   sectionCardBase,
   {
-    padding: '2.4rem',
+    padding: vars.space.s6,
   },
 ]);
 
