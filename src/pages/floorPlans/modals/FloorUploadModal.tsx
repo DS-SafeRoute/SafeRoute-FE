@@ -49,7 +49,8 @@ const FloorUploadModal = ({
     e.preventDefault();
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
-    if (dropped && dropped.type.startsWith('image/')) handleFileSelect(dropped);
+    const allowed = ['image/png', 'image/jpeg', 'application/pdf'];
+    if (dropped && allowed.includes(dropped.type)) handleFileSelect(dropped);
   };
 
   const handleConfirm = () => {
@@ -115,14 +116,14 @@ const FloorUploadModal = ({
         >
           <UploadIcon width={28} height={28} className={styles.dropzoneIcon} />
           <span className={styles.dropzoneText}>클릭하거나 파일을 드래그해 주세요</span>
-          <span className={styles.dropzoneHint}>PNG, JPG, PDF 지원</span>
+          <span className={styles.dropzoneHint}>PNG, JPG, PDF 형식만 지원</span>
         </div>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/png,image/jpeg,.pdf"
         className={styles.fileInput}
         onChange={handleInputChange}
       />
