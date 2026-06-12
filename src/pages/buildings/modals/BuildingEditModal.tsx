@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
@@ -26,6 +26,13 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
     area: String(building.area),
   });
   const [errors, setErrors] = useState<Partial<FormState>>({});
+
+  useEffect(() => {
+    if (open) {
+      setForm({ name: building.name, area: String(building.area) });
+      setErrors({});
+    }
+  }, [open, building]);
 
   const handleChange = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));

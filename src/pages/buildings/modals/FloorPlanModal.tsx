@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import EditIcon from '@assets/icons/ic-edit.svg?react';
 
@@ -34,6 +34,16 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
   const [belowFloors, setBelowFloors] = useState(building.belowFloors);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [isEditingFloors, setIsEditingFloors] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setUploadedFloors(building.floorPlans);
+      setAboveFloors(building.aboveFloors);
+      setBelowFloors(building.belowFloors);
+      setConfirm(null);
+      setIsEditingFloors(false);
+    }
+  }, [open, building]);
 
   const isUploaded = (floor: number) => uploadedFloors.includes(floor);
 
