@@ -12,6 +12,7 @@ export const sectionContainer = style({
   display: 'flex',
   flex: 1,
   flexDirection: 'column',
+  gap: vars.space.s6,
   padding: '2.4rem',
 });
 
