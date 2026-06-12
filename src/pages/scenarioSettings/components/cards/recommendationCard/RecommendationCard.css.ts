@@ -9,7 +9,6 @@ export const card = style([
   {
     backgroundColor: vars.color.gray200,
     padding: '2rem',
-    minWidth: '36rem',
   },
 ]);
 
@@ -18,11 +17,6 @@ export const titleRow = style({
   alignItems: 'center',
   gap: vars.space.s2,
   marginBottom: vars.space.s2,
-});
-
-export const title = style({
-  color: vars.color.textHigh,
-  ...vars.typography.body14Bold,
 });
 
 globalStyle(`${titleRow} svg`, {

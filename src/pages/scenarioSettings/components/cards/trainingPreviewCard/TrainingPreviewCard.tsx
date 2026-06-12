@@ -1,18 +1,21 @@
+import { sideCardTitle } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
+
 import StatusBadge from '@components/chip/StatusBadge';
 
 import * as styles from './TrainingPreviewCard.css';
 
-import type { PreviewMetric } from '../../../types/scenarioSettings';
+import type { PreviewMetric, PreviewStatus } from '../../../types/scenarioSettings';
 
 interface TrainingPreviewCardProps {
+  status: PreviewStatus;
   metrics: PreviewMetric[];
 }
 
-const TrainingPreviewCard = ({ metrics }: TrainingPreviewCardProps) => (
+const TrainingPreviewCard = ({ status, metrics }: TrainingPreviewCardProps) => (
   <section className={styles.card}>
     <div className={styles.header}>
-      <h2 className={styles.title}>훈련 미리보기</h2>
-      <StatusBadge label="준비 완료" color="green" dot />
+      <h2 className={sideCardTitle}>훈련 미리보기</h2>
+      <StatusBadge label={status.label} color={status.color} dot={status.dot} />
     </div>
 
     <div className={styles.previewBox}>3D Digital Twin Preview</div>

@@ -18,18 +18,13 @@ export const header = style({
   gap: vars.space.s3,
 });
 
-export const title = style({
-  color: vars.color.textHigh,
-  ...vars.typography.body14Bold,
-});
-
 export const previewBox = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   marginTop: vars.space.s3,
   border: `1px dashed ${vars.color.textMid}`,
-  borderRadius: '1.2rem',
+  borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   minHeight: '18rem',
   color: vars.color.textMid,
