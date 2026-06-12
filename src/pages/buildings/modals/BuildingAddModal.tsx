@@ -4,6 +4,8 @@ import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
+import { isNonNegativeInt, isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
+
 import * as styles from './BuildingAddModal.css';
 
 import type { Building } from '../types/buildings';
@@ -22,10 +24,6 @@ interface FormState {
 }
 
 const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '', belowFloors: '' };
-
-const isPositiveNumber = (v: string) => /^\d+(\.\d+)?$/.test(v.trim()) && Number(v) > 0;
-const isPositiveInt = (v: string) => /^\d+$/.test(v.trim()) && Number(v) > 0;
-const isNonNegativeInt = (v: string) => /^\d+$/.test(v.trim()) && Number(v) >= 0;
 
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
