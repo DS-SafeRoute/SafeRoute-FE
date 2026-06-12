@@ -11,7 +11,7 @@ export const root = style({
 
 export const label = style({
   color: vars.color.textHigh,
-  ...vars.typography.body14,
+  ...vars.typography.body14Medium,
 });
 
 export const fieldShell = recipe({
