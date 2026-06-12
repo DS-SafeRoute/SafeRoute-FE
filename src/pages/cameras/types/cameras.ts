@@ -5,12 +5,14 @@ export interface Camera {
   name: string;
   buildingId: number;
   buildingName: string;
+  floorId: number;
   floor: number;
   zone: string;
   rtspUrl: string;
   username: string;
   password: string;
-  status: CameraStatus;
   ipAddress: string;
+  isActive: boolean;
+  status: CameraStatus;
   fps: number;
 }
