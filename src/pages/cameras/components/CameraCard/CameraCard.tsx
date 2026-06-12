@@ -15,6 +15,12 @@ interface CameraCardProps {
   onToggleActive: (camera: Camera) => void;
 }
 
+const formatFloor = (floor: number) => {
+  if (floor > 0) return `${floor}층`;
+  if (floor < 0) return `B${Math.abs(floor)}층`;
+  return '1층';
+};
+
 const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProps) => {
   const isOnline = camera.status === 'online';
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,8 +33,15 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProp
         setMenuOpen(false);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [menuOpen]);
 
   return (
@@ -53,8 +66,7 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProp
           </div>
           <span className={styles.zone}>{camera.zone}</span>
           <span className={styles.building}>
-            {camera.buildingName} ·{' '}
-            {camera.floor > 0 ? `${camera.floor}층` : `B${Math.abs(camera.floor)}층`}
+            {camera.buildingName} · {formatFloor(camera.floor)}
           </span>
         </div>
 
@@ -63,6 +75,8 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProp
             type="button"
             className={styles.kebabButton}
             aria-label="더보기"
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
             onClick={() => setMenuOpen((prev) => !prev)}
           >
             <span className={styles.kebabDot} />
@@ -70,9 +84,10 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProp
             <span className={styles.kebabDot} />
           </button>
           {menuOpen && (
-            <div className={styles.menu}>
+            <div className={styles.menu} role="menu">
               <button
                 type="button"
+                role="menuitem"
                 className={styles.menuItem}
                 onClick={() => {
                   setMenuOpen(false);
@@ -83,6 +98,7 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProp
               </button>
               <button
                 type="button"
+                role="menuitem"
                 className={styles.menuItem}
                 onClick={() => {
                   setMenuOpen(false);
@@ -93,6 +109,7 @@ const CameraCard = ({ camera, onEdit, onDelete, onToggleActive }: CameraCardProp
               </button>
               <button
                 type="button"
+                role="menuitem"
                 className={styles.menuItemDanger}
                 onClick={() => {
                   setMenuOpen(false);
