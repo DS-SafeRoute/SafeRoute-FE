@@ -5,7 +5,8 @@ import { vars } from '@styles/global.css';
 export const container = style({
   display: 'flex',
   backgroundColor: vars.color.gray50,
-  height: '100%',
+  height: '100vh',
+  overflow: 'hidden',
 });
 
 export const main = style({
@@ -13,4 +14,6 @@ export const main = style({
   flex: 1,
   flexDirection: 'column',
   minWidth: 0,
+  minHeight: 0,
+  overflowY: 'auto',
 });

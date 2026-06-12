@@ -2,6 +2,7 @@ import PlayIcon from '@assets/icons/ic-play.svg?react';
 import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
 import { Button } from '@components/Button';
+import GNB from '@components/gnb/GNB';
 
 import RecommendationCard from './components/cards/recommendationCard/RecommendationCard';
 import TrainingPreviewCard from './components/cards/trainingPreviewCard/TrainingPreviewCard';
@@ -18,25 +19,35 @@ import * as styles from './ScenarioSettingsPage.css';
 
 const ScenarioSettingsPage = () => (
   <div className={styles.container}>
-    <div className={styles.contentGrid}>
-      <div className={styles.mainColumn}>
-        <ScenarioSetupForm
-          basicInfo={basicInfo}
-          conditions={selectedFireConditions}
-          options={fireConditionOptions}
-        />
-      </div>
+    <div>
+      <GNB
+        title="훈련 관리"
+        description="화재 발생 위치와 조건을 설정하고 시나리오를 시작합니다"
+        userName="김안전"
+        userRole="관리자"
+      />
+    </div>
+    <div className={styles.sectionContainer}>
+      <div className={styles.contentGrid}>
+        <div className={styles.mainColumn}>
+          <ScenarioSetupForm
+            basicInfo={basicInfo}
+            conditions={selectedFireConditions}
+            options={fireConditionOptions}
+          />
+        </div>
 
-      <aside className={styles.sideColumn}>
-        <Button type="button" size="lg" fullWidth leftIcon={<PlayIcon />}>
-          시나리오 시작
-        </Button>
-        <RecommendationCard icon={<SparklesIcon />} message={recommendationText} />
-        <TrainingPreviewCard status={previewStatus} metrics={previewMetrics} />
-        <Button type="button" variant="ghost" size="lg" fullWidth>
-          임시 저장
-        </Button>
-      </aside>
+        <aside className={styles.sideColumn}>
+          <Button type="button" size="lg" fullWidth leftIcon={<PlayIcon />}>
+            시나리오 시작
+          </Button>
+          <RecommendationCard icon={<SparklesIcon />} message={recommendationText} />
+          <TrainingPreviewCard status={previewStatus} metrics={previewMetrics} />
+          <Button type="button" variant="ghost" size="lg" fullWidth>
+            임시 저장
+          </Button>
+        </aside>
+      </div>
     </div>
   </div>
 );
