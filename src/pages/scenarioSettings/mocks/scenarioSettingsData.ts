@@ -11,6 +11,7 @@ import type {
   FireConditionField,
   FireConditionOptions,
   PreviewMetric,
+  PreviewStatus,
 } from '../types/scenarioSettings';
 
 export const basicInfo: BasicInfo = {
@@ -36,6 +37,12 @@ export const fireConditionOptions: FireConditionOptions = {
 
 export const recommendationText =
   '과거 7회 훈련에서 1층 로비 밀집도가 평균 92%로 병목이 발생했습니다. 서측 계단 우회 경로를 추가 권장합니다.';
+
+export const previewStatus: PreviewStatus = {
+  label: '준비 완료',
+  color: 'green',
+  dot: true,
+};
 
 export const previewMetrics: PreviewMetric[] = [
   { id: 'route', label: '초기 경로 산출', value: '0.5초' },
