@@ -152,6 +152,7 @@ const FloorPlansPage = () => {
       description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
       variant: 'success',
     });
+    void navigate(`/floorPlans/${uploadTarget.buildingId}/${uploadTarget.floorId}`);
   };
 
   return (
