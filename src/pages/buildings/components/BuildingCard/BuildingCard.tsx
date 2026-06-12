@@ -113,7 +113,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
           {isIotWarning ? (
             <span className={styles.statValueWarning}>
               {building.iotOnline}/{building.iotTotal}
-              <span>⚠</span>
+              <span aria-label="경고">⚠</span>
             </span>
           ) : (
             <span className={styles.statValue}>
