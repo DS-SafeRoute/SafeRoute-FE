@@ -33,7 +33,7 @@ const ScenarioSettingsPage = () => (
         </Button>
         <RecommendationCard icon={<SparklesIcon />} message={recommendationText} />
         <TrainingPreviewCard status={previewStatus} metrics={previewMetrics} />
-        <Button type="button" variant="outlined" size="lg" fullWidth>
+        <Button type="button" variant="ghost" size="lg" fullWidth>
           임시 저장
         </Button>
       </aside>
