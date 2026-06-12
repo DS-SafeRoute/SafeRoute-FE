@@ -34,6 +34,7 @@ export const fieldWrap = style({
 });
 
 export const fieldLabel = style({
+  display: 'block',
   color: vars.color.textHigh,
   ...vars.typography.body14,
 });

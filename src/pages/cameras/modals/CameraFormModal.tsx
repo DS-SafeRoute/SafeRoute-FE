@@ -113,7 +113,8 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
 
   const handleConfirm = () => {
     if (!validate()) return;
-    const building = buildings.find((b) => String(b.id) === form.buildingId)!;
+    const building = buildings.find((b) => String(b.id) === form.buildingId);
+    if (!building) return;
     onConfirm({
       name: form.name.trim(),
       buildingId: building.id,
@@ -135,7 +136,7 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
       open={open}
       onClose={onClose}
       title={isEdit ? '카메라 수정' : '카메라 추가'}
-      description={isEdit ? `'${camera!.name}' 정보를 수정합니다` : '새 카메라 정보를 입력합니다'}
+      description={isEdit ? `'${camera?.name}' 정보를 수정합니다` : '새 카메라 정보를 입력합니다'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -156,42 +157,44 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
 
         <div className={styles.row}>
           <div className={styles.fieldWrap}>
-            <label className={styles.fieldLabel}>
+            <label htmlFor="camera-building" className={styles.fieldLabel}>
               건물 *
-              <select
-                className={clsx(styles.select, errors.buildingId && styles.selectError)}
-                value={form.buildingId}
-                onChange={handleBuildingChange}
-              >
-                <option value="">건물 선택</option>
-                {buildings.map((b) => (
-                  <option key={b.id} value={String(b.id)}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              {errors.buildingId && <span className={styles.errorText}>{errors.buildingId}</span>}
             </label>
+            <select
+              id="camera-building"
+              className={clsx(styles.select, errors.buildingId && styles.selectError)}
+              value={form.buildingId}
+              onChange={handleBuildingChange}
+            >
+              <option value="">건물 선택</option>
+              {buildings.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            {errors.buildingId && <span className={styles.errorText}>{errors.buildingId}</span>}
           </div>
 
           <div className={styles.fieldWrap}>
-            <label className={styles.fieldLabel}>
+            <label htmlFor="camera-floor" className={styles.fieldLabel}>
               층수 *
-              <select
-                className={clsx(styles.select, errors.floor && styles.selectError)}
-                value={form.floor}
-                onChange={handleFloorChange}
-                disabled={!selectedBuilding}
-              >
-                <option value="">층수 선택</option>
-                {floorOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              {errors.floor && <span className={styles.errorText}>{errors.floor}</span>}
             </label>
+            <select
+              id="camera-floor"
+              className={clsx(styles.select, errors.floor && styles.selectError)}
+              value={form.floor}
+              onChange={handleFloorChange}
+              disabled={!selectedBuilding}
+            >
+              <option value="">층수 선택</option>
+              {floorOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {errors.floor && <span className={styles.errorText}>{errors.floor}</span>}
           </div>
         </div>
 
