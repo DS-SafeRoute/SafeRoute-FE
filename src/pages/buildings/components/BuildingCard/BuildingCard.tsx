@@ -129,7 +129,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
           className={styles.floorPlanButton}
           onClick={() => onFloorPlan(building)}
         >
-          도면 관리
+          층별 · 도면 관리
           <ChevronRightIcon width={14} height={14} />
         </button>
       </div>
