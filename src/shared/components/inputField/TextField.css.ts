@@ -93,6 +93,14 @@ export const iconButton = style({
   },
 });
 
+export const leftIcon = style({
+  display: 'inline-flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: vars.color.textLow,
+});
+
 export const icon = style({
   width: '1.6rem',
   height: '1.6rem',
