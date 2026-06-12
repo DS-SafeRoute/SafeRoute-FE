@@ -107,6 +107,8 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
     if (!form.rtspUrl.trim()) next.rtspUrl = 'RTSP URL을 입력해 주세요';
     else if (!form.rtspUrl.trim().startsWith('rtsp://')) next.rtspUrl = 'rtsp://로 시작해야 합니다';
     if (!form.ipAddress.trim()) next.ipAddress = 'IP 주소를 입력해 주세요';
+    if (form.fps.trim() && (!/^\d+$/.test(form.fps.trim()) || Number(form.fps) < 0))
+      next.fps = '올바른 FPS를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -165,6 +167,8 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
               className={clsx(styles.select, errors.buildingId && styles.selectError)}
               value={form.buildingId}
               onChange={handleBuildingChange}
+              aria-invalid={Boolean(errors.buildingId)}
+              aria-describedby={errors.buildingId ? 'camera-building-error' : undefined}
             >
               <option value="">건물 선택</option>
               {buildings.map((b) => (
@@ -173,7 +177,11 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
                 </option>
               ))}
             </select>
-            {errors.buildingId && <span className={styles.errorText}>{errors.buildingId}</span>}
+            {errors.buildingId && (
+              <span id="camera-building-error" className={styles.errorText}>
+                {errors.buildingId}
+              </span>
+            )}
           </div>
 
           <div className={styles.fieldWrap}>
@@ -186,6 +194,8 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
               value={form.floor}
               onChange={handleFloorChange}
               disabled={!selectedBuilding}
+              aria-invalid={Boolean(errors.floor)}
+              aria-describedby={errors.floor ? 'camera-floor-error' : undefined}
             >
               <option value="">층수 선택</option>
               {floorOptions.map((opt) => (
@@ -194,7 +204,11 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
                 </option>
               ))}
             </select>
-            {errors.floor && <span className={styles.errorText}>{errors.floor}</span>}
+            {errors.floor && (
+              <span id="camera-floor-error" className={styles.errorText}>
+                {errors.floor}
+              </span>
+            )}
           </div>
         </div>
 
