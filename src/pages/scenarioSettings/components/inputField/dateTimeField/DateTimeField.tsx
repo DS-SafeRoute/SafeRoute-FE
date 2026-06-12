@@ -13,7 +13,11 @@ const formatDateTime = (value: string) => {
   if (!value) return '';
 
   const [datePart] = value.split('T');
-  const [year = '', month = '', day = ''] = datePart.split('-');
+  const isDateFormat = /^\d{4}-\d{2}-\d{2}$/.test(datePart);
+
+  if (!isDateFormat) return '';
+
+  const [year, month, day] = datePart.split('-');
 
   return `${year}.${month}.${day}`;
 };
@@ -41,7 +45,7 @@ const DateTimeField = ({ label, defaultValue }: DateTimeFieldProps) => {
       <input
         ref={inputRef}
         type="date"
-        defaultValue={defaultValue}
+        value={value}
         className={styles.hiddenInput}
         onChange={(event) => {
           setValue(event.target.value);
