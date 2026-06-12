@@ -1,9 +1,5 @@
-import { useState } from 'react';
-
-import clsx from 'clsx';
 import { useNavigate } from 'react-router';
 
-import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import GNB from '@components/gnb';
@@ -28,7 +24,7 @@ const formatFloor = (floorNum: number) => {
 };
 
 const formatDate = (iso: string | null) => {
-  if (!iso) return null;
+  if (!iso) return '—';
   return new Date(iso).toLocaleDateString('ko-KR', {
     year: 'numeric',
     month: '2-digit',
@@ -36,132 +32,96 @@ const formatDate = (iso: string | null) => {
   });
 };
 
-const getActionLabel = (status: SegmentationStatus) => {
-  if (status === 'NONE') return '도면 업로드';
-  if (status === 'FAILED') return '재시도';
-  if (status === 'DONE') return '편집';
-  return null;
+const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
+  if (status === 'DONE') return <span className={styles.metaValueDone}>완료</span>;
+  if (status === 'PENDING') return <span className={styles.metaValuePending}>대기중</span>;
+  if (status === 'PROCESSING') return <span className={styles.metaValuePending}>처리중</span>;
+  if (status === 'FAILED') return <span className={styles.metaValueFailed}>실패</span>;
+  return <span className={styles.metaValue}>—</span>;
 };
 
-interface FloorRowProps {
+interface FloorCardProps {
   floor: Floor;
   buildingId: number;
-  onEdit: (buildingId: number, floorId: number) => void;
+  onManage: (buildingId: number, floorId: number) => void;
 }
 
-const FloorRow = ({ floor, buildingId, onEdit }: FloorRowProps) => {
+const FloorCard = ({ floor, buildingId, onManage }: FloorCardProps) => {
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
-  const actionLabel = getActionLabel(floor.segmentationStatus);
-  const isProcessing =
-    floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
 
   return (
     <div className={styles.floorCard}>
-      <div className={styles.thumbnail}>
-        {floor.mapImageUrl ? (
-          <img
-            src={floor.mapImageUrl}
-            alt={`${formatFloor(floor.floorNum)} 도면`}
-            className={styles.thumbnailImg}
-          />
-        ) : (
-          <span className={styles.thumbnailPlaceholder}>없음</span>
-        )}
+      <div className={styles.cardTop}>
+        <div className={styles.cardIconWrap} aria-hidden="true">
+          <div className={styles.cardIconInner} />
+        </div>
+        <StatusBadge label={label} color={color} />
       </div>
 
-      <div className={styles.floorInfo}>
-        <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
-        {floor.processedAt && (
-          <span className={styles.floorMeta}>처리 완료: {formatDate(floor.processedAt)}</span>
-        )}
-        {floor.segmentationStatus === 'DONE' && (
-          <span className={styles.floorMeta}>
-            장치 {floor.devices.length}개 · POI {floor.pois.length}개
-          </span>
-        )}
+      <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
+
+      <div className={styles.divider} />
+
+      <div className={styles.cardMeta}>
+        <div className={styles.metaRow}>
+          <span className={styles.metaKey}>업로드</span>
+          <span className={styles.metaValue}>{formatDate(floor.processedAt)}</span>
+        </div>
+        <div className={styles.metaRow}>
+          <span className={styles.metaKey}>AI 분석</span>
+          <AiStatusText status={floor.segmentationStatus} />
+        </div>
       </div>
 
-      <StatusBadge label={label} color={color} dot />
-
-      <div className={styles.floorActions}>
-        {actionLabel && !isProcessing && (
-          <Button
-            variant={floor.segmentationStatus === 'DONE' ? 'outlined' : 'primary'}
-            size="sm"
-            onClick={() => floor.segmentationStatus === 'DONE' && onEdit(buildingId, floor.id)}
-          >
-            {actionLabel}
-          </Button>
-        )}
-      </div>
+      <button
+        type="button"
+        className={styles.manageButton}
+        onClick={() => onManage(buildingId, floor.id)}
+      >
+        도면 관리
+      </button>
     </div>
   );
 };
 
 const FloorPlansPage = () => {
   const navigate = useNavigate();
-  const [selectedBuildingId, setSelectedBuildingId] = useState(mockFloorBuildings[0]?.id ?? null);
 
-  const handleEdit = (buildingId: number, floorId: number) => {
+  const handleManage = (buildingId: number, floorId: number) => {
     void navigate(`/floorPlans/${buildingId}/${floorId}`);
   };
-
-  const selectedBuilding = mockFloorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
 
   return (
     <>
       <GNB
         breadcrumbs={[{ label: '관리' }]}
         title="도면 관리"
-        description="건물별 층 도면 등록 및 세그멘테이션 관리"
+        description="등록된 건물별 도면을 확인하고 관리할 수 있습니다"
         userName="김안전"
         userRole="관리자"
       />
 
-      <div className={styles.layout}>
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarHeader}>건물 목록</div>
-          <ul className={styles.buildingList} role="listbox" aria-label="건물 선택">
-            {mockFloorBuildings.map((building) => (
-              <li
-                key={building.id}
-                role="option"
-                aria-selected={building.id === selectedBuildingId}
-                className={clsx(
-                  styles.buildingItem,
-                  building.id === selectedBuildingId && styles.buildingItemActive,
-                )}
-                onClick={() => setSelectedBuildingId(building.id)}
-              >
-                {building.name}
-              </li>
-            ))}
-          </ul>
-        </aside>
+      <div className={styles.container}>
+        {mockFloorBuildings.map((building) => (
+          <section key={building.id} className={styles.buildingSection}>
+            <div className={styles.buildingHeader}>
+              <div className={styles.buildingDot} aria-hidden="true" />
+              <span className={styles.buildingName}>{building.name}</span>
+              <span className={styles.buildingCount}>{building.floors.length}개 층</span>
+            </div>
 
-        <main className={styles.main}>
-          <div className={styles.mainHeader}>
-            <span className={styles.mainTitle}>{selectedBuilding?.name ?? '-'}</span>
-            <span className={styles.mainCount}>총 {selectedBuilding?.floors.length ?? 0}개 층</span>
-          </div>
-
-          {selectedBuilding && selectedBuilding.floors.length > 0 ? (
-            <div className={styles.floorList}>
-              {selectedBuilding.floors.map((floor) => (
-                <FloorRow
+            <div className={styles.floorGrid}>
+              {building.floors.map((floor) => (
+                <FloorCard
                   key={floor.id}
                   floor={floor}
-                  buildingId={selectedBuilding.id}
-                  onEdit={handleEdit}
+                  buildingId={building.id}
+                  onManage={handleManage}
                 />
               ))}
             </div>
-          ) : (
-            <div className={styles.emptyState}>
-              <span>등록된 층 정보가 없습니다</span>
-            </div>
-          )}
-        </main>
+          </section>
+        ))}
       </div>
     </>
   );

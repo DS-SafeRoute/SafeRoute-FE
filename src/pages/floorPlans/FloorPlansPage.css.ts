@@ -2,150 +2,146 @@ import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-export const layout = style({
-  display: 'flex',
-  height: '100%',
-  overflow: 'hidden',
-});
-
-export const sidebar = style({
+export const container = style({
   display: 'flex',
   flexDirection: 'column',
-  flexShrink: 0,
-  borderRight: `1px solid ${vars.color.gray100}`,
-  width: '22rem',
-  overflow: 'hidden',
-});
-
-export const sidebarHeader = style({
-  borderBottom: `1px solid ${vars.color.gray100}`,
-  padding: `${vars.space.s4} ${vars.space.s4} ${vars.space.s3}`,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-});
-
-export const buildingList = style({
-  display: 'flex',
-  flex: 1,
-  flexDirection: 'column',
+  gap: vars.space.s8,
+  padding: vars.space.s8,
   overflowY: 'auto',
 });
 
-export const buildingItem = style({
-  borderLeft: '3px solid transparent',
-  cursor: 'pointer',
-  padding: `${vars.space.s3} ${vars.space.s4}`,
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:hover': {
-      backgroundColor: vars.color.gray25,
-    },
-  },
-});
-
-export const buildingItemActive = style({
-  borderLeftColor: vars.color.primary,
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
-});
-
-export const main = style({
+export const buildingSection = style({
   display: 'flex',
-  flex: 1,
   flexDirection: 'column',
-  overflow: 'hidden',
+  gap: vars.space.s4,
 });
 
-export const mainHeader = style({
+export const buildingHeader = style({
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
-  borderBottom: `1px solid ${vars.color.gray100}`,
-  padding: `${vars.space.s4} ${vars.space.s6}`,
+  gap: vars.space.s2,
 });
 
-export const mainTitle = style({
+export const buildingDot = style({
+  flexShrink: 0,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.primary,
+  width: '1.2rem',
+  height: '1.2rem',
+});
+
+export const buildingName = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
 });
 
-export const mainCount = style({
+export const buildingCount = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
 
-export const floorList = style({
-  display: 'flex',
-  flex: 1,
-  flexDirection: 'column',
-  gap: vars.space.s3,
-  padding: vars.space.s6,
-  overflowY: 'auto',
+export const floorGrid = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: vars.space.s4,
 });
 
 export const floorCard = style({
   display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s4,
+  flexDirection: 'column',
+  gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
 });
 
-export const thumbnail = style({
+export const cardTop = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+});
+
+export const cardIconWrap = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: vars.radius.md,
+  borderRadius: vars.radius.lg,
   backgroundColor: vars.color.gray50,
-  width: '7.2rem',
-  height: '4.8rem',
-  overflow: 'hidden',
+  width: '5.2rem',
+  height: '5.2rem',
 });
 
-export const thumbnailImg = style({
-  objectFit: 'cover',
-  width: '100%',
-  height: '100%',
-});
-
-export const thumbnailPlaceholder = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const floorInfo = style({
-  display: 'flex',
-  flex: 1,
-  flexDirection: 'column',
-  gap: vars.space.s1,
+export const cardIconInner = style({
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.primary,
+  width: '2.8rem',
+  height: '2.8rem',
 });
 
 export const floorLabel = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
+  fontSize: '1.8rem',
+  fontWeight: vars.fontWeight.semibold,
 });
 
-export const floorMeta = style({
+export const divider = style({
+  borderTop: `1px solid ${vars.color.gray100}`,
+});
+
+export const cardMeta = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s1,
+});
+
+export const metaRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+
+export const metaKey = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
 
-export const floorActions = style({
-  flexShrink: 0,
-  marginLeft: 'auto',
+export const metaValue = style({
+  color: vars.color.textMid,
+  ...vars.typography.caption,
 });
 
-export const emptyState = style({
-  display: 'flex',
-  flex: 1,
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: vars.space.s3,
-  color: vars.color.textLow,
+export const metaValueDone = style({
+  color: vars.color.success,
+  ...vars.typography.caption,
+});
+
+export const metaValuePending = style({
+  color: vars.color.warning,
+  ...vars.typography.caption,
+});
+
+export const metaValueFailed = style({
+  color: vars.color.danger,
+  ...vars.typography.caption,
+});
+
+export const manageButton = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} 0`,
+  width: '100%',
+  textAlign: 'center',
+  color: vars.color.textMid,
   ...vars.typography.body14,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.gray300,
+      backgroundColor: vars.color.gray25,
+    },
+  },
 });
