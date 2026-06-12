@@ -41,7 +41,21 @@ const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
 
     return (
       <label className={styles.root}>
-        {label ? <span className={styles.label}>{label}</span> : null}
+        {label ? (
+          <span className={styles.label}>
+            {label.includes(' *') ? (
+              <>
+                {label.replace(' *', '')}
+                <span className={styles.requiredMark} aria-hidden="true">
+                  {' '}
+                  *
+                </span>
+              </>
+            ) : (
+              label
+            )}
+          </span>
+        ) : null}
         <span className={styles.fieldShell({ isError, isFocused, disabled })}>
           <input
             {...props}

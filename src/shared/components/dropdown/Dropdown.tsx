@@ -5,18 +5,18 @@ import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 
 import * as styles from './Dropdown.css';
 
-export type DropdownOption<T extends string = string> = {
+export interface DropdownOption<T extends string = string> {
   label: string;
   value: T;
-};
+}
 
-export type DropdownProps<T extends string = string> = {
+export interface DropdownProps<T extends string = string> {
   options: DropdownOption<T>[];
   value: T;
   onChange: (value: T) => void;
   placeholder?: string;
   disabled?: boolean;
-};
+}
 
 const Dropdown = <T extends string = string>({
   options,

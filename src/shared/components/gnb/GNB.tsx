@@ -4,17 +4,17 @@ import Avatar from '@components/avatar';
 
 import * as styles from './GNB.css';
 
-type BreadcrumbItem = {
+interface BreadcrumbItem {
   label: string;
-};
+}
 
-export type GNBProps = {
+export interface GNBProps {
   breadcrumbs?: BreadcrumbItem[];
   title: string;
   description?: string;
   userName: string;
   userRole?: string;
-};
+}
 
 const GNB = ({ breadcrumbs, title, description, userName, userRole }: GNBProps) => (
   <header className={styles.container}>

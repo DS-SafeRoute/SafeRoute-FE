@@ -8,7 +8,7 @@ import * as styles from './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
 
-export type ModalProps = {
+export interface ModalProps {
   open: boolean;
   onClose: () => void;
   size?: ModalSize;
@@ -18,7 +18,7 @@ export type ModalProps = {
   description?: string;
   warning?: string;
   variant?: 'form' | 'confirm';
-};
+}
 
 const FOCUSABLE = [
   'a[href]',
@@ -42,24 +42,21 @@ const Modal = ({
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
 
     previousFocusRef.current = document.activeElement;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const prevPaddingRight = document.body.style.paddingRight;
     document.body.style.overflow = 'hidden';
-
-    // 첫 포커스 이동
-    const focusables = modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
-    if (focusables && focusables.length > 0) {
-      focusables[0].focus();
-    } else {
-      modalRef.current?.focus();
-    }
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -89,9 +86,10 @@ const Modal = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      document.body.style.paddingRight = prevPaddingRight;
       (previousFocusRef.current as HTMLElement | null)?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

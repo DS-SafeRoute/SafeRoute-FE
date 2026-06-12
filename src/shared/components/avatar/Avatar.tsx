@@ -3,14 +3,14 @@ import * as styles from './Avatar.css';
 export type AvatarSize = 'sm' | 'md' | 'lg';
 export type AvatarStatus = 'online' | 'away' | 'offline';
 
-export type AvatarProps = {
+export interface AvatarProps {
   name: string;
   size?: AvatarSize;
   status?: AvatarStatus;
   imageSrc?: string;
   role?: string;
   showNameGroup?: boolean;
-};
+}
 
 const Avatar = ({
   name,
