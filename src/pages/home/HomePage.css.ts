@@ -5,9 +5,14 @@ import { vars } from '@styles/global.css';
 export const container = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: vars.space.s6,
-  padding: '2.4rem',
   minHeight: '100%',
+});
+
+export const sectionContainer = style({
+  display: 'flex',
+  flex: 1,
+  flexDirection: 'column',
+  padding: '2.4rem',
 });
 
 export const sectionCardBase = style({

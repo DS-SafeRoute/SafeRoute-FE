@@ -10,10 +10,12 @@ import PlayIcon from '@assets/icons/ic-play.svg?react';
 import TrendDownIcon from '@assets/icons/ic-trenddown.svg?react';
 import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
 
-import HomeSummarySection from './components/HomeSummarySection/HomeSummarySection';
-import RecentTrainingSection from './components/RecentTrainingSection/RecentTrainingSection';
-import ScheduledTrainingSection from './components/ScheduledTrainingSection/ScheduledTrainingSection';
-import SystemStatusSection from './components/SystemStatusSection/SystemStatusSection';
+import GNB from '@components/gnb';
+
+import HomeSummarySection from './components/homeSummarySection/HomeSummarySection';
+import RecentTrainingSection from './components/recentTrainingSection/RecentTrainingSection';
+import ScheduledTrainingSection from './components/scheduledTrainingSection/ScheduledTrainingSection';
+import SystemStatusSection from './components/systemStatusSection/SystemStatusSection';
 import { HOME_TRAINING_STATUS } from './constants/home';
 import * as styles from './HomePage.css';
 import {
@@ -57,30 +59,40 @@ const HomePage = () => {
 
   return (
     <div className={styles.container}>
-      <HomeSummarySection
-        metrics={homeMetrics.map((metric) => ({
-          ...metric,
-          icon: metricIcons[metric.iconKey],
-          trendIcon: trendIcons[metric.trendDirection],
-        }))}
-      />
+      <div>
+        <GNB
+          title="홈"
+          description="화재 대피 훈련 현황을 한눈에 확인하세요."
+          userName="김안전"
+          userRole="관리자"
+        />
+      </div>
+      <div className={styles.sectionContainer}>
+        <HomeSummarySection
+          metrics={homeMetrics.map((metric) => ({
+            ...metric,
+            icon: metricIcons[metric.iconKey],
+            trendIcon: trendIcons[metric.trendDirection],
+          }))}
+        />
 
-      <div className={styles.contentGrid}>
-        <RecentTrainingSection records={recentTrainingRecords} actionIcon={sectionIcons.action} />
+        <div className={styles.contentGrid}>
+          <RecentTrainingSection records={recentTrainingRecords} actionIcon={sectionIcons.action} />
 
-        <div className={styles.sideColumn}>
-          <ScheduledTrainingSection
-            training={training}
-            onStart={handleTrainingStart}
-            sectionIcon={sectionIcons.calendar}
-            actionIcon={sectionIcons.play}
-          />
-          <SystemStatusSection
-            items={systemStatusItems.map((item) => ({
-              ...item,
-              icon: item.iconKey === 'success' ? sectionIcons.success : undefined,
-            }))}
-          />
+          <div className={styles.sideColumn}>
+            <ScheduledTrainingSection
+              training={training}
+              onStart={handleTrainingStart}
+              sectionIcon={sectionIcons.calendar}
+              actionIcon={sectionIcons.play}
+            />
+            <SystemStatusSection
+              items={systemStatusItems.map((item) => ({
+                ...item,
+                icon: item.iconKey === 'success' ? sectionIcons.success : undefined,
+              }))}
+            />
+          </div>
         </div>
       </div>
     </div>
