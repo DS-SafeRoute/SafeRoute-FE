@@ -23,6 +23,10 @@ interface FormState {
 
 const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '', belowFloors: '' };
 
+const isPositiveNumber = (v: string) => /^\d+(\.\d+)?$/.test(v.trim()) && Number(v) > 0;
+const isPositiveInt = (v: string) => /^\d+$/.test(v.trim()) && Number(v) > 0;
+const isNonNegativeInt = (v: string) => /^\d+$/.test(v.trim()) && Number(v) >= 0;
+
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<Partial<FormState>>({});
@@ -36,15 +40,10 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
     const next: Partial<FormState> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
     if (!form.area.trim()) next.area = '면적을 입력해 주세요';
-    else if (isNaN(Number(form.area)) || Number(form.area) <= 0)
-      next.area = '올바른 면적을 입력해 주세요';
+    else if (!isPositiveNumber(form.area)) next.area = '올바른 면적을 입력해 주세요';
     if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
-    else if (isNaN(Number(form.aboveFloors)) || Number(form.aboveFloors) <= 0)
-      next.aboveFloors = '올바른 층수를 입력해 주세요';
-    if (
-      form.belowFloors.trim() &&
-      (isNaN(Number(form.belowFloors)) || Number(form.belowFloors) < 0)
-    )
+    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
+    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
       next.belowFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;

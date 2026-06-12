@@ -48,7 +48,7 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
   const isUploaded = (floor: number) => uploadedFloors.includes(floor);
 
   const handleUpload = (floor: number) => {
-    const next = [...uploadedFloors, floor];
+    const next = Array.from(new Set([...uploadedFloors, floor]));
     setUploadedFloors(next);
     onUpdate(building.id, { floorPlans: next });
   };

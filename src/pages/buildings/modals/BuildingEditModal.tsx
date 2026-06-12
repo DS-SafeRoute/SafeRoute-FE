@@ -20,6 +20,8 @@ interface FormState {
   area: string;
 }
 
+const isPositiveNumber = (v: string) => /^\d+(\.\d+)?$/.test(v.trim()) && Number(v) > 0;
+
 const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditModalProps) => {
   const [form, setForm] = useState<FormState>({
     name: building.name,
@@ -43,8 +45,7 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
     const next: Partial<FormState> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
     if (!form.area.trim()) next.area = '면적을 입력해 주세요';
-    else if (isNaN(Number(form.area)) || Number(form.area) <= 0)
-      next.area = '올바른 면적을 입력해 주세요';
+    else if (!isPositiveNumber(form.area)) next.area = '올바른 면적을 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
