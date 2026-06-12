@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import clsx from 'clsx';
+import { useNavigate } from 'react-router';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
@@ -44,9 +45,11 @@ const getActionLabel = (status: SegmentationStatus) => {
 
 interface FloorRowProps {
   floor: Floor;
+  buildingId: number;
+  onEdit: (buildingId: number, floorId: number) => void;
 }
 
-const FloorRow = ({ floor }: FloorRowProps) => {
+const FloorRow = ({ floor, buildingId, onEdit }: FloorRowProps) => {
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
   const actionLabel = getActionLabel(floor.segmentationStatus);
   const isProcessing =
@@ -82,7 +85,11 @@ const FloorRow = ({ floor }: FloorRowProps) => {
 
       <div className={styles.floorActions}>
         {actionLabel && !isProcessing && (
-          <Button variant={floor.segmentationStatus === 'DONE' ? 'outlined' : 'primary'} size="sm">
+          <Button
+            variant={floor.segmentationStatus === 'DONE' ? 'outlined' : 'primary'}
+            size="sm"
+            onClick={() => floor.segmentationStatus === 'DONE' && onEdit(buildingId, floor.id)}
+          >
             {actionLabel}
           </Button>
         )}
@@ -92,7 +99,12 @@ const FloorRow = ({ floor }: FloorRowProps) => {
 };
 
 const FloorPlansPage = () => {
+  const navigate = useNavigate();
   const [selectedBuildingId, setSelectedBuildingId] = useState(mockFloorBuildings[0]?.id ?? null);
+
+  const handleEdit = (buildingId: number, floorId: number) => {
+    void navigate(`/floorPlans/${buildingId}/${floorId}`);
+  };
 
   const selectedBuilding = mockFloorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
 
@@ -136,7 +148,12 @@ const FloorPlansPage = () => {
           {selectedBuilding && selectedBuilding.floors.length > 0 ? (
             <div className={styles.floorList}>
               {selectedBuilding.floors.map((floor) => (
-                <FloorRow key={floor.id} floor={floor} />
+                <FloorRow
+                  key={floor.id}
+                  floor={floor}
+                  buildingId={selectedBuilding.id}
+                  onEdit={handleEdit}
+                />
               ))}
             </div>
           ) : (
