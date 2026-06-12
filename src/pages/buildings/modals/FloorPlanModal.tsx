@@ -83,7 +83,7 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
     const next = belowFloors + delta;
     if (next < 0) return;
     if (delta < 0) {
-      const affected = uploadedFloors.filter((f) => f < -next + 1 && f < 0);
+      const affected = uploadedFloors.filter((f) => f < -next && f < 0);
       if (affected.length > 0) {
         setConfirm({ type: 'removeBelow', next, affected });
         return;
@@ -101,7 +101,7 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
       setAboveFloors(confirm.next);
       onUpdate(building.id, { aboveFloors: confirm.next, floorPlans: next });
     } else if (confirm.type === 'removeBelow') {
-      const next = uploadedFloors.filter((f) => !(f < -confirm.next + 1 && f < 0));
+      const next = uploadedFloors.filter((f) => !(f < -confirm.next && f < 0));
       setUploadedFloors(next);
       setBelowFloors(confirm.next);
       onUpdate(building.id, { belowFloors: confirm.next, floorPlans: next });
