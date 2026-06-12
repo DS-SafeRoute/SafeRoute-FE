@@ -6,15 +6,15 @@ import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import TextField from '@components/inputField/TextField';
 
 import * as styles from './ScenarioSetupForm.css';
-import { SCENARIO_BUILDING_OPTIONS } from '../../../constants/scenarioSettings';
-import DateTimeField from '../../inputField/dateTimeField/DateTimeField';
-import ScenarioField from '../../inputField/scenarioField/ScenarioField';
+import { SCENARIO_BUILDING_OPTIONS } from '../../constants/scenarioSettings';
+import DateTimeField from '../inputField/dateTimeField/DateTimeField';
+import ScenarioField from '../inputField/scenarioField/ScenarioField';
 
 import type {
   BasicInfo,
   FireConditionField,
   FireConditionOptions,
-} from '../../../types/scenarioSettings';
+} from '../../types/scenarioSettings';
 
 interface ScenarioSetupFormProps {
   basicInfo: BasicInfo;

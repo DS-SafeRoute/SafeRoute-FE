@@ -5,7 +5,7 @@ import { Button } from '@components/Button';
 
 import RecommendationCard from './components/cards/recommendationCard/RecommendationCard';
 import TrainingPreviewCard from './components/cards/trainingPreviewCard/TrainingPreviewCard';
-import ScenarioSetupForm from './components/section/scenarioSetupForm/ScenarioSetupForm';
+import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import {
   basicInfo,
   previewStatus,
