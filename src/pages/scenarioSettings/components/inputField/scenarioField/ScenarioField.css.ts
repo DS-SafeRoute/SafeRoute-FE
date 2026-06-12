@@ -28,12 +28,16 @@ export const fieldShell = style({
 });
 
 export const withLeadingIcon = style({
-  color: vars.color.textLow,
+  display: 'inline-flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: vars.color.danger,
 });
 
 globalStyle(`${withLeadingIcon} svg`, {
-  width: '1.6rem',
-  height: '1.6rem',
+  width: '1.4rem',
+  height: '1.4rem',
 });
 
 export const select = style({
@@ -56,6 +60,6 @@ export const trailingIcon = style({
 });
 
 globalStyle(`${trailingIcon} svg`, {
-  width: '1.6rem',
-  height: '1.6rem',
+  width: '1.4rem',
+  height: '1.4rem',
 });
