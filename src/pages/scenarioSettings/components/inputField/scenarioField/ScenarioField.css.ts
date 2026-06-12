@@ -36,20 +36,6 @@ globalStyle(`${withLeadingIcon} svg`, {
   height: '1.6rem',
 });
 
-export const input = style({
-  outline: 'none',
-  border: 'none',
-  background: 'transparent',
-  width: '100%',
-  color: vars.color.textHigh,
-  ...vars.typography.body14,
-  selectors: {
-    '&::placeholder': {
-      color: vars.color.textLow,
-    },
-  },
-});
-
 export const select = style({
   appearance: 'none',
   outline: 'none',
@@ -58,14 +44,6 @@ export const select = style({
   width: '100%',
   color: vars.color.textHigh,
   WebkitAppearance: 'none',
-  ...vars.typography.body14,
-});
-
-export const valueText = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  width: '100%',
-  color: vars.color.textHigh,
   ...vars.typography.body14,
 });
 
