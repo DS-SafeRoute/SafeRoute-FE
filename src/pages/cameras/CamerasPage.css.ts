@@ -29,7 +29,7 @@ export const listCount = style({
 
 export const grid = style({
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(36rem, 1fr))',
+  gridTemplateColumns: 'repeat(2, 1fr)',
   gap: vars.space.s4,
 });
 
