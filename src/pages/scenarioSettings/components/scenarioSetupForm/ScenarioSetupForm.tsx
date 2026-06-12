@@ -41,6 +41,7 @@ const ScenarioSetupForm = ({ basicInfo, conditions, options }: ScenarioSetupForm
         <DateTimeField label="실시 일시" defaultValue={basicInfo.scheduledAt} />
         <TextField
           label="예상 참가 인원"
+          type="number"
           defaultValue={basicInfo.expectedParticipants}
           placeholder="예상 참가 인원을 입력하세요"
           leftIcon={<UsersIcon />}
