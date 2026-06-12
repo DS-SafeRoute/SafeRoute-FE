@@ -240,6 +240,7 @@ const FloorPlansDetailPage = () => {
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
   const [editMode, setEditMode] = useState<EditMode>('view');
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+  const [segStatusOverride, setSegStatusOverride] = useState<SegmentationStatus | null>(null);
 
   const currentBuilding =
     mockFloorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
@@ -252,6 +253,7 @@ const FloorPlansDetailPage = () => {
     setSelectedBuildingId(newBuildingId);
     setSelectedFloorId(firstFloorId ? String(firstFloorId) : '');
     setSelectedItem(null);
+    setSegStatusOverride(null);
     if (firstFloorId) {
       void navigate(`/floorPlans/${newBuildingId}/${firstFloorId}`);
     }
@@ -260,6 +262,7 @@ const FloorPlansDetailPage = () => {
   const handleFloorChange = (newFloorId: string) => {
     setSelectedFloorId(newFloorId);
     setSelectedItem(null);
+    setSegStatusOverride(null);
     void navigate(`/floorPlans/${selectedBuildingId}/${newFloorId}`);
   };
 
@@ -270,9 +273,18 @@ const FloorPlansDetailPage = () => {
       value: String(f.id),
     })) ?? [];
 
-  const status = currentFloor?.segmentationStatus ?? floor?.segmentationStatus ?? 'NONE';
+  const baseStatus = currentFloor?.segmentationStatus ?? floor?.segmentationStatus ?? 'NONE';
+  const status = segStatusOverride ?? baseStatus;
   const { label: statusLabel, color: statusColor } = STATUS_CONFIG[status];
-  const canRunAI = status === 'NONE' || status === 'FAILED';
+  const canRunAI = status === 'NONE' || status === 'FAILED' || status === 'DONE';
+  const isProcessing = status === 'PROCESSING';
+
+  const handleRunAI = () => {
+    setSegStatusOverride('PROCESSING');
+    setTimeout(() => {
+      setSegStatusOverride('DONE');
+    }, 2500);
+  };
 
   const cctvOnline =
     currentFloor?.devices.filter((d) => d.type === 'cctv' && d.status === 'online').length ?? 0;
@@ -321,8 +333,19 @@ const FloorPlansDetailPage = () => {
               <span className={styles.statusLabel}>AI 처리 상태</span>
               <StatusBadge label={statusLabel} color={statusColor} dot />
             </div>
-            <Button className={styles.aiButton} disabled={!canRunAI} variant="primary" size="sm">
-              AI 영역 분할 실행
+            <Button
+              className={styles.aiButton}
+              disabled={!canRunAI}
+              isLoading={isProcessing}
+              variant="primary"
+              size="sm"
+              onClick={handleRunAI}
+            >
+              {isProcessing
+                ? 'AI 처리 중...'
+                : status === 'DONE'
+                  ? 'AI 재분석'
+                  : 'AI 영역 분할 실행'}
             </Button>
           </div>
 
