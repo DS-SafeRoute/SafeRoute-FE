@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
@@ -241,6 +241,13 @@ const FloorPlansDetailPage = () => {
   const [editMode, setEditMode] = useState<EditMode>('view');
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [segStatusOverride, setSegStatusOverride] = useState<SegmentationStatus | null>(null);
+  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    };
+  }, []);
 
   const currentBuilding =
     mockFloorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
@@ -280,8 +287,9 @@ const FloorPlansDetailPage = () => {
   const isProcessing = status === 'PROCESSING';
 
   const handleRunAI = () => {
+    if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     setSegStatusOverride('PROCESSING');
-    setTimeout(() => {
+    aiTimerRef.current = setTimeout(() => {
       setSegStatusOverride('DONE');
     }, 2500);
   };

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import clsx from 'clsx';
 
@@ -35,9 +35,18 @@ const FloorUploadModal = ({
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const isPdf = file?.type === 'application/pdf';
+
   const handleFileSelect = (selected: File) => {
+    if (preview) URL.revokeObjectURL(preview);
     setFile(selected);
-    setPreview(URL.createObjectURL(selected));
+    setPreview(selected.type === 'application/pdf' ? null : URL.createObjectURL(selected));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,6 +70,7 @@ const FloorUploadModal = ({
   };
 
   const handleClose = () => {
+    if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview(null);
     onClose();
@@ -88,9 +98,13 @@ const FloorUploadModal = ({
         <span className={styles.infoValue}>{formatFloor(floorNum)}</span>
       </div>
 
-      {file && preview ? (
+      {file ? (
         <div className={styles.previewWrap}>
-          <img src={preview} alt="도면 미리보기" className={styles.previewImg} />
+          {isPdf ? (
+            <span className={styles.pdfIcon}>PDF</span>
+          ) : (
+            preview && <img src={preview} alt="도면 미리보기" className={styles.previewImg} />
+          )}
           <span className={styles.previewName}>{file.name}</span>
           <button
             type="button"
