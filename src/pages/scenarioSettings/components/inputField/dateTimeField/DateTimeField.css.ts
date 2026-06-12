@@ -23,7 +23,7 @@ export const trigger = style({
   backgroundColor: vars.color.white,
   padding: '0 1.6rem',
   width: '100%',
-  minHeight: '4.8rem',
+  height: '4.4rem',
   textAlign: 'left',
   color: vars.color.textHigh,
 });

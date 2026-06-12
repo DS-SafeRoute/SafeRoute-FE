@@ -5,7 +5,7 @@ import { vars } from '@styles/global.css';
 export const root = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: vars.space.s3,
+  gap: vars.space.s2,
   minWidth: 0,
 });
 
@@ -22,7 +22,7 @@ export const fieldShell = style({
   borderRadius: vars.radius.md,
   backgroundColor: vars.color.white,
   padding: '0 1.6rem',
-  minHeight: '4.8rem',
+  height: '4.4rem',
   color: vars.color.textHigh,
   ...vars.typography.body14,
 });
