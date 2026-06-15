@@ -46,6 +46,7 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
 };
 
 type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
+type DeleteTarget = { buildingId: number; floorId: number; floorNum: number; buildingName: string };
 
 interface FloorCardProps {
   floor: {
@@ -58,10 +59,18 @@ interface FloorCardProps {
   buildingId: number;
   onManage: (buildingId: number, floorId: number) => void;
   onUpload: (target: UploadTarget) => void;
+  onDelete: (target: DeleteTarget) => void;
   buildingName: string;
 }
 
-const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: FloorCardProps) => {
+const FloorCard = ({
+  floor,
+  buildingId,
+  buildingName,
+  onManage,
+  onUpload,
+  onDelete,
+}: FloorCardProps) => {
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
   const isProcessing =
     floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
@@ -73,7 +82,33 @@ const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: Floo
         <div className={styles.cardIconWrap} aria-hidden="true">
           <div className={styles.cardIconInner} />
         </div>
-        <StatusBadge label={label} color={color} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <StatusBadge label={label} color={color} />
+          <button
+            type="button"
+            className={styles.deleteButton}
+            title="층 삭제"
+            onClick={() =>
+              onDelete({ buildingId, floorId: floor.id, floorNum: floor.floorNum, buildingName })
+            }
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
@@ -120,6 +155,24 @@ const FloorPlansPage = () => {
   const { toasts, leavingIds, show, dismiss } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>(mockFloorBuildings);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return;
+    setBuildings((prev) =>
+      prev.map((b) =>
+        b.id !== deleteTarget.buildingId
+          ? b
+          : { ...b, floors: b.floors.filter((f) => f.id !== deleteTarget.floorId) },
+      ),
+    );
+    show({
+      title: '층 도면이 삭제되었습니다.',
+      description: `${deleteTarget.buildingName} · ${formatFloor(deleteTarget.floorNum)} 도면이 삭제되었습니다.`,
+      variant: 'success',
+    });
+    setDeleteTarget(null);
+  };
 
   const handleManage = (buildingId: number, floorId: number) => {
     void navigate(`/floorPlans/${buildingId}/${floorId}`);
@@ -183,6 +236,7 @@ const FloorPlansPage = () => {
                   buildingName={building.name}
                   onManage={handleManage}
                   onUpload={setUploadTarget}
+                  onDelete={setDeleteTarget}
                 />
               ))}
             </div>
@@ -198,6 +252,34 @@ const FloorPlansPage = () => {
           floorNum={uploadTarget.floorNum}
           onConfirm={handleUploadConfirm}
         />
+      )}
+
+      {deleteTarget && (
+        <div className={styles.confirmOverlay} onClick={() => setDeleteTarget(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmTitle}>층 도면 삭제</p>
+            <p className={styles.confirmDesc}>
+              {deleteTarget.buildingName} · {formatFloor(deleteTarget.floorNum)} 도면을 삭제하면
+              복구할 수 없습니다. 계속하시겠습니까?
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.confirmCancelBtn}
+                onClick={() => setDeleteTarget(null)}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles.confirmDeleteBtn}
+                onClick={handleDeleteConfirm}
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
