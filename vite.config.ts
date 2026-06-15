@@ -24,15 +24,16 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-      '/ws': {
-        target: 'ws://localhost:8080',
-        ws: true,
-      },
-    },
+    // 백엔드 개발 완료 후 아래 프록시 주석 해제
+    // proxy: {
+    //   '/api': {
+    //     target: 'http://localhost:8080',
+    //     changeOrigin: true,
+    //   },
+    //   '/ws': {
+    //     target: 'ws://localhost:8080',
+    //     ws: true,
+    //   },
+    // },
   },
 });

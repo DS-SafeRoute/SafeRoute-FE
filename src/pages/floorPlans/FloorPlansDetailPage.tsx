@@ -54,6 +54,23 @@ const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: str
   firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
 };
 
+type PlacingDeviceType = 'cctv' | 'iot';
+
+const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
+  cctv: { label: 'CCTV', color: '#2563eb' },
+  iot: { label: 'IoT 유도등', color: '#16a34a' },
+};
+
+type AddedDevice = {
+  id: string;
+  type: PlacingDeviceType;
+  label: string;
+  x: number; // %
+  y: number; // %
+  status: 'online';
+  zone: string;
+};
+
 /* ── 경로탐색 헬퍼 ── */
 type Pt = { x: number; y: number };
 
@@ -813,6 +830,8 @@ const FloorCanvas = ({
   simStart,
   simClickMode,
   devicePositions,
+  addedDevices,
+  onAddedDeviceDelete,
   onSelectDevice,
   onMapClick,
   onFireMapClick,
@@ -841,6 +860,8 @@ const FloorCanvas = ({
   simStart: { x: number; y: number } | null;
   simClickMode: 'fire' | 'start' | null;
   devicePositions: Record<string, { x: number; y: number }>;
+  addedDevices: AddedDevice[];
+  onAddedDeviceDelete: (id: string) => void;
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
   onFireMapClick: (x: number, y: number) => void;
@@ -909,6 +930,35 @@ const FloorCanvas = ({
             onClick={() => onSelectDevice(device)}
             onDragEnd={onDeviceMoved}
           />
+        );
+      })}
+
+      {/* 사용자가 추가한 장치 마커 */}
+      {addedDevices.map((d) => {
+        const pos = devicePositions[d.id] ?? { x: d.x, y: d.y };
+        const color = DEVICE_PLACE_CONFIG[d.type].color;
+        return (
+          <div
+            key={d.id}
+            className={styles.markerWrap}
+            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+          >
+            <div
+              className={styles.markerCircle}
+              style={{ backgroundColor: color, border: `2px dashed white`, cursor: 'pointer' }}
+              title={d.label}
+              onClick={() => onAddedDeviceDelete(d.id)}
+            >
+              {d.type === 'cctv' ? (
+                <CameraIcon width={12} height={12} aria-hidden="true" />
+              ) : (
+                <WifiIcon width={12} height={12} aria-hidden="true" />
+              )}
+            </div>
+            <span className={styles.markerLabel} style={{ color }}>
+              {d.label}
+            </span>
+          </div>
         );
       })}
 
@@ -1075,6 +1125,8 @@ const FloorPlansDetailPage = () => {
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
   const [selectedPoiType, setSelectedPoiType] = useState<PoiType>('exit');
+  const [placingDeviceType, setPlacingDeviceType] = useState<PlacingDeviceType | null>(null);
+  const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
   const [fireMarkers, setFireMarkers] = useState<Array<{ id: string; x: number; y: number }>>([]);
@@ -1192,6 +1244,29 @@ const FloorPlansDetailPage = () => {
       setRelocatingPoiId(null);
       return;
     }
+    // 장치 배치 모드
+    if (placingDeviceType) {
+      const cfg = DEVICE_PLACE_CONFIG[placingDeviceType];
+      const count = addedDevices.filter((d) => d.type === placingDeviceType).length + 1;
+      const id = `added-${placingDeviceType}-${Date.now()}`;
+      // x, y는 SVG 좌표(0-560, 0-420) → % 변환
+      const pctX = (x / 560) * 100;
+      const pctY = (y / 420) * 100;
+      setAddedDevices((prev) => [
+        ...prev,
+        {
+          id,
+          type: placingDeviceType,
+          label: `${cfg.label}-${String(count).padStart(2, '0')}`,
+          x: pctX,
+          y: pctY,
+          status: 'online',
+          zone: '사용자 등록',
+        },
+      ]);
+      return;
+    }
+    // POI 배치
     setPoiMarkers((prev) => [
       ...prev,
       {
@@ -1202,6 +1277,10 @@ const FloorPlansDetailPage = () => {
         poiType: selectedPoiType,
       },
     ]);
+  };
+
+  const handleAddedDeviceDelete = (id: string) => {
+    setAddedDevices((prev) => prev.filter((d) => d.id !== id));
   };
 
   const handlePoiClick = (id: string) => {
@@ -1398,42 +1477,128 @@ const FloorPlansDetailPage = () => {
 
             {/* POI 편집 모드 */}
             {editMode === 'poi' && (
-              <div className={styles.section}>
-                <span className={styles.sectionLabel}>POI 유형</span>
-                <div className={styles.poiTypeGrid}>
-                  {(
-                    Object.entries(POI_TYPE_CONFIG) as [
-                      PoiType,
-                      (typeof POI_TYPE_CONFIG)[PoiType],
-                    ][]
-                  ).map(([type, cfg]) => (
-                    <button
-                      key={type}
-                      type="button"
-                      className={clsx(
-                        styles.poiTypeBtn,
-                        selectedPoiType === type && styles.poiTypeBtnActive,
-                      )}
-                      style={
-                        selectedPoiType === type
-                          ? {
-                              borderColor: cfg.color,
-                              backgroundColor: `${cfg.color}15`,
-                              color: cfg.color,
-                            }
-                          : {}
-                      }
-                      onClick={() => setSelectedPoiType(type)}
-                    >
-                      {cfg.icon} {cfg.label}
-                    </button>
-                  ))}
+              <>
+                <div className={styles.section}>
+                  <span className={styles.sectionLabel}>POI 유형</span>
+                  <div className={styles.poiTypeGrid}>
+                    {(
+                      Object.entries(POI_TYPE_CONFIG) as [
+                        PoiType,
+                        (typeof POI_TYPE_CONFIG)[PoiType],
+                      ][]
+                    ).map(([type, cfg]) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={clsx(
+                          styles.poiTypeBtn,
+                          placingDeviceType === null &&
+                            selectedPoiType === type &&
+                            styles.poiTypeBtnActive,
+                        )}
+                        style={
+                          placingDeviceType === null && selectedPoiType === type
+                            ? {
+                                borderColor: cfg.color,
+                                backgroundColor: `${cfg.color}15`,
+                                color: cfg.color,
+                              }
+                            : {}
+                        }
+                        onClick={() => {
+                          setSelectedPoiType(type);
+                          setPlacingDeviceType(null);
+                        }}
+                      >
+                        {cfg.icon} {cfg.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                <div className={styles.section}>
+                  <span className={styles.sectionLabel}>장치 배치</span>
+                  <div className={styles.poiTypeGrid}>
+                    {(
+                      Object.entries(DEVICE_PLACE_CONFIG) as [
+                        PlacingDeviceType,
+                        (typeof DEVICE_PLACE_CONFIG)[PlacingDeviceType],
+                      ][]
+                    ).map(([type, cfg]) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={clsx(
+                          styles.poiTypeBtn,
+                          placingDeviceType === type && styles.poiTypeBtnActive,
+                        )}
+                        style={
+                          placingDeviceType === type
+                            ? {
+                                borderColor: cfg.color,
+                                backgroundColor: `${cfg.color}15`,
+                                color: cfg.color,
+                              }
+                            : {}
+                        }
+                        onClick={() =>
+                          setPlacingDeviceType((prev) => (prev === type ? null : type))
+                        }
+                      >
+                        {type === 'cctv' ? '📷' : '💡'} {cfg.label}
+                      </button>
+                    ))}
+                  </div>
+                  {addedDevices.length > 0 && (
+                    <ul
+                      style={{
+                        margin: '0.6rem 0 0',
+                        padding: 0,
+                        listStyle: 'none',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.4rem',
+                      }}
+                    >
+                      {addedDevices.map((d) => (
+                        <li
+                          key={d.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '1.15rem',
+                            color: '#374151',
+                          }}
+                        >
+                          <span>{d.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleAddedDeviceDelete(d.id)}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              cursor: 'pointer',
+                              color: '#ef4444',
+                              fontSize: '1.2rem',
+                              padding: '0 0.2rem',
+                            }}
+                            title="삭제"
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <p style={{ margin: 0, color: '#9ca3af', fontSize: '1.1rem', lineHeight: 1.4 }}>
-                  도면을 클릭해 {(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label}{' '}
-                  마커를 추가합니다
+                  {placingDeviceType
+                    ? `도면을 클릭해 ${DEVICE_PLACE_CONFIG[placingDeviceType].label} 위치를 등록합니다`
+                    : `도면을 클릭해 ${(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label} 마커를 추가합니다`}
                 </p>
-              </div>
+              </>
             )}
 
             {/* 범례 */}
@@ -1452,6 +1617,11 @@ const FloorPlansDetailPage = () => {
 
         {/* ── 중앙 캔버스 ── */}
         <div className={styles.canvasArea}>
+          {/* 모드 안내 토스트 */}
+          {toastMsg && (
+            <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
+          )}
+
           {currentFloor && (
             <div className={styles.canvasHeader}>
               <span className={styles.canvasHeaderIcon}>B</span>
@@ -1498,6 +1668,8 @@ const FloorPlansDetailPage = () => {
                 onPoiPopoverClose={() => setEditingPoiId(null)}
                 devicePositions={devicePositions}
                 onDeviceMoved={handleDeviceMoved}
+                addedDevices={addedDevices}
+                onAddedDeviceDelete={handleAddedDeviceDelete}
               />
             ) : (
               <div className={styles.canvasPlaceholder}>
@@ -1533,11 +1705,6 @@ const FloorPlansDetailPage = () => {
               +
             </button>
           </div>
-
-          {/* 모드 안내 토스트 */}
-          {toastMsg && (
-            <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
-          )}
 
           {/* 선택된 항목 패널 */}
           {selectedItem && simState !== 'done' && (
