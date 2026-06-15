@@ -49,4 +49,23 @@ export const handlers = [
   http.delete(`${BASE}/floors/:floorId`, () => {
     return new HttpResponse(null, { status: 204 });
   }),
+
+  /* ── AI 세그멘테이션 요청 ── */
+  http.post(`${BASE}/floors/:floorId/segment`, () => {
+    return HttpResponse.json({ data: { status: 'PROCESSING' } });
+  }),
+
+  /* ── AI 세그멘테이션 상태 조회 (3초 후 DONE 시뮬레이션) ── */
+  (() => {
+    const startTimes = new Map<string, number>();
+    return http.get(`${BASE}/floors/:floorId/segment/status`, ({ params }) => {
+      const id = String(params.floorId);
+      const now = Date.now();
+      if (!startTimes.has(id)) startTimes.set(id, now);
+      const elapsed = now - (startTimes.get(id) ?? now);
+      const status = elapsed >= 3000 ? 'DONE' : 'PROCESSING';
+      if (status === 'DONE') startTimes.delete(id);
+      return HttpResponse.json({ data: { status } });
+    });
+  })(),
 ];

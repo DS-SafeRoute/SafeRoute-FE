@@ -614,15 +614,26 @@ const MockFloorMap3F = ({
 /* ── CCTV/IoT 마커 ── */
 const DevicePin = ({
   device,
+  posX,
+  posY,
   selected,
+  draggable,
   zoom,
   onClick,
+  onDragEnd,
 }: {
   device: DeviceMarker;
+  posX: number;
+  posY: number;
   selected: boolean;
+  draggable: boolean;
   zoom: number;
   onClick: () => void;
+  onDragEnd: (id: string, x: number, y: number) => void;
 }) => {
+  const isDragging = useRef(false);
+  const didMove = useRef(false);
+
   const isOffline = device.status === 'offline';
   const markerClass = clsx(
     styles.markerCircle,
@@ -633,14 +644,57 @@ const DevicePin = ({
       : styles.markerIot,
     selected && styles.markerSelected,
   );
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!draggable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.current = true;
+    didMove.current = false;
+
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    if (!container) return;
+
+    const scale = zoom / 100;
+
+    const onMove = (mv: MouseEvent) => {
+      if (!isDragging.current) return;
+      didMove.current = true;
+      const rect = container.getBoundingClientRect();
+      const rawX = ((mv.clientX - rect.left) / scale / rect.width) * 100 * scale;
+      const rawY = ((mv.clientY - rect.top) / scale / rect.height) * 100 * scale;
+      const clampedX = Math.max(0, Math.min(100, rawX));
+      const clampedY = Math.max(0, Math.min(100, rawY));
+      onDragEnd(device.id, clampedX, clampedY);
+    };
+
+    const onUp = () => {
+      isDragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={device.label}
       className={styles.markerWrap}
-      style={{ left: `${device.x}%`, top: `${device.y}%` }}
+      style={{
+        left: `${posX}%`,
+        top: `${posY}%`,
+        cursor: draggable ? 'grab' : 'pointer',
+      }}
+      onMouseDown={handleMouseDown}
       onClick={(e) => {
+        if (didMove.current) {
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
         onClick();
       }}
@@ -758,6 +812,7 @@ const FloorCanvas = ({
   fireMarkers,
   simStart,
   simClickMode,
+  devicePositions,
   onSelectDevice,
   onMapClick,
   onFireMapClick,
@@ -767,6 +822,7 @@ const FloorCanvas = ({
   onPoiDelete,
   onPoiRelocate,
   onPoiPopoverClose,
+  onDeviceMoved,
 }: {
   floor: Floor;
   selected: SelectedItem | null;
@@ -784,6 +840,7 @@ const FloorCanvas = ({
   fireMarkers: Array<{ id: string; x: number; y: number }>;
   simStart: { x: number; y: number } | null;
   simClickMode: 'fire' | 'start' | null;
+  devicePositions: Record<string, { x: number; y: number }>;
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
   onFireMapClick: (x: number, y: number) => void;
@@ -793,6 +850,7 @@ const FloorCanvas = ({
   onPoiDelete: (id: string) => void;
   onPoiRelocate: (id: string) => void;
   onPoiPopoverClose: () => void;
+  onDeviceMoved: (id: string, x: number, y: number) => void;
 }) => {
   const hasMockMap = floor.segmentationStatus === 'DONE';
 
@@ -837,15 +895,22 @@ const FloorCanvas = ({
         onPoiRelocate={onPoiRelocate}
         onPoiPopoverClose={onPoiPopoverClose}
       />
-      {floor.devices.map((device) => (
-        <DevicePin
-          key={device.id}
-          device={device}
-          selected={selected?.kind === 'device' && selected.data.id === device.id}
-          zoom={zoom}
-          onClick={() => onSelectDevice(device)}
-        />
-      ))}
+      {floor.devices.map((device) => {
+        const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
+        return (
+          <DevicePin
+            key={device.id}
+            device={device}
+            posX={pos.x}
+            posY={pos.y}
+            selected={selected?.kind === 'device' && selected.data.id === device.id}
+            draggable={editMode === 'view'}
+            zoom={zoom}
+            onClick={() => onSelectDevice(device)}
+            onDragEnd={onDeviceMoved}
+          />
+        );
+      })}
 
       {/* POI 편집 팝오버 — SVG 바깥 절대 위치 (잘림 없음) */}
       {editingPoiId &&
@@ -1013,6 +1078,13 @@ const FloorPlansDetailPage = () => {
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
   const [fireMarkers, setFireMarkers] = useState<Array<{ id: string; x: number; y: number }>>([]);
+  const [devicePositions, setDevicePositions] = useState<Record<string, { x: number; y: number }>>(
+    {},
+  );
+
+  const handleDeviceMoved = (id: string, x: number, y: number) => {
+    setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
+  };
   const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [toastFading, setToastFading] = useState(false);
@@ -1424,6 +1496,8 @@ const FloorPlansDetailPage = () => {
                 onPoiDelete={handlePoiDelete}
                 onPoiRelocate={handlePoiRelocate}
                 onPoiPopoverClose={() => setEditingPoiId(null)}
+                devicePositions={devicePositions}
+                onDeviceMoved={handleDeviceMoved}
               />
             ) : (
               <div className={styles.canvasPlaceholder}>
