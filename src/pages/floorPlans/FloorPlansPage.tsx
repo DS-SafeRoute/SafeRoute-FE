@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router';
 
@@ -8,8 +8,8 @@ import GNB from '@components/gnb';
 import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
+import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
-import { mockFloorBuildings } from './mocks/floorPlansData';
 import FloorUploadModal from './modals/FloorUploadModal';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
@@ -153,25 +153,42 @@ const FloorCard = ({
 const FloorPlansPage = () => {
   const navigate = useNavigate();
   const { toasts, leavingIds, show, dismiss } = useToast();
-  const [buildings, setBuildings] = useState<FloorBuilding[]>(mockFloorBuildings);
+  const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
+  const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
+  useEffect(() => {
+    setLoading(true);
+    getFloorBuildings()
+      .then(setBuildings)
+      .catch(() => {
+        show({ title: '도면 목록을 불러오지 못했습니다.', variant: 'error' });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return;
-    setBuildings((prev) =>
-      prev.map((b) =>
-        b.id !== deleteTarget.buildingId
-          ? b
-          : { ...b, floors: b.floors.filter((f) => f.id !== deleteTarget.floorId) },
-      ),
-    );
-    show({
-      title: '층 도면이 삭제되었습니다.',
-      description: `${deleteTarget.buildingName} · ${formatFloor(deleteTarget.floorNum)} 도면이 삭제되었습니다.`,
-      variant: 'success',
-    });
-    setDeleteTarget(null);
+    deleteFloor(deleteTarget.floorId)
+      .then(() => {
+        setBuildings((prev) =>
+          prev.map((b) =>
+            b.id !== deleteTarget.buildingId
+              ? b
+              : { ...b, floors: b.floors.filter((f) => f.id !== deleteTarget.floorId) },
+          ),
+        );
+        show({
+          title: '층 도면이 삭제되었습니다.',
+          description: `${deleteTarget.buildingName} · ${formatFloor(deleteTarget.floorNum)} 도면이 삭제되었습니다.`,
+          variant: 'success',
+        });
+      })
+      .catch(() => {
+        show({ title: '삭제에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => setDeleteTarget(null));
   };
 
   const handleManage = (buildingId: number, floorId: number) => {
@@ -180,32 +197,31 @@ const FloorPlansPage = () => {
 
   const handleUploadConfirm = (file: File) => {
     if (!uploadTarget) return;
-    setBuildings((prev) =>
-      prev.map((b) =>
-        b.id !== uploadTarget.buildingId
-          ? b
-          : {
-              ...b,
-              floors: b.floors.map((f) =>
-                f.id !== uploadTarget.floorId
-                  ? f
-                  : {
-                      ...f,
-                      mapImageUrl: URL.createObjectURL(file),
-                      segmentationStatus: 'PENDING' as const,
-                      processedAt: new Date().toISOString(),
-                    },
-              ),
-            },
-      ),
-    );
-    setUploadTarget(null);
-    show({
-      title: '도면이 업로드되었습니다.',
-      description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
-      variant: 'success',
-    });
-    void navigate(`/floorPlans/${uploadTarget.buildingId}/${uploadTarget.floorId}`);
+    uploadFloor(uploadTarget.buildingId, uploadTarget.floorNum, file)
+      .then((newFloor) => {
+        setBuildings((prev) =>
+          prev.map((b) =>
+            b.id !== uploadTarget.buildingId
+              ? b
+              : {
+                  ...b,
+                  floors: b.floors.map((f) =>
+                    f.id !== uploadTarget.floorId ? f : { ...f, ...newFloor },
+                  ),
+                },
+          ),
+        );
+        show({
+          title: '도면이 업로드되었습니다.',
+          description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
+          variant: 'success',
+        });
+        void navigate(`/floorPlans/${uploadTarget.buildingId}/${uploadTarget.floorId}`);
+      })
+      .catch(() => {
+        show({ title: '업로드에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => setUploadTarget(null));
   };
 
   return (
@@ -219,29 +235,35 @@ const FloorPlansPage = () => {
       />
 
       <div className={styles.container}>
-        {buildings.map((building) => (
-          <section key={building.id} className={styles.buildingSection}>
-            <div className={styles.buildingHeader}>
-              <div className={styles.buildingDot} aria-hidden="true" />
-              <span className={styles.buildingName}>{building.name}</span>
-              <span className={styles.buildingCount}>{building.floors.length}개 층</span>
-            </div>
+        {loading && (
+          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>
+            불러오는 중...
+          </p>
+        )}
+        {!loading &&
+          buildings.map((building) => (
+            <section key={building.id} className={styles.buildingSection}>
+              <div className={styles.buildingHeader}>
+                <div className={styles.buildingDot} aria-hidden="true" />
+                <span className={styles.buildingName}>{building.name}</span>
+                <span className={styles.buildingCount}>{building.floors.length}개 층</span>
+              </div>
 
-            <div className={styles.floorGrid}>
-              {building.floors.map((floor) => (
-                <FloorCard
-                  key={floor.id}
-                  floor={floor}
-                  buildingId={building.id}
-                  buildingName={building.name}
-                  onManage={handleManage}
-                  onUpload={setUploadTarget}
-                  onDelete={setDeleteTarget}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+              <div className={styles.floorGrid}>
+                {building.floors.map((floor) => (
+                  <FloorCard
+                    key={floor.id}
+                    floor={floor}
+                    buildingId={building.id}
+                    buildingName={building.name}
+                    onManage={handleManage}
+                    onUpload={setUploadTarget}
+                    onDelete={setDeleteTarget}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
       </div>
 
       {uploadTarget && (

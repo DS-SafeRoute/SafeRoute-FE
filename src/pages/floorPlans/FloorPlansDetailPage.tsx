@@ -12,6 +12,7 @@ import StatusBadge from '@components/chip/StatusBadge';
 import Dropdown from '@components/dropdown';
 import GNB from '@components/gnb';
 
+import { getFloorBuildings, getFloorDetail } from './api/floorPlansApi';
 import * as styles from './FloorPlansDetailPage.css';
 import { mockFloorBuildings } from './mocks/floorPlansData';
 
@@ -963,8 +964,30 @@ const FloorPlansDetailPage = () => {
   const navigate = useNavigate();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
 
-  const building = mockFloorBuildings.find((b) => String(b.id) === buildingId) ?? null;
-  const floor = building?.floors.find((f) => String(f.id) === floorId) ?? null;
+  const [floorBuildings, setFloorBuildings] = useState(mockFloorBuildings);
+  const [floor, setFloor] = useState(
+    () => mockFloorBuildings.flatMap((b) => b.floors).find((f) => String(f.id) === floorId) ?? null,
+  );
+  const [loadingFloor, setLoadingFloor] = useState(false);
+
+  const building = floorBuildings.find((b) => String(b.id) === buildingId) ?? null;
+
+  // 빌딩 목록 (사이드바 셀렉터용)
+  useEffect(() => {
+    getFloorBuildings()
+      .then(setFloorBuildings)
+      .catch(() => {});
+  }, []);
+
+  // 현재 층 상세
+  useEffect(() => {
+    if (!floorId) return;
+    setLoadingFloor(true);
+    getFloorDetail(Number(floorId))
+      .then(setFloor)
+      .catch(() => {})
+      .finally(() => setLoadingFloor(false));
+  }, [floorId]);
 
   const [selectedBuildingId, setSelectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
@@ -1030,8 +1053,7 @@ const FloorPlansDetailPage = () => {
     if (msg) showToast(msg);
   };
 
-  const currentBuilding =
-    mockFloorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
+  const currentBuilding = floorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
   const currentFloor =
     currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
 
@@ -1043,7 +1065,7 @@ const FloorPlansDetailPage = () => {
     FAILED: '오류',
   };
 
-  const buildingOptions = mockFloorBuildings.map((b) => ({ label: b.name, value: String(b.id) }));
+  const buildingOptions = floorBuildings.map((b) => ({ label: b.name, value: String(b.id) }));
   const floorOptions =
     currentBuilding?.floors.map((f) => ({
       label: `${formatFloor(f.floorNum)}  ·  ${FLOOR_STATUS_LABEL[f.segmentationStatus]}`,
@@ -1061,7 +1083,7 @@ const FloorPlansDetailPage = () => {
   const isPathDanger = fireMarkers.some((f) => allDoors.some((d) => isNear(f, d)));
 
   const handleBuildingChange = (newId: string) => {
-    const newBuilding = mockFloorBuildings.find((b) => String(b.id) === newId);
+    const newBuilding = floorBuildings.find((b) => String(b.id) === newId);
     const firstFloor = newBuilding?.floors[0];
     setSelectedBuildingId(newId);
     setSelectedFloorId(firstFloor ? String(firstFloor.id) : '');
@@ -1367,9 +1389,14 @@ const FloorPlansDetailPage = () => {
           )}
 
           <div className={styles.canvasBody}>
-            {currentFloor ? (
+            {loadingFloor && (
+              <div style={{ padding: '4rem', color: '#6b7280', fontSize: '1.4rem' }}>
+                도면을 불러오는 중...
+              </div>
+            )}
+            {!loadingFloor && currentFloor ? (
               <FloorCanvas
-                floor={currentFloor}
+                floor={floor ?? currentFloor}
                 selected={selectedItem}
                 aiLayers={aiLayers}
                 showHeatmap={showHeatmap}
