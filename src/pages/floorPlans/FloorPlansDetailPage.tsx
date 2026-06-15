@@ -12,9 +12,10 @@ import StatusBadge from '@components/chip/StatusBadge';
 import Dropdown from '@components/dropdown';
 import GNB from '@components/gnb';
 
+import { formatFloor } from '@utils/floor';
+
 import { getFloorBuildings, getFloorDetail } from './api/floorPlansApi';
 import * as styles from './FloorPlansDetailPage.css';
-import { mockFloorBuildings } from './mocks/floorPlansData';
 
 import type {
   AiLayer,
@@ -25,21 +26,12 @@ import type {
   SegmentationStatus,
 } from './types/floorPlans';
 
-/* ── 유틸 ── */
-const formatFloor = (n: number) => (n > 0 ? `${n}층` : n < 0 ? `B${Math.abs(n)}층` : '1층');
-
 const AI_LAYERS: { key: AiLayer; label: string }[] = [
   { key: 'wall', label: '벽' },
   { key: 'corridor', label: '복도' },
   { key: 'stairwell', label: '계단실' },
   { key: 'exit', label: '비상구' },
   { key: 'room', label: '방' },
-];
-
-const MODE_CONFIG: { mode: EditMode; label: string }[] = [
-  { mode: 'view', label: '보기' },
-  { mode: 'poi', label: 'POI 편집' },
-  { mode: 'simulation', label: '경로 시뮬레이션' },
 ];
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
@@ -278,11 +270,9 @@ const MockFloorMap3F = ({
   };
 
   const svgCursor =
-    relocatingPoiId || simClickMode === 'start' || simClickMode === 'fire'
+    relocatingPoiId || editMode === 'poi' || simClickMode === 'start' || simClickMode === 'fire'
       ? 'crosshair'
-      : editMode === 'poi'
-        ? 'crosshair'
-        : 'default';
+      : 'default';
 
   return (
     <svg
@@ -580,7 +570,7 @@ const MockFloorMap3F = ({
       {/* POI 마커 */}
       {poiMarkers.map((m) => {
         const isRelocating = relocatingPoiId === m.id;
-        const cfg = POI_TYPE_CONFIG[m.poiType as PoiType] ?? POI_TYPE_CONFIG.custom;
+        const cfg = POI_TYPE_CONFIG[m.poiType as PoiType] ?? POI_TYPE_CONFIG.exit;
         const fill = isRelocating ? '#f59e0b' : cfg.color;
         return (
           <g key={m.id}>
@@ -672,14 +662,12 @@ const DevicePin = ({
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
 
-    const scale = zoom / 100;
-
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
       didMove.current = true;
       const rect = container.getBoundingClientRect();
-      const rawX = ((mv.clientX - rect.left) / scale / rect.width) * 100 * scale;
-      const rawY = ((mv.clientY - rect.top) / scale / rect.height) * 100 * scale;
+      const rawX = ((mv.clientX - rect.left) / rect.width) * 100;
+      const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
       const clampedX = Math.max(0, Math.min(100, rawX));
       const clampedY = Math.max(0, Math.min(100, rawY));
       onDragEnd(device.id, clampedX, clampedY);
@@ -1079,10 +1067,8 @@ const FloorPlansDetailPage = () => {
   const navigate = useNavigate();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
 
-  const [floorBuildings, setFloorBuildings] = useState(mockFloorBuildings);
-  const [floor, setFloor] = useState(
-    () => mockFloorBuildings.flatMap((b) => b.floors).find((f) => String(f.id) === floorId) ?? null,
-  );
+  const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
+  const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
 
   const building = floorBuildings.find((b) => String(b.id) === buildingId) ?? null;
@@ -1141,6 +1127,7 @@ const FloorPlansDetailPage = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [toastFading, setToastFading] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1149,17 +1136,19 @@ const FloorPlansDetailPage = () => {
       if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
       if (simTimerRef.current) clearTimeout(simTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (toastFadeRef.current) clearTimeout(toastFadeRef.current);
     },
     [],
   );
 
   const showToast = (msg: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (toastFadeRef.current) clearTimeout(toastFadeRef.current);
     setToastMsg(msg);
     setToastFading(false);
     toastTimerRef.current = setTimeout(() => {
       setToastFading(true);
-      toastTimerRef.current = setTimeout(() => setToastMsg(null), 300);
+      toastFadeRef.current = setTimeout(() => setToastMsg(null), 300);
     }, 2200);
   };
 

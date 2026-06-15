@@ -8,6 +8,8 @@ import GNB from '@components/gnb';
 import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
+import { formatFloor } from '@utils/floor';
+
 import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -20,12 +22,6 @@ const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBa
   PROCESSING: { label: '처리중', color: 'blue' },
   DONE: { label: '완료', color: 'green' },
   FAILED: { label: '실패', color: 'red' },
-};
-
-const formatFloor = (floorNum: number) => {
-  if (floorNum > 0) return `${floorNum}층`;
-  if (floorNum < 0) return `B${Math.abs(floorNum)}층`;
-  return '1층';
 };
 
 const formatDate = (iso: string | null) => {
