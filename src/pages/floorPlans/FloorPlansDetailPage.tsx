@@ -795,6 +795,9 @@ const FloorPlansDetailPage = () => {
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
   const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastFading, setToastFading] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -802,9 +805,33 @@ const FloorPlansDetailPage = () => {
     () => () => {
       if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
       if (simTimerRef.current) clearTimeout(simTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     },
     [],
   );
+
+  const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMsg(msg);
+    setToastFading(false);
+    toastTimerRef.current = setTimeout(() => {
+      setToastFading(true);
+      toastTimerRef.current = setTimeout(() => setToastMsg(null), 300);
+    }, 2200);
+  };
+
+  const TOAST_MSG: Record<EditMode, string> = {
+    view: '보기 모드',
+    poi: 'POI 편집 모드 · 도면을 클릭해 마커를 추가하세요',
+    simulation: '시뮬레이션 모드 · 실(방)을 클릭해 화재 구역을 지정하세요',
+  };
+
+  const handleEditModeChange = (mode: EditMode) => {
+    setEditMode(mode);
+    setEditingPoiId(null);
+    setRelocatingPoiId(null);
+    showToast(TOAST_MSG[mode]);
+  };
 
   const currentBuilding =
     mockFloorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
@@ -1027,7 +1054,7 @@ const FloorPlansDetailPage = () => {
                       styles.modeButton,
                       editMode === mode && styles.modeButtonActive,
                     )}
-                    onClick={() => setEditMode(mode)}
+                    onClick={() => handleEditModeChange(mode)}
                   >
                     {label}
                   </button>
@@ -1179,7 +1206,14 @@ const FloorPlansDetailPage = () => {
                 >
                   −
                 </button>
-                <span className={styles.zoomValue}>{zoom}%</span>
+                <button
+                  type="button"
+                  className={zoom !== 100 ? styles.zoomValueClickable : styles.zoomValue}
+                  onClick={() => setZoom(100)}
+                  title={zoom !== 100 ? '클릭해서 100% 리셋' : undefined}
+                >
+                  {zoom}%
+                </button>
                 <button
                   type="button"
                   className={styles.zoomButton}
@@ -1230,7 +1264,10 @@ const FloorPlansDetailPage = () => {
                 simAnimating={simState === 'running'}
                 editingPoiId={editingPoiId}
                 relocatingPoiId={relocatingPoiId}
-                onSelectDevice={(d) => setSelectedItem({ kind: 'device', data: d })}
+                onSelectDevice={(d) => {
+                  if (editMode === 'poi') return;
+                  setSelectedItem({ kind: 'device', data: d });
+                }}
                 onMapClick={handleMapClick}
                 onRoomClick={handleRoomClick}
                 onPoiClick={handlePoiClick}
@@ -1245,6 +1282,11 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
           </div>
+
+          {/* 모드 안내 토스트 */}
+          {toastMsg && (
+            <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
+          )}
 
           {/* 선택된 항목 패널 */}
           {selectedItem && simState !== 'done' && (
