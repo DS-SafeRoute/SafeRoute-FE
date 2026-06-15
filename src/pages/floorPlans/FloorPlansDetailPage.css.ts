@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -483,6 +483,99 @@ export const infoPanelActions = style({
   display: 'flex',
   gap: vars.space.s2,
   marginTop: vars.space.s2,
+});
+
+export const infoPanelActionBtn = style({ flex: 1 });
+
+/* ── 시뮬레이션 경로 애니메이션 ── */
+const dashMove = keyframes({
+  from: { strokeDashoffset: 300 },
+  to: { strokeDashoffset: 0 },
+});
+
+export const simPathAnimated = style({
+  animation: `${dashMove} 1.8s linear forwards`,
+  strokeDasharray: '8 5',
+  strokeDashoffset: 300,
+});
+
+/* ── 시뮬레이션 결과 패널 ── */
+export const simResultPanel = style({
+  position: 'absolute',
+  zIndex: 10,
+  bottom: vars.space.s6,
+  left: vars.space.s6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.md,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s4,
+  width: '24rem',
+});
+
+export const simResultTitle = style({
+  marginBottom: vars.space.s1,
+  ...vars.typography.body14Medium,
+  color: vars.color.textHigh,
+});
+
+export const simResultRow = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+  borderTop: `1px solid ${vars.color.gray50}`,
+  paddingTop: '0.4rem',
+  paddingBottom: '0.4rem',
+});
+
+export const simResultKey = style({
+  flexShrink: 0,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const simResultValue = style({
+  textAlign: 'right',
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const simResultBadge = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  borderRadius: vars.radius.sm,
+  padding: `0.2rem ${vars.space.s2}`,
+  ...vars.typography.caption,
+});
+
+export const simResultBadgeSafe = style({
+  backgroundColor: 'rgba(220,252,231,0.8)',
+  color: '#15803d',
+});
+
+export const simResultBadgeDanger = style({
+  backgroundColor: 'rgba(254,226,226,0.8)',
+  color: '#b91c1c',
+});
+
+export const simRunButton = style({
+  border: 'none',
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primary,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '100%',
+  color: vars.color.white,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:hover:not(:disabled)': { opacity: 0.9 },
+    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+  },
 });
 
 export const infoPanelActionBtn = style({ flex: 1 });

@@ -98,6 +98,7 @@ const MockFloorMap3F = ({
   fireZones,
   editMode,
   poiMarkers,
+  simAnimating,
   onMapClick,
   onRoomClick,
 }: {
@@ -107,6 +108,7 @@ const MockFloorMap3F = ({
   fireZones: string[];
   editMode: EditMode;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
+  simAnimating: boolean;
   onMapClick: (x: number, y: number) => void;
   onRoomClick: (roomId: string) => void;
 }) => {
@@ -311,13 +313,15 @@ const MockFloorMap3F = ({
       {simulationExitId === 'exit-a3-01' && (
         <g>
           <line
+            key={simAnimating ? 'anim' : 'static'}
             x1="280"
             y1="210"
             x2="100"
             y2="380"
             stroke="#3b82f6"
             strokeWidth="2.5"
-            strokeDasharray="8 5"
+            className={simAnimating ? styles.simPathAnimated : undefined}
+            strokeDasharray={simAnimating ? undefined : '8 5'}
           />
           {[0.15, 0.35, 0.55, 0.75, 0.92].map((t) => (
             <circle
@@ -334,13 +338,15 @@ const MockFloorMap3F = ({
       {simulationExitId === 'exit-a3-02' && (
         <g>
           <line
+            key={simAnimating ? 'anim' : 'static'}
             x1="280"
             y1="210"
             x2="450"
             y2="380"
             stroke="#3b82f6"
             strokeWidth="2.5"
-            strokeDasharray="8 5"
+            className={simAnimating ? styles.simPathAnimated : undefined}
+            strokeDasharray={simAnimating ? undefined : '8 5'}
           />
           {[0.15, 0.35, 0.55, 0.75, 0.92].map((t) => (
             <circle
@@ -535,8 +541,10 @@ const FloorCanvas = ({
   fireZones,
   editMode,
   poiMarkers,
+  simAnimating,
   onSelectDevice,
   onMapClick,
+  onRoomClick,
 }: {
   floor: Floor;
   selected: SelectedItem | null;
@@ -547,6 +555,7 @@ const FloorCanvas = ({
   fireZones: string[];
   editMode: EditMode;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
+  simAnimating: boolean;
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
   onRoomClick: (roomId: string) => void;
@@ -573,10 +582,10 @@ const FloorCanvas = ({
         fireZones={fireZones}
         editMode={editMode}
         poiMarkers={poiMarkers}
+        simAnimating={simAnimating}
         onMapClick={onMapClick}
         onRoomClick={onRoomClick}
       />
-      {/* CCTV / IoT 마커 (SVG 위에 절대 위치) */}
       {floor.devices.map((device) => (
         <DevicePin
           key={device.id}
@@ -617,11 +626,14 @@ const FloorPlansDetailPage = () => {
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string }>
   >([]);
+  const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const simTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
     () => () => {
       if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+      if (simTimerRef.current) clearTimeout(simTimerRef.current);
     },
     [],
   );
@@ -658,6 +670,7 @@ const FloorPlansDetailPage = () => {
     setSelectedItem(null);
     setSelectedExit('');
     setFireZones([]);
+    setSimState('idle');
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
   };
 
@@ -682,6 +695,19 @@ const FloorPlansDetailPage = () => {
       ...prev,
       { id: `poi-${Date.now()}`, x, y, label: `POI ${prev.length + 1}` },
     ]);
+  };
+
+  const handleRunSimulation = () => {
+    if (simTimerRef.current) clearTimeout(simTimerRef.current);
+    setSimState('running');
+    simTimerRef.current = setTimeout(() => setSimState('done'), 2000);
+  };
+
+  const handleResetSimulation = () => {
+    if (simTimerRef.current) clearTimeout(simTimerRef.current);
+    setSimState('idle');
+    setSelectedExit('');
+    setFireZones([]);
   };
 
   const handleRunAI = () => {
@@ -825,17 +851,22 @@ const FloorPlansDetailPage = () => {
                 <div className={styles.section}>
                   <span className={styles.sectionLabel}>시뮬레이션 설정</span>
                   <div className={styles.simSection}>
+                    {/* 출구 선택 */}
                     <div className={styles.selectField}>
                       <span className={styles.selectFieldLabel}>출구 선택</span>
                       <Dropdown
                         className={styles.dropdownFullWidth}
                         options={exitOptions}
                         value={selectedExit}
-                        onChange={setSelectedExit}
+                        onChange={(v) => {
+                          setSelectedExit(v);
+                          setSimState('idle');
+                        }}
                         placeholder="선택"
-                        disabled={exitOptions.length === 0}
+                        disabled={exitOptions.length === 0 || simState === 'running'}
                       />
                     </div>
+
                     {/* 화재 구역 목록 */}
                     <div>
                       <span className={styles.selectFieldLabel}>
@@ -882,6 +913,7 @@ const FloorPlansDetailPage = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleRoomClick(id)}
+                                  disabled={simState === 'running'}
                                   style={{
                                     background: 'none',
                                     border: 'none',
@@ -901,15 +933,26 @@ const FloorPlansDetailPage = () => {
                       )}
                     </div>
 
+                    {/* 실행/초기화 버튼 */}
+                    <button
+                      type="button"
+                      className={styles.simRunButton}
+                      disabled={!selectedExit || simState === 'running'}
+                      onClick={handleRunSimulation}
+                    >
+                      {simState === 'running'
+                        ? '시뮬레이션 실행 중...'
+                        : simState === 'done'
+                          ? '다시 실행'
+                          : '시뮬레이션 실행'}
+                    </button>
                     <button
                       type="button"
                       className={styles.simResetButton}
-                      onClick={() => {
-                        setFireZones([]);
-                        setSelectedExit('');
-                      }}
+                      disabled={simState === 'running'}
+                      onClick={handleResetSimulation}
                     >
-                      화재 구역 초기화
+                      초기화
                     </button>
                   </div>
                 </div>
@@ -993,6 +1036,7 @@ const FloorPlansDetailPage = () => {
                 fireZones={fireZones}
                 editMode={editMode}
                 poiMarkers={poiMarkers}
+                simAnimating={simState === 'running'}
                 onSelectDevice={(d) => setSelectedItem({ kind: 'device', data: d })}
                 onMapClick={handleMapClick}
                 onRoomClick={handleRoomClick}
@@ -1004,10 +1048,58 @@ const FloorPlansDetailPage = () => {
             )}
           </div>
 
-          {/* 선택된 항목 패널 (캔버스 우측 하단 floating) */}
-          {selectedItem && (
+          {/* 선택된 항목 패널 */}
+          {selectedItem && simState !== 'done' && (
             <InfoPanel selected={selectedItem} onClose={() => setSelectedItem(null)} />
           )}
+
+          {/* 시뮬레이션 결과 패널 */}
+          {simState === 'done' &&
+            selectedExit &&
+            (() => {
+              const exitLabel =
+                exitOptions.find((o) => o.value === selectedExit)?.label ?? selectedExit;
+              const fireCount = fireZones.length;
+              const estTime = 30 + fireCount * 10 + (selectedExit === 'exit-a3-02' ? 8 : 0);
+              const isSafe = fireCount < 3;
+              const avoidedRooms = ROOMS.filter((r) => fireZones.includes(r.id))
+                .map((r) => r.label)
+                .join(', ');
+              return (
+                <div className={styles.simResultPanel}>
+                  <div className={styles.simResultTitle}>시뮬레이션 결과</div>
+                  <div className={styles.simResultRow}>
+                    <span className={styles.simResultKey}>목표 출구</span>
+                    <span className={styles.simResultValue}>{exitLabel}</span>
+                  </div>
+                  <div className={styles.simResultRow}>
+                    <span className={styles.simResultKey}>예상 대피 시간</span>
+                    <span className={styles.simResultValue}>{estTime}초</span>
+                  </div>
+                  <div className={styles.simResultRow}>
+                    <span className={styles.simResultKey}>경유 구역</span>
+                    <span className={styles.simResultValue}>복도 → 계단실 → {exitLabel}</span>
+                  </div>
+                  <div className={styles.simResultRow}>
+                    <span className={styles.simResultKey}>화재 구역 회피</span>
+                    <span
+                      className={clsx(
+                        styles.simResultBadge,
+                        isSafe ? styles.simResultBadgeSafe : styles.simResultBadgeDanger,
+                      )}
+                    >
+                      {isSafe ? '✓ 안전' : '⚠ 위험'}
+                    </span>
+                  </div>
+                  {avoidedRooms && (
+                    <div className={styles.simResultRow}>
+                      <span className={styles.simResultKey}>회피 구역</span>
+                      <span className={styles.simResultValue}>{avoidedRooms}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
         </div>
       </div>
     </>
