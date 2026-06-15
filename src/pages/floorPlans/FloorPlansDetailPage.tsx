@@ -32,7 +32,7 @@ const AI_LAYERS: { key: AiLayer; label: string }[] = [
   { key: 'corridor', label: '복도' },
   { key: 'stairwell', label: '계단실' },
   { key: 'exit', label: '비상구' },
-  { key: 'room', label: '실' },
+  { key: 'room', label: '방' },
 ];
 
 const MODE_CONFIG: { mode: EditMode; label: string }[] = [
@@ -42,6 +42,115 @@ const MODE_CONFIG: { mode: EditMode; label: string }[] = [
 ];
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
+
+type PoiType = 'exit' | 'stair' | 'extinguisher' | 'assembly' | 'firstaid';
+
+const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: string }> = {
+  exit: { label: '비상구', color: '#16a34a', icon: 'E' },
+  stair: { label: '계단', color: '#2563eb', icon: '▲' },
+  extinguisher: { label: '소화기', color: '#dc2626', icon: 'F' },
+  assembly: { label: '집결지', color: '#7c3aed', icon: 'A' },
+  firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
+};
+
+/* ── 경로탐색 헬퍼 ── */
+type Pt = { x: number; y: number };
+
+/* 복도 양쪽 외벽에 비상구 위치 */
+const DOOR_PTS = {
+  room301: { x: 110, y: 195 },
+  room302: { x: 400, y: 195 },
+  room303: { x: 110, y: 225 },
+  room304: { x: 400, y: 225 },
+};
+
+const EXIT_PTS = {
+  A: { x: 22, y: 210 }, // 좌측 외벽 복도 높이
+  B: { x: 538, y: 210 }, // 우측 외벽 복도 높이
+};
+
+const CORR_Y = 210; // 복도 중심 Y
+
+function getZone(
+  x: number,
+  y: number,
+): 'room301' | 'room302' | 'room303' | 'room304' | 'corridor' | 'other' {
+  if (x >= 20 && x <= 250 && y >= 20 && y <= 195) return 'room301';
+  if (x >= 310 && x <= 540 && y >= 20 && y <= 195) return 'room302';
+  if (x >= 20 && x <= 250 && y >= 225 && y <= 380) return 'room303';
+  if (x >= 310 && x <= 540 && y >= 225 && y <= 380) return 'room304';
+  if (y >= 195 && y <= 225) return 'corridor';
+  return 'other';
+}
+
+function computeEvacPath(start: Pt, isExitB: boolean): Pt[] {
+  const exitPt = isExitB ? EXIT_PTS.B : EXIT_PTS.A;
+  const path: Pt[] = [start];
+  const zone = getZone(start.x, start.y);
+
+  // Step 1: 시작 방 → 복도 문
+  const doorMap: Record<string, Pt> = {
+    room301: DOOR_PTS.room301,
+    room302: DOOR_PTS.room302,
+    room303: DOOR_PTS.room303,
+    room304: DOOR_PTS.room304,
+  };
+  if (doorMap[zone]) {
+    const door = doorMap[zone];
+    // 방 안에서 문 방향으로 직선 이동 후 문 통과
+    path.push({ x: start.x, y: door.y });
+    path.push(door);
+  }
+
+  // Step 2: 복도 중심선(Y=210)에 맞추기
+  const last = path[path.length - 1];
+  if (Math.abs(last.y - CORR_Y) > 3) {
+    path.push({ x: last.x, y: CORR_Y });
+  }
+
+  // Step 3: 복도를 수평으로 이동 → 비상구(외벽)
+  const currX = path[path.length - 1].x;
+  if (Math.abs(currX - exitPt.x) > 10) {
+    path.push({ x: exitPt.x, y: CORR_Y });
+  }
+  path.push(exitPt);
+
+  return path;
+}
+
+function interpolatePoly(pts: Pt[], t: number): Pt {
+  let total = 0;
+  const segs = pts.slice(1).map((p, i) => {
+    const dx = p.x - pts[i].x;
+    const dy = p.y - pts[i].y;
+    const len = Math.hypot(dx, dy);
+    total += len;
+    return { dx, dy, len };
+  });
+  const target = t * total;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const { dx, dy, len } = segs[i];
+    if (acc + len >= target) {
+      const r = len > 0 ? (target - acc) / len : 0;
+      return { x: pts[i].x + r * dx, y: pts[i].y + r * dy };
+    }
+    acc += len;
+  }
+  return pts[pts.length - 1];
+}
+
+function polyLen(pts: Pt[]): number {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  }
+  return total;
+}
+
+function isNear(a: Pt, b: Pt, d = 55): boolean {
+  return Math.hypot(a.x - b.x, a.y - b.y) < d;
+}
 
 /* ── Mock SVG 도면 (3층 예시) ── */
 const ROOMS: {
@@ -94,15 +203,20 @@ const ROOMS: {
 const MockFloorMap3F = ({
   aiLayers,
   showHeatmap,
-  simulationExitId,
-  fireZones,
+  evacPath,
+  isPathDanger,
   editMode,
   poiMarkers,
   simAnimating,
+  simDone,
   editingPoiId,
   relocatingPoiId,
+  fireMarkers,
+  simStart,
+  simClickMode,
   onMapClick,
-  onRoomClick,
+  onFireMapClick,
+  onFireMarkerDelete: handleFireMarkerDelete,
   onPoiClick,
   onPoiLabelChange,
   onPoiDelete,
@@ -111,15 +225,20 @@ const MockFloorMap3F = ({
 }: {
   aiLayers: Record<string, boolean>;
   showHeatmap: boolean;
-  simulationExitId: string;
-  fireZones: string[];
+  evacPath: Pt[] | null;
+  isPathDanger: boolean;
   editMode: EditMode;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
   simAnimating: boolean;
+  simDone: boolean;
   editingPoiId: string | null;
   relocatingPoiId: string | null;
+  fireMarkers: Array<{ id: string; x: number; y: number }>;
+  simStart: { x: number; y: number } | null;
+  simClickMode: 'fire' | 'start' | null;
   onMapClick: (x: number, y: number) => void;
-  onRoomClick: (roomId: string) => void;
+  onFireMapClick: (x: number, y: number) => void;
+  onFireMarkerDelete: (id: string) => void;
   onPoiClick: (id: string) => void;
   onPoiLabelChange: (id: string, label: string) => void;
   onPoiDelete: (id: string) => void;
@@ -127,26 +246,31 @@ const MockFloorMap3F = ({
   onPoiPopoverClose: () => void;
 }) => {
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (editMode !== 'poi') return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.round(((e.clientX - rect.left) / rect.width) * 560);
     const y = Math.round(((e.clientY - rect.top) / rect.height) * 420);
-    onMapClick(x, y);
+    if (simClickMode === 'start' || simClickMode === 'fire') {
+      onFireMapClick(x, y);
+      return;
+    }
+    if (editMode === 'poi') {
+      onMapClick(x, y);
+      return;
+    }
   };
 
-  const svgCursor = relocatingPoiId
-    ? 'crosshair'
-    : editMode === 'poi'
+  const svgCursor =
+    relocatingPoiId || simClickMode === 'start' || simClickMode === 'fire'
       ? 'crosshair'
-      : editMode === 'simulation'
-        ? 'pointer'
+      : editMode === 'poi'
+        ? 'crosshair'
         : 'default';
 
   return (
     <svg
       viewBox="0 0 560 420"
-      width="560"
-      height="420"
+      width="700"
+      height="525"
       xmlns="http://www.w3.org/2000/svg"
       style={{ cursor: svgCursor }}
       onClick={handleSvgClick}
@@ -169,75 +293,29 @@ const MockFloorMap3F = ({
 
       {/* 실 (room) */}
       {aiLayers.room &&
-        ROOMS.map((room) => {
-          const isFire = fireZones.includes(room.id);
-          const cx = room.x + room.w - 24;
-          const cy = room.y + room.h - 24;
-          return (
-            <g
-              key={room.id}
-              onClick={
-                editMode === 'simulation'
-                  ? (e) => {
-                      e.stopPropagation();
-                      onRoomClick(room.id);
-                    }
-                  : undefined
-              }
-              style={editMode === 'simulation' ? { cursor: 'pointer' } : undefined}
+        ROOMS.map((room) => (
+          <g key={room.id}>
+            <rect
+              x={room.x}
+              y={room.y}
+              width={room.w}
+              height={room.h}
+              fill={room.baseFill}
+              stroke="#d1d5db"
+              strokeWidth={1}
+            />
+            <text
+              x={room.x + room.w / 2}
+              y={room.y + room.h / 2 + 4}
+              textAnchor="middle"
+              fill="#6b7280"
+              fontSize="12"
+              fontFamily="sans-serif"
             >
-              <rect
-                x={room.x}
-                y={room.y}
-                width={room.w}
-                height={room.h}
-                fill={isFire ? 'rgba(254,202,202,0.7)' : room.baseFill}
-                stroke={isFire ? '#f87171' : '#d1d5db'}
-                strokeWidth={isFire ? 1.5 : 1}
-              />
-              <text
-                x={room.x + room.w / 2}
-                y={room.y + room.h / 2 + 4}
-                textAnchor="middle"
-                fill={isFire ? '#b91c1c' : '#6b7280'}
-                fontSize="12"
-                fontFamily="sans-serif"
-                fontWeight={isFire ? '600' : '400'}
-              >
-                {room.label}
-              </text>
-              {isFire && (
-                <>
-                  <circle cx={cx} cy={cy} r="14" fill="#ef4444" />
-                  <text
-                    x={cx}
-                    y={cy + 5}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="11"
-                    fontWeight="bold"
-                    fontFamily="sans-serif"
-                  >
-                    F
-                  </text>
-                </>
-              )}
-              {editMode === 'simulation' && !isFire && (
-                <rect
-                  x={room.x}
-                  y={room.y}
-                  width={room.w}
-                  height={room.h}
-                  fill="transparent"
-                  stroke="#f87171"
-                  strokeWidth="1"
-                  strokeDasharray="4 3"
-                  opacity="0.4"
-                />
-              )}
-            </g>
-          );
-        })}
+              {room.label}
+            </text>
+          </g>
+        ))}
 
       {/* 복도 (corridor) */}
       {aiLayers.corridor && (
@@ -278,13 +356,15 @@ const MockFloorMap3F = ({
         </>
       )}
 
-      {/* 비상구 (exit) */}
+      {/* 비상구 (exit) — 복도 좌우 외벽 */}
       {aiLayers.exit && (
         <>
-          <circle cx="100" cy="393" r="16" fill="#16a34a" />
+          {/* EXIT A — 좌측 외벽 (복도 높이) */}
+          <rect x="16" y="198" width="8" height="24" fill="white" />
+          <circle cx="22" cy="210" r="16" fill="#16a34a" />
           <text
-            x="100"
-            y="397"
+            x="22"
+            y="214"
             textAnchor="middle"
             fill="white"
             fontSize="11"
@@ -294,19 +374,21 @@ const MockFloorMap3F = ({
             E
           </text>
           <text
-            x="100"
-            y="414"
+            x="22"
+            y="236"
             textAnchor="middle"
             fill="#16a34a"
-            fontSize="10"
+            fontSize="9"
             fontFamily="sans-serif"
           >
             EXIT A
           </text>
-          <circle cx="450" cy="393" r="16" fill="#16a34a" />
+          {/* EXIT B — 우측 외벽 (복도 높이) */}
+          <rect x="536" y="198" width="8" height="24" fill="white" />
+          <circle cx="538" cy="210" r="16" fill="#16a34a" />
           <text
-            x="450"
-            y="397"
+            x="538"
+            y="214"
             textAnchor="middle"
             fill="white"
             fontSize="11"
@@ -316,11 +398,11 @@ const MockFloorMap3F = ({
             E
           </text>
           <text
-            x="450"
-            y="414"
+            x="538"
+            y="236"
             textAnchor="middle"
             fill="#16a34a"
-            fontSize="10"
+            fontSize="9"
             fontFamily="sans-serif"
           >
             EXIT B
@@ -329,56 +411,33 @@ const MockFloorMap3F = ({
       )}
 
       {/* 시뮬레이션 경로 */}
-      {simulationExitId === 'exit-a3-01' && (
-        <g>
-          <line
-            key={simAnimating ? 'anim' : 'static'}
-            x1="280"
-            y1="210"
-            x2="100"
-            y2="380"
-            stroke="#3b82f6"
-            strokeWidth="2.5"
-            className={simAnimating ? styles.simPathAnimated : undefined}
-            strokeDasharray={simAnimating ? undefined : '8 5'}
-          />
-          {[0.15, 0.35, 0.55, 0.75, 0.92].map((t) => (
-            <circle
-              key={t}
-              cx={280 - t * 180}
-              cy={210 + t * 170}
-              r="5"
-              fill="#3b82f6"
-              opacity="0.8"
-            />
-          ))}
-        </g>
-      )}
-      {simulationExitId === 'exit-a3-02' && (
-        <g>
-          <line
-            key={simAnimating ? 'anim' : 'static'}
-            x1="280"
-            y1="210"
-            x2="450"
-            y2="380"
-            stroke="#3b82f6"
-            strokeWidth="2.5"
-            className={simAnimating ? styles.simPathAnimated : undefined}
-            strokeDasharray={simAnimating ? undefined : '8 5'}
-          />
-          {[0.15, 0.35, 0.55, 0.75, 0.92].map((t) => (
-            <circle
-              key={t}
-              cx={280 + t * 170}
-              cy={210 + t * 170}
-              r="5"
-              fill="#3b82f6"
-              opacity="0.8"
-            />
-          ))}
-        </g>
-      )}
+      {evacPath &&
+        evacPath.length > 1 &&
+        (() => {
+          const stroke = isPathDanger ? '#f97316' : '#3b82f6';
+          const d = evacPath.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+          return (
+            <g>
+              <path
+                key={simAnimating ? 'anim' : 'static'}
+                d={d}
+                fill="none"
+                stroke={stroke}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                pathLength="300"
+                className={simAnimating ? styles.simPathAnimated : undefined}
+                strokeDasharray={simAnimating ? undefined : '8 5'}
+              />
+              {(simAnimating || simDone) &&
+                [0.1, 0.28, 0.46, 0.64, 0.82].map((t) => {
+                  const p = interpolatePoly(evacPath, t);
+                  return <circle key={t} cx={p.x} cy={p.y} r="5" fill={stroke} opacity="0.8" />;
+                })}
+            </g>
+          );
+        })()}
 
       {/* 혼잡도 히트맵 */}
       {showHeatmap && (
@@ -389,21 +448,129 @@ const MockFloorMap3F = ({
         </g>
       )}
 
+      {/* 문 (door) — 복도와 각 방 사이 */}
+      {aiLayers.room && (
+        <g>
+          {/* ROOM 301 → 복도 문 */}
+          <rect x="85" y="192" width="50" height="6" fill="white" />
+          <line x1="85" y1="195" x2="85" y2="170" stroke="#374151" strokeWidth="1.2" />
+          <path
+            d="M 85 170 A 25 25 0 0 1 110 195"
+            fill="rgba(219,234,254,0.3)"
+            stroke="#374151"
+            strokeWidth="1"
+          />
+          {/* ROOM 302 → 복도 문 */}
+          <rect x="375" y="192" width="50" height="6" fill="white" />
+          <line x1="425" y1="195" x2="425" y2="170" stroke="#374151" strokeWidth="1.2" />
+          <path
+            d="M 425 170 A 25 25 0 0 0 400 195"
+            fill="rgba(219,234,254,0.3)"
+            stroke="#374151"
+            strokeWidth="1"
+          />
+          {/* ROOM 303 → 복도 문 */}
+          <rect x="85" y="222" width="50" height="6" fill="white" />
+          <line x1="85" y1="225" x2="85" y2="250" stroke="#374151" strokeWidth="1.2" />
+          <path
+            d="M 85 250 A 25 25 0 0 0 110 225"
+            fill="rgba(219,234,254,0.3)"
+            stroke="#374151"
+            strokeWidth="1"
+          />
+          {/* ROOM 304 → 복도 문 */}
+          <rect x="375" y="222" width="50" height="6" fill="white" />
+          <line x1="425" y1="225" x2="425" y2="250" stroke="#374151" strokeWidth="1.2" />
+          <path
+            d="M 425 250 A 25 25 0 0 1 400 225"
+            fill="rgba(219,234,254,0.3)"
+            stroke="#374151"
+            strokeWidth="1"
+          />
+        </g>
+      )}
+
+      {/* 훈련 시작 위치 마커 */}
+      {simStart && (
+        <g>
+          <circle
+            cx={simStart.x}
+            cy={simStart.y}
+            r="15"
+            fill="#16a34a"
+            stroke="white"
+            strokeWidth="2"
+            opacity="0.95"
+          />
+          <text
+            x={simStart.x}
+            y={simStart.y + 5}
+            textAnchor="middle"
+            fill="white"
+            fontSize="13"
+            fontFamily="sans-serif"
+            fontWeight="bold"
+          >
+            S
+          </text>
+          <text
+            x={simStart.x}
+            y={simStart.y + 28}
+            textAnchor="middle"
+            fill="#16a34a"
+            fontSize="9"
+            fontFamily="sans-serif"
+          >
+            시작위치
+          </text>
+        </g>
+      )}
+
+      {/* 임의 화재 마커 (POI 방식) */}
+      {fireMarkers.map((m) => (
+        <g
+          key={m.id}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleFireMarkerDelete(m.id);
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <circle
+            cx={m.x}
+            cy={m.y}
+            r="14"
+            fill="#ef4444"
+            stroke="white"
+            strokeWidth="2"
+            opacity="0.9"
+          />
+          <text
+            x={m.x}
+            y={m.y + 5}
+            textAnchor="middle"
+            fill="white"
+            fontSize="13"
+            fontFamily="sans-serif"
+          >
+            🔥
+          </text>
+          <title>클릭해서 화재 마커 삭제</title>
+        </g>
+      ))}
+
       {/* POI 마커 */}
       {poiMarkers.map((m) => {
-        const isEditing = editingPoiId === m.id;
         const isRelocating = relocatingPoiId === m.id;
-        // 팝오버가 SVG 오른쪽 경계를 넘지 않도록 좌우 반전
-        const popX = m.x + 20 > 400 ? m.x - 175 : m.x + 20;
-        const popY = m.y - 20;
+        const cfg = POI_TYPE_CONFIG[m.poiType as PoiType] ?? POI_TYPE_CONFIG.custom;
+        const fill = isRelocating ? '#f59e0b' : cfg.color;
         return (
           <g key={m.id}>
-            {/* 마커 본체 */}
             <circle
               cx={m.x}
               cy={m.y}
               r="14"
-              fill={isRelocating ? '#f59e0b' : '#8b5cf6'}
+              fill={fill}
               stroke="white"
               strokeWidth="2"
               style={{ cursor: editMode === 'poi' ? 'pointer' : 'default' }}
@@ -423,122 +590,19 @@ const MockFloorMap3F = ({
               fontFamily="sans-serif"
               style={{ pointerEvents: 'none' }}
             >
-              P
+              {isRelocating ? '↖' : cfg.icon}
             </text>
             <text
               x={m.x}
               y={m.y + 26}
               textAnchor="middle"
-              fill={isRelocating ? '#f59e0b' : '#8b5cf6'}
+              fill={fill}
               fontSize="9"
               fontFamily="sans-serif"
               style={{ pointerEvents: 'none' }}
             >
               {isRelocating ? '클릭해서 이동' : m.label}
             </text>
-
-            {/* 편집 팝오버 */}
-            {isEditing && (
-              <foreignObject x={popX} y={popY} width="160" height="120">
-                <div
-                  style={{
-                    background: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                    padding: '10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '2px',
-                    }}
-                  >
-                    <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600 }}>
-                      POI 편집
-                    </span>
-                    <button
-                      type="button"
-                      onClick={onPoiPopoverClose}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#9ca3af',
-                        fontSize: '14px',
-                        lineHeight: 1,
-                        padding: '0 2px',
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={m.label}
-                    onChange={(e) => onPoiLabelChange(m.id, e.target.value)}
-                    style={{
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
-                      padding: '4px 6px',
-                      fontSize: '11px',
-                      width: '100%',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#8b5cf6';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = '#d1d5db';
-                    }}
-                  />
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      type="button"
-                      onClick={() => onPoiRelocate(m.id)}
-                      style={{
-                        flex: 1,
-                        border: '1px solid #8b5cf6',
-                        borderRadius: '4px',
-                        background: 'white',
-                        color: '#8b5cf6',
-                        fontSize: '10px',
-                        padding: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                      }}
-                    >
-                      위치 변경
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onPoiDelete(m.id)}
-                      style={{
-                        flex: 1,
-                        border: 'none',
-                        borderRadius: '4px',
-                        background: '#ef4444',
-                        color: 'white',
-                        fontSize: '10px',
-                        padding: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                      }}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              </foreignObject>
-            )}
           </g>
         );
       })}
@@ -682,16 +746,21 @@ const FloorCanvas = ({
   aiLayers,
   showHeatmap,
   zoom,
-  simulationExitId,
-  fireZones,
+  evacPath,
+  isPathDanger,
   editMode,
   poiMarkers,
   simAnimating,
+  simDone,
   editingPoiId,
   relocatingPoiId,
+  fireMarkers,
+  simStart,
+  simClickMode,
   onSelectDevice,
   onMapClick,
-  onRoomClick,
+  onFireMapClick,
+  onFireMarkerDelete,
   onPoiClick,
   onPoiLabelChange,
   onPoiDelete,
@@ -703,16 +772,21 @@ const FloorCanvas = ({
   aiLayers: Record<string, boolean>;
   showHeatmap: boolean;
   zoom: number;
-  simulationExitId: string;
-  fireZones: string[];
+  evacPath: Pt[] | null;
+  isPathDanger: boolean;
   editMode: EditMode;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
   simAnimating: boolean;
+  simDone: boolean;
   editingPoiId: string | null;
   relocatingPoiId: string | null;
+  fireMarkers: Array<{ id: string; x: number; y: number }>;
+  simStart: { x: number; y: number } | null;
+  simClickMode: 'fire' | 'start' | null;
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
-  onRoomClick: (roomId: string) => void;
+  onFireMapClick: (x: number, y: number) => void;
+  onFireMarkerDelete: (id: string) => void;
   onPoiClick: (id: string) => void;
   onPoiLabelChange: (id: string, label: string) => void;
   onPoiDelete: (id: string) => void;
@@ -725,7 +799,12 @@ const FloorCanvas = ({
     return (
       <div className={styles.canvasPlaceholder}>
         <span className={styles.canvasPlaceholderTitle}>등록된 도면이 없습니다</span>
-        <span>도면 목록에서 도면을 업로드하거나 AI 영역 분할을 실행해 주세요</span>
+        <p style={{ color: 'inherit', margin: 0 }}>
+          도면을 업로드하거나 AI 영역 분할을 실행해 주세요
+        </p>
+        <Button variant="primary" size="sm" onClick={() => {}}>
+          도면 업로드
+        </Button>
       </div>
     );
   }
@@ -737,15 +816,20 @@ const FloorCanvas = ({
       <MockFloorMap3F
         aiLayers={aiLayers}
         showHeatmap={showHeatmap}
-        simulationExitId={simulationExitId}
-        fireZones={fireZones}
+        evacPath={evacPath}
+        isPathDanger={isPathDanger}
         editMode={editMode}
         poiMarkers={poiMarkers}
         simAnimating={simAnimating}
+        simDone={simDone}
         editingPoiId={editingPoiId}
         relocatingPoiId={relocatingPoiId}
+        fireMarkers={fireMarkers}
+        simStart={simStart}
+        simClickMode={simClickMode}
         onMapClick={onMapClick}
-        onRoomClick={onRoomClick}
+        onFireMapClick={onFireMapClick}
+        onFireMarkerDelete={onFireMarkerDelete}
         onPoiClick={onPoiClick}
         onPoiLabelChange={onPoiLabelChange}
         onPoiDelete={onPoiDelete}
@@ -761,6 +845,115 @@ const FloorCanvas = ({
           onClick={() => onSelectDevice(device)}
         />
       ))}
+
+      {/* POI 편집 팝오버 — SVG 바깥 절대 위치 (잘림 없음) */}
+      {editingPoiId &&
+        (() => {
+          const poi = poiMarkers.find((m) => m.id === editingPoiId);
+          if (!poi) return null;
+          const cfg = POI_TYPE_CONFIG[poi.poiType as PoiType] ?? POI_TYPE_CONFIG.custom;
+          const left = poi.x + 20 > 400 ? poi.x - 180 : poi.x + 20;
+          const top = poi.y - 20;
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left,
+                top,
+                zIndex: 20,
+                background: 'white',
+                border: `1px solid ${cfg.color}40`,
+                borderRadius: '8px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                padding: '10px',
+                width: '170px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <span style={{ fontSize: '11px', color: cfg.color, fontWeight: 700 }}>
+                  {cfg.icon} {cfg.label} 편집
+                </span>
+                <button
+                  type="button"
+                  onClick={onPoiPopoverClose}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#9ca3af',
+                    fontSize: '14px',
+                    lineHeight: 1,
+                    padding: '0 2px',
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="text"
+                value={poi.label}
+                onChange={(e) => onPoiLabelChange(poi.id, e.target.value)}
+                style={{
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  padding: '4px 6px',
+                  fontSize: '11px',
+                  width: '100%',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = cfg.color;
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                }}
+              />
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => onPoiRelocate(poi.id)}
+                  style={{
+                    flex: 1,
+                    border: `1px solid ${cfg.color}`,
+                    borderRadius: '4px',
+                    background: 'white',
+                    color: cfg.color,
+                    fontSize: '10px',
+                    padding: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  위치 변경
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPoiDelete(poi.id)}
+                  style={{
+                    flex: 1,
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: '#ef4444',
+                    color: 'white',
+                    fontSize: '10px',
+                    padding: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 };
@@ -786,14 +979,17 @@ const FloorPlansDetailPage = () => {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [selectedExit, setSelectedExit] = useState('');
-  const [fireZones, setFireZones] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+  const [simStart, setSimStart] = useState<{ x: number; y: number } | null>(null);
+  const [simClickMode, setSimClickMode] = useState<'fire' | 'start' | null>(null);
   const [segStatusOverride, setSegStatusOverride] = useState<SegmentationStatus | null>(null);
   const [poiMarkers, setPoiMarkers] = useState<
-    Array<{ id: string; x: number; y: number; label: string }>
+    Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
+  const [selectedPoiType, setSelectedPoiType] = useState<PoiType>('exit');
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
+  const [fireMarkers, setFireMarkers] = useState<Array<{ id: string; x: number; y: number }>>([]);
   const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [toastFading, setToastFading] = useState(false);
@@ -820,17 +1016,18 @@ const FloorPlansDetailPage = () => {
     }, 2200);
   };
 
-  const TOAST_MSG: Record<EditMode, string> = {
+  const TOAST_MSG: Partial<Record<EditMode, string>> = {
     view: '보기 모드',
     poi: 'POI 편집 모드 · 도면을 클릭해 마커를 추가하세요',
-    simulation: '시뮬레이션 모드 · 실(방)을 클릭해 화재 구역을 지정하세요',
   };
 
   const handleEditModeChange = (mode: EditMode) => {
     setEditMode(mode);
     setEditingPoiId(null);
     setRelocatingPoiId(null);
-    showToast(TOAST_MSG[mode]);
+    setSimClickMode(null);
+    const msg = TOAST_MSG[mode];
+    if (msg) showToast(msg);
   };
 
   const currentBuilding =
@@ -838,16 +1035,30 @@ const FloorPlansDetailPage = () => {
   const currentFloor =
     currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
 
+  const FLOOR_STATUS_LABEL: Record<string, string> = {
+    NONE: '미등록',
+    PENDING: '대기중',
+    PROCESSING: '처리중',
+    DONE: '등록완료',
+    FAILED: '오류',
+  };
+
   const buildingOptions = mockFloorBuildings.map((b) => ({ label: b.name, value: String(b.id) }));
   const floorOptions =
     currentBuilding?.floors.map((f) => ({
-      label: formatFloor(f.floorNum),
+      label: `${formatFloor(f.floorNum)}  ·  ${FLOOR_STATUS_LABEL[f.segmentationStatus]}`,
       value: String(f.id),
     })) ?? [];
 
   const exitOptions = (currentFloor?.pois ?? [])
     .filter((p) => p.type === 'exit')
     .map((p) => ({ label: p.label, value: p.id }));
+
+  const selectedExitLabel = exitOptions.find((o) => o.value === selectedExit)?.label ?? '';
+  const isExitB = selectedExitLabel.toUpperCase().includes('B');
+  const evacPath = selectedExit ? computeEvacPath(simStart ?? { x: 280, y: 210 }, isExitB) : null;
+  const allDoors = Object.values(DOOR_PTS);
+  const isPathDanger = fireMarkers.some((f) => allDoors.some((d) => isNear(f, d)));
 
   const handleBuildingChange = (newId: string) => {
     const newBuilding = mockFloorBuildings.find((b) => String(b.id) === newId);
@@ -856,7 +1067,8 @@ const FloorPlansDetailPage = () => {
     setSelectedFloorId(firstFloor ? String(firstFloor.id) : '');
     setSelectedItem(null);
     setSelectedExit('');
-    setFireZones([]);
+    setFireMarkers([]);
+    setSimStart(null);
     if (firstFloor) void navigate(`/floorPlans/${newId}/${firstFloor.id}`);
   };
 
@@ -864,7 +1076,8 @@ const FloorPlansDetailPage = () => {
     setSelectedFloorId(newId);
     setSelectedItem(null);
     setSelectedExit('');
-    setFireZones([]);
+    setFireMarkers([]);
+    setSimStart(null);
     setSimState('idle');
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
   };
@@ -879,12 +1092,6 @@ const FloorPlansDetailPage = () => {
   const isProcessing = segStatus === 'PROCESSING';
   const canRunAI = segStatus === 'NONE' || segStatus === 'FAILED' || segStatus === 'DONE';
 
-  const handleRoomClick = (roomId: string) => {
-    setFireZones((prev) =>
-      prev.includes(roomId) ? prev.filter((id) => id !== roomId) : [...prev, roomId],
-    );
-  };
-
   const handleMapClick = (x: number, y: number) => {
     if (relocatingPoiId) {
       setPoiMarkers((prev) => prev.map((m) => (m.id === relocatingPoiId ? { ...m, x, y } : m)));
@@ -893,7 +1100,13 @@ const FloorPlansDetailPage = () => {
     }
     setPoiMarkers((prev) => [
       ...prev,
-      { id: `poi-${Date.now()}`, x, y, label: `POI ${prev.length + 1}` },
+      {
+        id: `poi-${Date.now()}`,
+        x,
+        y,
+        label: `${(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label} ${prev.filter((m) => m.poiType === selectedPoiType).length + 1}`,
+        poiType: selectedPoiType,
+      },
     ]);
   };
 
@@ -915,6 +1128,19 @@ const FloorPlansDetailPage = () => {
     setEditingPoiId(null);
   };
 
+  const handleFireMapClick = (x: number, y: number) => {
+    if (simClickMode === 'start') {
+      setSimStart({ x, y });
+      setSimClickMode(null);
+    } else if (simClickMode === 'fire') {
+      setFireMarkers((prev) => [...prev, { id: `fire-${Date.now()}`, x, y }]);
+    }
+  };
+
+  const handleFireMarkerDelete = (id: string) => {
+    setFireMarkers((prev) => prev.filter((m) => m.id !== id));
+  };
+
   const handleRunSimulation = () => {
     if (simTimerRef.current) clearTimeout(simTimerRef.current);
     setSimState('running');
@@ -925,7 +1151,9 @@ const FloorPlansDetailPage = () => {
     if (simTimerRef.current) clearTimeout(simTimerRef.current);
     setSimState('idle');
     setSelectedExit('');
-    setFireZones([]);
+    setFireMarkers([]);
+    setSimStart(null);
+    setSimClickMode(null);
   };
 
   const handleRunAI = () => {
@@ -1021,209 +1249,98 @@ const FloorPlansDetailPage = () => {
 
             <div className={styles.divider} />
 
-            {/* AI 영역 분할 */}
-            <div className={styles.section}>
-              <span className={styles.sectionLabel}>AI 영역 분할</span>
-              <div className={styles.aiLayerList}>
-                {AI_LAYERS.map(({ key, label }) => (
-                  <label key={key} className={styles.aiLayerItem}>
-                    <input
-                      type="checkbox"
-                      className={styles.aiLayerCheckbox}
-                      checked={aiLayers[key]}
-                      disabled={!isDone}
-                      onChange={() => toggleAiLayer(key)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
+            {/* 보기 / POI편집 탭 */}
+            <div className={styles.modeTabGroup}>
+              {(
+                [
+                  { mode: 'view', label: '보기' },
+                  { mode: 'poi', label: 'POI 편집' },
+                ] as const
+              ).map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={clsx(styles.modeTab, editMode === mode && styles.modeTabActive)}
+                  disabled={!isDone}
+                  onClick={() => handleEditModeChange(mode)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <div className={styles.divider} />
-
-            {/* 편집 모드 */}
-            <div className={styles.section}>
-              <span className={styles.sectionLabel}>편집 모드</span>
-              <div className={styles.modeGroup}>
-                {MODE_CONFIG.map(({ mode, label }) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={clsx(
-                      styles.modeButton,
-                      editMode === mode && styles.modeButtonActive,
-                    )}
-                    onClick={() => handleEditModeChange(mode)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 시뮬레이션 설정 (simulation 모드에서만) */}
-            {editMode === 'simulation' && (
+            {/* 보기 모드 */}
+            {editMode === 'view' && (
               <>
-                <div className={styles.divider} />
                 <div className={styles.section}>
-                  <span className={styles.sectionLabel}>시뮬레이션 설정</span>
-                  <div className={styles.simSection}>
-                    {/* 출구 선택 */}
-                    <div className={styles.selectField}>
-                      <span className={styles.selectFieldLabel}>출구 선택</span>
-                      <Dropdown
-                        className={styles.dropdownFullWidth}
-                        options={exitOptions}
-                        value={selectedExit}
-                        onChange={(v) => {
-                          setSelectedExit(v);
-                          setSimState('idle');
-                        }}
-                        placeholder="선택"
-                        disabled={exitOptions.length === 0 || simState === 'running'}
-                      />
-                    </div>
-
-                    {/* 화재 구역 목록 */}
-                    <div>
-                      <span className={styles.selectFieldLabel}>
-                        화재 구역
-                        {fireZones.length > 0 && (
-                          <span style={{ marginLeft: '0.4rem', color: '#ef4444', fontWeight: 600 }}>
-                            ({fireZones.length})
-                          </span>
-                        )}
-                      </span>
-                      {fireZones.length === 0 ? (
-                        <p style={{ marginTop: '0.4rem', color: '#9ca3af', fontSize: '1.2rem' }}>
-                          도면에서 실을 클릭해 화재 구역을 지정하세요
-                        </p>
-                      ) : (
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.4rem',
-                            marginTop: '0.4rem',
-                          }}
-                        >
-                          {fireZones.map((id) => {
-                            const label = ROOMS.find((r) => r.id === id)?.label ?? id;
-                            return (
-                              <div
-                                key={id}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  padding: '0.4rem 0.8rem',
-                                  borderRadius: '0.6rem',
-                                  backgroundColor: 'rgba(254,202,202,0.5)',
-                                  border: '1px solid #f87171',
-                                }}
-                              >
-                                <span
-                                  style={{ fontSize: '1.2rem', color: '#b91c1c', fontWeight: 500 }}
-                                >
-                                  🔥 {label}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRoomClick(id)}
-                                  disabled={simState === 'running'}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: '#ef4444',
-                                    fontSize: '1.2rem',
-                                    padding: '0 0.2rem',
-                                  }}
-                                  aria-label={`${label} 화재 구역 해제`}
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 실행/초기화 버튼 */}
-                    <button
-                      type="button"
-                      className={styles.simRunButton}
-                      disabled={!selectedExit || simState === 'running'}
-                      onClick={handleRunSimulation}
-                    >
-                      {simState === 'running'
-                        ? '시뮬레이션 실행 중...'
-                        : simState === 'done'
-                          ? '다시 실행'
-                          : '시뮬레이션 실행'}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.simResetButton}
-                      disabled={simState === 'running'}
-                      onClick={handleResetSimulation}
-                    >
-                      초기화
-                    </button>
+                  <span className={styles.sectionLabel}>AI 영역 분할</span>
+                  <div className={styles.aiLayerList}>
+                    {AI_LAYERS.map(({ key, label }) => (
+                      <label key={key} className={styles.aiLayerItem}>
+                        <input
+                          type="checkbox"
+                          className={styles.aiLayerCheckbox}
+                          checked={aiLayers[key]}
+                          disabled={!isDone}
+                          onChange={() => toggleAiLayer(key)}
+                        />
+                        {label}
+                      </label>
+                    ))}
                   </div>
                 </div>
+                <label className={styles.heatmapRow}>
+                  <input
+                    type="checkbox"
+                    className={styles.heatmapCheckbox}
+                    checked={showHeatmap}
+                    disabled={!isDone}
+                    onChange={() => setShowHeatmap((v) => !v)}
+                  />
+                  혼잡도 히트맵
+                </label>
               </>
             )}
 
-            <div className={styles.divider} />
-
-            {/* 혼잡도 히트맵 */}
-            <label className={styles.heatmapRow}>
-              <input
-                type="checkbox"
-                className={styles.heatmapCheckbox}
-                checked={showHeatmap}
-                disabled={!isDone}
-                onChange={() => setShowHeatmap((v) => !v)}
-              />
-              혼잡도 히트맵
-            </label>
-
-            <div className={styles.divider} />
-
-            {/* 보기 설정 */}
-            <div className={styles.section}>
-              <span className={styles.sectionLabel}>보기 설정</span>
-              <div className={styles.zoomRow}>
-                <span className={styles.zoomLabel}>확대/축소</span>
-                <button
-                  type="button"
-                  className={styles.zoomButton}
-                  onClick={() => setZoom((v) => Math.max(50, v - 10))}
-                  disabled={zoom <= 50}
-                >
-                  −
-                </button>
-                <button
-                  type="button"
-                  className={zoom !== 100 ? styles.zoomValueClickable : styles.zoomValue}
-                  onClick={() => setZoom(100)}
-                  title={zoom !== 100 ? '클릭해서 100% 리셋' : undefined}
-                >
-                  {zoom}%
-                </button>
-                <button
-                  type="button"
-                  className={styles.zoomButton}
-                  onClick={() => setZoom((v) => Math.min(200, v + 10))}
-                  disabled={zoom >= 200}
-                >
-                  +
-                </button>
+            {/* POI 편집 모드 */}
+            {editMode === 'poi' && (
+              <div className={styles.section}>
+                <span className={styles.sectionLabel}>POI 유형</span>
+                <div className={styles.poiTypeGrid}>
+                  {(
+                    Object.entries(POI_TYPE_CONFIG) as [
+                      PoiType,
+                      (typeof POI_TYPE_CONFIG)[PoiType],
+                    ][]
+                  ).map(([type, cfg]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={clsx(
+                        styles.poiTypeBtn,
+                        selectedPoiType === type && styles.poiTypeBtnActive,
+                      )}
+                      style={
+                        selectedPoiType === type
+                          ? {
+                              borderColor: cfg.color,
+                              backgroundColor: `${cfg.color}15`,
+                              color: cfg.color,
+                            }
+                          : {}
+                      }
+                      onClick={() => setSelectedPoiType(type)}
+                    >
+                      {cfg.icon} {cfg.label}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ margin: 0, color: '#9ca3af', fontSize: '1.1rem', lineHeight: 1.4 }}>
+                  도면을 클릭해 {(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label}{' '}
+                  마커를 추가합니다
+                </p>
               </div>
-            </div>
+            )}
 
             {/* 범례 */}
             <div className={styles.legend}>
@@ -1257,19 +1374,24 @@ const FloorPlansDetailPage = () => {
                 aiLayers={aiLayers}
                 showHeatmap={showHeatmap}
                 zoom={zoom}
-                simulationExitId={selectedExit}
-                fireZones={fireZones}
+                evacPath={evacPath}
+                isPathDanger={isPathDanger}
                 editMode={editMode}
                 poiMarkers={poiMarkers}
                 simAnimating={simState === 'running'}
+                simDone={simState === 'done'}
                 editingPoiId={editingPoiId}
                 relocatingPoiId={relocatingPoiId}
+                fireMarkers={fireMarkers}
+                simStart={simStart}
+                simClickMode={simClickMode}
                 onSelectDevice={(d) => {
                   if (editMode === 'poi') return;
                   setSelectedItem({ kind: 'device', data: d });
                 }}
                 onMapClick={handleMapClick}
-                onRoomClick={handleRoomClick}
+                onFireMapClick={handleFireMapClick}
+                onFireMarkerDelete={handleFireMarkerDelete}
                 onPoiClick={handlePoiClick}
                 onPoiLabelChange={handlePoiLabelChange}
                 onPoiDelete={handlePoiDelete}
@@ -1283,6 +1405,34 @@ const FloorPlansDetailPage = () => {
             )}
           </div>
 
+          {/* 플로팅 줌 컨트롤 */}
+          <div className={styles.canvasZoomFloat}>
+            <button
+              type="button"
+              className={styles.zoomButton}
+              onClick={() => setZoom((v) => Math.max(50, v - 10))}
+              disabled={zoom <= 50}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className={zoom !== 100 ? styles.zoomValueClickable : styles.zoomValue}
+              onClick={() => setZoom(100)}
+              title={zoom !== 100 ? '클릭해서 100% 리셋' : undefined}
+            >
+              {zoom}%
+            </button>
+            <button
+              type="button"
+              className={styles.zoomButton}
+              onClick={() => setZoom((v) => Math.min(200, v + 10))}
+              disabled={zoom >= 200}
+            >
+              +
+            </button>
+          </div>
+
           {/* 모드 안내 토스트 */}
           {toastMsg && (
             <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
@@ -1292,55 +1442,205 @@ const FloorPlansDetailPage = () => {
           {selectedItem && simState !== 'done' && (
             <InfoPanel selected={selectedItem} onClose={() => setSelectedItem(null)} />
           )}
+        </div>
 
-          {/* 시뮬레이션 결과 패널 */}
-          {simState === 'done' &&
-            selectedExit &&
-            (() => {
-              const exitLabel =
-                exitOptions.find((o) => o.value === selectedExit)?.label ?? selectedExit;
-              const fireCount = fireZones.length;
-              const estTime = 30 + fireCount * 10 + (selectedExit === 'exit-a3-02' ? 8 : 0);
-              const isSafe = fireCount < 3;
-              const avoidedRooms = ROOMS.filter((r) => fireZones.includes(r.id))
-                .map((r) => r.label)
-                .join(', ');
-              return (
-                <div className={styles.simResultPanel}>
-                  <div className={styles.simResultTitle}>시뮬레이션 결과</div>
-                  <div className={styles.simResultRow}>
-                    <span className={styles.simResultKey}>목표 출구</span>
-                    <span className={styles.simResultValue}>{exitLabel}</span>
-                  </div>
-                  <div className={styles.simResultRow}>
-                    <span className={styles.simResultKey}>예상 대피 시간</span>
-                    <span className={styles.simResultValue}>{estTime}초</span>
-                  </div>
-                  <div className={styles.simResultRow}>
-                    <span className={styles.simResultKey}>경유 구역</span>
-                    <span className={styles.simResultValue}>복도 → 계단실 → {exitLabel}</span>
-                  </div>
-                  <div className={styles.simResultRow}>
-                    <span className={styles.simResultKey}>화재 구역 회피</span>
-                    <span
-                      className={clsx(
-                        styles.simResultBadge,
-                        isSafe ? styles.simResultBadgeSafe : styles.simResultBadgeDanger,
-                      )}
-                    >
-                      {isSafe ? '✓ 안전' : '⚠ 위험'}
-                    </span>
-                  </div>
-                  {avoidedRooms && (
-                    <div className={styles.simResultRow}>
-                      <span className={styles.simResultKey}>회피 구역</span>
-                      <span className={styles.simResultValue}>{avoidedRooms}</span>
+        {/* ── 우측 경로 시뮬레이션 패널 (항상 표시) ── */}
+        {(() => {
+          const fireCount = fireMarkers.length;
+          const pathLength = evacPath ? polyLen(evacPath) : 300;
+          const estTime = Math.round(pathLength * 0.22 + fireCount * 6);
+          const isSafe = !isPathDanger && fireCount < 3;
+          return (
+            <aside className={styles.simPanel}>
+              <div className={styles.simPanelInner}>
+                <div className={styles.simPanelTitle}>경로 시뮬레이션</div>
+
+                {/* 출구 선택 */}
+                <div className={styles.section}>
+                  <span className={styles.sectionLabel}>목표 출구</span>
+                  <Dropdown
+                    className={styles.dropdownFullWidth}
+                    options={exitOptions}
+                    value={selectedExit}
+                    onChange={(v) => {
+                      setSelectedExit(v);
+                      setSimState('idle');
+                    }}
+                    placeholder="출구 선택"
+                    disabled={exitOptions.length === 0 || simState === 'running'}
+                  />
+                </div>
+
+                <div className={styles.divider} />
+
+                {/* 훈련 시작 위치 */}
+                <div className={styles.section}>
+                  <span className={styles.sectionLabel}>훈련 시작 위치</span>
+                  {simStart ? (
+                    <div className={styles.simStartInfo}>
+                      <span>
+                        S ({simStart.x}, {simStart.y})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSimStart(null)}
+                        disabled={simState === 'running'}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#16a34a',
+                          fontSize: '1.2rem',
+                          padding: '0 0.2rem',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: '#9ca3af', fontSize: '1.1rem' }}>
+                      미설정 (기본값: 중앙)
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className={clsx(
+                      styles.simClickModeBtn,
+                      simClickMode === 'start' && styles.simClickModeBtnActive,
+                    )}
+                    disabled={simState === 'running'}
+                    onClick={() => setSimClickMode((m) => (m === 'start' ? null : 'start'))}
+                  >
+                    {simClickMode === 'start'
+                      ? '📍 도면을 클릭해 위치 지정 중'
+                      : '도면에서 시작 위치 설정'}
+                  </button>
+                </div>
+
+                <div className={styles.divider} />
+
+                {/* 화재 위치 */}
+                <div className={styles.section}>
+                  <span className={styles.sectionLabel}>
+                    화재 위치
+                    {fireCount > 0 && (
+                      <span style={{ marginLeft: '0.4rem', color: '#ef4444', fontWeight: 600 }}>
+                        ({fireCount})
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className={clsx(
+                      styles.simClickModeBtn,
+                      simClickMode === 'fire' && styles.simClickModeBtnActive,
+                    )}
+                    disabled={simState === 'running'}
+                    onClick={() => setSimClickMode((m) => (m === 'fire' ? null : 'fire'))}
+                  >
+                    {simClickMode === 'fire' ? '🔥 도면을 클릭해 추가 중' : '화재 위치 추가'}
+                  </button>
+                  {fireMarkers.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {fireMarkers.map((m, i) => (
+                        <div key={m.id} className={styles.simFireItem}>
+                          <span>🔥 화재 {i + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleFireMarkerDelete(m.id)}
+                            disabled={simState === 'running'}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: '#ef4444',
+                              fontSize: '1.2rem',
+                              padding: '0 0.2rem',
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              );
-            })()}
-        </div>
+
+                <div className={styles.divider} />
+
+                {/* 실행/초기화 */}
+                <div className={styles.section}>
+                  <button
+                    type="button"
+                    className={styles.simRunButton}
+                    disabled={!selectedExit || simState === 'running'}
+                    onClick={handleRunSimulation}
+                  >
+                    {simState === 'running'
+                      ? '시뮬레이션 실행 중...'
+                      : simState === 'done'
+                        ? '다시 실행'
+                        : '시뮬레이션 실행'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.simResetButton}
+                    disabled={simState === 'running'}
+                    onClick={handleResetSimulation}
+                  >
+                    초기화
+                  </button>
+                </div>
+
+                {/* 시뮬레이션 결과 */}
+                {simState === 'done' && selectedExit && (
+                  <div className={styles.simResultSection}>
+                    <div className={styles.simResultTitle}>시뮬레이션 결과</div>
+                    <div className={styles.simResultRow}>
+                      <span className={styles.simResultKey}>목표 출구</span>
+                      <span className={styles.simResultValue}>{selectedExitLabel}</span>
+                    </div>
+                    {simStart && (
+                      <div className={styles.simResultRow}>
+                        <span className={styles.simResultKey}>시작 위치</span>
+                        <span className={styles.simResultValue}>
+                          ({simStart.x}, {simStart.y})
+                        </span>
+                      </div>
+                    )}
+                    <div className={styles.simResultRow}>
+                      <span className={styles.simResultKey}>예상 대피 시간</span>
+                      <span className={styles.simResultValue}>{estTime}초</span>
+                    </div>
+                    <div className={styles.simResultRow}>
+                      <span className={styles.simResultKey}>경유 구역</span>
+                      <span className={styles.simResultValue}>
+                        복도 → 계단실 → {selectedExitLabel}
+                      </span>
+                    </div>
+                    <div className={styles.simResultRow}>
+                      <span className={styles.simResultKey}>화재 구역 회피</span>
+                      <span
+                        className={clsx(
+                          styles.simResultBadge,
+                          isSafe ? styles.simResultBadgeSafe : styles.simResultBadgeDanger,
+                        )}
+                      >
+                        {isSafe ? '✓ 안전' : '⚠ 위험'}
+                      </span>
+                    </div>
+                    {fireCount > 0 && (
+                      <div className={styles.simResultRow}>
+                        <span className={styles.simResultKey}>화재 마커</span>
+                        <span className={styles.simResultValue}>{fireCount}개</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </aside>
+          );
+        })()}
       </div>
     </>
   );

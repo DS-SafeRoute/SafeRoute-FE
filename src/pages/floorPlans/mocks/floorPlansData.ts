@@ -122,7 +122,10 @@ export const mockFloorBuildings: FloorBuilding[] = [
             zone: '2층 · 복도',
           },
         ],
-        pois: [{ id: 'exit-a2-01', type: 'exit', label: 'EXIT A', x: 18, y: 88 }],
+        pois: [
+          { id: 'exit-a2-01', type: 'exit', label: 'EXIT A', x: 18, y: 88 },
+          { id: 'exit-a2-02', type: 'exit', label: 'EXIT B', x: 78, y: 88 },
+        ],
       },
       {
         id: 15,
@@ -171,7 +174,10 @@ export const mockFloorBuildings: FloorBuilding[] = [
         segmentationStatus: 'DONE',
         processedAt: '2025-05-11T10:00:00Z',
         devices: [],
-        pois: [{ id: 'exit-b1-01', type: 'exit', label: 'EXIT A', x: 20, y: 88 }],
+        pois: [
+          { id: 'exit-b1-01', type: 'exit', label: 'EXIT A', x: 20, y: 88 },
+          { id: 'exit-b1-02', type: 'exit', label: 'EXIT B', x: 78, y: 88 },
+        ],
       },
     ],
   },

@@ -100,11 +100,43 @@ export const aiLayerCheckbox = style({
   accentColor: vars.color.primary,
 });
 
-/* ── 편집 모드 ── */
+/* ── 편집 모드 탭 ── */
 export const modeGroup = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s1,
+});
+
+export const modeTabGroup = style({
+  display: 'flex',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  overflow: 'hidden',
+});
+
+export const modeTab = style({
+  display: 'flex',
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRight: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s1}`,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:last-child': { borderRight: 'none' },
+    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray50 },
+    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+  },
+});
+
+export const modeTabActive = style({
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+  fontWeight: 700,
 });
 
 export const modeButton = style({
@@ -119,9 +151,8 @@ export const modeButton = style({
   color: vars.color.textMid,
   ...vars.typography.body14,
   selectors: {
-    '&:hover': {
-      backgroundColor: vars.color.gray50,
-    },
+    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray50 },
+    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
   },
 });
 
@@ -130,6 +161,22 @@ export const modeButtonActive = style({
   backgroundColor: vars.color.primaryLight2,
   color: vars.color.primary,
   ...vars.typography.body14Medium,
+});
+
+/* ── 플로팅 줌 컨트롤 ── */
+export const canvasZoomFloat = style({
+  position: 'absolute',
+  zIndex: 10,
+  right: '2.4rem',
+  bottom: '2.4rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.4rem',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.md,
+  backgroundColor: vars.color.white,
+  padding: `0.4rem ${vars.space.s2}`,
 });
 
 /* ── 시뮬레이션 설정 ── */
@@ -288,21 +335,24 @@ export const canvasHeaderFloor = style({
 export const canvasBody = style({
   display: 'flex',
   flex: 1,
-  alignItems: 'center',
+  alignItems: 'flex-start',
   justifyContent: 'center',
   margin: vars.space.s4,
   marginTop: 0,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: `0 0 ${vars.radius.lg} ${vars.radius.lg}`,
   backgroundColor: vars.color.white,
-  overflow: 'hidden',
+  padding: vars.space.s6,
+  overflow: 'auto',
 });
 
 export const mapWrap = style({
   position: 'relative',
   display: 'inline-block',
-  transformOrigin: 'center center',
+  flexShrink: 0,
+  transformOrigin: 'top center',
   transition: 'transform 0.15s ease',
+  overflow: 'visible',
 });
 
 export const mapImage = style({
@@ -578,6 +628,34 @@ export const simRunButton = style({
   },
 });
 
+/* ── POI 유형 선택 ── */
+export const poiTypeGrid = style({
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: vars.space.s1,
+});
+
+export const poiTypeBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.4rem',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} vars.space.s2`,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray50 },
+  },
+});
+
+export const poiTypeBtnActive = style({
+  fontWeight: 600,
+});
+
 /* ── 줌 리셋 ── */
 export const zoomValueClickable = style({
   borderRadius: vars.radius.sm,
@@ -627,4 +705,88 @@ export const toastFading = style({
   animation: `${toastOut} 0.3s ease forwards`,
 });
 
-export const infoPanelActionBtn = style({ flex: 1 });
+/* ── 시뮬레이션 우측 패널 ── */
+export const simPanel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexShrink: 0,
+  borderLeft: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  width: '28rem',
+  overflowY: 'auto',
+});
+
+export const simPanelInner = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s4,
+  padding: '2rem 2rem 2.4rem',
+  minHeight: 'min-content',
+});
+
+export const simPanelTitle = style({
+  marginBottom: vars.space.s2,
+  ...vars.typography.body14Medium,
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  paddingBottom: vars.space.s2,
+  color: vars.color.textHigh,
+  fontWeight: 700,
+});
+
+export const simClickModeBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '0.4rem',
+  border: `1px solid ${vars.color.gray200}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '100%',
+  color: vars.color.textMid,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { borderColor: vars.color.gray300, backgroundColor: vars.color.gray50 },
+  },
+});
+
+export const simClickModeBtnActive = style({
+  border: `1.5px solid #2563eb`,
+  backgroundColor: 'rgba(37,99,235,0.07)',
+  color: '#2563eb',
+  fontWeight: 600,
+});
+
+export const simFireItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  border: `1px solid #f87171`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: 'rgba(254,202,202,0.5)',
+  padding: '0.4rem 0.8rem',
+  color: '#b91c1c',
+  fontSize: '1.2rem',
+});
+
+export const simStartInfo = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  border: `1px solid #86efac`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: 'rgba(220,252,231,0.5)',
+  padding: '0.5rem 0.8rem',
+  color: '#166534',
+  fontSize: '1.2rem',
+});
+
+export const simResultSection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  marginTop: vars.space.s2,
+  borderTop: `2px solid ${vars.color.gray100}`,
+  paddingTop: vars.space.s4,
+});
