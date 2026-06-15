@@ -99,8 +99,15 @@ const MockFloorMap3F = ({
   editMode,
   poiMarkers,
   simAnimating,
+  editingPoiId,
+  relocatingPoiId,
   onMapClick,
   onRoomClick,
+  onPoiClick,
+  onPoiLabelChange,
+  onPoiDelete,
+  onPoiRelocate,
+  onPoiPopoverClose,
 }: {
   aiLayers: Record<string, boolean>;
   showHeatmap: boolean;
@@ -109,8 +116,15 @@ const MockFloorMap3F = ({
   editMode: EditMode;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
   simAnimating: boolean;
+  editingPoiId: string | null;
+  relocatingPoiId: string | null;
   onMapClick: (x: number, y: number) => void;
   onRoomClick: (roomId: string) => void;
+  onPoiClick: (id: string) => void;
+  onPoiLabelChange: (id: string, label: string) => void;
+  onPoiDelete: (id: string) => void;
+  onPoiRelocate: (id: string) => void;
+  onPoiPopoverClose: () => void;
 }) => {
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (editMode !== 'poi') return;
@@ -120,8 +134,13 @@ const MockFloorMap3F = ({
     onMapClick(x, y);
   };
 
-  const svgCursor =
-    editMode === 'poi' ? 'crosshair' : editMode === 'simulation' ? 'pointer' : 'default';
+  const svgCursor = relocatingPoiId
+    ? 'crosshair'
+    : editMode === 'poi'
+      ? 'crosshair'
+      : editMode === 'simulation'
+        ? 'pointer'
+        : 'default';
 
   return (
     <svg
@@ -371,32 +390,158 @@ const MockFloorMap3F = ({
       )}
 
       {/* POI 마커 */}
-      {poiMarkers.map((m) => (
-        <g key={m.id}>
-          <circle cx={m.x} cy={m.y} r="12" fill="#8b5cf6" stroke="white" strokeWidth="2" />
-          <text
-            x={m.x}
-            y={m.y + 4}
-            textAnchor="middle"
-            fill="white"
-            fontSize="10"
-            fontWeight="bold"
-            fontFamily="sans-serif"
-          >
-            P
-          </text>
-          <text
-            x={m.x}
-            y={m.y + 22}
-            textAnchor="middle"
-            fill="#8b5cf6"
-            fontSize="9"
-            fontFamily="sans-serif"
-          >
-            {m.label}
-          </text>
-        </g>
-      ))}
+      {poiMarkers.map((m) => {
+        const isEditing = editingPoiId === m.id;
+        const isRelocating = relocatingPoiId === m.id;
+        // 팝오버가 SVG 오른쪽 경계를 넘지 않도록 좌우 반전
+        const popX = m.x + 20 > 400 ? m.x - 175 : m.x + 20;
+        const popY = m.y - 20;
+        return (
+          <g key={m.id}>
+            {/* 마커 본체 */}
+            <circle
+              cx={m.x}
+              cy={m.y}
+              r="14"
+              fill={isRelocating ? '#f59e0b' : '#8b5cf6'}
+              stroke="white"
+              strokeWidth="2"
+              style={{ cursor: editMode === 'poi' ? 'pointer' : 'default' }}
+              onClick={(e) => {
+                if (editMode !== 'poi') return;
+                e.stopPropagation();
+                onPoiClick(m.id);
+              }}
+            />
+            <text
+              x={m.x}
+              y={m.y + 5}
+              textAnchor="middle"
+              fill="white"
+              fontSize="10"
+              fontWeight="bold"
+              fontFamily="sans-serif"
+              style={{ pointerEvents: 'none' }}
+            >
+              P
+            </text>
+            <text
+              x={m.x}
+              y={m.y + 26}
+              textAnchor="middle"
+              fill={isRelocating ? '#f59e0b' : '#8b5cf6'}
+              fontSize="9"
+              fontFamily="sans-serif"
+              style={{ pointerEvents: 'none' }}
+            >
+              {isRelocating ? '클릭해서 이동' : m.label}
+            </text>
+
+            {/* 편집 팝오버 */}
+            {isEditing && (
+              <foreignObject x={popX} y={popY} width="160" height="120">
+                <div
+                  style={{
+                    background: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                    padding: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '2px',
+                    }}
+                  >
+                    <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600 }}>
+                      POI 편집
+                    </span>
+                    <button
+                      type="button"
+                      onClick={onPoiPopoverClose}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#9ca3af',
+                        fontSize: '14px',
+                        lineHeight: 1,
+                        padding: '0 2px',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={m.label}
+                    onChange={(e) => onPoiLabelChange(m.id, e.target.value)}
+                    style={{
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      padding: '4px 6px',
+                      fontSize: '11px',
+                      width: '100%',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#8b5cf6';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#d1d5db';
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => onPoiRelocate(m.id)}
+                      style={{
+                        flex: 1,
+                        border: '1px solid #8b5cf6',
+                        borderRadius: '4px',
+                        background: 'white',
+                        color: '#8b5cf6',
+                        fontSize: '10px',
+                        padding: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      위치 변경
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onPoiDelete(m.id)}
+                      style={{
+                        flex: 1,
+                        border: 'none',
+                        borderRadius: '4px',
+                        background: '#ef4444',
+                        color: 'white',
+                        fontSize: '10px',
+                        padding: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </foreignObject>
+            )}
+          </g>
+        );
+      })}
     </svg>
   );
 };
@@ -542,9 +687,16 @@ const FloorCanvas = ({
   editMode,
   poiMarkers,
   simAnimating,
+  editingPoiId,
+  relocatingPoiId,
   onSelectDevice,
   onMapClick,
   onRoomClick,
+  onPoiClick,
+  onPoiLabelChange,
+  onPoiDelete,
+  onPoiRelocate,
+  onPoiPopoverClose,
 }: {
   floor: Floor;
   selected: SelectedItem | null;
@@ -556,9 +708,16 @@ const FloorCanvas = ({
   editMode: EditMode;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
   simAnimating: boolean;
+  editingPoiId: string | null;
+  relocatingPoiId: string | null;
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
   onRoomClick: (roomId: string) => void;
+  onPoiClick: (id: string) => void;
+  onPoiLabelChange: (id: string, label: string) => void;
+  onPoiDelete: (id: string) => void;
+  onPoiRelocate: (id: string) => void;
+  onPoiPopoverClose: () => void;
 }) => {
   const hasMockMap = floor.segmentationStatus === 'DONE';
 
@@ -583,8 +742,15 @@ const FloorCanvas = ({
         editMode={editMode}
         poiMarkers={poiMarkers}
         simAnimating={simAnimating}
+        editingPoiId={editingPoiId}
+        relocatingPoiId={relocatingPoiId}
         onMapClick={onMapClick}
         onRoomClick={onRoomClick}
+        onPoiClick={onPoiClick}
+        onPoiLabelChange={onPoiLabelChange}
+        onPoiDelete={onPoiDelete}
+        onPoiRelocate={onPoiRelocate}
+        onPoiPopoverClose={onPoiPopoverClose}
       />
       {floor.devices.map((device) => (
         <DevicePin
@@ -626,6 +792,8 @@ const FloorPlansDetailPage = () => {
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string }>
   >([]);
+  const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
+  const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
   const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -691,10 +859,33 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleMapClick = (x: number, y: number) => {
+    if (relocatingPoiId) {
+      setPoiMarkers((prev) => prev.map((m) => (m.id === relocatingPoiId ? { ...m, x, y } : m)));
+      setRelocatingPoiId(null);
+      return;
+    }
     setPoiMarkers((prev) => [
       ...prev,
       { id: `poi-${Date.now()}`, x, y, label: `POI ${prev.length + 1}` },
     ]);
+  };
+
+  const handlePoiClick = (id: string) => {
+    setEditingPoiId((prev) => (prev === id ? null : id));
+  };
+
+  const handlePoiLabelChange = (id: string, label: string) => {
+    setPoiMarkers((prev) => prev.map((m) => (m.id === id ? { ...m, label } : m)));
+  };
+
+  const handlePoiDelete = (id: string) => {
+    setPoiMarkers((prev) => prev.filter((m) => m.id !== id));
+    setEditingPoiId(null);
+  };
+
+  const handlePoiRelocate = (id: string) => {
+    setRelocatingPoiId(id);
+    setEditingPoiId(null);
   };
 
   const handleRunSimulation = () => {
@@ -1037,9 +1228,16 @@ const FloorPlansDetailPage = () => {
                 editMode={editMode}
                 poiMarkers={poiMarkers}
                 simAnimating={simState === 'running'}
+                editingPoiId={editingPoiId}
+                relocatingPoiId={relocatingPoiId}
                 onSelectDevice={(d) => setSelectedItem({ kind: 'device', data: d })}
                 onMapClick={handleMapClick}
                 onRoomClick={handleRoomClick}
+                onPoiClick={handlePoiClick}
+                onPoiLabelChange={handlePoiLabelChange}
+                onPoiDelete={handlePoiDelete}
+                onPoiRelocate={handlePoiRelocate}
+                onPoiPopoverClose={() => setEditingPoiId(null)}
               />
             ) : (
               <div className={styles.canvasPlaceholder}>
