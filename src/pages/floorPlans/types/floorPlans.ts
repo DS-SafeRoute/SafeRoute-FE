@@ -6,6 +6,8 @@ export type PoiType = 'exit' | 'stair' | 'fire_zone';
 
 export type EditMode = 'view' | 'poi' | 'simulation';
 
+export type AiLayer = 'wall' | 'corridor' | 'stairwell' | 'exit' | 'room';
+
 export interface DeviceMarker {
   id: string;
   type: DeviceType;

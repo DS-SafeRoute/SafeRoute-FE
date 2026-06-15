@@ -1,3 +1,5 @@
+import type React from 'react';
+
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 
 import Avatar from '@components/avatar';
@@ -14,9 +16,10 @@ export interface GNBProps {
   description?: string;
   userName: string;
   userRole?: string;
+  actions?: React.ReactNode;
 }
 
-const GNB = ({ breadcrumbs, title, description, userName, userRole }: GNBProps) => (
+const GNB = ({ breadcrumbs, title, description, userName, userRole, actions }: GNBProps) => (
   <header className={styles.container}>
     <div className={styles.left}>
       {breadcrumbs && breadcrumbs.length > 0 && (
@@ -38,6 +41,7 @@ const GNB = ({ breadcrumbs, title, description, userName, userRole }: GNBProps) 
     </div>
 
     <div className={styles.right}>
+      {actions}
       <Avatar name={userName} size="sm" role={userRole} showNameGroup />
     </div>
   </header>

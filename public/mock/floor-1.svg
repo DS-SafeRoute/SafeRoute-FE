@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <rect width="800" height="500" fill="#f8f9fa"/>
+  <rect x="40" y="40" width="720" height="420" fill="none" stroke="#333" stroke-width="4"/>
+  <line x1="40" y1="240" x2="760" y2="240" stroke="#333" stroke-width="2"/>
+  <line x1="40" y1="300" x2="760" y2="300" stroke="#333" stroke-width="2"/>
+  <line x1="180" y1="40" x2="180" y2="240" stroke="#555" stroke-width="2"/>
+  <line x1="420" y1="40" x2="420" y2="240" stroke="#555" stroke-width="2"/>
+  <line x1="620" y1="40" x2="620" y2="240" stroke="#555" stroke-width="2"/>
+  <line x1="300" y1="300" x2="300" y2="460" stroke="#555" stroke-width="2"/>
+  <line x1="560" y1="300" x2="560" y2="460" stroke="#555" stroke-width="2"/>
+  <text x="110" y="150" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">로비</text>
+  <text x="300" y="150" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">안내데스크</text>
+  <text x="520" y="150" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">대기실</text>
+  <text x="690" y="150" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">계단실</text>
+  <text x="170" y="390" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">주차 연결</text>
+  <text x="430" y="390" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">편의시설</text>
+  <text x="660" y="390" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">비상구</text>
+  <rect x="40" y="240" width="720" height="60" fill="#e9ecef" opacity="0.5"/>
+  <text x="400" y="276" font-family="sans-serif" font-size="13" fill="#999" text-anchor="middle">복도</text>
+</svg>

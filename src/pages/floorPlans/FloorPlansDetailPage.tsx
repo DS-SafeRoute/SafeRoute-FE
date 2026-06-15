@@ -4,11 +4,11 @@ import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
+import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 import XIcon from '@assets/icons/ic-x.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
-import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import Dropdown from '@components/dropdown';
 import GNB from '@components/gnb';
 
@@ -16,6 +16,7 @@ import * as styles from './FloorPlansDetailPage.css';
 import { mockFloorBuildings } from './mocks/floorPlansData';
 
 import type {
+  AiLayer,
   DeviceMarker,
   EditMode,
   Floor,
@@ -23,41 +24,392 @@ import type {
   SegmentationStatus,
 } from './types/floorPlans';
 
-const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBadgeColor }> = {
-  NONE: { label: '미등록', color: 'neutral' },
-  PENDING: { label: '대기중', color: 'yellow' },
-  PROCESSING: { label: '처리중', color: 'blue' },
-  DONE: { label: '완료', color: 'green' },
-  FAILED: { label: '실패', color: 'red' },
-};
+/* ── 유틸 ── */
+const formatFloor = (n: number) => (n > 0 ? `${n}층` : n < 0 ? `B${Math.abs(n)}층` : '1층');
 
-const formatFloor = (floorNum: number) => {
-  if (floorNum > 0) return `${floorNum}층`;
-  if (floorNum < 0) return `B${Math.abs(floorNum)}층`;
-  return '1층';
-};
+const AI_LAYERS: { key: AiLayer; label: string }[] = [
+  { key: 'wall', label: '벽' },
+  { key: 'corridor', label: '복도' },
+  { key: 'stairwell', label: '계단실' },
+  { key: 'exit', label: '비상구' },
+  { key: 'room', label: '실' },
+];
 
-const MODE_CONFIG: { mode: EditMode; label: string; desc: string }[] = [
-  { mode: 'view', label: '보기', desc: '도면 및 장치 현황 확인' },
-  { mode: 'poi', label: 'POI 편집', desc: '출구 · 계단 · 화재구역 마커 편집' },
-  { mode: 'simulation', label: '시뮬레이션', desc: '대피 경로 시뮬레이션 실행' },
+const MODE_CONFIG: { mode: EditMode; label: string }[] = [
+  { mode: 'view', label: '보기' },
+  { mode: 'poi', label: 'POI 편집' },
+  { mode: 'simulation', label: '경로 시뮬레이션' },
 ];
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
 
-/* 장치 마커 */
-const DeviceMarkerPin = ({
+/* ── Mock SVG 도면 (3층 예시) ── */
+const ROOMS: {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  baseFill: string;
+}[] = [
+  {
+    id: 'room-301',
+    label: 'ROOM 301',
+    x: 20,
+    y: 20,
+    w: 230,
+    h: 175,
+    baseFill: 'rgba(254,226,226,0.5)',
+  },
+  {
+    id: 'room-302',
+    label: 'ROOM 302',
+    x: 310,
+    y: 20,
+    w: 230,
+    h: 175,
+    baseFill: 'rgba(255,237,213,0.5)',
+  },
+  {
+    id: 'room-303',
+    label: 'ROOM 303',
+    x: 20,
+    y: 225,
+    w: 230,
+    h: 155,
+    baseFill: 'rgba(243,244,246,0.5)',
+  },
+  {
+    id: 'room-304',
+    label: 'ROOM 304',
+    x: 310,
+    y: 225,
+    w: 230,
+    h: 155,
+    baseFill: 'rgba(243,244,246,0.5)',
+  },
+];
+
+const MockFloorMap3F = ({
+  aiLayers,
+  showHeatmap,
+  simulationExitId,
+  fireZones,
+  editMode,
+  poiMarkers,
+  onMapClick,
+  onRoomClick,
+}: {
+  aiLayers: Record<string, boolean>;
+  showHeatmap: boolean;
+  simulationExitId: string;
+  fireZones: string[];
+  editMode: EditMode;
+  poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
+  onMapClick: (x: number, y: number) => void;
+  onRoomClick: (roomId: string) => void;
+}) => {
+  const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (editMode !== 'poi') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * 560);
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * 420);
+    onMapClick(x, y);
+  };
+
+  const svgCursor =
+    editMode === 'poi' ? 'crosshair' : editMode === 'simulation' ? 'pointer' : 'default';
+
+  return (
+    <svg
+      viewBox="0 0 560 420"
+      width="560"
+      height="420"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ cursor: svgCursor }}
+      onClick={handleSvgClick}
+    >
+      {/* 배경 */}
+      <rect width="560" height="420" fill="#f8f9fa" />
+
+      {/* 외벽 (wall) */}
+      {aiLayers.wall && (
+        <rect
+          x="20"
+          y="20"
+          width="520"
+          height="380"
+          fill="none"
+          stroke="#374151"
+          strokeWidth="2.5"
+        />
+      )}
+
+      {/* 실 (room) */}
+      {aiLayers.room &&
+        ROOMS.map((room) => {
+          const isFire = fireZones.includes(room.id);
+          const cx = room.x + room.w - 24;
+          const cy = room.y + room.h - 24;
+          return (
+            <g
+              key={room.id}
+              onClick={
+                editMode === 'simulation'
+                  ? (e) => {
+                      e.stopPropagation();
+                      onRoomClick(room.id);
+                    }
+                  : undefined
+              }
+              style={editMode === 'simulation' ? { cursor: 'pointer' } : undefined}
+            >
+              <rect
+                x={room.x}
+                y={room.y}
+                width={room.w}
+                height={room.h}
+                fill={isFire ? 'rgba(254,202,202,0.7)' : room.baseFill}
+                stroke={isFire ? '#f87171' : '#d1d5db'}
+                strokeWidth={isFire ? 1.5 : 1}
+              />
+              <text
+                x={room.x + room.w / 2}
+                y={room.y + room.h / 2 + 4}
+                textAnchor="middle"
+                fill={isFire ? '#b91c1c' : '#6b7280'}
+                fontSize="12"
+                fontFamily="sans-serif"
+                fontWeight={isFire ? '600' : '400'}
+              >
+                {room.label}
+              </text>
+              {isFire && (
+                <>
+                  <circle cx={cx} cy={cy} r="14" fill="#ef4444" />
+                  <text
+                    x={cx}
+                    y={cy + 5}
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize="11"
+                    fontWeight="bold"
+                    fontFamily="sans-serif"
+                  >
+                    F
+                  </text>
+                </>
+              )}
+              {editMode === 'simulation' && !isFire && (
+                <rect
+                  x={room.x}
+                  y={room.y}
+                  width={room.w}
+                  height={room.h}
+                  fill="transparent"
+                  stroke="#f87171"
+                  strokeWidth="1"
+                  strokeDasharray="4 3"
+                  opacity="0.4"
+                />
+              )}
+            </g>
+          );
+        })}
+
+      {/* 복도 (corridor) */}
+      {aiLayers.corridor && (
+        <rect
+          x="20"
+          y="195"
+          width="520"
+          height="30"
+          fill="rgba(219,234,254,0.4)"
+          stroke="#bfdbfe"
+          strokeWidth="1"
+        />
+      )}
+
+      {/* 계단실 (stairwell) */}
+      {aiLayers.stairwell && (
+        <>
+          <rect
+            x="250"
+            y="185"
+            width="60"
+            height="40"
+            fill="rgba(191,219,254,0.7)"
+            stroke="#93c5fd"
+            strokeWidth="1.5"
+          />
+          <text
+            x="280"
+            y="209"
+            textAnchor="middle"
+            fill="#1d4ed8"
+            fontSize="10"
+            fontWeight="600"
+            fontFamily="sans-serif"
+          >
+            STAIR
+          </text>
+        </>
+      )}
+
+      {/* 비상구 (exit) */}
+      {aiLayers.exit && (
+        <>
+          <circle cx="100" cy="393" r="16" fill="#16a34a" />
+          <text
+            x="100"
+            y="397"
+            textAnchor="middle"
+            fill="white"
+            fontSize="11"
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            E
+          </text>
+          <text
+            x="100"
+            y="414"
+            textAnchor="middle"
+            fill="#16a34a"
+            fontSize="10"
+            fontFamily="sans-serif"
+          >
+            EXIT A
+          </text>
+          <circle cx="450" cy="393" r="16" fill="#16a34a" />
+          <text
+            x="450"
+            y="397"
+            textAnchor="middle"
+            fill="white"
+            fontSize="11"
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            E
+          </text>
+          <text
+            x="450"
+            y="414"
+            textAnchor="middle"
+            fill="#16a34a"
+            fontSize="10"
+            fontFamily="sans-serif"
+          >
+            EXIT B
+          </text>
+        </>
+      )}
+
+      {/* 시뮬레이션 경로 */}
+      {simulationExitId === 'exit-a3-01' && (
+        <g>
+          <line
+            x1="280"
+            y1="210"
+            x2="100"
+            y2="380"
+            stroke="#3b82f6"
+            strokeWidth="2.5"
+            strokeDasharray="8 5"
+          />
+          {[0.15, 0.35, 0.55, 0.75, 0.92].map((t) => (
+            <circle
+              key={t}
+              cx={280 - t * 180}
+              cy={210 + t * 170}
+              r="5"
+              fill="#3b82f6"
+              opacity="0.8"
+            />
+          ))}
+        </g>
+      )}
+      {simulationExitId === 'exit-a3-02' && (
+        <g>
+          <line
+            x1="280"
+            y1="210"
+            x2="450"
+            y2="380"
+            stroke="#3b82f6"
+            strokeWidth="2.5"
+            strokeDasharray="8 5"
+          />
+          {[0.15, 0.35, 0.55, 0.75, 0.92].map((t) => (
+            <circle
+              key={t}
+              cx={280 + t * 170}
+              cy={210 + t * 170}
+              r="5"
+              fill="#3b82f6"
+              opacity="0.8"
+            />
+          ))}
+        </g>
+      )}
+
+      {/* 혼잡도 히트맵 */}
+      {showHeatmap && (
+        <g opacity="0.4">
+          <ellipse cx="140" cy="240" rx="70" ry="50" fill="#ef4444" />
+          <ellipse cx="350" cy="255" rx="55" ry="40" fill="#f97316" />
+          <ellipse cx="220" cy="290" rx="40" ry="35" fill="#eab308" />
+        </g>
+      )}
+
+      {/* POI 마커 */}
+      {poiMarkers.map((m) => (
+        <g key={m.id}>
+          <circle cx={m.x} cy={m.y} r="12" fill="#8b5cf6" stroke="white" strokeWidth="2" />
+          <text
+            x={m.x}
+            y={m.y + 4}
+            textAnchor="middle"
+            fill="white"
+            fontSize="10"
+            fontWeight="bold"
+            fontFamily="sans-serif"
+          >
+            P
+          </text>
+          <text
+            x={m.x}
+            y={m.y + 22}
+            textAnchor="middle"
+            fill="#8b5cf6"
+            fontSize="9"
+            fontFamily="sans-serif"
+          >
+            {m.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+/* ── CCTV/IoT 마커 ── */
+const DevicePin = ({
   device,
   selected,
+  zoom,
   onClick,
 }: {
   device: DeviceMarker;
   selected: boolean;
+  zoom: number;
   onClick: () => void;
 }) => {
   const isOffline = device.status === 'offline';
   const markerClass = clsx(
-    styles.marker,
+    styles.markerCircle,
     device.type === 'cctv'
       ? isOffline
         ? styles.markerCctvOffline
@@ -65,67 +417,39 @@ const DeviceMarkerPin = ({
       : styles.markerIot,
     selected && styles.markerSelected,
   );
-
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={device.label}
-      aria-pressed={selected}
       className={styles.markerWrap}
       style={{ left: `${device.x}%`, top: `${device.y}%` }}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       onKeyDown={(e) => e.key === 'Enter' && onClick()}
     >
       <div className={markerClass}>
-        <CameraIcon width={14} height={14} aria-hidden="true" />
+        {device.type === 'cctv' ? (
+          <CameraIcon width={12} height={12} aria-hidden="true" />
+        ) : (
+          <WifiIcon width={12} height={12} aria-hidden="true" />
+        )}
       </div>
       {selected && <span className={styles.markerLabel}>{device.label}</span>}
     </div>
   );
 };
 
-/* POI 마커 */
-const PoiMarkerPin = ({
-  poi,
-  selected,
-  onClick,
-}: {
-  poi: PoiMarker;
-  selected: boolean;
-  onClick: () => void;
-}) => (
-  <div
-    role="button"
-    tabIndex={0}
-    aria-label={poi.label}
-    aria-pressed={selected}
-    className={styles.markerWrap}
-    style={{ left: `${poi.x}%`, top: `${poi.y}%` }}
-    onClick={onClick}
-    onKeyDown={(e) => e.key === 'Enter' && onClick()}
-  >
-    <div className={clsx(styles.marker, styles.markerPoi, selected && styles.markerSelected)}>
-      <span style={{ fontSize: '1rem', fontWeight: 700 }}>P</span>
-    </div>
-    {selected && <span className={styles.markerLabel}>{poi.label}</span>}
-  </div>
-);
-
-/* 선택된 장치 정보 패널 */
-const DeviceInfoPanel = ({
-  selected,
-  onClose,
-}: {
-  selected: SelectedItem;
-  onClose: () => void;
-}) => {
+/* ── 선택 정보 패널 ── */
+const InfoPanel = ({ selected, onClose }: { selected: SelectedItem; onClose: () => void }) => {
   if (selected.kind === 'device') {
     const d = selected.data;
     return (
       <div className={styles.infoPanel}>
         <div className={styles.infoPanelHeader}>
-          <span className={styles.infoPanelTitle}>{d.label}</span>
+          <span className={styles.infoPanelTitle}>선택 정보 · {d.label}</span>
           <button
             type="button"
             className={styles.infoPanelClose}
@@ -135,6 +459,11 @@ const DeviceInfoPanel = ({
             <XIcon width={14} height={14} />
           </button>
         </div>
+        {d.type === 'cctv' && <div className={styles.infoPanelThumb}>CCTV thumbnail</div>}
+        <div className={styles.infoPanelRow}>
+          <span className={styles.infoPanelKey}>장치 ID</span>
+          <span className={styles.infoPanelValue}>{d.id.toUpperCase()}</span>
+        </div>
         {d.model && (
           <div className={styles.infoPanelRow}>
             <span className={styles.infoPanelKey}>모델</span>
@@ -142,8 +471,12 @@ const DeviceInfoPanel = ({
           </div>
         )}
         <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>구역</span>
-          <span className={styles.infoPanelValue}>{d.zone}</span>
+          <span className={styles.infoPanelKey}>상태</span>
+          <StatusBadge
+            label={d.status === 'online' ? '실시간' : '오프라인'}
+            color={d.status === 'online' ? 'green' : 'neutral'}
+            dot
+          />
         </div>
         {d.resolution && (
           <div className={styles.infoPanelRow}>
@@ -152,12 +485,21 @@ const DeviceInfoPanel = ({
           </div>
         )}
         <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>상태</span>
-          <StatusBadge
-            label={d.status === 'online' ? '온라인' : '오프라인'}
-            color={d.status === 'online' ? 'green' : 'neutral'}
-            dot
-          />
+          <span className={styles.infoPanelKey}>설치 위치</span>
+          <span className={styles.infoPanelValue}>{d.zone}</span>
+        </div>
+        <div className={styles.infoPanelActions}>
+          <Button
+            variant="outlined"
+            size="sm"
+            className={styles.infoPanelActionBtn}
+            onClick={onClose}
+          >
+            설정
+          </Button>
+          <Button variant="primary" size="sm" className={styles.infoPanelActionBtn}>
+            스트림 보기
+          </Button>
         </div>
       </div>
     );
@@ -167,68 +509,88 @@ const DeviceInfoPanel = ({
   return (
     <div className={styles.infoPanel}>
       <div className={styles.infoPanelHeader}>
-        <span className={styles.infoPanelTitle}>{p.label}</span>
+        <span className={styles.infoPanelTitle}>선택 정보 · {p.label}</span>
         <button type="button" className={styles.infoPanelClose} onClick={onClose} aria-label="닫기">
           <XIcon width={14} height={14} />
         </button>
       </div>
       <div className={styles.infoPanelRow}>
         <span className={styles.infoPanelKey}>유형</span>
-        <span className={styles.infoPanelValue}>{p.type}</span>
+        <span className={styles.infoPanelValue}>
+          {p.type === 'exit' ? '비상구' : p.type === 'stair' ? '계단' : '화재 구역'}
+        </span>
       </div>
     </div>
   );
 };
 
-/* 캔버스 */
+/* ── 도면 캔버스 ── */
 const FloorCanvas = ({
   floor,
   selected,
+  aiLayers,
+  showHeatmap,
+  zoom,
+  simulationExitId,
+  fireZones,
+  editMode,
+  poiMarkers,
   onSelectDevice,
-  onSelectPoi,
+  onMapClick,
 }: {
   floor: Floor;
   selected: SelectedItem | null;
+  aiLayers: Record<string, boolean>;
+  showHeatmap: boolean;
+  zoom: number;
+  simulationExitId: string;
+  fireZones: string[];
+  editMode: EditMode;
+  poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
   onSelectDevice: (d: DeviceMarker) => void;
-  onSelectPoi: (p: PoiMarker) => void;
+  onMapClick: (x: number, y: number) => void;
+  onRoomClick: (roomId: string) => void;
 }) => {
-  if (!floor.mapImageUrl) {
+  const hasMockMap = floor.segmentationStatus === 'DONE';
+
+  if (!hasMockMap) {
     return (
       <div className={styles.canvasPlaceholder}>
         <span className={styles.canvasPlaceholderTitle}>등록된 도면이 없습니다</span>
-        <span>AI 영역 분할 실행 또는 도면 이미지를 업로드해 주세요</span>
+        <span>도면 목록에서 도면을 업로드하거나 AI 영역 분할을 실행해 주세요</span>
       </div>
     );
   }
 
+  const scale = zoom / 100;
+
   return (
-    <div className={styles.mapWrap}>
-      <img
-        src={floor.mapImageUrl}
-        alt={`${formatFloor(floor.floorNum)} 도면`}
-        className={styles.mapImage}
-        draggable={false}
+    <div className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
+      <MockFloorMap3F
+        aiLayers={aiLayers}
+        showHeatmap={showHeatmap}
+        simulationExitId={simulationExitId}
+        fireZones={fireZones}
+        editMode={editMode}
+        poiMarkers={poiMarkers}
+        onMapClick={onMapClick}
+        onRoomClick={onRoomClick}
       />
+      {/* CCTV / IoT 마커 (SVG 위에 절대 위치) */}
       {floor.devices.map((device) => (
-        <DeviceMarkerPin
+        <DevicePin
           key={device.id}
           device={device}
           selected={selected?.kind === 'device' && selected.data.id === device.id}
+          zoom={zoom}
           onClick={() => onSelectDevice(device)}
-        />
-      ))}
-      {floor.pois.map((poi) => (
-        <PoiMarkerPin
-          key={poi.id}
-          poi={poi}
-          selected={selected?.kind === 'poi' && selected.data.id === poi.id}
-          onClick={() => onSelectPoi(poi)}
         />
       ))}
     </div>
   );
 };
 
+/* ── 메인 페이지 ── */
 const FloorPlansDetailPage = () => {
   const navigate = useNavigate();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
@@ -239,39 +601,35 @@ const FloorPlansDetailPage = () => {
   const [selectedBuildingId, setSelectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
   const [editMode, setEditMode] = useState<EditMode>('view');
+  const [aiLayers, setAiLayers] = useState<Record<AiLayer, boolean>>({
+    wall: true,
+    corridor: true,
+    stairwell: true,
+    exit: true,
+    room: true,
+  });
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [zoom, setZoom] = useState(100);
+  const [selectedExit, setSelectedExit] = useState('');
+  const [fireZones, setFireZones] = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [segStatusOverride, setSegStatusOverride] = useState<SegmentationStatus | null>(null);
+  const [poiMarkers, setPoiMarkers] = useState<
+    Array<{ id: string; x: number; y: number; label: string }>
+  >([]);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
-    };
-  }, []);
+    },
+    [],
+  );
 
   const currentBuilding =
     mockFloorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
   const currentFloor =
     currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
-
-  const handleBuildingChange = (newBuildingId: string) => {
-    const newBuilding = mockFloorBuildings.find((b) => String(b.id) === newBuildingId);
-    const firstFloorId = newBuilding?.floors[0]?.id;
-    setSelectedBuildingId(newBuildingId);
-    setSelectedFloorId(firstFloorId ? String(firstFloorId) : '');
-    setSelectedItem(null);
-    setSegStatusOverride(null);
-    if (firstFloorId) {
-      void navigate(`/floorPlans/${newBuildingId}/${firstFloorId}`);
-    }
-  };
-
-  const handleFloorChange = (newFloorId: string) => {
-    setSelectedFloorId(newFloorId);
-    setSelectedItem(null);
-    setSegStatusOverride(null);
-    void navigate(`/floorPlans/${selectedBuildingId}/${newFloorId}`);
-  };
 
   const buildingOptions = mockFloorBuildings.map((b) => ({ label: b.name, value: String(b.id) }));
   const floorOptions =
@@ -280,156 +638,375 @@ const FloorPlansDetailPage = () => {
       value: String(f.id),
     })) ?? [];
 
-  const baseStatus = currentFloor?.segmentationStatus ?? floor?.segmentationStatus ?? 'NONE';
-  const status = segStatusOverride ?? baseStatus;
-  const { label: statusLabel, color: statusColor } = STATUS_CONFIG[status];
-  const canRunAI = status === 'NONE' || status === 'FAILED' || status === 'DONE';
-  const isProcessing = status === 'PROCESSING';
+  const exitOptions = (currentFloor?.pois ?? [])
+    .filter((p) => p.type === 'exit')
+    .map((p) => ({ label: p.label, value: p.id }));
+
+  const handleBuildingChange = (newId: string) => {
+    const newBuilding = mockFloorBuildings.find((b) => String(b.id) === newId);
+    const firstFloor = newBuilding?.floors[0];
+    setSelectedBuildingId(newId);
+    setSelectedFloorId(firstFloor ? String(firstFloor.id) : '');
+    setSelectedItem(null);
+    setSelectedExit('');
+    setFireZones([]);
+    if (firstFloor) void navigate(`/floorPlans/${newId}/${firstFloor.id}`);
+  };
+
+  const handleFloorChange = (newId: string) => {
+    setSelectedFloorId(newId);
+    setSelectedItem(null);
+    setSelectedExit('');
+    setFireZones([]);
+    void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
+  };
+
+  const toggleAiLayer = (key: AiLayer) => {
+    setAiLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const baseStatus = currentFloor?.segmentationStatus ?? 'NONE';
+  const segStatus = segStatusOverride ?? baseStatus;
+  const isDone = segStatus === 'DONE';
+  const isProcessing = segStatus === 'PROCESSING';
+  const canRunAI = segStatus === 'NONE' || segStatus === 'FAILED' || segStatus === 'DONE';
+
+  const handleRoomClick = (roomId: string) => {
+    setFireZones((prev) =>
+      prev.includes(roomId) ? prev.filter((id) => id !== roomId) : [...prev, roomId],
+    );
+  };
+
+  const handleMapClick = (x: number, y: number) => {
+    setPoiMarkers((prev) => [
+      ...prev,
+      { id: `poi-${Date.now()}`, x, y, label: `POI ${prev.length + 1}` },
+    ]);
+  };
 
   const handleRunAI = () => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     setSegStatusOverride('PROCESSING');
-    aiTimerRef.current = setTimeout(() => {
-      setSegStatusOverride('DONE');
-    }, 2500);
+    aiTimerRef.current = setTimeout(() => setSegStatusOverride('DONE'), 2500);
   };
 
-  const cctvOnline =
-    currentFloor?.devices.filter((d) => d.type === 'cctv' && d.status === 'online').length ?? 0;
-  const cctvTotal = currentFloor?.devices.filter((d) => d.type === 'cctv').length ?? 0;
-  const iotTotal = currentFloor?.devices.filter((d) => d.type === 'iot').length ?? 0;
-  const poiTotal = currentFloor?.pois.length ?? 0;
+  const SEG_STATUS_LABEL: Record<SegmentationStatus, string> = {
+    NONE: '미처리',
+    PENDING: '대기중',
+    PROCESSING: '처리중',
+    DONE: '완료',
+    FAILED: '실패',
+  };
+  const SEG_STATUS_COLOR: Record<
+    SegmentationStatus,
+    'neutral' | 'yellow' | 'blue' | 'green' | 'red'
+  > = {
+    NONE: 'neutral',
+    PENDING: 'yellow',
+    PROCESSING: 'blue',
+    DONE: 'green',
+    FAILED: 'red',
+  };
 
   return (
     <>
       <GNB
         breadcrumbs={[{ label: '관리' }, { label: '도면 관리' }]}
-        title={`${building?.name ?? ''} ${floor ? formatFloor(floor.floorNum) : ''} 도면`}
-        description="도면 세그멘테이션 및 장치 배치 관리"
+        title="도면 관리 상세"
+        description="층별 도면을 확인하고 관리합니다"
         userName="김안전"
         userRole="관리자"
       />
 
       <div className={styles.layout}>
+        {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
-          <div className={styles.section}>
-            <span className={styles.sectionLabel}>건물 / 층 선택</span>
-            <div className={styles.selectWrap}>
-              <Dropdown
-                className={styles.dropdownFullWidth}
-                options={buildingOptions}
-                value={selectedBuildingId}
-                onChange={handleBuildingChange}
-                placeholder="건물 선택"
-              />
-              <Dropdown
-                className={styles.dropdownFullWidth}
-                options={floorOptions}
-                value={selectedFloorId}
-                onChange={handleFloorChange}
-                placeholder="층 선택"
-                disabled={!currentBuilding}
-              />
+          <div className={styles.sidebarInner} style={{ padding: '2rem 2rem 2.4rem' }}>
+            {/* 건물/층 선택 */}
+            <div className={styles.section}>
+              <span className={styles.sectionLabel}>건물 선택</span>
+              <div className={styles.selectWrap}>
+                <div className={styles.selectField}>
+                  <span className={styles.selectFieldLabel}>건물</span>
+                  <Dropdown
+                    className={styles.dropdownFullWidth}
+                    options={buildingOptions}
+                    value={selectedBuildingId}
+                    onChange={handleBuildingChange}
+                    placeholder="건물 선택"
+                  />
+                </div>
+                <div className={styles.selectField}>
+                  <span className={styles.selectFieldLabel}>층</span>
+                  <Dropdown
+                    className={styles.dropdownFullWidth}
+                    options={floorOptions}
+                    value={selectedFloorId}
+                    onChange={handleFloorChange}
+                    placeholder="층 선택"
+                    disabled={!currentBuilding}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className={styles.divider} />
+            <div className={styles.divider} />
 
-          <div className={styles.section}>
-            <span className={styles.sectionLabel}>세그멘테이션</span>
-            <div className={styles.statusRow}>
-              <span className={styles.statusLabel}>AI 처리 상태</span>
-              <StatusBadge label={statusLabel} color={statusColor} dot />
+            {/* AI 세그멘테이션 */}
+            <div className={styles.section}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <span className={styles.sectionLabel}>AI 세그멘테이션</span>
+                <StatusBadge
+                  label={SEG_STATUS_LABEL[segStatus]}
+                  color={SEG_STATUS_COLOR[segStatus]}
+                  dot
+                />
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!canRunAI}
+                isLoading={isProcessing}
+                onClick={handleRunAI}
+              >
+                {isProcessing ? 'AI 처리 중...' : isDone ? 'AI 재분석' : 'AI 영역 분할 실행'}
+              </Button>
             </div>
-            <Button
-              className={styles.aiButton}
-              disabled={!canRunAI}
-              isLoading={isProcessing}
-              variant="primary"
-              size="sm"
-              onClick={handleRunAI}
-            >
-              {isProcessing
-                ? 'AI 처리 중...'
-                : status === 'DONE'
-                  ? 'AI 재분석'
-                  : 'AI 영역 분할 실행'}
-            </Button>
-          </div>
 
-          <div className={styles.divider} />
+            <div className={styles.divider} />
 
-          <div className={styles.section}>
-            <span className={styles.sectionLabel}>편집 모드</span>
-            <div className={styles.modeGroup}>
-              {MODE_CONFIG.map(({ mode, label }) => (
+            {/* AI 영역 분할 */}
+            <div className={styles.section}>
+              <span className={styles.sectionLabel}>AI 영역 분할</span>
+              <div className={styles.aiLayerList}>
+                {AI_LAYERS.map(({ key, label }) => (
+                  <label key={key} className={styles.aiLayerItem}>
+                    <input
+                      type="checkbox"
+                      className={styles.aiLayerCheckbox}
+                      checked={aiLayers[key]}
+                      disabled={!isDone}
+                      onChange={() => toggleAiLayer(key)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.divider} />
+
+            {/* 편집 모드 */}
+            <div className={styles.section}>
+              <span className={styles.sectionLabel}>편집 모드</span>
+              <div className={styles.modeGroup}>
+                {MODE_CONFIG.map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={clsx(
+                      styles.modeButton,
+                      editMode === mode && styles.modeButtonActive,
+                    )}
+                    onClick={() => setEditMode(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 시뮬레이션 설정 (simulation 모드에서만) */}
+            {editMode === 'simulation' && (
+              <>
+                <div className={styles.divider} />
+                <div className={styles.section}>
+                  <span className={styles.sectionLabel}>시뮬레이션 설정</span>
+                  <div className={styles.simSection}>
+                    <div className={styles.selectField}>
+                      <span className={styles.selectFieldLabel}>출구 선택</span>
+                      <Dropdown
+                        className={styles.dropdownFullWidth}
+                        options={exitOptions}
+                        value={selectedExit}
+                        onChange={setSelectedExit}
+                        placeholder="선택"
+                        disabled={exitOptions.length === 0}
+                      />
+                    </div>
+                    {/* 화재 구역 목록 */}
+                    <div>
+                      <span className={styles.selectFieldLabel}>
+                        화재 구역
+                        {fireZones.length > 0 && (
+                          <span style={{ marginLeft: '0.4rem', color: '#ef4444', fontWeight: 600 }}>
+                            ({fireZones.length})
+                          </span>
+                        )}
+                      </span>
+                      {fireZones.length === 0 ? (
+                        <p style={{ marginTop: '0.4rem', color: '#9ca3af', fontSize: '1.2rem' }}>
+                          도면에서 실을 클릭해 화재 구역을 지정하세요
+                        </p>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.4rem',
+                            marginTop: '0.4rem',
+                          }}
+                        >
+                          {fireZones.map((id) => {
+                            const label = ROOMS.find((r) => r.id === id)?.label ?? id;
+                            return (
+                              <div
+                                key={id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '0.4rem 0.8rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: 'rgba(254,202,202,0.5)',
+                                  border: '1px solid #f87171',
+                                }}
+                              >
+                                <span
+                                  style={{ fontSize: '1.2rem', color: '#b91c1c', fontWeight: 500 }}
+                                >
+                                  🔥 {label}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRoomClick(id)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#ef4444',
+                                    fontSize: '1.2rem',
+                                    padding: '0 0.2rem',
+                                  }}
+                                  aria-label={`${label} 화재 구역 해제`}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles.simResetButton}
+                      onClick={() => {
+                        setFireZones([]);
+                        setSelectedExit('');
+                      }}
+                    >
+                      화재 구역 초기화
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className={styles.divider} />
+
+            {/* 혼잡도 히트맵 */}
+            <label className={styles.heatmapRow}>
+              <input
+                type="checkbox"
+                className={styles.heatmapCheckbox}
+                checked={showHeatmap}
+                disabled={!isDone}
+                onChange={() => setShowHeatmap((v) => !v)}
+              />
+              혼잡도 히트맵
+            </label>
+
+            <div className={styles.divider} />
+
+            {/* 보기 설정 */}
+            <div className={styles.section}>
+              <span className={styles.sectionLabel}>보기 설정</span>
+              <div className={styles.zoomRow}>
+                <span className={styles.zoomLabel}>확대/축소</span>
                 <button
-                  key={mode}
                   type="button"
-                  className={clsx(styles.modeButton, editMode === mode && styles.modeButtonActive)}
-                  onClick={() => setEditMode(mode)}
+                  className={styles.zoomButton}
+                  onClick={() => setZoom((v) => Math.max(50, v - 10))}
+                  disabled={zoom <= 50}
                 >
-                  <span>{label}</span>
+                  −
                 </button>
-              ))}
+                <span className={styles.zoomValue}>{zoom}%</span>
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={() => setZoom((v) => Math.min(200, v + 10))}
+                  disabled={zoom >= 200}
+                >
+                  +
+                </button>
+              </div>
             </div>
-            <span className={styles.modeDesc}>
-              {MODE_CONFIG.find((m) => m.mode === editMode)?.desc}
-            </span>
+
+            {/* 범례 */}
+            <div className={styles.legend}>
+              <div className={styles.legendItem}>
+                <span className={clsx(styles.legendDot, styles.legendDotIot)} />
+                유도등
+              </div>
+              <div className={styles.legendItem}>
+                <span className={clsx(styles.legendDot, styles.legendDotCctv)} />
+                CCTV
+              </div>
+            </div>
           </div>
-
-          {(cctvTotal > 0 || iotTotal > 0 || poiTotal > 0) && (
-            <>
-              <div className={styles.divider} />
-              <div className={styles.section}>
-                <span className={styles.sectionLabel}>장치 현황</span>
-                {cctvTotal > 0 && (
-                  <div className={styles.deviceSummaryRow}>
-                    <span className={styles.deviceSummaryLabel}>CCTV</span>
-                    <span className={styles.deviceSummaryCount}>
-                      {cctvOnline}/{cctvTotal} 온라인
-                    </span>
-                  </div>
-                )}
-                {iotTotal > 0 && (
-                  <div className={styles.deviceSummaryRow}>
-                    <span className={styles.deviceSummaryLabel}>IoT</span>
-                    <span className={styles.deviceSummaryCount}>{iotTotal}개</span>
-                  </div>
-                )}
-                {poiTotal > 0 && (
-                  <div className={styles.deviceSummaryRow}>
-                    <span className={styles.deviceSummaryLabel}>POI</span>
-                    <span className={styles.deviceSummaryCount}>{poiTotal}개</span>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {selectedItem && (
-            <>
-              <div className={styles.divider} />
-              <div className={styles.section}>
-                <span className={styles.sectionLabel}>선택된 항목</span>
-                <DeviceInfoPanel selected={selectedItem} onClose={() => setSelectedItem(null)} />
-              </div>
-            </>
-          )}
         </aside>
 
-        <div className={styles.canvas}>
-          {currentFloor ? (
-            <FloorCanvas
-              floor={currentFloor}
-              selected={selectedItem}
-              onSelectDevice={(d) => setSelectedItem({ kind: 'device', data: d })}
-              onSelectPoi={(p) => setSelectedItem({ kind: 'poi', data: p })}
-            />
-          ) : (
-            <div className={styles.canvasPlaceholder}>
-              <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
+        {/* ── 중앙 캔버스 ── */}
+        <div className={styles.canvasArea}>
+          {currentFloor && (
+            <div className={styles.canvasHeader}>
+              <span className={styles.canvasHeaderIcon}>B</span>
+              <span className={styles.canvasHeaderText}>{currentBuilding?.name ?? ''}</span>
+              <span className={styles.canvasHeaderFloor}>{formatFloor(currentFloor.floorNum)}</span>
             </div>
+          )}
+
+          <div className={styles.canvasBody}>
+            {currentFloor ? (
+              <FloorCanvas
+                floor={currentFloor}
+                selected={selectedItem}
+                aiLayers={aiLayers}
+                showHeatmap={showHeatmap}
+                zoom={zoom}
+                simulationExitId={selectedExit}
+                fireZones={fireZones}
+                editMode={editMode}
+                poiMarkers={poiMarkers}
+                onSelectDevice={(d) => setSelectedItem({ kind: 'device', data: d })}
+                onMapClick={handleMapClick}
+                onRoomClick={handleRoomClick}
+              />
+            ) : (
+              <div className={styles.canvasPlaceholder}>
+                <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
+              </div>
+            )}
+          </div>
+
+          {/* 선택된 항목 패널 (캔버스 우측 하단 floating) */}
+          {selectedItem && (
+            <InfoPanel selected={selectedItem} onClose={() => setSelectedItem(null)} />
           )}
         </div>
       </div>
