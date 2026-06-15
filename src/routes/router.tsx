@@ -45,6 +45,14 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: ROUTES.FLOOR_PLANS_DETAIL,
+        lazy: async () => {
+          const { default: FloorPlansDetailPage } =
+            await import('@/pages/floorPlans/FloorPlansDetailPage');
+          return { Component: FloorPlansDetailPage };
+        },
+      },
+      {
         path: ROUTES.CAMERAS,
         lazy: async () => {
           const { default: CamerasPage } = await import('@/pages/cameras/CamerasPage');

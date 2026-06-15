@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import clsx from 'clsx';
+
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 
@@ -16,6 +18,7 @@ export interface DropdownProps<T extends string = string> {
   onChange: (value: T) => void;
   placeholder?: string;
   disabled?: boolean;
+  className?: string;
 }
 
 const Dropdown = <T extends string = string>({
@@ -24,6 +27,7 @@ const Dropdown = <T extends string = string>({
   onChange,
   placeholder = '선택',
   disabled = false,
+  className,
 }: DropdownProps<T>) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -58,7 +62,7 @@ const Dropdown = <T extends string = string>({
   };
 
   return (
-    <div ref={containerRef} className={styles.container}>
+    <div ref={containerRef} className={clsx(styles.container, className)}>
       <button
         type="button"
         className={styles.trigger({ disabled })}
