@@ -48,15 +48,6 @@ export async function uploadFloor(
 }
 
 export async function deleteFloor(floorId: number): Promise<void> {
-  await fetch(`${BASE}/floors/${floorId}`, { method: 'DELETE' });
-}
-
-export async function requestSegmentation(floorId: number): Promise<void> {
-  await fetch(`${BASE}/floors/${floorId}/segment`, { method: 'POST' });
-}
-
-export async function getSegmentationStatus(
-  floorId: number,
-): Promise<{ status: 'PROCESSING' | 'DONE' | 'FAILED' }> {
-  return request(`${BASE}/floors/${floorId}/segment/status`);
+  const res = await fetch(`${BASE}/floors/${floorId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`API error ${res.status}: DELETE /floors/${floorId}`);
 }

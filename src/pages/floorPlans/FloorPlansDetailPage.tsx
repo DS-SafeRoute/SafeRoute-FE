@@ -22,6 +22,7 @@ import type {
   DeviceMarker,
   EditMode,
   Floor,
+  FloorBuilding,
   PoiMarker,
   SegmentationStatus,
 } from './types/floorPlans';
@@ -219,7 +220,6 @@ const MockFloorMap3F = ({
   poiMarkers,
   simAnimating,
   simDone,
-  editingPoiId,
   relocatingPoiId,
   fireMarkers,
   simStart,
@@ -228,20 +228,15 @@ const MockFloorMap3F = ({
   onFireMapClick,
   onFireMarkerDelete: handleFireMarkerDelete,
   onPoiClick,
-  onPoiLabelChange,
-  onPoiDelete,
-  onPoiRelocate,
-  onPoiPopoverClose,
 }: {
   aiLayers: Record<string, boolean>;
   showHeatmap: boolean;
   evacPath: Pt[] | null;
   isPathDanger: boolean;
   editMode: EditMode;
-  poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
+  poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   simAnimating: boolean;
   simDone: boolean;
-  editingPoiId: string | null;
   relocatingPoiId: string | null;
   fireMarkers: Array<{ id: string; x: number; y: number }>;
   simStart: { x: number; y: number } | null;
@@ -250,10 +245,6 @@ const MockFloorMap3F = ({
   onFireMapClick: (x: number, y: number) => void;
   onFireMarkerDelete: (id: string) => void;
   onPoiClick: (id: string) => void;
-  onPoiLabelChange: (id: string, label: string) => void;
-  onPoiDelete: (id: string) => void;
-  onPoiRelocate: (id: string) => void;
-  onPoiPopoverClose: () => void;
 }) => {
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -625,7 +616,6 @@ const DevicePin = ({
   posY,
   selected,
   draggable,
-  zoom,
   onClick,
   onDragEnd,
 }: {
@@ -634,7 +624,6 @@ const DevicePin = ({
   posY: number;
   selected: boolean;
   draggable: boolean;
-  zoom: number;
   onClick: () => void;
   onDragEnd: (id: string, x: number, y: number) => void;
 }) => {
@@ -839,7 +828,7 @@ const FloorCanvas = ({
   evacPath: Pt[] | null;
   isPathDanger: boolean;
   editMode: EditMode;
-  poiMarkers: Array<{ id: string; x: number; y: number; label: string }>;
+  poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   simAnimating: boolean;
   simDone: boolean;
   editingPoiId: string | null;
@@ -890,7 +879,6 @@ const FloorCanvas = ({
         poiMarkers={poiMarkers}
         simAnimating={simAnimating}
         simDone={simDone}
-        editingPoiId={editingPoiId}
         relocatingPoiId={relocatingPoiId}
         fireMarkers={fireMarkers}
         simStart={simStart}
@@ -899,10 +887,6 @@ const FloorCanvas = ({
         onFireMapClick={onFireMapClick}
         onFireMarkerDelete={onFireMarkerDelete}
         onPoiClick={onPoiClick}
-        onPoiLabelChange={onPoiLabelChange}
-        onPoiDelete={onPoiDelete}
-        onPoiRelocate={onPoiRelocate}
-        onPoiPopoverClose={onPoiPopoverClose}
       />
       {floor.devices.map((device) => {
         const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
@@ -914,7 +898,6 @@ const FloorCanvas = ({
             posY={pos.y}
             selected={selected?.kind === 'device' && selected.data.id === device.id}
             draggable={editMode === 'view'}
-            zoom={zoom}
             onClick={() => onSelectDevice(device)}
             onDragEnd={onDeviceMoved}
           />
@@ -955,7 +938,7 @@ const FloorCanvas = ({
         (() => {
           const poi = poiMarkers.find((m) => m.id === editingPoiId);
           if (!poi) return null;
-          const cfg = POI_TYPE_CONFIG[poi.poiType as PoiType] ?? POI_TYPE_CONFIG.custom;
+          const cfg = POI_TYPE_CONFIG[poi.poiType as PoiType] ?? POI_TYPE_CONFIG.exit;
           const left = poi.x + 20 > 400 ? poi.x - 180 : poi.x + 20;
           const top = poi.y - 20;
           return (
@@ -1070,8 +1053,6 @@ const FloorPlansDetailPage = () => {
   const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
-
-  const building = floorBuildings.find((b) => String(b.id) === buildingId) ?? null;
 
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {

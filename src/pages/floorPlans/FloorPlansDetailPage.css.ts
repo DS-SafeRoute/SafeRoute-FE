@@ -738,7 +738,7 @@ export const simClickModeBtn = style({
   alignItems: 'center',
   justifyContent: 'center',
   gap: '0.4rem',
-  border: `1px solid ${vars.color.gray200}`,
+  border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
   backgroundColor: vars.color.white,
   cursor: 'pointer',
