@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router';
 
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
-import GNB from '@components/gnb';
 import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
@@ -222,14 +221,6 @@ const FloorPlansPage = () => {
 
   return (
     <>
-      <GNB
-        breadcrumbs={[{ label: '관리' }]}
-        title="도면 관리"
-        description="등록된 건물별 도면을 확인하고 관리할 수 있습니다"
-        userName="김안전"
-        userRole="관리자"
-      />
-
       <div className={styles.container}>
         {loading && (
           <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>

@@ -10,7 +10,6 @@ import XIcon from '@assets/icons/ic-x.svg?react';
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import Dropdown from '@components/dropdown';
-import GNB from '@components/gnb';
 
 import { formatFloor } from '@utils/floor';
 
@@ -1325,14 +1324,6 @@ const FloorPlansDetailPage = () => {
 
   return (
     <>
-      <GNB
-        breadcrumbs={[{ label: '관리' }, { label: '도면 관리' }]}
-        title="도면 관리 상세"
-        description="층별 도면을 확인하고 관리합니다"
-        userName="김안전"
-        userRole="관리자"
-      />
-
       <div className={styles.layout}>
         {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
