@@ -15,6 +15,9 @@ export const vars = createGlobalTheme(':root', {
     // Text
     textHigh: '#101828',
     textInverse: '#FFFFFF',
+    textInverseHigh: 'rgba(255, 255, 255, 0.88)',
+    textInverseLow: 'rgba(255, 255, 255, 0.68)',
+    textInverseMid: 'rgba(255, 255, 255, 0.72)',
     textLow: '#99A1AF',
     textMid: '#4A5563',
 
