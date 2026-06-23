@@ -5,17 +5,17 @@ import * as styles from './RecommendationsCard.css';
 
 import type { RecommendationItem } from '../../types/report';
 
-const priorityLabels: Record<RecommendationItem['level'], string> = {
+const priorityLabels = {
   high: '높음',
   medium: '중간',
   low: '낮음',
-};
+} as const satisfies Record<RecommendationItem['level'], string>;
 
-const priorityColors: Record<RecommendationItem['level'], StatusBadgeColor> = {
+const priorityColors = {
   high: 'red',
   medium: 'yellow',
   low: 'blue',
-};
+} as const satisfies Record<RecommendationItem['level'], StatusBadgeColor>;
 
 interface RecommendationsCardProps {
   items: RecommendationItem[];
@@ -26,7 +26,7 @@ const RecommendationsCard = ({ items }: RecommendationsCardProps) => (
     <h2 className={styles.title}>개선 권고사항</h2>
     <ul className={styles.list}>
       {items.map((item) => (
-        <li key={item.title} className={styles.item}>
+        <li key={item.id} className={styles.item}>
           <div className={styles.itemHeader}>
             <StatusBadge label={priorityLabels[item.level]} color={priorityColors[item.level]} />
             <strong className={styles.itemTitle}>{item.title}</strong>
