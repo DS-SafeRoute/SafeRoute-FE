@@ -4,7 +4,6 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import FilterChip from '@components/chip/FilterChip';
-import GNB from '@components/gnb';
 import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
@@ -89,14 +88,6 @@ const CamerasPage = () => {
 
   return (
     <>
-      <GNB
-        breadcrumbs={[{ label: '관리' }]}
-        title="카메라 관리"
-        description="CCTV 카메라 등록 및 설정 관리"
-        userName="김안전"
-        userRole="관리자"
-      />
-
       <div className={styles.container}>
         <div className={styles.filterRow}>
           {buildingOptions.map((name) => (

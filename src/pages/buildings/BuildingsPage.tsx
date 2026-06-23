@@ -3,7 +3,6 @@ import { useState } from 'react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
-import GNB from '@components/gnb';
 import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
@@ -86,14 +85,6 @@ const BuildingsPage = () => {
 
   return (
     <>
-      <GNB
-        breadcrumbs={[{ label: '훈련 관리' }]}
-        title="건물 관리"
-        description="등록된 건물과 시설을 관리합니다"
-        userName="김안전"
-        userRole="관리자"
-      />
-
       <div className={styles.container}>
         <OrganizationCard organization={mockOrganization} buildingCount={buildings.length} />
 

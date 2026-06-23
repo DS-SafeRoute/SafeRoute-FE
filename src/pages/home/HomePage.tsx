@@ -10,8 +10,6 @@ import PlayIcon from '@assets/icons/ic-play.svg?react';
 import TrendDownIcon from '@assets/icons/ic-trenddown.svg?react';
 import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
 
-import GNB from '@components/gnb';
-
 import HomeSummarySection from './components/homeSummarySection/HomeSummarySection';
 import RecentTrainingSection from './components/recentTrainingSection/RecentTrainingSection';
 import ScheduledTrainingSection from './components/scheduledTrainingSection/ScheduledTrainingSection';
@@ -59,14 +57,6 @@ const HomePage = () => {
 
   return (
     <div className={styles.container}>
-      <header>
-        <GNB
-          title="홈"
-          description="화재 대피 훈련 현황을 한눈에 확인하세요."
-          userName="김안전"
-          userRole="관리자"
-        />
-      </header>
       <div className={styles.sectionContainer}>
         <HomeSummarySection
           metrics={homeMetrics.map((metric) => ({

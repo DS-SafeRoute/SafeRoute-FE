@@ -48,6 +48,9 @@ export const vars = createGlobalTheme(':root', {
   fontFamily: {
     base: baseFontFamily,
   },
+  gradient: {
+    landing: 'linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 27%, #FFFFFF 100%)',
+  },
   fontWeight: {
     bold: '700',
     medium: '500',
@@ -74,8 +77,13 @@ export const vars = createGlobalTheme(':root', {
     s4: '1.6rem',
     s5: '2rem',
     s6: '2.4rem',
+    s7: '2.8rem',
     s8: '3.2rem',
     s12: '4.8rem',
+    s14: '5.6rem',
+    s15: '6rem',
+    s18: '7.2rem',
+    s20: '8rem',
   },
   typography: {
     body14Bold: {
@@ -103,6 +111,13 @@ export const vars = createGlobalTheme(':root', {
       fontFamily: baseFontFamily,
       fontSize: '1.6rem',
       fontWeight: '400',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.5',
+    },
+    body16Bold: {
+      fontFamily: baseFontFamily,
+      fontSize: '1.6rem',
+      fontWeight: '700',
       letterSpacing: '-0.02em',
       lineHeight: '1.5',
     },
@@ -140,6 +155,13 @@ export const vars = createGlobalTheme(':root', {
       fontWeight: '700',
       letterSpacing: '-0.02em',
       lineHeight: '1.25',
+    },
+    h1Landing: {
+      fontFamily: baseFontFamily,
+      fontSize: 'clamp(4rem, 4vw, 5.8rem)',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '1.16',
     },
     h2: {
       fontFamily: baseFontFamily,
