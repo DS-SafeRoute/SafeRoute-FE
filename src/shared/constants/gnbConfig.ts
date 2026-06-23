@@ -6,7 +6,12 @@ import { ROUTES } from '@constants/path';
 
 type GNBConfig = Pick<GNBProps, 'breadcrumbs' | 'title' | 'description'>;
 
-const gnbConfigs: Array<{ path: string; config: GNBConfig }> = [
+const DEFAULT_GNB_CONFIG = {
+  title: 'SAFE ROUTE',
+  description: '안전 관리 시스템',
+} as const satisfies GNBConfig;
+
+const GNB_CONFIGS = [
   {
     path: ROUTES.HOME,
     config: {
@@ -74,8 +79,8 @@ const gnbConfigs: Array<{ path: string; config: GNBConfig }> = [
       description: '시스템 관리 항목을 확인합니다',
     },
   },
-];
+] as const satisfies readonly { path: string; config: GNBConfig }[];
 
 export const getGNBConfig = (location: Location): GNBConfig =>
-  gnbConfigs.find(({ path }) => matchPath({ path, end: true }, location.pathname))?.config ??
-  gnbConfigs[0].config;
+  GNB_CONFIGS.find(({ path }) => matchPath({ path, end: true }, location.pathname))?.config ??
+  DEFAULT_GNB_CONFIG;
