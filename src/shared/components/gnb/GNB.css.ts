@@ -57,3 +57,14 @@ export const right = style({
   gap: vars.space.s3,
   paddingTop: '0.4rem',
 });
+
+export const profileButton = style({
+  borderRadius: vars.radius.md,
+  cursor: 'pointer',
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${vars.color.primary}`,
+      outlineOffset: '2px',
+    },
+  },
+});
