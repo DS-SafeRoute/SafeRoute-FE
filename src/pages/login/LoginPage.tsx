@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import LogoIcon from '@assets/icons/logo.svg?react';
 
@@ -10,7 +10,7 @@ import TextField from '@components/inputField/TextField';
 
 import { ROUTES } from '@constants/path';
 
-import { loginFeatures } from './constants/login';
+import { LOGIN_FEATURES } from './constants/login';
 import * as styles from './LoginPage.css';
 
 const LoginPage = () => {
@@ -26,10 +26,10 @@ const LoginPage = () => {
     <main className={styles.page}>
       <section className={styles.content} aria-label="로그인">
         <div className={styles.intro}>
-          <a className={styles.brand} href={`/${ROUTES.LANDING}`} aria-label="SAFE ROUTE 홈">
+          <Link className={styles.brand} to={ROUTES.LANDING} aria-label="SAFE ROUTE 홈">
             <LogoIcon className={styles.logoIcon} />
             <span>SAFE ROUTE</span>
-          </a>
+          </Link>
 
           <h1 className={styles.title}>
             실시간 데이터 기반
@@ -46,7 +46,7 @@ const LoginPage = () => {
           </p>
 
           <ul className={styles.featureList} aria-label="주요 기능">
-            {loginFeatures.map(({ Icon, title }) => (
+            {LOGIN_FEATURES.map(({ Icon, title }) => (
               <li className={styles.featureItem} key={title}>
                 <span className={styles.featureIcon}>
                   <Icon className={styles.featureIconSvg} />

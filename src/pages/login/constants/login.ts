@@ -11,7 +11,7 @@ interface LoginFeature {
   Icon: LoginFeatureIcon;
 }
 
-export const loginFeatures = [
+export const LOGIN_FEATURES = [
   {
     title: 'CCTV AI 비전 분석',
     Icon: CameraIcon,

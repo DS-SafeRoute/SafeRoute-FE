@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { Outlet, useLocation } from 'react-router';
 
@@ -6,10 +6,10 @@ import GNB from '@components/gnb';
 import MyPageModal from '@components/myPageModal/MyPageModal';
 import Sidebar from '@components/sideBar/Sidebar';
 
+import { getGNBConfig } from '@constants/gnbConfig';
 import { sidebarItems } from '@constants/sidebar';
 
 import * as styles from './AppLayout.css';
-import { getGNBConfig } from '../shared/constants/gnbConfig';
 
 const currentUser = {
   name: '김안전',
@@ -22,13 +22,10 @@ const AppLayout = () => {
   const [selectedUserName, setSelectedUserName] = useState(currentUser.name);
   const gnbConfig = getGNBConfig(location);
 
-  const handleProfileClick = useMemo(
-    () => () => {
-      setSelectedUserName(currentUser.name);
-      setIsMyPageOpen(true);
-    },
-    [],
-  );
+  const handleProfileClick = useCallback(() => {
+    setSelectedUserName(currentUser.name);
+    setIsMyPageOpen(true);
+  }, []);
 
   return (
     <div className={styles.container}>
