@@ -15,6 +15,9 @@ export const vars = createGlobalTheme(':root', {
     // Text
     textHigh: '#101828',
     textInverse: '#FFFFFF',
+    textInverseHigh: 'rgba(255, 255, 255, 0.88)',
+    textInverseLow: 'rgba(255, 255, 255, 0.68)',
+    textInverseMid: 'rgba(255, 255, 255, 0.72)',
     textLow: '#99A1AF',
     textMid: '#4A5563',
 
@@ -50,6 +53,7 @@ export const vars = createGlobalTheme(':root', {
   },
   gradient: {
     landing: 'linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 27%, #FFFFFF 100%)',
+    reportGrade: 'linear-gradient(135deg, #2563EB 0%, #1E40AF 100%)',
   },
   fontWeight: {
     bold: '700',
@@ -162,6 +166,13 @@ export const vars = createGlobalTheme(':root', {
       fontWeight: '700',
       letterSpacing: '-0.02em',
       lineHeight: '1.16',
+    },
+    reportGrade: {
+      fontFamily: baseFontFamily,
+      fontSize: '10rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+      lineHeight: '0.9',
     },
     h2: {
       fontFamily: baseFontFamily,
