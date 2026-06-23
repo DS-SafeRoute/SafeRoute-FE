@@ -59,8 +59,11 @@ export const right = style({
 });
 
 export const profileButton = style({
+  border: 'none',
   borderRadius: vars.radius.md,
+  backgroundColor: 'transparent',
   cursor: 'pointer',
+  padding: 0,
   selectors: {
     '&:focus-visible': {
       outline: `2px solid ${vars.color.primary}`,
