@@ -12,6 +12,13 @@ const router = createBrowserRouter([
     },
   },
   {
+    path: ROUTES.LOGIN,
+    lazy: async () => {
+      const { default: LoginPage } = await import('@/pages/login/LoginPage');
+      return { Component: LoginPage };
+    },
+  },
+  {
     path: ROUTES.HOME,
     element: <AppLayout />,
     children: [
@@ -20,13 +27,6 @@ const router = createBrowserRouter([
         lazy: async () => {
           const { default: SignupPage } = await import('@/pages/signup/SignupPage');
           return { Component: SignupPage };
-        },
-      },
-      {
-        path: ROUTES.LOGIN,
-        lazy: async () => {
-          const { default: LoginPage } = await import('@/pages/login/LoginPage');
-          return { Component: LoginPage };
         },
       },
       {
