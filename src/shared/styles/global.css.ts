@@ -48,6 +48,9 @@ export const vars = createGlobalTheme(':root', {
   fontFamily: {
     base: baseFontFamily,
   },
+  gradient: {
+    landing: 'linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 27%, #FFFFFF 100%)',
+  },
   fontWeight: {
     bold: '700',
     medium: '500',
