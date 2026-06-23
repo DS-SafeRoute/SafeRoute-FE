@@ -2,7 +2,7 @@ export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
   SIGNUP: '/signup',
-  LANDING: 'landing',
+  LANDING: '/landing',
   SCENARIO_SETTINGS: '/scenarioSettings',
   MANAGEMENT: '/management',
   BUILDINGS: '/buildings',
