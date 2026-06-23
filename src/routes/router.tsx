@@ -19,16 +19,16 @@ const router = createBrowserRouter([
     },
   },
   {
+    path: ROUTES.SIGNUP,
+    lazy: async () => {
+      const { default: SignupPage } = await import('@/pages/signup/SignupPage');
+      return { Component: SignupPage };
+    },
+  },
+  {
     path: ROUTES.HOME,
     element: <AppLayout />,
     children: [
-      {
-        path: ROUTES.SIGNUP,
-        lazy: async () => {
-          const { default: SignupPage } = await import('@/pages/signup/SignupPage');
-          return { Component: SignupPage };
-        },
-      },
       {
         path: ROUTES.HOME,
         lazy: async () => {
