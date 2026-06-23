@@ -6,7 +6,7 @@ import { paddedCard } from '../card/ReportCard.css';
 
 export const chartGrid = style({
   display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 32rem), 1fr))',
   gap: vars.space.s5,
 });
 
