@@ -6,6 +6,7 @@ export const scoreCard = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s6,
+  padding: vars.space.s6,
 });
 
 export const scoreList = style({
