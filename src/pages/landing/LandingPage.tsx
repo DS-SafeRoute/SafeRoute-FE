@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
 import PlayIcon from '@assets/icons/ic-play.svg?react';
@@ -8,7 +8,7 @@ import { Button } from '@components/Button';
 
 import { ROUTES } from '@constants/path';
 
-import { landingFeatures } from './constants/landing';
+import { LANDING_FEATURES } from './constants/landing';
 import * as styles from './LandingPage.css';
 
 const LandingPage = () => {
@@ -17,10 +17,10 @@ const LandingPage = () => {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <a className={styles.brand} href={`/${ROUTES.LANDING}`} aria-label="SAFE ROUTE 홈">
+        <Link className={styles.brand} to={ROUTES.LANDING} aria-label="SAFE ROUTE 홈">
           <LogoIcon className={styles.logoIcon} />
           <span>SAFE ROUTE</span>
-        </a>
+        </Link>
 
         <div className={styles.authActions}>
           <Button
@@ -52,10 +52,10 @@ const LandingPage = () => {
           </p>
 
           <div className={styles.ctaGroup}>
-            <a className={styles.primaryCta} href={ROUTES.HOME}>
+            <Link className={styles.primaryCta} to={ROUTES.HOME}>
               시스템 접속
               <ArrowRightIcon />
-            </a>
+            </Link>
             <button className={styles.secondaryCta} type="button">
               <PlayIcon />
               데모 영상
@@ -64,7 +64,7 @@ const LandingPage = () => {
         </section>
 
         <section className={styles.featureGrid} aria-label="주요 기능">
-          {landingFeatures.map(({ Icon, ...feature }) => (
+          {LANDING_FEATURES.map(({ Icon, ...feature }) => (
             <article className={styles.featureCard} key={feature.title}>
               <span className={styles.iconBox[feature.tone]}>
                 <Icon />
@@ -81,11 +81,11 @@ const LandingPage = () => {
       <footer className={styles.footer}>
         <p>© 2026 Safe Route Inc. All rights reserved.</p>
         <div className={styles.footerLinks}>
-          <a>이용약관</a>
+          <a href="#terms">이용약관</a>
           <span aria-hidden="true">·</span>
-          <a>개인정보처리방침</a>
+          <a href="#privacy">개인정보처리방침</a>
           <span aria-hidden="true">·</span>
-          <a>고객지원</a>
+          <a href="#support">고객지원</a>
         </div>
       </footer>
     </div>

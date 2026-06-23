@@ -15,7 +15,7 @@ interface LandingFeature {
   tone: FeatureTone;
 }
 
-export const landingFeatures = [
+export const LANDING_FEATURES = [
   {
     title: '실시간 CCTV 모니터링',
     description: 'AI 비전 분석을 통한 혼잡 밀집도와 실시간 추적',
