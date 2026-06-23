@@ -5,16 +5,16 @@ import { ROUTES } from '@/shared/constants/path';
 
 const router = createBrowserRouter([
   {
+    path: ROUTES.LANDING,
+    lazy: async () => {
+      const { default: LandingPage } = await import('@/pages/landing/LandingPage');
+      return { Component: LandingPage };
+    },
+  },
+  {
     path: ROUTES.HOME,
     element: <AppLayout />,
     children: [
-      {
-        path: ROUTES.LANDING,
-        lazy: async () => {
-          const { default: LandingPage } = await import('@/pages/landing/LandingPage');
-          return { Component: LandingPage };
-        },
-      },
       {
         path: ROUTES.SIGNUP,
         lazy: async () => {
