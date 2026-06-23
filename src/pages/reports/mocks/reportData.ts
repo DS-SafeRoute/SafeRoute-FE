@@ -11,8 +11,14 @@ export const reportSummary: ReportSummary = {
   grade: 'A',
   scoreText: '92.4 / 100점',
   percentileText: '상위 12%',
-  previousDelta: '+4.2점',
-  nationalDelta: '+8.1점',
+  previousDelta: {
+    value: '+4.2점',
+    direction: 'up',
+  },
+  nationalDelta: {
+    value: '+8.1점',
+    direction: 'up',
+  },
 };
 
 export const reportScores: ReportScoreItem[] = [
@@ -65,16 +71,19 @@ export const reportNarrative: ReportNarrative = {
 
 export const recommendations: RecommendationItem[] = [
   {
+    id: 'lobby-distribution',
     level: 'high',
     title: '1층 로비 분산 유도',
     description: '서측 비상계단 우회 경로 활성화',
   },
   {
+    id: 'iot-sign-e3-07',
     level: 'medium',
     title: 'IoT 유도등 #E3-07 점검',
     description: '응답 지연 1.2초 감지',
   },
   {
+    id: 'zone-b-guide',
     level: 'low',
     title: 'B구역 사전 안내 추가',
     description: '훈련 직전 음성 안내 도입',
