@@ -21,6 +21,7 @@ export interface DensityItem {
 }
 
 export interface RecommendationItem {
+  id: string;
   level: DensityLevel;
   title: string;
   description: string;
@@ -40,6 +41,13 @@ export interface ReportSummary {
   grade: string;
   scoreText: string;
   percentileText: string;
-  previousDelta: string;
-  nationalDelta: string;
+  previousDelta: ReportDelta;
+  nationalDelta: ReportDelta;
+}
+
+export type ReportDeltaDirection = 'up' | 'down' | 'flat';
+
+export interface ReportDelta {
+  value: string;
+  direction: ReportDeltaDirection;
 }
