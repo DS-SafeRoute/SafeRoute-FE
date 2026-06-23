@@ -1,10 +1,18 @@
 import * as styles from './GradeSummaryCard.css';
 
-import type { ReportSummary } from '../../types/report';
+import type { ReportDelta, ReportSummary } from '../../types/report';
 
 interface GradeSummaryCardProps {
   summary: ReportSummary;
 }
+
+const deltaArrow: Record<ReportDelta['direction'], string> = {
+  down: '↓',
+  flat: '-',
+  up: '↑',
+};
+
+const formatDelta = (delta: ReportDelta) => `${delta.value} ${deltaArrow[delta.direction]}`;
 
 const GradeSummaryCard = ({ summary }: GradeSummaryCardProps) => (
   <section className={styles.gradeCard} aria-label="종합 평가 등급">
@@ -19,11 +27,11 @@ const GradeSummaryCard = ({ summary }: GradeSummaryCardProps) => (
     <div className={styles.metricRow}>
       <p>
         <span className={styles.metricLabel}>이전 회차 대비</span>
-        <strong className={styles.metricValue}>{summary.previousDelta} ↑</strong>
+        <strong className={styles.metricValue}>{formatDelta(summary.previousDelta)}</strong>
       </p>
       <p>
         <span className={styles.metricLabel}>전국 평균 대비</span>
-        <strong className={styles.metricValue}>{summary.nationalDelta} ↑</strong>
+        <strong className={styles.metricValue}>{formatDelta(summary.nationalDelta)}</strong>
       </p>
     </div>
   </section>
