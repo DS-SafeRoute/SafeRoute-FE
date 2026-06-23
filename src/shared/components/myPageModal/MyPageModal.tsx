@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
@@ -6,7 +6,7 @@ import Modal from '@components/modal';
 
 import * as styles from './MyPageModal.css';
 
-interface MyPageForm {
+export interface MyPageForm {
   name: string;
   phone: string;
   email: string;
@@ -17,15 +17,25 @@ export interface MyPageModalProps {
   open: boolean;
   onClose: () => void;
   initialName: string;
+  onSave?: (form: MyPageForm) => void;
 }
 
-const MyPageModal = ({ open, onClose, initialName }: MyPageModalProps) => {
+const getInitialForm = (name: string): MyPageForm => ({
+  name,
+  phone: '010-1234-5678',
+  email: 'hong@example.com',
+  organization: '○○고등학교',
+});
+
+const MyPageModal = ({ open, onClose, initialName, onSave }: MyPageModalProps) => {
   const [form, setForm] = useState<MyPageForm>({
-    name: initialName,
-    phone: '010-1234-5678',
-    email: 'hong@example.com',
-    organization: '○○고등학교',
+    ...getInitialForm(initialName),
   });
+
+  useEffect(() => {
+    if (!open) return;
+    setForm(getInitialForm(initialName));
+  }, [initialName, open]);
 
   const handleChange = (field: keyof MyPageForm) => (event: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
@@ -33,6 +43,7 @@ const MyPageModal = ({ open, onClose, initialName }: MyPageModalProps) => {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    onSave?.(form);
     onClose();
   };
 
