@@ -87,75 +87,11 @@ export const cameraGrid = style({
   gap: vars.space.s4,
 });
 
-export const cameraCard = style({
-  display: 'flex',
-  flexDirection: 'column',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  overflow: 'hidden',
-  selectors: {
-    '&:hover': {
-      borderColor: vars.color.primary,
-    },
-  },
-});
-
-export const cardVideo = style({
-  aspectRatio: '16/9',
-  position: 'relative',
-  backgroundColor: '#0a0f1a',
-});
-
-export const cardBadgeRow = style({
-  position: 'absolute',
-  top: vars.space.s2,
-  right: vars.space.s2,
-  left: vars.space.s2,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-});
-
-export const liveBadge = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s1,
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.danger,
-  padding: '0.15rem 0.6rem',
-  color: vars.color.white,
-  ...vars.typography.caption,
-  fontWeight: vars.fontWeight.semibold,
-});
-
 export const liveDot = style({
   borderRadius: '50%',
   backgroundColor: vars.color.white,
   width: '0.5rem',
   height: '0.5rem',
-});
-
-export const offlineBadge = style({
-  display: 'flex',
-  alignItems: 'center',
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  padding: '0.15rem 0.6rem',
-  color: 'rgba(255,255,255,0.6)',
-  ...vars.typography.caption,
-});
-
-export const cardPersonCount = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.3rem',
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  padding: '0.15rem 0.6rem',
-  color: vars.color.white,
-  ...vars.typography.caption,
 });
 
 export const offlineOverlay = style({
@@ -166,29 +102,6 @@ export const offlineOverlay = style({
   justifyContent: 'center',
   color: 'rgba(255,255,255,0.4)',
   ...vars.typography.captionBold,
-});
-
-export const cardInfo = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-});
-
-export const cardName = style({
-  color: vars.color.textHigh,
-  ...vars.typography.captionBold,
-});
-
-export const cardZone = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const cardMeta = style({
-  textAlign: 'right',
-  ...vars.typography.caption,
-  color: vars.color.textLow,
 });
 
 /* ── 상세 뷰 ── */
@@ -305,31 +218,4 @@ export const detailPersonCount = style({
   padding: '0.3rem 0.8rem',
   color: vars.color.textMid,
   ...vars.typography.captionBold,
-});
-
-/* 바운딩박스 */
-export const bboxOverlay = style({
-  position: 'absolute',
-  inset: 0,
-});
-
-export const bbox = style({
-  position: 'absolute',
-  border: '2px solid #3B82F6',
-  borderRadius: '2px',
-});
-
-export const bboxLabel = style({
-  position: 'absolute',
-  top: '-3.2rem',
-  left: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.1rem',
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(59,130,246,0.15)',
-  padding: '0.2rem 0.5rem',
-  whiteSpace: 'nowrap',
-  ...vars.typography.caption,
-  color: '#3B82F6',
 });

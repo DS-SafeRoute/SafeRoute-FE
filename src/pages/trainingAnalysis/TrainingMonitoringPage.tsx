@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import clsx from 'clsx';
 
@@ -8,6 +8,7 @@ import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import { Button } from '@components/Button';
 
 import AnalysisTabNav from './components/AnalysisTabNav/AnalysisTabNav';
+import CameraCard from './components/CameraCard/CameraCard';
 import MonitoringSidebar from './components/MonitoringSidebar/MonitoringSidebar';
 import { mockAiVisionStatus, mockStreamCameras } from './mocks/trainingAnalysisData';
 import * as styles from './TrainingMonitoringPage.css';
@@ -16,16 +17,17 @@ import type { StreamCamera } from './types/trainingAnalysis';
 
 type FilterType = '전체' | '실시간' | '객체감지';
 
+const FILTERS: FilterType[] = ['전체', '실시간', '객체감지'];
+
 const TrainingMonitoringPage = () => {
   const [filter, setFilter] = useState<FilterType>('전체');
   const [selectedCamera, setSelectedCamera] = useState<StreamCamera | null>(null);
 
-  const filteredCameras =
-    filter === '실시간'
-      ? mockStreamCameras.filter((c) => c.status === 'online')
-      : filter === '객체감지'
-        ? mockStreamCameras.filter((c) => c.detectedCount > 0)
-        : mockStreamCameras;
+  const filteredCameras = useMemo(() => {
+    if (filter === '실시간') return mockStreamCameras.filter((c) => c.status === 'online');
+    if (filter === '객체감지') return mockStreamCameras.filter((c) => c.detectedCount > 0);
+    return mockStreamCameras;
+  }, [filter]);
 
   const handleCameraSelect = (cam: StreamCamera) => {
     setSelectedCamera((prev) => (prev?.id === cam.id ? null : cam));
@@ -48,7 +50,11 @@ const TrainingMonitoringPage = () => {
             <div className={styles.detailMain}>
               {/* 액션 바 */}
               <div className={styles.detailActionBar}>
-                <button className={styles.backBtn} onClick={() => setSelectedCamera(null)}>
+                <button
+                  type="button"
+                  className={styles.backBtn}
+                  onClick={() => setSelectedCamera(null)}
+                >
                   <ArrowRightIcon className={styles.backIcon} width={16} height={16} />
                   전체 목록
                 </button>
@@ -56,8 +62,12 @@ const TrainingMonitoringPage = () => {
                   <Button variant="primary" size="sm">
                     AI 분석 시작
                   </Button>
-                  <button className={styles.iconBtn}>▶</button>
-                  <button className={styles.iconBtn}>⏸</button>
+                  <button type="button" className={styles.iconBtn} aria-label="재생">
+                    ▶
+                  </button>
+                  <button type="button" className={styles.iconBtn} aria-label="일시정지">
+                    ⏸
+                  </button>
                 </div>
               </div>
 
@@ -75,13 +85,11 @@ const TrainingMonitoringPage = () => {
 
               {/* 영상 영역 */}
               <div className={styles.detailVideo}>
-                {/* LIVE STREAM 배지 */}
                 <div className={styles.liveStreamBadge}>
                   <span className={styles.liveDot} />
                   LIVE STREAM
                 </div>
 
-                {/* 감지 인원 배지 */}
                 {selectedCamera.status === 'online' && (
                   <div className={styles.detailPersonCount}>
                     <UsersIcon width={13} height={13} />
@@ -107,9 +115,10 @@ const TrainingMonitoringPage = () => {
               <div className={styles.toolbar}>
                 <span className={styles.toolbarTitle}>카메라 {filteredCameras.length}개</span>
                 <div className={styles.filterGroup}>
-                  {(['전체', '실시간', '객체감지'] as FilterType[]).map((f) => (
+                  {FILTERS.map((f) => (
                     <button
                       key={f}
+                      type="button"
                       className={clsx(styles.filterBtn, filter === f && styles.filterBtnActive)}
                       onClick={() => setFilter(f)}
                     >
@@ -122,44 +131,7 @@ const TrainingMonitoringPage = () => {
               <div className={styles.gridScroll}>
                 <div className={styles.cameraGrid}>
                   {filteredCameras.map((cam) => (
-                    <div
-                      key={cam.id}
-                      className={styles.cameraCard}
-                      onClick={() => handleCameraSelect(cam)}
-                    >
-                      <div className={styles.cardVideo}>
-                        <div className={styles.cardBadgeRow}>
-                          {cam.status === 'online' ? (
-                            <div className={styles.liveBadge}>
-                              <span className={styles.liveDot} />
-                              LIVE
-                            </div>
-                          ) : (
-                            <div className={styles.offlineBadge}>OFFLINE</div>
-                          )}
-                          {cam.status === 'online' && (
-                            <div className={styles.cardPersonCount}>
-                              <UsersIcon width={11} height={11} />
-                              {cam.detectedCount}
-                            </div>
-                          )}
-                        </div>
-                        {cam.status === 'offline' && (
-                          <div className={styles.offlineOverlay}>신호 없음</div>
-                        )}
-                      </div>
-                      <div className={styles.cardInfo}>
-                        <div>
-                          <div className={styles.cardName}>{cam.name}</div>
-                          <div className={styles.cardZone}>{cam.zone}</div>
-                        </div>
-                        {cam.status === 'online' && (
-                          <div className={styles.cardMeta}>
-                            {cam.fps}fps · {cam.latencyMs}ms
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <CameraCard key={cam.id} camera={cam} onClick={handleCameraSelect} />
                   ))}
                 </div>
               </div>
