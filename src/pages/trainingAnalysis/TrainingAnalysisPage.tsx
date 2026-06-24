@@ -5,7 +5,12 @@ import { Button } from '@components/Button';
 import { ROUTES } from '@constants/path';
 
 import AnalysisTabNav from './components/AnalysisTabNav/AnalysisTabNav';
-import { mockAnalysisInfo, mockDetections, mockTimelineEvents } from './mocks/trainingAnalysisData';
+import {
+  mockAnalysisInfo,
+  mockDetectionSummary,
+  mockDetections,
+  mockTimelineEvents,
+} from './mocks/trainingAnalysisData';
 import * as styles from './TrainingAnalysisPage.css';
 
 import type { TimelineEventSeverity } from './types/trainingAnalysis';
@@ -71,6 +76,46 @@ const TrainingAnalysisPage = () => {
                 <div className={styles.progressThumb} style={{ left: `${PROGRESS}%` }} />
               </div>
               <span className={styles.speedLabel}>1×</span>
+            </div>
+          </div>
+
+          {/* 탐지 결과 요약 */}
+          <div className={styles.summaryBox}>
+            <div className={styles.summaryHeader}>
+              <span className={styles.summaryTitle}>탐지 결과 요약</span>
+              <span className={styles.summaryBadge}>
+                {mockDetectionSummary.modelLabel} · 신뢰도 평균 {mockDetectionSummary.confidence}
+              </span>
+            </div>
+            <div className={styles.summaryGrid}>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>탐지 인원</span>
+                <span className={styles.summaryValue}>
+                  {mockDetectionSummary.detectedCount}
+                  <span className={styles.summaryUnit}>명</span>
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>평균 이동 속도</span>
+                <span className={styles.summaryValue}>
+                  {mockDetectionSummary.avgSpeedMs}
+                  <span className={styles.summaryUnit}>m/s</span>
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>병목 구역</span>
+                <span className={styles.summaryValue}>
+                  {mockDetectionSummary.bottleneckCount}
+                  <span className={styles.summaryUnit}>곳</span>
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>프레임 처리율</span>
+                <span className={styles.summaryValue}>
+                  {mockDetectionSummary.frameProcessRate}
+                  <span className={styles.summaryUnit}>%</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>

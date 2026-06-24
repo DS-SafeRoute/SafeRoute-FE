@@ -172,6 +172,65 @@ export const speedLabel = style({
   ...vars.typography.caption,
 });
 
+/* ── 탐지 결과 요약 ── */
+export const summaryBox = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s5,
+});
+
+export const summaryHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: vars.space.s4,
+});
+
+export const summaryTitle = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Bold,
+});
+
+export const summaryBadge = style({
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.primaryLight,
+  padding: '0.2rem 1rem',
+  color: vars.color.primary,
+  ...vars.typography.captionBold,
+});
+
+export const summaryGrid = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: vars.space.s3,
+});
+
+export const summaryCard = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s1,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.gray25,
+  padding: vars.space.s4,
+});
+
+export const summaryLabel = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const summaryValue = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body16Bold,
+});
+
+export const summaryUnit = style({
+  marginLeft: '0.2rem',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+});
+
 /* ── 우측 패널 ── */
 export const sidePanel = style({
   display: 'flex',
