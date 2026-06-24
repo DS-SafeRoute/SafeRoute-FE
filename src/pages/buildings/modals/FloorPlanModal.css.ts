@@ -132,16 +132,11 @@ export const floorLeft = style({
 });
 
 export const floorBadge = style({
-  display: 'flex',
   flexShrink: 0,
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.gray50,
-  width: '4rem',
-  height: '4rem',
-  color: vars.color.textMid,
-  fontSize: '1.3rem',
+  minWidth: '3rem',
+  letterSpacing: '0.02em',
+  color: vars.color.textLow,
+  fontSize: '1.2rem',
   fontWeight: vars.fontWeight.semibold,
 });
 

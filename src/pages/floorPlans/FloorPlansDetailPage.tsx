@@ -15,6 +15,7 @@ import { formatFloor } from '@utils/floor';
 
 import { getFloorBuildings, getFloorDetail } from './api/floorPlansApi';
 import * as styles from './FloorPlansDetailPage.css';
+import FloorUploadModal from './modals/FloorUploadModal';
 
 import type {
   AiLayer,
@@ -818,6 +819,7 @@ const FloorCanvas = ({
   onPoiRelocate,
   onPoiPopoverClose,
   onDeviceMoved,
+  onUpload,
 }: {
   floor: Floor;
   selected: SelectedItem | null;
@@ -848,6 +850,7 @@ const FloorCanvas = ({
   onPoiRelocate: (id: string) => void;
   onPoiPopoverClose: () => void;
   onDeviceMoved: (id: string, x: number, y: number) => void;
+  onUpload: () => void;
 }) => {
   const hasMockMap = floor.segmentationStatus === 'DONE';
 
@@ -858,7 +861,7 @@ const FloorCanvas = ({
         <p style={{ color: 'inherit', margin: 0 }}>
           도면을 업로드하거나 AI 영역 분할을 실행해 주세요
         </p>
-        <Button variant="primary" size="sm" onClick={() => {}}>
+        <Button variant="primary" size="sm" onClick={onUpload}>
           도면 업로드
         </Button>
       </div>
@@ -1087,6 +1090,7 @@ const FloorPlansDetailPage = () => {
   const [simStart, setSimStart] = useState<{ x: number; y: number } | null>(null);
   const [simClickMode, setSimClickMode] = useState<'fire' | 'start' | null>(null);
   const [segStatusOverride, setSegStatusOverride] = useState<SegmentationStatus | null>(null);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
@@ -1631,6 +1635,7 @@ const FloorPlansDetailPage = () => {
                 onDeviceMoved={handleDeviceMoved}
                 addedDevices={addedDevices}
                 onAddedDeviceDelete={handleAddedDeviceDelete}
+                onUpload={() => setUploadModalOpen(true)}
               />
             ) : (
               <div className={styles.canvasPlaceholder}>
@@ -1871,6 +1876,14 @@ const FloorPlansDetailPage = () => {
           );
         })()}
       </div>
+
+      <FloorUploadModal
+        open={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        buildingName={currentBuilding?.name ?? ''}
+        floorNum={currentFloor?.floorNum ?? 0}
+        onConfirm={() => setUploadModalOpen(false)}
+      />
     </>
   );
 };

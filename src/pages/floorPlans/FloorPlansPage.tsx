@@ -74,9 +74,7 @@ const FloorCard = ({
   return (
     <div className={styles.floorCard}>
       <div className={styles.cardTop}>
-        <div className={styles.cardIconWrap} aria-hidden="true">
-          <div className={styles.cardIconInner} />
-        </div>
+        <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <StatusBadge label={label} color={color} />
           <button
@@ -105,8 +103,6 @@ const FloorCard = ({
           </button>
         </div>
       </div>
-
-      <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
 
       <div className={styles.divider} />
 
@@ -237,17 +233,19 @@ const FloorPlansPage = () => {
               </div>
 
               <div className={styles.floorGrid}>
-                {building.floors.map((floor) => (
-                  <FloorCard
-                    key={floor.id}
-                    floor={floor}
-                    buildingId={building.id}
-                    buildingName={building.name}
-                    onManage={handleManage}
-                    onUpload={setUploadTarget}
-                    onDelete={setDeleteTarget}
-                  />
-                ))}
+                {[...building.floors]
+                  .sort((a, b) => a.floorNum - b.floorNum)
+                  .map((floor) => (
+                    <FloorCard
+                      key={floor.id}
+                      floor={floor}
+                      buildingId={building.id}
+                      buildingName={building.name}
+                      onManage={handleManage}
+                      onUpload={setUploadTarget}
+                      onDelete={setDeleteTarget}
+                    />
+                  ))}
               </div>
             </section>
           ))}

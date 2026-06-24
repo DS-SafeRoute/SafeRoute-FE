@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import clsx from 'clsx';
 
+import CheckIcon from '@assets/icons/ic-check.svg?react';
+import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
+
 import { Button } from '@components/Button';
+import * as dropdownStyles from '@components/dropdown/Dropdown.css';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
@@ -60,6 +64,86 @@ const getFloorOptions = (building: Building) => {
   return floors;
 };
 
+interface SelectFieldProps {
+  options: { label: string; value: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+const SelectField = ({
+  options,
+  value,
+  onChange,
+  placeholder = '선택',
+  disabled = false,
+  error = false,
+}: SelectFieldProps) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className={styles.selectWrap}>
+      <button
+        type="button"
+        className={clsx(styles.selectButton, error && styles.selectError)}
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span>{selected ? selected.label : placeholder}</span>
+        <ChevronDownIcon width={16} height={16} />
+      </button>
+
+      {open && (
+        <ul className={clsx(dropdownStyles.panel, styles.dropdownPanelOffset)} role="listbox">
+          {options.map((option) => (
+            <li
+              key={option.value}
+              className={dropdownStyles.option}
+              role="option"
+              aria-selected={option.value === value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.label}
+              {option.value === value && (
+                <CheckIcon className={dropdownStyles.checkIcon} width={16} height={16} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 interface CameraFormModalProps {
   open: boolean;
   onClose: () => void;
@@ -88,13 +172,13 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
-  const handleBuildingChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, buildingId: e.target.value, floor: '' }));
+  const handleBuildingChange = (value: string) => {
+    setForm((prev) => ({ ...prev, buildingId: value, floor: '' }));
     setErrors((prev) => ({ ...prev, buildingId: '', floor: '' }));
   };
 
-  const handleFloorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, floor: e.target.value }));
+  const handleFloorChange = (value: string) => {
+    setForm((prev) => ({ ...prev, floor: value }));
     setErrors((prev) => ({ ...prev, floor: '' }));
   };
 
@@ -159,56 +243,32 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
 
         <div className={styles.row}>
           <div className={styles.fieldWrap}>
-            <label htmlFor="camera-building" className={styles.fieldLabel}>
-              건물 *
+            <label className={styles.fieldLabel}>
+              건물 <span className={styles.requiredMark}>*</span>
             </label>
-            <select
-              id="camera-building"
-              className={clsx(styles.select, errors.buildingId && styles.selectError)}
+            <SelectField
+              options={buildings.map((b) => ({ label: b.name, value: String(b.id) }))}
               value={form.buildingId}
               onChange={handleBuildingChange}
-              aria-invalid={Boolean(errors.buildingId)}
-              aria-describedby={errors.buildingId ? 'camera-building-error' : undefined}
-            >
-              <option value="">건물 선택</option>
-              {buildings.map((b) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            {errors.buildingId && (
-              <span id="camera-building-error" className={styles.errorText}>
-                {errors.buildingId}
-              </span>
-            )}
+              placeholder="건물 선택"
+              error={Boolean(errors.buildingId)}
+            />
+            {errors.buildingId && <span className={styles.errorText}>{errors.buildingId}</span>}
           </div>
 
           <div className={styles.fieldWrap}>
-            <label htmlFor="camera-floor" className={styles.fieldLabel}>
-              층수 *
+            <label className={styles.fieldLabel}>
+              층수 <span className={styles.requiredMark}>*</span>
             </label>
-            <select
-              id="camera-floor"
-              className={clsx(styles.select, errors.floor && styles.selectError)}
+            <SelectField
+              options={floorOptions}
               value={form.floor}
               onChange={handleFloorChange}
+              placeholder="층수 선택"
               disabled={!selectedBuilding}
-              aria-invalid={Boolean(errors.floor)}
-              aria-describedby={errors.floor ? 'camera-floor-error' : undefined}
-            >
-              <option value="">층수 선택</option>
-              {floorOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {errors.floor && (
-              <span id="camera-floor-error" className={styles.errorText}>
-                {errors.floor}
-              </span>
-            )}
+              error={Boolean(errors.floor)}
+            />
+            {errors.floor && <span className={styles.errorText}>{errors.floor}</span>}
           </div>
         </div>
 
