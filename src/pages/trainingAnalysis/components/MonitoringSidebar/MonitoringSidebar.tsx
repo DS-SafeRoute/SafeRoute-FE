@@ -74,37 +74,40 @@ const MonitoringSidebar = ({
         </div>
         <ul className={styles.streamList}>
           {filteredCameras.map((cam) => (
-            <li
-              key={cam.id}
-              className={clsx(
-                styles.streamItem,
-                activeCameraId === cam.id && styles.streamItemActive,
-              )}
-              onClick={() => onCameraSelect?.(cam)}
-            >
-              <div className={styles.streamLeft}>
-                <span
-                  className={styles.statusDot}
-                  style={{
-                    backgroundColor: cam.status === 'online' ? '#10B981' : '#9CA3AF',
-                  }}
-                />
-                <div className={styles.streamInfo}>
-                  <span className={styles.streamName}>{cam.name}</span>
-                  <span className={styles.streamMeta}>
-                    {cam.building} · {cam.zone}
-                  </span>
-                  {cam.status === 'online' && (
+            <li key={cam.id}>
+              <button
+                type="button"
+                className={clsx(
+                  styles.streamItem,
+                  activeCameraId === cam.id && styles.streamItemActive,
+                )}
+                onClick={() => onCameraSelect?.(cam)}
+                aria-current={activeCameraId === cam.id ? 'true' : undefined}
+              >
+                <div className={styles.streamLeft}>
+                  <span
+                    className={styles.statusDot}
+                    style={{
+                      backgroundColor: cam.status === 'online' ? '#10B981' : '#9CA3AF',
+                    }}
+                  />
+                  <div className={styles.streamInfo}>
+                    <span className={styles.streamName}>{cam.name}</span>
                     <span className={styles.streamMeta}>
-                      {cam.fps} fps / {cam.latencyMs}ms
+                      {cam.building} · {cam.zone}
                     </span>
-                  )}
+                    {cam.status === 'online' && (
+                      <span className={styles.streamMeta}>
+                        {cam.fps} fps / {cam.latencyMs}ms
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className={styles.streamCount}>
-                <UsersIcon width={12} height={12} />
-                {cam.detectedCount}
-              </div>
+                <div className={styles.streamCount}>
+                  <UsersIcon width={12} height={12} />
+                  {cam.detectedCount}
+                </div>
+              </button>
             </li>
           ))}
         </ul>

@@ -59,7 +59,8 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
                       const isActive =
                         child.path === '/'
                           ? location.pathname === child.path
-                          : location.pathname.startsWith(child.path);
+                          : location.pathname === child.path ||
+                            location.pathname.startsWith(`${child.path}/`);
 
                       return (
                         <li key={child.label}>
@@ -87,7 +88,8 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
             const isActive =
               item.path === '/'
                 ? location.pathname === item.path
-                : location.pathname.startsWith(item.path ?? '');
+                : location.pathname === item.path ||
+                  location.pathname.startsWith(`${item.path ?? ''}/`);
 
             return (
               <li key={item.label}>

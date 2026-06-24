@@ -29,6 +29,7 @@ const AnalysisTabNav = () => {
           type="button"
           className={clsx(styles.tabItem, isActive(tab.path) && styles.tabItemActive)}
           onClick={() => void navigate(tab.path)}
+          aria-current={isActive(tab.path) ? 'page' : undefined}
         >
           {tab.label}
         </button>

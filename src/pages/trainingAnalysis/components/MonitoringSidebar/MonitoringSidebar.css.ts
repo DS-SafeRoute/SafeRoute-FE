@@ -105,8 +105,11 @@ export const streamItem = style({
   justifyContent: 'space-between',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
+  backgroundColor: 'transparent',
   cursor: 'pointer',
   padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '100%',
+  textAlign: 'left',
   selectors: {
     '&:hover': {
       backgroundColor: vars.color.gray50,

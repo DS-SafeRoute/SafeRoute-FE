@@ -10,7 +10,7 @@ interface CameraCardProps {
 }
 
 const CameraCard = ({ camera, onClick }: CameraCardProps) => (
-  <div className={styles.card} onClick={() => onClick(camera)}>
+  <button type="button" className={styles.card} onClick={() => onClick(camera)}>
     <div className={styles.video}>
       <div className={styles.badgeRow}>
         {camera.status === 'online' ? (
@@ -42,7 +42,7 @@ const CameraCard = ({ camera, onClick }: CameraCardProps) => (
         </div>
       )}
     </div>
-  </div>
+  </button>
 );
 
 export default CameraCard;

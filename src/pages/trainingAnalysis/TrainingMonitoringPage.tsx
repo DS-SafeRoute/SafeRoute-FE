@@ -15,12 +15,12 @@ import * as styles from './TrainingMonitoringPage.css';
 
 import type { StreamCamera } from './types/trainingAnalysis';
 
-type FilterType = '전체' | '실시간' | '객체감지';
+type CameraFilter = '전체' | '실시간' | '객체감지';
 
-const FILTERS: FilterType[] = ['전체', '실시간', '객체감지'];
+const FILTERS: CameraFilter[] = ['전체', '실시간', '객체감지'];
 
 const TrainingMonitoringPage = () => {
-  const [filter, setFilter] = useState<FilterType>('전체');
+  const [filter, setFilter] = useState<CameraFilter>('전체');
   const [selectedCamera, setSelectedCamera] = useState<StreamCamera | null>(null);
 
   const filteredCameras = useMemo(() => {
@@ -85,10 +85,12 @@ const TrainingMonitoringPage = () => {
 
               {/* 영상 영역 */}
               <div className={styles.detailVideo}>
-                <div className={styles.liveStreamBadge}>
-                  <span className={styles.liveDot} />
-                  LIVE STREAM
-                </div>
+                {selectedCamera.status === 'online' && (
+                  <div className={styles.liveStreamBadge}>
+                    <span className={styles.liveDot} />
+                    LIVE STREAM
+                  </div>
+                )}
 
                 {selectedCamera.status === 'online' && (
                   <div className={styles.detailPersonCount}>

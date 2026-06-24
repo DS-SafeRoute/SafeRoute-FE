@@ -65,7 +65,7 @@ export const mockStreamCameras: StreamCamera[] = [
     zone: '중앙홀 1층',
     fps: 0,
     latencyMs: 0,
-    detectedCount: 24,
+    detectedCount: 0,
     status: 'offline',
   },
   {

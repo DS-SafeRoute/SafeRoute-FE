@@ -9,7 +9,10 @@ export const card = style({
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   cursor: 'pointer',
+  padding: 0,
+  width: '100%',
   overflow: 'hidden',
+  textAlign: 'left',
   selectors: {
     '&:hover': {
       borderColor: vars.color.primary,
