@@ -4,23 +4,27 @@ import { vars } from '@styles/global.css';
 
 export const container = style({
   display: 'flex',
+  flex: 1,
   flexDirection: 'column',
-  gap: vars.space.s5,
+  gap: vars.space.s4,
   padding: vars.space.s8,
+  paddingTop: '0.5rem',
+  overflow: 'hidden',
 });
 
-export const topBar = style({
+export const actionRow = style({
   display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: vars.space.s3,
+  flexDirection: 'column',
+  gap: vars.space.s2,
 });
 
 export const body = style({
   display: 'grid',
+  flex: 1,
   gridTemplateColumns: '1fr 30rem',
   alignItems: 'start',
   gap: vars.space.s5,
+  minHeight: 0,
 });
 
 /* ── 좌측: 비디오 영역 ── */
@@ -28,13 +32,15 @@ export const videoSection = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
+  height: '100%',
 });
 
 export const videoWrapper = style({
-  aspectRatio: '16 / 9',
   position: 'relative',
+  flex: 1,
   borderRadius: vars.radius.lg,
   backgroundColor: '#0a0f1a',
+  minHeight: 0,
   overflow: 'hidden',
 });
 

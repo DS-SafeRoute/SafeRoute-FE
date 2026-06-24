@@ -4,6 +4,7 @@ import { Button } from '@components/Button';
 
 import { ROUTES } from '@constants/path';
 
+import AnalysisTabNav from './components/AnalysisTabNav/AnalysisTabNav';
 import { mockAnalysisInfo, mockDetections, mockTimelineEvents } from './mocks/trainingAnalysisData';
 import * as styles from './TrainingAnalysisPage.css';
 
@@ -23,18 +24,7 @@ const TrainingAnalysisPage = () => {
 
   return (
     <div className={styles.container}>
-      <div className={styles.topBar}>
-        <Button variant="outlined" size="sm">
-          영상 업로드
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={() => void navigate(ROUTES.TRAINING_MONITORING)}
-        >
-          AI 분석 시작
-        </Button>
-      </div>
+      <AnalysisTabNav />
 
       <div className={styles.body}>
         {/* 좌측: 비디오 플레이어 */}
@@ -129,6 +119,21 @@ const TrainingAnalysisPage = () => {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* 액션 버튼 */}
+          <div className={styles.actionRow}>
+            <Button variant="outlined" size="md" fullWidth>
+              영상 업로드
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              fullWidth
+              onClick={() => void navigate(ROUTES.TRAINING_MONITORING)}
+            >
+              AI 분석 시작
+            </Button>
           </div>
         </div>
       </div>
