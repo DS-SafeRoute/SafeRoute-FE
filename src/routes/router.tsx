@@ -97,14 +97,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.TRAINING_MONITORING_DETAIL,
-        lazy: async () => {
-          const { default: TrainingMonitoringDetailPage } =
-            await import('@/pages/trainingAnalysis/TrainingMonitoringDetailPage');
-          return { Component: TrainingMonitoringDetailPage };
-        },
-      },
-      {
         path: ROUTES.REPORTS,
         lazy: async () => {
           const { default: ReportsPage } = await import('@/pages/reports/ReportsPage');
