@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -78,4 +78,52 @@ export const selectError = style({
 export const errorText = style({
   color: vars.color.danger,
   ...vars.typography.caption,
+});
+
+export const requiredMark = style({
+  color: vars.color.danger,
+});
+
+export const selectWrap = style({
+  position: 'relative',
+});
+
+export const selectButton = style({
+  display: 'flex',
+  appearance: 'none',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  ...vars.typography.body14,
+  cursor: 'pointer',
+  padding: '0 1.4rem',
+  width: '100%',
+  height: '4.4rem',
+  color: vars.color.textHigh,
+  selectors: {
+    '&:focus': {
+      outline: 'none',
+      borderColor: vars.color.primary,
+    },
+    '&:disabled': {
+      backgroundColor: vars.color.gray50,
+      cursor: 'not-allowed',
+      color: vars.color.textLow,
+    },
+  },
+});
+
+const panelOpen = keyframes({
+  from: { transform: 'translateY(-6px)', opacity: 0 },
+  to: { transform: 'translateY(0)', opacity: 1 },
+});
+
+export const dropdownPanelOffset = style({
+  top: '100%',
+  left: 0,
+  marginTop: vars.space.s1,
+  width: '100%',
+  animation: `${panelOpen} 0.15s ease`,
 });
