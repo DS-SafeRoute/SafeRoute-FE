@@ -62,24 +62,6 @@ export const cardTop = style({
   justifyContent: 'space-between',
 });
 
-export const cardIconWrap = style({
-  display: 'flex',
-  flexShrink: 0,
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: vars.radius.lg,
-  backgroundColor: vars.color.gray50,
-  width: '5.2rem',
-  height: '5.2rem',
-});
-
-export const cardIconInner = style({
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.primary,
-  width: '2.8rem',
-  height: '2.8rem',
-});
-
 export const floorLabel = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
