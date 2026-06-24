@@ -1,3 +1,4 @@
+import ActivityIcon from '@assets/icons/ic-activity.svg?react';
 import BuildingIcon from '@assets/icons/ic-building.svg?react';
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import DashBoardIcon from '@assets/icons/ic-dashboard.svg?react';
@@ -21,6 +22,13 @@ export const sidebarItems = [
       { label: '카메라 관리', icon: CameraIcon, path: ROUTES.CAMERAS },
     ],
   },
-  { label: '훈련 분석', icon: VideoIcon, path: ROUTES.TRAINING_ANALYSIS },
+  {
+    label: '훈련 분석',
+    icon: VideoIcon,
+    items: [
+      { label: '영상 분석', icon: VideoIcon, path: ROUTES.TRAINING_ANALYSIS },
+      { label: '모니터링', icon: ActivityIcon, path: ROUTES.TRAINING_MONITORING },
+    ],
+  },
   { label: '분석 보고서', icon: FileTextIcon, path: ROUTES.REPORTS },
 ];
