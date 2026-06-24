@@ -10,5 +10,6 @@ export const ROUTES = {
   FLOOR_PLANS_DETAIL: '/floorPlans/:buildingId/:floorId',
   CAMERAS: '/cameras',
   TRAINING_ANALYSIS: '/trainingAnalysis',
+  TRAINING_MONITORING: '/trainingAnalysis/monitoring',
   REPORTS: '/reports',
 } as const;
