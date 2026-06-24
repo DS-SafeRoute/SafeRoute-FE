@@ -6,6 +6,7 @@ import { Button } from '@components/Button';
 import Modal from '@components/modal';
 
 import * as styles from './FloorPlanModal.css';
+import FloorUploadModal from '../../floorPlans/modals/FloorUploadModal';
 
 import type { Building } from '../types/buildings';
 
@@ -34,6 +35,7 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
   const [belowFloors, setBelowFloors] = useState(building.belowFloors);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [isEditingFloors, setIsEditingFloors] = useState(false);
+  const [uploadTargetFloor, setUploadTargetFloor] = useState<number | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -48,9 +50,15 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
   const isUploaded = (floor: number) => uploadedFloors.includes(floor);
 
   const handleUpload = (floor: number) => {
-    const next = Array.from(new Set([...uploadedFloors, floor]));
+    setUploadTargetFloor(floor);
+  };
+
+  const handleUploadConfirm = (_file: File) => {
+    if (uploadTargetFloor === null) return;
+    const next = Array.from(new Set([...uploadedFloors, uploadTargetFloor]));
     setUploadedFloors(next);
     onUpdate(building.id, { floorPlans: next });
+    setUploadTargetFloor(null);
   };
 
   const handleFloorDelete = (floor: number) => setConfirm({ type: 'deleteFloor', floor });
@@ -270,6 +278,14 @@ const FloorPlanModal = ({ open, onClose, building, onUpdate }: FloorPlanModalPro
             </Button>
           </>
         }
+      />
+
+      <FloorUploadModal
+        open={uploadTargetFloor !== null}
+        onClose={() => setUploadTargetFloor(null)}
+        buildingName={building.name}
+        floorNum={uploadTargetFloor ?? 0}
+        onConfirm={handleUploadConfirm}
       />
     </>
   );

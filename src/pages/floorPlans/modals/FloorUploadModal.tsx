@@ -80,7 +80,7 @@ const FloorUploadModal = ({
     <Modal
       open={open}
       onClose={handleClose}
-      title="도면 이미지 업로드"
+      title="도면 파일 업로드"
       description={`${buildingName} · ${formatFloor(floorNum)}`}
       footer={
         <>
