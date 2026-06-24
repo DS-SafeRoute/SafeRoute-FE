@@ -7,6 +7,7 @@ export type AnalysisViewTab = 'live' | 'grid' | 'detect';
 export interface StreamCamera {
   id: string;
   name: string;
+  building: string;
   zone: string;
   fps: number;
   latencyMs: number;

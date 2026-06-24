@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import clsx from 'clsx';
 
+import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 
 import { Button } from '@components/Button';
@@ -48,7 +49,8 @@ const TrainingMonitoringPage = () => {
               {/* 액션 바 */}
               <div className={styles.detailActionBar}>
                 <button className={styles.backBtn} onClick={() => setSelectedCamera(null)}>
-                  ← 전체 목록
+                  <ArrowRightIcon className={styles.backIcon} width={16} height={16} />
+                  전체 목록
                 </button>
                 <div className={styles.detailControls}>
                   <Button variant="primary" size="sm">
@@ -117,47 +119,49 @@ const TrainingMonitoringPage = () => {
                 </div>
               </div>
 
-              <div className={styles.cameraGrid}>
-                {filteredCameras.map((cam) => (
-                  <div
-                    key={cam.id}
-                    className={styles.cameraCard}
-                    onClick={() => handleCameraSelect(cam)}
-                  >
-                    <div className={styles.cardVideo}>
-                      <div className={styles.cardBadgeRow}>
-                        {cam.status === 'online' ? (
-                          <div className={styles.liveBadge}>
-                            <span className={styles.liveDot} />
-                            LIVE
-                          </div>
-                        ) : (
-                          <div className={styles.offlineBadge}>OFFLINE</div>
-                        )}
-                        {cam.status === 'online' && (
-                          <div className={styles.cardPersonCount}>
-                            <UsersIcon width={11} height={11} />
-                            {cam.detectedCount}
-                          </div>
-                        )}
-                      </div>
-                      {cam.status === 'offline' && (
-                        <div className={styles.offlineOverlay}>신호 없음</div>
-                      )}
-                    </div>
-                    <div className={styles.cardInfo}>
-                      <div>
-                        <div className={styles.cardName}>{cam.name}</div>
-                        <div className={styles.cardZone}>{cam.zone}</div>
-                      </div>
-                      {cam.status === 'online' && (
-                        <div className={styles.cardMeta}>
-                          {cam.fps}fps · {cam.latencyMs}ms
+              <div className={styles.gridScroll}>
+                <div className={styles.cameraGrid}>
+                  {filteredCameras.map((cam) => (
+                    <div
+                      key={cam.id}
+                      className={styles.cameraCard}
+                      onClick={() => handleCameraSelect(cam)}
+                    >
+                      <div className={styles.cardVideo}>
+                        <div className={styles.cardBadgeRow}>
+                          {cam.status === 'online' ? (
+                            <div className={styles.liveBadge}>
+                              <span className={styles.liveDot} />
+                              LIVE
+                            </div>
+                          ) : (
+                            <div className={styles.offlineBadge}>OFFLINE</div>
+                          )}
+                          {cam.status === 'online' && (
+                            <div className={styles.cardPersonCount}>
+                              <UsersIcon width={11} height={11} />
+                              {cam.detectedCount}
+                            </div>
+                          )}
                         </div>
-                      )}
+                        {cam.status === 'offline' && (
+                          <div className={styles.offlineOverlay}>신호 없음</div>
+                        )}
+                      </div>
+                      <div className={styles.cardInfo}>
+                        <div>
+                          <div className={styles.cardName}>{cam.name}</div>
+                          <div className={styles.cardZone}>{cam.zone}</div>
+                        </div>
+                        {cam.status === 'online' && (
+                          <div className={styles.cardMeta}>
+                            {cam.fps}fps · {cam.latencyMs}ms
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </>

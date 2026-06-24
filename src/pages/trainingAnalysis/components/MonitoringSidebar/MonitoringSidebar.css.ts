@@ -7,7 +7,9 @@ export const sidebar = style({
   flexDirection: 'column',
   flexShrink: 0,
   gap: vars.space.s4,
-  width: '26rem',
+  width: '30rem',
+  minHeight: 0,
+  overflow: 'hidden',
 });
 
 /* AI 비전 상태 */
@@ -56,26 +58,45 @@ export const aiStatLabel = style({
 /* 카메라 스트림 리스트 */
 export const streamBox = style({
   display: 'flex',
+  flex: 1,
   flexDirection: 'column',
   gap: vars.space.s2,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
-  overflow: 'hidden',
+  minHeight: 0,
+});
+
+export const streamHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: vars.space.s1,
 });
 
 export const streamTitle = style({
-  marginBottom: vars.space.s1,
   color: vars.color.textHigh,
   ...vars.typography.body14Bold,
 });
 
+export const zoneDropdown = style({
+  width: '8rem',
+});
+
 export const streamList = style({
   display: 'flex',
+  flex: 1,
   flexDirection: 'column',
   gap: vars.space.s1,
+  minHeight: 0,
   overflowY: 'auto',
+  scrollbarWidth: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': {
+      display: 'none',
+    },
+  },
 });
 
 export const streamItem = style({

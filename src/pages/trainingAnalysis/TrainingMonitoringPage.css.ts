@@ -69,11 +69,22 @@ export const filterBtnActive = style({
   color: vars.color.primary,
 });
 
+export const gridScroll = style({
+  flex: 1,
+  minHeight: 0,
+  overflow: 'auto',
+  scrollbarWidth: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': {
+      display: 'none',
+    },
+  },
+});
+
 export const cameraGrid = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(3, 1fr)',
   gap: vars.space.s4,
-  overflow: 'auto',
 });
 
 export const cameraCard = style({
@@ -197,18 +208,27 @@ export const detailActionBar = style({
 });
 
 export const backBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s1,
   transition: 'color 0.15s',
   border: 'none',
+  borderRadius: vars.radius.md,
   background: 'none',
   cursor: 'pointer',
-  padding: 0,
+  padding: `${vars.space.s1} ${vars.space.s2}`,
   color: vars.color.textMid,
   ...vars.typography.captionBold,
   selectors: {
     '&:hover': {
-      color: vars.color.primary,
+      backgroundColor: vars.color.gray50,
+      color: vars.color.textHigh,
     },
   },
+});
+
+export const backIcon = style({
+  transform: 'scaleX(-1)',
 });
 
 export const detailControls = style({
