@@ -44,7 +44,8 @@ export const aiStatCard = style({
 
 export const aiStatValue = style({
   color: vars.color.textHigh,
-  ...vars.typography.h4,
+  ...vars.typography.h3,
+  fontWeight: vars.fontWeight.bold,
 });
 
 export const aiStatLabel = style({
@@ -79,8 +80,9 @@ export const streamList = style({
 
 export const streamItem = style({
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   justifyContent: 'space-between',
+  border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
   cursor: 'pointer',
   padding: `${vars.space.s2} ${vars.space.s3}`,
@@ -97,12 +99,13 @@ export const streamItemActive = style({
 
 export const streamLeft = style({
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   gap: vars.space.s2,
 });
 
 export const statusDot = style({
   flexShrink: 0,
+  marginTop: '0.25rem',
   borderRadius: '50%',
   width: '0.8rem',
   height: '0.8rem',
@@ -126,8 +129,10 @@ export const streamMeta = style({
 
 export const streamCount = style({
   display: 'flex',
+  flexShrink: 0,
   alignItems: 'center',
   gap: vars.space.s1,
+  marginTop: '0.15rem',
   color: vars.color.textMid,
   ...vars.typography.caption,
 });
