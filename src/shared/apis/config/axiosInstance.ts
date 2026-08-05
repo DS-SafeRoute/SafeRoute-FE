@@ -2,11 +2,11 @@ import axios from 'axios';
 
 import type { AxiosError } from 'axios';
 
-const Instance_timeout: number = 30_000; // 30초
+const REQUEST_TIMEOUT_MS: number = 30_000; // 30초
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: Instance_timeout,
+  timeout: REQUEST_TIMEOUT_MS,
   withCredentials: true,
 });
 

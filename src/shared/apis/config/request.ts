@@ -14,28 +14,30 @@ export const HTTPMethod = {
 } as const;
 
 export type HTTPMethodType = (typeof HTTPMethod)[keyof typeof HTTPMethod];
-type QueryValue = string | number | boolean | Array<string | number | boolean>;
-export interface RequestConfig {
+type QueryPrimitive = string | number | boolean;
+type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
+
+export interface RequestConfig<TBody = unknown> {
   method: HTTPMethodType;
   url: string;
   query?: Record<string, QueryValue>;
-  body?: Record<string, unknown>;
+  body?: TBody;
+  signal?: AbortSignal;
 }
 
-export const request = async <T>(config: RequestConfig): Promise<T> => {
-  const { method, url, query, body } = config;
+export const request = async <TResponse, TBody = unknown>(
+  config: RequestConfig<TBody>,
+): Promise<TResponse> => {
+  const { method, url, query, body, signal } = config;
 
   try {
-    const response = await axiosInstance.request<BaseResponse<T>>({
+    const response = await axiosInstance.request<BaseResponse<TResponse>>({
       method,
       url,
       params: query,
       data: body,
+      signal,
     });
-
-    if (import.meta.env.DEV) {
-      console.log(`[성공] ${url} : ${response.data.message}`);
-    }
 
     return response.data.data;
   } catch (error: unknown) {
