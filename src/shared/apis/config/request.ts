@@ -39,9 +39,11 @@ export const request = async <T>(config: RequestConfig): Promise<T> => {
 
     return response.data.data;
   } catch (error: unknown) {
-    if (!isAxiosError(error)) {
+    if (!isAxiosError<BaseResponse<unknown>>(error)) {
       // 클라이언트 내부 런타임 에러
-      console.error(`[실패] ${url} : 알 수 없는 오류`, error);
+      if (import.meta.env.DEV) {
+        console.error(`[실패] ${url} : 알 수 없는 오류`, error);
+      }
       throw error;
     }
 
@@ -49,11 +51,10 @@ export const request = async <T>(config: RequestConfig): Promise<T> => {
 
     if (response) {
       const { status } = response;
-      const errorData = response.data as BaseResponse<unknown>;
-      const message = errorData?.message;
+      const message = response.data?.message;
 
       const displayMessage =
-        RESPONSE_MESSAGE[status] || message || '알 수 없는 오류가 발생했습니다.';
+        RESPONSE_MESSAGE[status] ?? message ?? '알 수 없는 오류가 발생했습니다.';
 
       if (import.meta.env.DEV) {
         console.error(`[실패] ${url} : ${displayMessage}`);
