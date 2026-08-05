@@ -1,4 +1,4 @@
-import { QueryCache, QueryClient } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 const MAX_QUERY_RETRY_COUNT = 1;
@@ -14,11 +14,6 @@ const shouldRetryQuery = (failureCount: number, error: Error) => {
 };
 
 export const queryClient = new QueryClient({
-  queryCache: new QueryCache({
-    onError: (error) => {
-      if (import.meta.env.DEV) console.error('[React Query Error]', error);
-    },
-  }),
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false, // 브라우저 포커싱 시 자동 재요청 방지
