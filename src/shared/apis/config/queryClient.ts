@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 
 const MAX_QUERY_RETRY_COUNT = 1;
 
-const shouldRetryQuery = (failureCount: number, error: Error) => {
+const canRetryQuery = (failureCount: number, error: Error) => {
   if (failureCount >= MAX_QUERY_RETRY_COUNT || !isAxiosError(error)) {
     return false;
   }
@@ -17,7 +17,7 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false, // 브라우저 포커싱 시 자동 재요청 방지
-      retry: shouldRetryQuery,
+      retry: canRetryQuery,
       staleTime: 1000 * 60 * 5, // 5분
     },
   },

@@ -1,11 +1,11 @@
-import { isAxiosError } from 'axios';
+import { isAxiosError, isCancel } from 'axios';
 
 import { RESPONSE_MESSAGE } from '@apis/constants/response';
 import type { BaseResponse } from '@apis/types/baseResponse';
 
 import axiosInstance from './axiosInstance';
 
-export const HTTPMethod = {
+export const HTTP_METHOD = {
   GET: 'GET',
   POST: 'POST',
   PUT: 'PUT',
@@ -13,12 +13,12 @@ export const HTTPMethod = {
   PATCH: 'PATCH',
 } as const;
 
-export type HTTPMethodType = (typeof HTTPMethod)[keyof typeof HTTPMethod];
+export type HttpMethod = (typeof HTTP_METHOD)[keyof typeof HTTP_METHOD];
 type QueryPrimitive = string | number | boolean;
 type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
 
 export interface RequestConfig<TBody = unknown> {
-  method: HTTPMethodType;
+  method: HttpMethod;
   url: string;
   query?: Record<string, QueryValue>;
   body?: TBody;
@@ -41,6 +41,10 @@ export const request = async <TResponse, TBody = unknown>(
 
     return response.data.data;
   } catch (error: unknown) {
+    if (isCancel(error)) {
+      throw error;
+    }
+
     if (!isAxiosError<BaseResponse<unknown>>(error)) {
       // 클라이언트 내부 런타임 에러
       if (import.meta.env.DEV) {
@@ -56,7 +60,9 @@ export const request = async <TResponse, TBody = unknown>(
       const message = response.data?.message;
 
       const displayMessage =
-        RESPONSE_MESSAGE[status] ?? message ?? '알 수 없는 오류가 발생했습니다.';
+        RESPONSE_MESSAGE[status as keyof typeof RESPONSE_MESSAGE] ??
+        message ??
+        '알 수 없는 오류가 발생했습니다.';
 
       if (import.meta.env.DEV) {
         console.error(`[실패] ${url} : ${displayMessage}`);
