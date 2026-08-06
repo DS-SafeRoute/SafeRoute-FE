@@ -1,9 +1,10 @@
 import { isAxiosError, isCancel } from 'axios';
 
+import axiosInstance from '@apis/config/axiosInstance';
 import { RESPONSE_MESSAGE } from '@apis/constants/response';
 import type { BaseResponse } from '@apis/types/baseResponse';
 
-import axiosInstance from './axiosInstance';
+import type { Method } from 'axios';
 
 export const HTTP_METHOD = {
   GET: 'GET',
@@ -11,7 +12,7 @@ export const HTTP_METHOD = {
   PUT: 'PUT',
   DELETE: 'DELETE',
   PATCH: 'PATCH',
-} as const;
+} as const satisfies Record<string, Method>;
 
 export type HttpMethod = (typeof HTTP_METHOD)[keyof typeof HTTP_METHOD];
 type QueryPrimitive = string | number | boolean;
