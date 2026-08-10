@@ -1,5 +1,5 @@
-const API_V1 = '/api/v1';
-const DASHBOARD_API = '/api/dashboard';
+export const API_V1 = '/api/v1';
+export const DASHBOARD_API = '/api/dashboard';
 
 export const API_ENDPOINTS = {
   // 사용자
