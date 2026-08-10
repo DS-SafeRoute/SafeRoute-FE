@@ -13,7 +13,13 @@ import prettier from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
 
 export default tseslint.config(
-  { ignores: ['dist', 'storybook-static/**'] },
+  {
+    ignores: [
+      'dist',
+      'storybook-static/**',
+      'src/shared/apis/__generated__/**',
+    ],
+  },
   ...pluginQuery.configs['flat/recommended'],
   {
   extends: [js.configs.recommended, ...tseslint.configs.recommended, prettier],
