@@ -40,7 +40,7 @@ export const request = async <TResponse, TBody = unknown>(
       signal,
     });
 
-    return response.data.data;
+    return response.data.result;
   } catch (error: unknown) {
     if (isCancel(error)) {
       throw error;
