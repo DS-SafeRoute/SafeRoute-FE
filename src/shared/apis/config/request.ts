@@ -2,6 +2,7 @@ import { isAxiosError, isCancel } from 'axios';
 
 import axiosInstance from '@apis/config/axiosInstance';
 import { RESPONSE_MESSAGE } from '@apis/constants/response';
+import { ApiError } from '@apis/errors/apiError';
 import type { BaseResponse } from '@apis/types/baseResponse';
 
 import type { Method } from 'axios';
@@ -40,9 +41,20 @@ export const request = async <TResponse, TBody = unknown>(
       signal,
     });
 
+    if (!response.data.isSuccess) {
+      throw new ApiError(response.data.code, response.data.message);
+    }
+
     return response.data.result;
   } catch (error: unknown) {
     if (isCancel(error)) {
+      throw error;
+    }
+
+    if (error instanceof ApiError) {
+      if (import.meta.env.DEV) {
+        console.error(`[실패] ${url} : ${error.message}`);
+      }
       throw error;
     }
 
