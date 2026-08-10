@@ -11,7 +11,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css.ts}\"",
     "preview": "vite preview",
-    "gen:api": "sta --path http://localhost:8080/v3/api-docs --output src/shared/types/generated --name api.ts",
+    "api:generate": "node scripts/gen-api.mjs",
     "prepare": "husky",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
