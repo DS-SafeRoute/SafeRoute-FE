@@ -9,23 +9,32 @@ interface ScenarioFieldProps {
   value: string;
   options: readonly string[];
   leadingIcon?: ReactNode;
+  disabled?: boolean;
 }
 
-const ScenarioField = ({ label, value, options, leadingIcon }: ScenarioFieldProps) => (
+const ScenarioField = ({
+  label,
+  value,
+  options,
+  leadingIcon,
+  disabled = false,
+}: ScenarioFieldProps) => (
   <label className={styles.root}>
     <span className={styles.label}>{label}</span>
     <span className={styles.fieldShell}>
       {leadingIcon ? <span className={styles.withLeadingIcon}>{leadingIcon}</span> : null}
-      <select className={styles.select} defaultValue={value} aria-label={label}>
+      <select className={styles.select} defaultValue={value} aria-label={label} disabled={disabled}>
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
           </option>
         ))}
       </select>
-      <span className={styles.trailingIcon}>
-        <ChevronDownIcon />
-      </span>
+      {!disabled && (
+        <span className={styles.trailingIcon}>
+          <ChevronDownIcon />
+        </span>
+      )}
     </span>
   </label>
 );

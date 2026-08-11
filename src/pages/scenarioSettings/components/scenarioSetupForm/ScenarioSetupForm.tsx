@@ -20,51 +20,72 @@ interface ScenarioSetupFormProps {
   basicInfo: BasicInfo;
   conditions: FireConditionField[];
   options: FireConditionOptions;
+  isRunning?: boolean;
 }
 
-const ScenarioSetupForm = ({ basicInfo, conditions, options }: ScenarioSetupFormProps) => (
+const ScenarioSetupForm = ({
+  basicInfo,
+  conditions,
+  options,
+  isRunning = false,
+}: ScenarioSetupFormProps) => (
   <div className={styles.container}>
     <section className={pageStyles.mainSectionCard}>
-      <h2 className={pageStyles.mainSectionTitle}>1. 기본 정보</h2>
+      <div className={pageStyles.sectionTitleRow}>
+        <h2 className={pageStyles.mainSectionTitle}>1. 기본 정보</h2>
+        {isRunning && <span className={pageStyles.lockBadge}>🔒 잠금 · 훈련 중 수정 불가</span>}
+      </div>
 
       <div className={pageStyles.fieldGrid}>
         <TextField
           label="시나리오명"
           defaultValue={basicInfo.scenarioName}
           placeholder="시나리오명을 입력하세요"
+          disabled={isRunning}
         />
         <ScenarioField
           label="대상 건물"
           value={basicInfo.targetBuilding}
           options={SCENARIO_BUILDING_OPTIONS}
+          disabled={isRunning}
         />
-        <DateTimeField label="실시 일시" defaultValue={basicInfo.scheduledAt} />
+        <DateTimeField
+          label="실시 일시"
+          defaultValue={basicInfo.scheduledAt}
+          disabled={isRunning}
+        />
         <TextField
           label="예상 참가 인원"
           type="number"
           defaultValue={basicInfo.expectedParticipants}
           placeholder="예상 참가 인원을 입력하세요"
           leftIcon={<UsersIcon />}
+          disabled={isRunning}
         />
       </div>
     </section>
 
     <section className={pageStyles.mainSectionCard}>
-      <h2 className={pageStyles.mainSectionTitle}>2. 화재 발생 조건</h2>
-
-      <div className={pageStyles.fieldGrid}>
-        {conditions.map((condition) => (
-          <ScenarioField
-            key={condition.key}
-            label={condition.label}
-            value={condition.value}
-            options={options[condition.key]}
-            leadingIcon={condition.key === 'origin' ? <AlertIcon /> : undefined}
-          />
-        ))}
+      <div className={pageStyles.sectionTitleRow}>
+        <h2 className={pageStyles.mainSectionTitle}>2. 화재 발생 조건</h2>
+        {isRunning && <span className={pageStyles.lockBadge}>🔒 잠금 · 훈련 중 수정 불가</span>}
       </div>
 
-      {/* TODO: 지금은 단순 스타일인데 바꿔야 함 */}
+      <div className={pageStyles.fieldGrid}>
+        {conditions
+          .filter((condition) => !isRunning || ['origin', 'spread'].includes(condition.key))
+          .map((condition) => (
+            <ScenarioField
+              key={condition.key}
+              label={condition.label}
+              value={condition.value}
+              options={options[condition.key]}
+              leadingIcon={condition.key === 'origin' ? <AlertIcon /> : undefined}
+              disabled={isRunning}
+            />
+          ))}
+      </div>
+
       <div className={styles.previewPanel}>
         <div className={styles.floorPlan}>
           <div className={styles.room} />
