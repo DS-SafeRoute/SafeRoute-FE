@@ -23,6 +23,8 @@ interface ScenarioSetupFormProps {
   isRunning?: boolean;
 }
 
+const TRAINING_LOCK_MESSAGE = '🔒 잠금 · 훈련 중 수정 불가';
+
 const ScenarioSetupForm = ({
   basicInfo,
   conditions,
@@ -33,7 +35,7 @@ const ScenarioSetupForm = ({
     <section className={pageStyles.mainSectionCard}>
       <div className={pageStyles.sectionTitleRow}>
         <h2 className={pageStyles.mainSectionTitle}>1. 기본 정보</h2>
-        {isRunning && <span className={pageStyles.lockBadge}>🔒 잠금 · 훈련 중 수정 불가</span>}
+        {isRunning && <span className={pageStyles.lockBadge}>{TRAINING_LOCK_MESSAGE}</span>}
       </div>
 
       <div className={pageStyles.fieldGrid}>
@@ -68,7 +70,7 @@ const ScenarioSetupForm = ({
     <section className={pageStyles.mainSectionCard}>
       <div className={pageStyles.sectionTitleRow}>
         <h2 className={pageStyles.mainSectionTitle}>2. 화재 발생 조건</h2>
-        {isRunning && <span className={pageStyles.lockBadge}>🔒 잠금 · 훈련 중 수정 불가</span>}
+        {isRunning && <span className={pageStyles.lockBadge}>{TRAINING_LOCK_MESSAGE}</span>}
       </div>
 
       <div className={pageStyles.fieldGrid}>
