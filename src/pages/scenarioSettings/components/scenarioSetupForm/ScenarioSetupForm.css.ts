@@ -6,6 +6,7 @@ export const container = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
+  minWidth: 0,
 });
 
 export const previewPanel = style({

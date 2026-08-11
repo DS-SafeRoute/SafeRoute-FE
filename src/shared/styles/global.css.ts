@@ -34,7 +34,9 @@ export const vars = createGlobalTheme(':root', {
     successLight: '#D1FAE5',
     successText: '#065F46',
     warning: '#F59E0B',
+    warningStrong: '#D97706',
     warningLight: '#FEF3C7',
+    warningSurface: '#FEF3E7',
     warningText: '#92400E',
 
     gray25: '#F9FAFB',

@@ -7,6 +7,7 @@ import * as styles from './DateTimeField.css';
 interface DateTimeFieldProps {
   label: string;
   defaultValue: string;
+  disabled?: boolean;
 }
 
 const formatDateTime = (value: string) => {
@@ -22,7 +23,7 @@ const formatDateTime = (value: string) => {
   return `${year}.${month}.${day}`;
 };
 
-const DateTimeField = ({ label, defaultValue }: DateTimeFieldProps) => {
+const DateTimeField = ({ label, defaultValue, disabled = false }: DateTimeFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(defaultValue);
 
@@ -32,6 +33,7 @@ const DateTimeField = ({ label, defaultValue }: DateTimeFieldProps) => {
       <button
         type="button"
         className={styles.trigger}
+        disabled={disabled}
         onClick={() => {
           inputRef.current?.showPicker?.();
           inputRef.current?.focus();
@@ -45,6 +47,7 @@ const DateTimeField = ({ label, defaultValue }: DateTimeFieldProps) => {
       <input
         ref={inputRef}
         type="date"
+        disabled={disabled}
         value={value}
         className={styles.hiddenInput}
         onChange={(event) => {

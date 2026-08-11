@@ -5,22 +5,16 @@ import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import type { HOME_GRADE_BADGE_COLOR, HOME_TRAINING_STATUS } from '../constants/home';
 
 export type MetricIconTone = 'blue' | 'yellow' | 'green' | 'purple';
-export type TrendTone = 'positive' | 'negative';
 export type MetricIconKey = 'activity' | 'clock' | 'trend' | 'user';
-export type TrendDirection = 'up' | 'down';
 
 export type HomeMetric = {
   id: string;
   title: string;
   value: string;
   valueSuffix?: string;
-  trend: string;
-  trendTone: TrendTone;
   iconTone: MetricIconTone;
   iconKey: MetricIconKey;
-  trendDirection: TrendDirection;
   icon?: ReactNode;
-  trendIcon?: ReactNode;
 };
 
 export type TrainingRecord = {
