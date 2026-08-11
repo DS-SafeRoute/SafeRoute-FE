@@ -18,24 +18,11 @@ export const header = style({
   gap: vars.space.s3,
 });
 
-export const previewBox = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginTop: vars.space.s3,
-  border: `1px dashed ${vars.color.textMid}`,
-  borderRadius: vars.radius.lg,
-  backgroundColor: vars.color.white,
-  minHeight: '18rem',
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-});
-
 export const metricList = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
-  marginTop: vars.space.s4,
+  marginTop: vars.space.s5,
 });
 
 export const metricRow = style({

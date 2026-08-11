@@ -12,7 +12,7 @@ export const FIRE_ORIGIN_OPTIONS = [
   '복도 천장 센서 구역',
 ] as const;
 
-export const FIRE_SPREAD_OPTIONS = ['낮음 (0.6 m/s)', '중간 (1.2 m/s)', '높음 (1.8 m/s)'] as const;
+export const FIRE_SPREAD_OPTIONS = ['느림', '중간', '빠름'] as const;
 
 export const SMOKE_DENSITY_OPTIONS = ['낮음', '보통', '높음'] as const;
 
