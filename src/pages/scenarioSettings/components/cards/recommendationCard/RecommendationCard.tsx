@@ -6,14 +6,15 @@ import * as styles from './RecommendationCard.css';
 
 interface RecommendationCardProps {
   icon: ReactNode;
+  title?: string;
   message: string;
 }
 
-const RecommendationCard = ({ icon, message }: RecommendationCardProps) => (
+const RecommendationCard = ({ icon, title = 'AI 추천', message }: RecommendationCardProps) => (
   <section className={styles.card}>
     <div className={styles.titleRow}>
       {icon}
-      <h2 className={sideCardTitle}>AI 추천</h2>
+      <h2 className={sideCardTitle}>{title}</h2>
     </div>
     <p className={styles.message}>{message}</p>
   </section>
