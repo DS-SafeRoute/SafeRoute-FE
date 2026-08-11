@@ -15,10 +15,12 @@ import type { PreviewMetric, PreviewStatus } from '../../types/scenarioSettings'
 interface TrainingControlPanelProps {
   startedAt: number;
   currentRoute: string;
-  routeProposal: string;
+  routeProposal: string | null;
   liveStatus: PreviewStatus;
   liveMetrics: PreviewMetric[];
   onEnd: () => void;
+  onRejectRouteProposal: () => void;
+  onApplyRouteProposal: () => void;
 }
 
 const TrainingControlPanel = ({
@@ -28,6 +30,8 @@ const TrainingControlPanel = ({
   liveStatus,
   liveMetrics,
   onEnd,
+  onRejectRouteProposal,
+  onApplyRouteProposal,
 }: TrainingControlPanelProps) => {
   const elapsedTime = useElapsedTrainingTime(startedAt);
 
@@ -44,7 +48,7 @@ const TrainingControlPanel = ({
         종료
       </Button>
 
-      <div className={styles.elapsedTimer} aria-live="polite">
+      <div className={styles.elapsedTimer}>
         <span className={styles.timerLabel}>
           <span className={styles.dangerDot} aria-hidden="true" />
           훈련 진행 시간
@@ -54,24 +58,26 @@ const TrainingControlPanel = ({
 
       <RecommendationCard icon={<SparklesIcon />} title="현재 경로" message={currentRoute} />
 
-      <section className={styles.proposalCard}>
-        <div className={styles.proposalHeader}>
-          <h2 className={styles.proposalTitle}>
-            <span className={styles.warningDot} aria-hidden="true" />
-            경로 변경 제안
-          </h2>
-          <span className={styles.aiBadge}>AI 판단</span>
-        </div>
-        <p className={styles.proposalMessage}>{routeProposal}</p>
-        <div className={styles.proposalActions}>
-          <Button type="button" variant="ghost" size="sm">
-            거부
-          </Button>
-          <Button type="button" size="sm">
-            승인 · 경로 적용
-          </Button>
-        </div>
-      </section>
+      {routeProposal && (
+        <section className={styles.proposalCard}>
+          <div className={styles.proposalHeader}>
+            <h2 className={styles.proposalTitle}>
+              <span className={styles.warningDot} aria-hidden="true" />
+              경로 변경 제안
+            </h2>
+            <span className={styles.aiBadge}>AI 판단</span>
+          </div>
+          <p className={styles.proposalMessage}>{routeProposal}</p>
+          <div className={styles.proposalActions}>
+            <Button type="button" variant="ghost" size="sm" onClick={onRejectRouteProposal}>
+              거부
+            </Button>
+            <Button type="button" size="sm" onClick={onApplyRouteProposal}>
+              승인 · 경로 적용
+            </Button>
+          </div>
+        </section>
+      )}
 
       <TrainingPreviewCard title="실시간 도면 상태" status={liveStatus} metrics={liveMetrics} />
 

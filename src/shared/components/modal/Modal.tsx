@@ -21,6 +21,7 @@ export interface ModalProps {
   variant?: 'form' | 'confirm';
   icon?: ReactNode;
   className?: string;
+  confirmBodyClassName?: string;
 }
 
 const FOCUSABLE = [
@@ -44,6 +45,7 @@ const Modal = ({
   variant = 'form',
   icon,
   className,
+  confirmBodyClassName,
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -129,7 +131,7 @@ const Modal = ({
         )}
 
         {variant === 'confirm' && (
-          <div className={styles.confirmBody}>
+          <div className={clsx(styles.confirmBody, confirmBodyClassName)}>
             {icon}
             <h2 id="modal-title" className={styles.confirmTitle}>
               {title}

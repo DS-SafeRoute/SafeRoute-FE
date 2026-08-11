@@ -68,7 +68,7 @@ export const aiBadge = style({
   borderRadius: vars.radius.pill,
   backgroundColor: vars.color.white,
   padding: '0.2rem 0.9rem',
-  color: vars.color.warningStrong,
+  color: vars.color.warningText,
   ...vars.typography.caption,
 });
 

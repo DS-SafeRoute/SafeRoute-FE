@@ -23,6 +23,7 @@ import {
   fireConditionOptions,
   previewMetrics,
   recommendationText,
+  proposedRouteText,
   routeProposalText,
   selectedFireConditions,
 } from './mocks/scenarioSettingsData';
@@ -32,10 +33,21 @@ const ScenarioSettingsPage = () => {
   const navigate = useNavigate();
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [currentRoute, setCurrentRoute] = useState(currentRouteText);
+  const [routeProposal, setRouteProposal] = useState<string | null>(routeProposalText);
   const isRunning = startedAt !== null;
 
   const startTraining = () => {
     setStartedAt(Date.now());
+  };
+
+  const handleRejectRouteProposal = () => {
+    setRouteProposal(null);
+  };
+
+  const handleApplyRouteProposal = () => {
+    setCurrentRoute(proposedRouteText);
+    setRouteProposal(null);
   };
 
   const handleHome = useCallback(() => void navigate(ROUTES.HOME), [navigate]);
@@ -54,11 +66,13 @@ const ScenarioSettingsPage = () => {
         {startedAt !== null ? (
           <TrainingControlPanel
             startedAt={startedAt}
-            currentRoute={currentRouteText}
-            routeProposal={routeProposalText}
+            currentRoute={currentRoute}
+            routeProposal={routeProposal}
             liveStatus={liveStatus}
             liveMetrics={liveMetrics}
             onEnd={() => setIsEndModalOpen(true)}
+            onRejectRouteProposal={handleRejectRouteProposal}
+            onApplyRouteProposal={handleApplyRouteProposal}
           />
         ) : (
           <aside className={styles.sideColumn}>

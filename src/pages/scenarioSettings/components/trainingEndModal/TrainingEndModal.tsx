@@ -26,6 +26,7 @@ const TrainingEndModal = ({ open, onHome, onReport }: TrainingEndModalProps) => 
       size="md"
       variant="confirm"
       className={styles.modal}
+      confirmBodyClassName={styles.confirmBody}
       icon={<span className={styles.successIcon}>✓</span>}
       title="훈련이 종료되었습니다"
       description="수고하셨습니다. 이번 훈련 결과를 확인해보세요"

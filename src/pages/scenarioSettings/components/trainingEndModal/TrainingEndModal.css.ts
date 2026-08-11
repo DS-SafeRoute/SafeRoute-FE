@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -6,7 +6,7 @@ export const modal = style({
   width: '48rem',
 });
 
-globalStyle(`${modal} > div:first-child`, {
+export const confirmBody = style({
   alignItems: 'center',
   gap: '0.6rem',
   padding: `${vars.space.s8} ${vars.space.s8} ${vars.space.s6}`,
