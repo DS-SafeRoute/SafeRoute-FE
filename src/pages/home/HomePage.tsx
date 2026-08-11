@@ -7,7 +7,6 @@ import CheckCircleIcon from '@assets/icons/ic-check-circle.svg?react';
 import ClockIcon from '@assets/icons/ic-clock.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import PlayIcon from '@assets/icons/ic-play.svg?react';
-import TrendDownIcon from '@assets/icons/ic-trenddown.svg?react';
 import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
 
 import HomeSummarySection from './components/homeSummarySection/HomeSummarySection';
@@ -30,11 +29,6 @@ const metricIcons: Record<HomeMetric['iconKey'], JSX.Element> = {
   clock: <ClockIcon />,
   trend: <TrendUpIcon />,
   user: <UsersIcon />,
-};
-
-const trendIcons: Record<HomeMetric['trendDirection'], JSX.Element> = {
-  up: <TrendUpIcon />,
-  down: <TrendDownIcon />,
 };
 
 const sectionIcons = {
@@ -62,7 +56,6 @@ const HomePage = () => {
           metrics={homeMetrics.map((metric) => ({
             ...metric,
             icon: metricIcons[metric.iconKey],
-            trendIcon: trendIcons[metric.trendDirection],
           }))}
         />
 
