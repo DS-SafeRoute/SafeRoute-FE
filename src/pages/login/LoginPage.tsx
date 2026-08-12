@@ -1,26 +1,54 @@
-import type { FormEvent } from 'react';
 import { useState } from 'react';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 
 import LogoIcon from '@assets/icons/logo.svg?react';
 
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
+import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
 
+import { setAccessToken } from '@shared/auth/tokenStorage';
+
+import { useLoginMutation } from './api/useLoginMutation';
 import { LOGIN_FEATURES } from './constants/login';
 import * as styles from './LoginPage.css';
+import { loginFormSchema } from './schemas/loginFormSchema';
+
+import type { LoginFormValues } from './schemas/loginFormSchema';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [isAutoLogin, setIsAutoLogin] = useState(true);
+  const loginMutation = useLoginMutation();
+  const { show } = useToast();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginFormSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    navigate(ROUTES.HOME);
-  };
+  const handleLogin = handleSubmit(async (values) => {
+    try {
+      const { accessToken } = await loginMutation.mutateAsync(values);
+
+      setAccessToken(accessToken, isAutoLogin);
+      show({ title: '로그인되었습니다.', variant: 'success' });
+      navigate(ROUTES.HOME, { replace: true });
+    } catch {
+      show({
+        title: '로그인에 실패했습니다.',
+        variant: 'error',
+      });
+    }
+  });
 
   return (
     <main className={styles.page}>
@@ -57,14 +85,30 @@ const LoginPage = () => {
           </ul>
         </div>
 
-        <form className={styles.loginCard} onSubmit={handleSubmit}>
+        <form noValidate className={styles.loginCard} onSubmit={handleLogin}>
           <div className={styles.formHeader}>
             <h2 className={styles.formTitle}>로그인</h2>
           </div>
 
           <div className={styles.fieldGroup}>
-            <TextField label="이메일" type="email" autoComplete="username" />
-            <TextField label="비밀번호" type="password" autoComplete="current-password" />
+            <TextField
+              required
+              label="이메일"
+              type="email"
+              autoComplete="username"
+              errorMessage={errors.email?.message}
+              disabled={loginMutation.isPending}
+              {...register('email')}
+            />
+            <TextField
+              required
+              label="비밀번호"
+              type="password"
+              autoComplete="current-password"
+              errorMessage={errors.password?.message}
+              disabled={loginMutation.isPending}
+              {...register('password')}
+            />
           </div>
 
           <div className={styles.formOptions}>
@@ -73,6 +117,7 @@ const LoginPage = () => {
                 checked={isAutoLogin}
                 className={styles.checkbox}
                 type="checkbox"
+                disabled={loginMutation.isPending}
                 onChange={(event) => setIsAutoLogin(event.target.checked)}
               />
               자동 로그인
@@ -82,7 +127,13 @@ const LoginPage = () => {
             </button>
           </div>
 
-          <Button fullWidth size="lg" type="submit" variant="primary">
+          <Button
+            fullWidth
+            size="lg"
+            type="submit"
+            variant="primary"
+            isLoading={loginMutation.isPending}
+          >
             로그인
           </Button>
 

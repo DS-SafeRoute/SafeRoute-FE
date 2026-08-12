@@ -3,7 +3,6 @@ import { useState } from 'react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
-import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
 import * as styles from './BuildingsPage.css';
@@ -27,7 +26,7 @@ type ModalState =
 const BuildingsPage = () => {
   const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
   const [modal, setModal] = useState<ModalState>(null);
-  const { toasts, leavingIds, show, dismiss } = useToast();
+  const { show } = useToast();
 
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
@@ -139,8 +138,6 @@ const BuildingsPage = () => {
           onUpdate={handleUpdateFloorPlans}
         />
       )}
-
-      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
     </>
   );
 };

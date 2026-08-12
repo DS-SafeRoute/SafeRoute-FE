@@ -4,7 +4,6 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import FilterChip from '@components/chip/FilterChip';
-import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
 import * as styles from './CamerasPage.css';
@@ -28,7 +27,7 @@ const CamerasPage = () => {
   const [cameras, setCameras] = useState<Camera[]>(mockCameras);
   const [modal, setModal] = useState<ModalState>(null);
   const [filterBuilding, setFilterBuilding] = useState(ALL);
-  const { toasts, leavingIds, show, dismiss } = useToast();
+  const { show } = useToast();
 
   const buildingOptions = useMemo(() => {
     const names = [...new Set(cameras.map((c) => c.buildingName))];
@@ -154,8 +153,6 @@ const CamerasPage = () => {
           onConfirm={handleConfirmDelete}
         />
       )}
-
-      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
     </>
   );
 };
