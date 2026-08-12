@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+import { API_ENDPOINTS } from '@apis/constants/endpoints';
+
 import { ROUTES } from '@constants/path';
 
 import { clearAccessToken, getAccessToken } from '@shared/auth/tokenStorage';
@@ -14,10 +16,19 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
+const PUBLIC_AUTH_ENDPOINTS: readonly string[] = [
+  API_ENDPOINTS.AUTH.LOGIN,
+  API_ENDPOINTS.AUTH.SIGNUP,
+];
+
+const isPublicAuthEndpoint = (url?: string) => {
+  return PUBLIC_AUTH_ENDPOINTS.some((endpoint) => endpoint === url);
+};
+
 axiosInstance.interceptors.request.use((config) => {
   const accessToken = getAccessToken();
 
-  if (accessToken) {
+  if (accessToken && !isPublicAuthEndpoint(config.url)) {
     config.headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
@@ -29,7 +40,11 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    if (error.response?.status === 401 && getAccessToken()) {
+    if (
+      error.response?.status === 401 &&
+      !isPublicAuthEndpoint(error.config?.url) &&
+      getAccessToken()
+    ) {
       clearAccessToken();
 
       if (window.location.pathname !== ROUTES.LOGIN) {
