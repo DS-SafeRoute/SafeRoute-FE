@@ -1,6 +1,6 @@
 import { Button } from '@components/Button';
 import Toast from '@components/toast/Toast';
-import { ToastProvider } from '@components/toast/ToastProvider';
+import ToastProvider from '@components/toast/ToastProvider';
 import useToast from '@components/toast/useToast';
 
 import type { Meta, StoryObj } from '@storybook/react-vite';

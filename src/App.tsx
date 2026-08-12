@@ -6,7 +6,7 @@ import router from '@routes/router';
 
 import { queryClient } from '@apis/config/queryClient';
 
-import { ToastProvider } from '@components/toast/ToastProvider';
+import ToastProvider from '@components/toast/ToastProvider';
 import '@styles/global.css';
 
 const App = () => (

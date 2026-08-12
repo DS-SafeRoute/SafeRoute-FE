@@ -16,17 +16,22 @@ interface ToastProviderProps {
   children: ReactNode;
 }
 
-export const ToastProvider = ({ children }: ToastProviderProps) => {
+const ToastProvider = ({ children }: ToastProviderProps) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [leavingIds, setLeavingIds] = useState<Set<string>>(new Set());
   const toastsRef = useRef<ToastItem[]>([]);
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const autoDismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const leaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
-    const timers = timersRef.current;
+    const autoDismissTimers = autoDismissTimersRef.current;
+    const leaveTimers = leaveTimersRef.current;
+
     return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-      timers.clear();
+      autoDismissTimers.forEach((timer) => clearTimeout(timer));
+      leaveTimers.forEach((timer) => clearTimeout(timer));
+      autoDismissTimers.clear();
+      leaveTimers.clear();
     };
   }, []);
 
@@ -37,32 +42,50 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
 
   const remove = useCallback(
     (id: string) => {
+      const autoDismissTimer = autoDismissTimersRef.current.get(id);
+      const leaveTimer = leaveTimersRef.current.get(id);
+
+      if (autoDismissTimer) clearTimeout(autoDismissTimer);
+      if (leaveTimer) clearTimeout(leaveTimer);
+      autoDismissTimersRef.current.delete(id);
+      leaveTimersRef.current.delete(id);
+
       syncToasts((prev) => prev.filter((toast) => toast.id !== id));
       setLeavingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      timersRef.current.delete(id);
     },
     [syncToasts],
   );
 
   const dismiss = useCallback(
     (id: string) => {
+      if (leaveTimersRef.current.has(id)) return;
+
+      const autoDismissTimer = autoDismissTimersRef.current.get(id);
+      if (autoDismissTimer) clearTimeout(autoDismissTimer);
+      autoDismissTimersRef.current.delete(id);
+
       setLeavingIds((prev) => new Set(prev).add(id));
-      setTimeout(() => remove(id), LEAVE_DURATION);
+      const leaveTimer = setTimeout(() => remove(id), LEAVE_DURATION);
+      leaveTimersRef.current.set(id, leaveTimer);
     },
     [remove],
   );
 
   const scheduleRemoval = useCallback(
     (id: string, duration: number) => {
-      const existing = timersRef.current.get(id);
+      const existing = autoDismissTimersRef.current.get(id);
       if (existing) clearTimeout(existing);
+
       if (duration > 0) {
-        const timer = setTimeout(() => dismiss(id), duration);
-        timersRef.current.set(id, timer);
+        const timer = setTimeout(() => {
+          autoDismissTimersRef.current.delete(id);
+          dismiss(id);
+        }, duration);
+        autoDismissTimersRef.current.set(id, timer);
       }
     },
     [dismiss],
@@ -71,7 +94,10 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
   const show = useCallback(
     ({ title, description, variant = 'default', duration = 3000 }: ShowToastOptions) => {
       const existing = toastsRef.current.find(
-        (toast) => toast.title === title && toast.variant === variant,
+        (toast) =>
+          toast.title === title &&
+          toast.variant === variant &&
+          !leaveTimersRef.current.has(toast.id),
       );
       if (existing) {
         scheduleRemoval(existing.id, duration);
@@ -80,21 +106,15 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
 
       if (toastsRef.current.length >= MAX_TOASTS) {
         const evicted = toastsRef.current[0];
-        const evictTimer = timersRef.current.get(evicted.id);
-        if (evictTimer) clearTimeout(evictTimer);
-        timersRef.current.delete(evicted.id);
-        dismiss(evicted.id);
+        remove(evicted.id);
       }
 
       const id = `toast-${Date.now()}-${Math.random()}`;
-      syncToasts((prev) => {
-        const next = prev.length >= MAX_TOASTS ? prev.slice(1) : prev;
-        return [...next, { id, title, description, variant, duration }];
-      });
+      syncToasts((prev) => [...prev, { id, title, description, variant, duration }]);
       scheduleRemoval(id, duration);
       return id;
     },
-    [dismiss, scheduleRemoval, syncToasts],
+    [remove, scheduleRemoval, syncToasts],
   );
   const contextValue = useMemo(() => ({ show, dismiss }), [dismiss, show]);
 
@@ -105,3 +125,5 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
     </ToastContext.Provider>
   );
 };
+
+export default ToastProvider;
