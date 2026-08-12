@@ -2,11 +2,9 @@ import type { LoginRequest, LoginResponse } from '@apis/__generated__/data-contr
 import { request, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-export interface LoginResult extends LoginResponse {
-  accessToken: string;
-}
-
-export const login = async (body: LoginRequest): Promise<LoginResult> => {
+export const postLogin = async (
+  body: LoginRequest,
+): Promise<LoginResponse & { accessToken: string }> => {
   const response = await request<LoginResponse, LoginRequest>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.AUTH.LOGIN,
