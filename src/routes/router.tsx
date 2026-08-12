@@ -1,5 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 
+import ProtectedRoute from './ProtectedRoute';
+
 import AppLayout from '@/layout/AppLayout';
 import { ROUTES } from '@/shared/constants/path';
 
@@ -27,7 +29,11 @@ const router = createBrowserRouter([
   },
   {
     path: ROUTES.HOME,
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: ROUTES.HOME,
