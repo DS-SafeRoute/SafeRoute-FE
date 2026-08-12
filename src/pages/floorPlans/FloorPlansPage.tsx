@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router';
 
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
-import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
@@ -143,7 +142,7 @@ const FloorCard = ({
 
 const FloorPlansPage = () => {
   const navigate = useNavigate();
-  const { toasts, leavingIds, show, dismiss } = useToast();
+  const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
@@ -157,7 +156,7 @@ const FloorPlansPage = () => {
         show({ title: '도면 목록을 불러오지 못했습니다.', variant: 'error' });
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [show]);
 
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return;
@@ -288,8 +287,6 @@ const FloorPlansPage = () => {
           </div>
         </div>
       )}
-
-      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
     </>
   );
 };

@@ -1,6 +1,6 @@
 import { Button } from '@components/Button';
 import Toast from '@components/toast/Toast';
-import ToastContainer from '@components/toast/ToastContainer';
+import { ToastProvider } from '@components/toast/ToastProvider';
 import useToast from '@components/toast/useToast';
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
@@ -8,6 +8,13 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 const meta: Meta<typeof Toast> = {
   title: 'Shared/Toast',
   component: Toast,
+  decorators: [
+    (Story) => (
+      <ToastProvider>
+        <Story />
+      </ToastProvider>
+    ),
+  ],
 };
 
 export default meta;
@@ -31,7 +38,7 @@ export const Playground: Story = {
 export const ReferenceSet: Story = {
   args: { id: '', title: '', onClose: () => {} },
   render: () => {
-    const { toasts, leavingIds, show, dismiss } = useToast();
+    const { show } = useToast();
 
     return (
       <div style={{ padding: '2rem' }}>
@@ -78,7 +85,6 @@ export const ReferenceSet: Story = {
             설명 없음
           </Button>
         </div>
-        <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
       </div>
     );
   },
