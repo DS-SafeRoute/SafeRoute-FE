@@ -40,10 +40,15 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    const currentAccessToken = getAccessToken();
+    const requestAuthorization = error.config?.headers.get('Authorization');
+    const isCurrentSessionRequest =
+      currentAccessToken !== null && requestAuthorization === `Bearer ${currentAccessToken}`;
+
     if (
       error.response?.status === 401 &&
       !isPublicAuthEndpoint(error.config?.url) &&
-      getAccessToken()
+      isCurrentSessionRequest
     ) {
       clearAccessToken();
 
