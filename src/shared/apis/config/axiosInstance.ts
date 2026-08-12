@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-import { clearAccessToken, getAccessToken } from '@apis/auth/accessToken';
-
 import { ROUTES } from '@constants/path';
+
+import { clearAccessToken, getAccessToken } from '@shared/auth/tokenStorage';
 
 import type { AxiosError } from 'axios';
 
@@ -29,9 +29,7 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    const accessToken = getAccessToken();
-
-    if (error.response?.status === 401 && accessToken) {
+    if (error.response?.status === 401 && getAccessToken()) {
       clearAccessToken();
 
       if (window.location.pathname !== ROUTES.LOGIN) {

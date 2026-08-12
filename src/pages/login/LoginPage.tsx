@@ -2,9 +2,7 @@ import { useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { Link, useLocation, useNavigate } from 'react-router';
-
-import { setAccessToken } from '@apis/auth/accessToken';
+import { Link, useNavigate } from 'react-router';
 
 import LogoIcon from '@assets/icons/logo.svg?react';
 
@@ -14,6 +12,8 @@ import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
 
+import { setAccessToken } from '@shared/auth/tokenStorage';
+
 import { useLoginMutation } from './api/useLoginMutation';
 import { LOGIN_FEATURES } from './constants/login';
 import * as styles from './LoginPage.css';
@@ -21,17 +21,8 @@ import { loginFormSchema } from './schemas/loginFormSchema';
 
 import type { LoginFormValues } from './schemas/loginFormSchema';
 
-interface LoginLocationState {
-  from?: {
-    pathname: string;
-    search: string;
-    hash: string;
-  };
-}
-
 const LoginPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isAutoLogin, setIsAutoLogin] = useState(true);
   const loginMutation = useLoginMutation();
   const { show } = useToast();
@@ -50,10 +41,7 @@ const LoginPage = () => {
 
       setAccessToken(accessToken, isAutoLogin);
       show({ title: '로그인되었습니다.', variant: 'success' });
-      const { from } = (location.state as LoginLocationState | null) ?? {};
-      const destination = from ? `${from.pathname}${from.search}${from.hash}` : ROUTES.HOME;
-
-      navigate(destination, { replace: true });
+      navigate(ROUTES.HOME, { replace: true });
     } catch {
       show({
         title: '로그인에 실패했습니다.',

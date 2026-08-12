@@ -1,20 +1,18 @@
 import type { ReactNode } from 'react';
 
-import { Navigate, useLocation } from 'react-router';
-
-import { getAccessToken } from '@apis/auth/accessToken';
+import { Navigate } from 'react-router';
 
 import { ROUTES } from '@constants/path';
+
+import { getAccessToken } from '@shared/auth/tokenStorage';
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const location = useLocation();
-
   if (!getAccessToken()) {
-    return <Navigate replace to={ROUTES.LOGIN} state={{ from: location }} />;
+    return <Navigate replace to={ROUTES.LOGIN} />;
   }
 
   return children;
