@@ -1,8 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 
-import ProtectedRoute from './ProtectedRoute';
-
 import AppLayout from '@/layout/AppLayout';
+import ProtectedRoute from '@/routes/ProtectedRoute';
 import { ROUTES } from '@/shared/constants/path';
 
 const router = createBrowserRouter([
