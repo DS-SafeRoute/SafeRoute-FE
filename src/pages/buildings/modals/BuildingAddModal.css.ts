@@ -7,3 +7,8 @@ export const form = style({
   flexDirection: 'column',
   gap: vars.space.s4,
 });
+
+export const floorRow = style({
+  display: 'flex',
+  gap: vars.space.s4,
+});
