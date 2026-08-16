@@ -21,6 +21,7 @@ interface ScenarioSetupFormProps {
   conditions: FireConditionField[];
   options: FireConditionOptions;
   isRunning?: boolean;
+  readOnly?: boolean;
 }
 
 const TRAINING_LOCK_MESSAGE = '🔒 잠금 · 훈련 중 수정 불가';
@@ -30,6 +31,7 @@ const ScenarioSetupForm = ({
   conditions,
   options,
   isRunning = false,
+  readOnly = false,
 }: ScenarioSetupFormProps) => (
   <div className={styles.container}>
     <section className={pageStyles.mainSectionCard}>
@@ -43,18 +45,19 @@ const ScenarioSetupForm = ({
           label="시나리오명"
           defaultValue={basicInfo.scenarioName}
           placeholder="시나리오명을 입력하세요"
+          readOnly={readOnly}
           disabled={isRunning}
         />
         <ScenarioField
           label="대상 건물"
           value={basicInfo.targetBuilding}
           options={SCENARIO_BUILDING_OPTIONS}
-          disabled={isRunning}
+          disabled={isRunning || readOnly}
         />
         <DateTimeField
           label="실시 일시"
           defaultValue={basicInfo.scheduledAt}
-          disabled={isRunning}
+          disabled={isRunning || readOnly}
         />
         <TextField
           label="예상 참가 인원"
@@ -62,6 +65,7 @@ const ScenarioSetupForm = ({
           defaultValue={basicInfo.expectedParticipants}
           placeholder="예상 참가 인원을 입력하세요"
           leftIcon={<UsersIcon />}
+          readOnly={readOnly}
           disabled={isRunning}
         />
       </div>
@@ -83,7 +87,7 @@ const ScenarioSetupForm = ({
               value={condition.value}
               options={options[condition.key]}
               leadingIcon={condition.key === 'origin' ? <AlertIcon /> : undefined}
-              disabled={isRunning}
+              disabled={isRunning || readOnly}
             />
           ))}
       </div>
