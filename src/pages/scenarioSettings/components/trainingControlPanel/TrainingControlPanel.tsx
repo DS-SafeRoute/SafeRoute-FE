@@ -1,6 +1,6 @@
 import { sideColumn } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 
-import PlayIcon from '@assets/icons/ic-play.svg?react';
+import PauseIcon from '@assets/icons/ic-pause.svg?react';
 import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
 import { Button } from '@components/Button';
@@ -42,7 +42,7 @@ const TrainingControlPanel = ({
         variant="danger"
         size="lg"
         fullWidth
-        leftIcon={<PlayIcon />}
+        leftIcon={<PauseIcon />}
         onClick={onEnd}
       >
         종료

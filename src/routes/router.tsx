@@ -4,6 +4,12 @@ import AppLayout from '@/layout/AppLayout';
 import ProtectedRoute from '@/routes/ProtectedRoute';
 import { ROUTES } from '@/shared/constants/path';
 
+const loadScenarioSettingsPage = async () => {
+  const { default: ScenarioSettingsPage } =
+    await import('@/pages/scenarioSettings/ScenarioSettingsPage');
+  return { Component: ScenarioSettingsPage };
+};
+
 const router = createBrowserRouter([
   {
     path: ROUTES.LANDING,
@@ -42,12 +48,20 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.SCENARIO_SETTINGS,
+        path: ROUTES.SCENARIO_LIST,
         lazy: async () => {
-          const { default: ScenarioSettingsPage } =
-            await import('@/pages/scenarioSettings/ScenarioSettingsPage');
-          return { Component: ScenarioSettingsPage };
+          const { default: ScenarioListPage } =
+            await import('@/pages/scenarioSettings/ScenarioListPage');
+          return { Component: ScenarioListPage };
         },
+      },
+      {
+        path: ROUTES.SCENARIO_CREATE,
+        lazy: loadScenarioSettingsPage,
+      },
+      {
+        path: ROUTES.SCENARIO_DETAIL,
+        lazy: loadScenarioSettingsPage,
       },
       {
         path: ROUTES.MANAGEMENT,

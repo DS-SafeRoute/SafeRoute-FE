@@ -10,6 +10,7 @@ interface ScenarioFieldProps {
   options: readonly string[];
   leadingIcon?: ReactNode;
   disabled?: boolean;
+  readOnly?: boolean;
 }
 
 const ScenarioField = ({
@@ -18,25 +19,35 @@ const ScenarioField = ({
   options,
   leadingIcon,
   disabled = false,
-}: ScenarioFieldProps) => (
-  <label className={styles.root}>
-    <span className={styles.label}>{label}</span>
-    <span className={styles.fieldShell}>
-      {leadingIcon ? <span className={styles.withLeadingIcon}>{leadingIcon}</span> : null}
-      <select className={styles.select} defaultValue={value} aria-label={label} disabled={disabled}>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      {!disabled && (
-        <span className={styles.trailingIcon}>
-          <ChevronDownIcon />
-        </span>
-      )}
-    </span>
-  </label>
-);
+  readOnly = false,
+}: ScenarioFieldProps) => {
+  const isInactive = disabled || readOnly;
+
+  return (
+    <label className={styles.root}>
+      <span className={styles.label}>{label}</span>
+      <span className={styles.fieldShell({ disabled })}>
+        {leadingIcon ? <span className={styles.withLeadingIcon}>{leadingIcon}</span> : null}
+        <select
+          className={styles.select({ disabled, readOnly })}
+          defaultValue={value}
+          aria-label={label}
+          disabled={isInactive}
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        {!isInactive ? (
+          <span className={styles.trailingIcon}>
+            <ChevronDownIcon />
+          </span>
+        ) : null}
+      </span>
+    </label>
+  );
+};
 
 export default ScenarioField;

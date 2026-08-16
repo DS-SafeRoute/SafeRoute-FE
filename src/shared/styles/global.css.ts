@@ -23,6 +23,8 @@ export const vars = createGlobalTheme(':root', {
 
     danger: '#EF4444',
     dangerLight: '#FEE2E2',
+    dangerSurface: '#FEF2F2',
+    dangerBorder: '#FECACA',
     dangerText: '#991B1B',
     info: '#2563EB',
     infoLight: '#DBEAFE',

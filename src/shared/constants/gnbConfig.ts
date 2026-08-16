@@ -11,6 +11,11 @@ const DEFAULT_GNB_CONFIG = {
   description: '안전 관리 시스템',
 } as const satisfies GNBConfig;
 
+const SCENARIO_SETTINGS_GNB_CONFIG = {
+  title: '시나리오 설정',
+  description: '화재 발생 위치와 조건을 설정하고 시나리오를 시작합니다',
+} as const satisfies GNBConfig;
+
 const GNB_CONFIGS = [
   {
     path: ROUTES.HOME,
@@ -20,10 +25,18 @@ const GNB_CONFIGS = [
     },
   },
   {
-    path: ROUTES.SCENARIO_SETTINGS,
+    path: ROUTES.SCENARIO_CREATE,
+    config: SCENARIO_SETTINGS_GNB_CONFIG,
+  },
+  {
+    path: ROUTES.SCENARIO_DETAIL,
+    config: SCENARIO_SETTINGS_GNB_CONFIG,
+  },
+  {
+    path: ROUTES.SCENARIO_LIST,
     config: {
-      title: '훈련 관리',
-      description: '화재 발생 위치와 조건을 설정하고 시나리오를 시작합니다',
+      title: '시나리오 설정',
+      description: '등록된 훈련 시나리오를 확인하고 관리합니다',
     },
   },
   {

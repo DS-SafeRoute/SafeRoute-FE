@@ -3,6 +3,9 @@ export const SCENARIO_BUILDING_OPTIONS = [
   'A동 · 본관 · 5층',
   'B동 · 별관 · 4층',
   'C동 · 연구동 · 2층',
+  'B동 · 별관 · 2층',
+  'A동 · 본관 · 1층',
+  'C동 · 체육관 · 2층',
 ] as const;
 
 export const FIRE_ORIGIN_OPTIONS = [
