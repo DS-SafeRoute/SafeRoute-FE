@@ -4,9 +4,10 @@ import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
-import { isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
+import { isNonNegativeInt, isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
+import FloorStepperField from '../components/FloorStepperField/FloorStepperField';
 
 import type { Building } from '../types/buildings';
 
@@ -19,10 +20,11 @@ interface BuildingAddModalProps {
 interface FormState {
   name: string;
   area: string;
-  floors: string;
+  aboveFloors: string;
+  belowFloors: string;
 }
 
-const INITIAL_FORM: FormState = { name: '', area: '', floors: '' };
+const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '', belowFloors: '' };
 
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
@@ -33,13 +35,20 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
+  const handleFloorChange = (field: 'aboveFloors' | 'belowFloors') => (value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
   const validate = () => {
     const next: Partial<FormState> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
     if (!form.area.trim()) next.area = '면적을 입력해 주세요';
     else if (!isPositiveNumber(form.area)) next.area = '올바른 면적을 입력해 주세요';
-    if (!form.floors.trim()) next.floors = '층수를 입력해 주세요';
-    else if (!isPositiveInt(form.floors)) next.floors = '올바른 층수를 입력해 주세요';
+    if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
+    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
+    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
+      next.belowFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -51,8 +60,8 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
       area: Number(form.area),
       status: 'normal',
       lastTrainingDate: '-',
-      aboveFloors: Number(form.floors),
-      belowFloors: 0,
+      aboveFloors: Number(form.aboveFloors),
+      belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
       cctvTotal: 0,
       cctvOnline: 0,
       iotTotal: 0,
@@ -98,13 +107,22 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
           onChange={handleChange('area')}
           errorMessage={errors.area}
         />
-        <TextField
-          label="층수 *"
-          placeholder="5"
-          value={form.floors}
-          onChange={handleChange('floors')}
-          errorMessage={errors.floors}
-        />
+        <div className={styles.floorRow}>
+          <FloorStepperField
+            label="지상 *"
+            value={form.aboveFloors}
+            onChange={handleFloorChange('aboveFloors')}
+            min={1}
+            errorMessage={errors.aboveFloors}
+          />
+          <FloorStepperField
+            label="지하"
+            value={form.belowFloors}
+            onChange={handleFloorChange('belowFloors')}
+            min={0}
+            errorMessage={errors.belowFloors}
+          />
+        </div>
       </div>
     </Modal>
   );
