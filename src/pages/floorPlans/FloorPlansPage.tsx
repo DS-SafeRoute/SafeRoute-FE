@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router';
 
+import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
+import TrashIcon from '@assets/icons/ic-trash.svg?react';
+import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
@@ -73,10 +76,12 @@ const FloorCard = ({
   onReupload,
   onDelete,
 }: FloorCardProps) => {
+  const navigate = useNavigate();
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
   const isProcessing =
     floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
   const isNone = floor.segmentationStatus === 'NONE';
+  const isDone = floor.segmentationStatus === 'DONE';
 
   return (
     <div className={styles.floorCard}>
@@ -117,12 +122,23 @@ const FloorCard = ({
           처리 중...
         </button>
       ) : (
-        <div className={styles.cardActions}>
+        <div className={styles.cardActionRow}>
+          {isDone && (
+            <button
+              type="button"
+              className={styles.detailButton}
+              onClick={() => navigate(`/floorPlans/${buildingId}/${floor.id}`)}
+            >
+              <EyeIcon width={14} height={14} />
+              상세보기
+            </button>
+          )}
           <button
             type="button"
             className={styles.reuploadButton}
             onClick={() => onReupload({ buildingId, buildingName, floor })}
           >
+            <UploadIcon width={14} height={14} />
             재업로드
           </button>
           <button
@@ -130,6 +146,7 @@ const FloorCard = ({
             className={styles.deleteButtonCard}
             onClick={() => onDelete({ buildingId, buildingName, floor })}
           >
+            <TrashIcon width={14} height={14} />
             삭제
           </button>
         </div>

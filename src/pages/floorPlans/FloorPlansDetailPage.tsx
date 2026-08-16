@@ -4,12 +4,14 @@ import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
+import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 import XIcon from '@assets/icons/ic-x.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import Dropdown from '@components/dropdown';
 
 import { formatFloor } from '@utils/floor';
 
@@ -50,16 +52,17 @@ const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: str
   firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
 };
 
-type PlacingDeviceType = 'cctv' | 'iot';
+type PlacingDeviceType = 'cctv' | 'iot' | 'light';
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#2563eb' },
-  iot: { label: 'IoT 유도등', color: '#16a34a' },
+  iot: { label: 'IoT', color: '#16a34a' },
+  light: { label: '유도등', color: '#d97706' },
 };
 
 type AddedDevice = {
   id: string;
-  type: PlacingDeviceType;
+  type: 'cctv' | 'iot';
   label: string;
   x: number; // %
   y: number; // %
@@ -118,6 +121,7 @@ const ROOMS: {
 const MockFloorMap3F = ({
   aiLayers,
   editMode,
+  placingActive,
   poiMarkers,
   relocatingPoiId,
   onMapClick,
@@ -125,6 +129,7 @@ const MockFloorMap3F = ({
 }: {
   aiLayers: Record<string, boolean>;
   editMode: EditMode;
+  placingActive: boolean;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   relocatingPoiId: string | null;
   onMapClick: (x: number, y: number) => void;
@@ -134,13 +139,14 @@ const MockFloorMap3F = ({
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.round(((e.clientX - rect.left) / rect.width) * 560);
     const y = Math.round(((e.clientY - rect.top) / rect.height) * 420);
-    if (editMode === 'poi') {
+    if (editMode === 'poi' || placingActive) {
       onMapClick(x, y);
       return;
     }
   };
 
-  const svgCursor = relocatingPoiId || editMode === 'poi' ? 'crosshair' : 'default';
+  const svgCursor =
+    relocatingPoiId || editMode === 'poi' || placingActive ? 'crosshair' : 'default';
 
   return (
     <svg
@@ -478,30 +484,40 @@ const DevicePin = ({
 
 /* ── 장비 추가 팝업 ── */
 const NodeAddPopup = ({
+  containerRef,
+  type,
+  onTypeChange,
   onCancel,
   onAdd,
 }: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  type: PlacingDeviceType;
+  onTypeChange: (type: PlacingDeviceType) => void;
   onCancel: () => void;
   onAdd: (type: PlacingDeviceType, deviceId: string, location: string) => void;
 }) => {
-  const [type, setType] = useState<PlacingDeviceType>('cctv');
   const [deviceId, setDeviceId] = useState('');
   const [location, setLocation] = useState('');
 
   return (
-    <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <span className={styles.nodeAddTitle}>장비 정보 입력</span>
+      <span className={styles.nodeAddHint}>도면을 클릭하면 해당 위치에 바로 배치돼요</span>
 
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>장비 종류</span>
-        <select
-          className={styles.nodeAddSelect}
-          value={type}
-          onChange={(e) => setType(e.target.value as PlacingDeviceType)}
-        >
-          <option value="cctv">CCTV</option>
-          <option value="iot">IoT 유도등</option>
-        </select>
+        <div className={styles.deviceTypeChips}>
+          {(['cctv', 'iot', 'light'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
+              onClick={() => onTypeChange(t)}
+            >
+              {DEVICE_PLACE_CONFIG[t].label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className={styles.nodeAddField}>
@@ -545,10 +561,12 @@ const NodeAddPopup = ({
 type ZoneType = 'general' | 'camera';
 
 const ZoneAddPopup = ({
+  containerRef,
   cameraOptions,
   onCancel,
   onSave,
 }: {
+  containerRef: React.RefObject<HTMLDivElement>;
   cameraOptions: { id: string; label: string }[];
   onCancel: () => void;
   onSave: (type: ZoneType, label: string) => void;
@@ -569,7 +587,7 @@ const ZoneAddPopup = ({
   };
 
   return (
-    <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <span className={styles.nodeAddTitle}>구역 설정</span>
 
       <div className={styles.zoneTypeTabs}>
@@ -601,22 +619,17 @@ const ZoneAddPopup = ({
       ) : (
         <div className={styles.nodeAddField}>
           <span className={styles.nodeAddLabel}>카메라 선택</span>
-          <select
-            className={styles.nodeAddSelect}
+          <Dropdown
+            className={styles.zoneCameraDropdown}
+            options={
+              cameraOptions.length === 0
+                ? [{ label: '등록된 카메라 없음', value: '' }]
+                : cameraOptions.map((c) => ({ label: c.label, value: c.id }))
+            }
             value={cameraId}
-            onChange={(e) => setCameraId(e.target.value)}
+            onChange={setCameraId}
             disabled={cameraOptions.length === 0}
-          >
-            {cameraOptions.length === 0 ? (
-              <option value="">등록된 카메라 없음</option>
-            ) : (
-              cameraOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))
-            )}
-          </select>
+          />
         </div>
       )}
 
@@ -637,13 +650,111 @@ const ZoneAddPopup = ({
   );
 };
 
+/* ── 장비 카드 ── */
+const DeviceCard = ({
+  item,
+  selected,
+  editing,
+  editForm,
+  onEditFormChange,
+  onSelect,
+  onStartEdit,
+  onSaveEdit,
+  onDelete,
+}: {
+  item: PanelItem;
+  selected: boolean;
+  editing: boolean;
+  editForm: { label: string; zone: string };
+  onEditFormChange: (form: { label: string; zone: string }) => void;
+  onSelect: (item: PanelItem) => void;
+  onStartEdit: (item: PanelItem) => void;
+  onSaveEdit: (item: PanelItem) => void;
+  onDelete: (item: PanelItem) => void;
+}) => (
+  <div
+    className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
+    onClick={() => onSelect(item)}
+  >
+    {editing ? (
+      <input
+        className={styles.deviceCardNameInput}
+        value={editForm.label}
+        onChange={(e) => onEditFormChange({ ...editForm, label: e.target.value })}
+        onClick={(e) => e.stopPropagation()}
+      />
+    ) : (
+      <span className={styles.deviceCardName}>{item.label}</span>
+    )}
+    <div className={styles.deviceCardRow}>
+      <span className={styles.deviceCardKey}>장치 ID</span>
+      <span className={styles.deviceCardValue}>{item.id.toUpperCase()}</span>
+    </div>
+    <div className={styles.deviceCardRow}>
+      <span className={styles.deviceCardKey}>상태</span>
+      <StatusBadge label={item.statusText} color={item.statusOnline ? 'green' : 'neutral'} dot />
+    </div>
+    <div className={styles.deviceCardRow}>
+      <span className={styles.deviceCardKey}>설치 위치</span>
+      {editing ? (
+        <input
+          className={styles.deviceCardValueInput}
+          value={editForm.zone}
+          onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className={styles.deviceCardValue}>{item.zone}</span>
+      )}
+    </div>
+    <div className={styles.deviceCardActions}>
+      {editing ? (
+        <button
+          type="button"
+          className={styles.deviceCardDoneBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSaveEdit(item);
+          }}
+        >
+          완료
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={styles.deviceCardEditBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit(item);
+          }}
+        >
+          수정
+        </button>
+      )}
+      <button
+        type="button"
+        className={styles.deviceCardDeleteBtn}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(item);
+        }}
+      >
+        삭제
+      </button>
+    </div>
+  </div>
+);
+
 /* ── 도면 캔버스 ── */
 const FloorCanvas = ({
+  mapWrapRef,
   floor,
   selected,
   aiLayers,
   zoom,
   editMode,
+  editingItemId,
+  placingActive,
   poiMarkers,
   editingPoiId,
   relocatingPoiId,
@@ -660,11 +771,14 @@ const FloorCanvas = ({
   onDeviceMoved,
   onUpload,
 }: {
+  mapWrapRef: React.RefObject<HTMLDivElement>;
   floor: Floor;
   selected: SelectedItem | null;
   aiLayers: Record<string, boolean>;
   zoom: number;
   editMode: EditMode;
+  editingItemId: string | null;
+  placingActive: boolean;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   editingPoiId: string | null;
   relocatingPoiId: string | null;
@@ -700,10 +814,11 @@ const FloorCanvas = ({
   const scale = zoom / 100;
 
   return (
-    <div className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
+    <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
         aiLayers={aiLayers}
         editMode={editMode}
+        placingActive={placingActive}
         poiMarkers={poiMarkers}
         relocatingPoiId={relocatingPoiId}
         onMapClick={onMapClick}
@@ -718,7 +833,7 @@ const FloorCanvas = ({
             posX={pos.x}
             posY={pos.y}
             selected={selected?.kind === 'device' && selected.data.id === device.id}
-            draggable={editMode === 'view'}
+            draggable={editingItemId === device.id}
             onClick={() => onSelectDevice(device)}
             onDragEnd={onDeviceMoved}
           />
@@ -911,11 +1026,16 @@ const FloorPlansDetailPage = () => {
   const [zones, setZones] = useState<{ id: string; type: ZoneType; label: string }[]>([]);
   const [deviceFilter, setDeviceFilter] = useState<'all' | 'general' | 'cctv' | 'iot'>('all');
   const [subFilter, setSubFilter] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
+    label: '',
+    zone: '',
+  });
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
   const [selectedPoiType] = useState<PoiType>('exit');
-  const [placingDeviceType] = useState<PlacingDeviceType | null>(null);
+  const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
@@ -930,6 +1050,9 @@ const FloorPlansDetailPage = () => {
   const [toastFading] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodePopupRef = useRef<HTMLDivElement>(null);
+  const zonePopupRef = useRef<HTMLDivElement>(null);
+  const mapWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(
     () => () => {
@@ -939,6 +1062,31 @@ const FloorPlansDetailPage = () => {
     [],
   );
 
+  // 장비 추가 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 클릭은 배치로 처리)
+  useEffect(() => {
+    if (!nodeAddOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (nodePopupRef.current?.contains(target)) return;
+      if (mapWrapRef.current?.contains(target)) return;
+      setNodeAddOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [nodeAddOpen]);
+
+  // 구역 설정 팝업: 팝업 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!zoneAddOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (zonePopupRef.current?.contains(target)) return;
+      setZoneAddOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [zoneAddOpen]);
+
   const currentBuilding = floorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
   const currentFloor =
     currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
@@ -946,6 +1094,8 @@ const FloorPlansDetailPage = () => {
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
     setSelectedItem(null);
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
   };
 
@@ -955,11 +1105,12 @@ const FloorPlansDetailPage = () => {
       setRelocatingPoiId(null);
       return;
     }
-    // 장치 배치 모드
-    if (placingDeviceType) {
-      const cfg = DEVICE_PLACE_CONFIG[placingDeviceType];
-      const count = addedDevices.filter((d) => d.type === placingDeviceType).length + 1;
-      const id = `added-${placingDeviceType}-${Date.now()}`;
+    // 장치 배치 모드 (장비 추가 팝업이 열려있을 때 도면 클릭)
+    if (nodeAddOpen) {
+      const cfg = DEVICE_PLACE_CONFIG[nodeAddType];
+      const storedType: 'cctv' | 'iot' = nodeAddType === 'cctv' ? 'cctv' : 'iot';
+      const count = addedDevices.filter((d) => d.type === storedType).length + 1;
+      const id = `added-${nodeAddType}-${Date.now()}`;
       // x, y는 SVG 좌표(0-560, 0-420) → % 변환
       const pctX = (x / 560) * 100;
       const pctY = (y / 420) * 100;
@@ -967,7 +1118,7 @@ const FloorPlansDetailPage = () => {
         ...prev,
         {
           id,
-          type: placingDeviceType,
+          type: storedType,
           label: `${cfg.label}-${String(count).padStart(2, '0')}`,
           x: pctX,
           y: pctY,
@@ -996,12 +1147,13 @@ const FloorPlansDetailPage = () => {
 
   const handleAddDevice = (type: PlacingDeviceType, deviceId: string, location: string) => {
     const cfg = DEVICE_PLACE_CONFIG[type];
-    const count = addedDevices.filter((d) => d.type === type).length + 1;
+    const storedType: 'cctv' | 'iot' = type === 'cctv' ? 'cctv' : 'iot';
+    const count = addedDevices.filter((d) => d.type === storedType).length + 1;
     setAddedDevices((prev) => [
       ...prev,
       {
         id: `added-${type}-${Date.now()}`,
-        type,
+        type: storedType,
         label: deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
         x: 50,
         y: 50,
@@ -1065,13 +1217,65 @@ const FloorPlansDetailPage = () => {
     return true;
   });
 
+  const pinnedItem = panelItems.find((item) =>
+    selectedItem?.kind === 'device'
+      ? item.kind === 'device' && selectedItem.data.id === item.id
+      : selectedItem?.kind === 'poi'
+        ? item.kind === 'poi' && selectedItem.data.id === item.id
+        : false,
+  );
+
   const handlePanelItemSelect = (item: PanelItem) => {
     if (item.kind !== 'device') return;
+    const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === item.id;
+    if (isSame) {
+      setSelectedItem(null);
+      setEditingItemId(null);
+      return;
+    }
     const data =
       item.source === 'floor'
         ? floor?.devices.find((d) => d.id === item.id)
         : addedDevices.find((d) => d.id === item.id);
     if (data) setSelectedItem({ kind: 'device', data });
+    if (editingItemId && editingItemId !== item.id) setEditingItemId(null);
+  };
+
+  const handleStartEdit = (item: PanelItem) => {
+    if (item.kind !== 'device') return;
+    if (selectedItem?.kind !== 'device' || selectedItem.data.id !== item.id) {
+      handlePanelItemSelect(item);
+    }
+    setEditForm({ label: item.label, zone: item.zone });
+    setEditingItemId(item.id);
+  };
+
+  const handleSaveEdit = (item: PanelItem) => {
+    if (item.source === 'floor') {
+      setFloor((prev) =>
+        prev
+          ? {
+              ...prev,
+              devices: prev.devices.map((d) =>
+                d.id === item.id ? { ...d, label: editForm.label, zone: editForm.zone } : d,
+              ),
+            }
+          : prev,
+      );
+    } else if (item.source === 'added') {
+      setAddedDevices((prev) =>
+        prev.map((d) =>
+          d.id === item.id ? { ...d, label: editForm.label, zone: editForm.zone } : d,
+        ),
+      );
+    }
+    if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
+      setSelectedItem({
+        kind: 'device',
+        data: { ...selectedItem.data, label: editForm.label, zone: editForm.zone },
+      });
+    }
+    setEditingItemId(null);
   };
 
   const handlePanelItemDelete = (item: PanelItem) => {
@@ -1081,6 +1285,7 @@ const FloorPlansDetailPage = () => {
   const handleDeleteConfirm = () => {
     const item = deleteConfirmTarget;
     if (!item) return;
+    if (editingItemId === item.id) setEditingItemId(null);
     if (item.kind === 'poi') {
       handlePoiDelete(item.id);
       setDeleteConfirmTarget(null);
@@ -1144,8 +1349,7 @@ const FloorPlansDetailPage = () => {
                         onClick={() => handleFloorChange(String(f.id))}
                       >
                         <span>{formatFloor(f.floorNum)}</span>
-                        {isCurrent && <StatusBadge label="현재" color="blue" />}
-                        {!isCurrent && isNone && <StatusBadge label="미등록" color="neutral" />}
+                        {isNone && <StatusBadge label="미등록" color="neutral" />}
                       </button>
                     );
                   })}
@@ -1163,13 +1367,72 @@ const FloorPlansDetailPage = () => {
 
           {currentFloor && (
             <div className={styles.canvasHeader}>
-              <span className={styles.canvasHeaderIcon}>B</span>
+              <button
+                type="button"
+                className={styles.backButton}
+                onClick={() => navigate('/floorPlans')}
+                aria-label="도면 관리 목록으로"
+              >
+                <ChevronRightIcon width={16} height={16} className={styles.backButtonIcon} />
+              </button>
               <span className={styles.canvasHeaderText}>{currentBuilding?.name ?? ''}</span>
               <span className={styles.canvasHeaderFloor}>{formatFloor(currentFloor.floorNum)}</span>
             </div>
           )}
 
-          <div className={styles.canvasBody}>
+          <div
+            className={clsx(
+              styles.canvasBody,
+              currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
+            )}
+          >
+            {/* 장비 추가 / 구역 추가 */}
+            {currentFloor?.segmentationStatus === 'DONE' && (
+              <div className={styles.canvasActionFloat}>
+                <button
+                  type="button"
+                  className={styles.canvasActionButton}
+                  onClick={() => {
+                    setZoneAddOpen(false);
+                    setNodeAddOpen((v) => !v);
+                  }}
+                >
+                  <PlusIcon width={14} height={14} />
+                  장비 추가
+                </button>
+                <button
+                  type="button"
+                  className={styles.canvasActionButton}
+                  onClick={() => {
+                    setNodeAddOpen(false);
+                    setZoneAddOpen((v) => !v);
+                  }}
+                >
+                  <PlusIcon width={14} height={14} />
+                  구역 추가
+                </button>
+              </div>
+            )}
+
+            {nodeAddOpen && (
+              <NodeAddPopup
+                containerRef={nodePopupRef}
+                type={nodeAddType}
+                onTypeChange={setNodeAddType}
+                onCancel={() => setNodeAddOpen(false)}
+                onAdd={handleAddDevice}
+              />
+            )}
+
+            {zoneAddOpen && (
+              <ZoneAddPopup
+                containerRef={zonePopupRef}
+                cameraOptions={cameraOptions}
+                onCancel={() => setZoneAddOpen(false)}
+                onSave={handleAddZone}
+              />
+            )}
+
             {loadingFloor && (
               <div style={{ padding: '4rem', color: '#6b7280', fontSize: '1.4rem' }}>
                 도면을 불러오는 중...
@@ -1177,11 +1440,14 @@ const FloorPlansDetailPage = () => {
             )}
             {!loadingFloor && currentFloor ? (
               <FloorCanvas
+                mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
                 selected={selectedItem}
                 aiLayers={aiLayers}
                 zoom={zoom}
                 editMode={editMode}
+                editingItemId={editingItemId}
+                placingActive={nodeAddOpen}
                 poiMarkers={poiMarkers}
                 editingPoiId={editingPoiId}
                 relocatingPoiId={relocatingPoiId}
@@ -1207,40 +1473,6 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
           </div>
-
-          {/* 장비 추가 / 구역 추가 */}
-          {currentFloor?.segmentationStatus === 'DONE' && (
-            <div className={styles.canvasActionFloat}>
-              <button
-                type="button"
-                className={styles.canvasActionButton}
-                onClick={() => setNodeAddOpen((v) => !v)}
-              >
-                <PlusIcon width={14} height={14} />
-                장비 추가
-              </button>
-              <button
-                type="button"
-                className={styles.canvasActionButton}
-                onClick={() => setZoneAddOpen((v) => !v)}
-              >
-                <PlusIcon width={14} height={14} />
-                구역 추가
-              </button>
-            </div>
-          )}
-
-          {nodeAddOpen && (
-            <NodeAddPopup onCancel={() => setNodeAddOpen(false)} onAdd={handleAddDevice} />
-          )}
-
-          {zoneAddOpen && (
-            <ZoneAddPopup
-              cameraOptions={cameraOptions}
-              onCancel={() => setZoneAddOpen(false)}
-              onSave={handleAddZone}
-            />
-          )}
 
           {zones.length > 0 && (
             <div className={styles.zoneLegend}>
@@ -1301,93 +1533,82 @@ const FloorPlansDetailPage = () => {
         {/* ── 우측 장비 목록 패널 ── */}
         <aside className={styles.devicePanel}>
           <div className={styles.devicePanelInner}>
-            <div className={styles.filterTabs}>
-              {(
-                [
-                  { key: 'all', label: '전체' },
-                  { key: 'general', label: '일반' },
-                  { key: 'cctv', label: 'CCTV' },
-                  { key: 'iot', label: 'IoT' },
-                ] as const
-              ).map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={clsx(styles.filterTab, deviceFilter === key && styles.filterTabActive)}
-                  onClick={() => setDeviceFilter(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <div className={styles.devicePanelSticky}>
+              <div className={styles.filterTabs}>
+                {(
+                  [
+                    { key: 'all', label: '전체' },
+                    { key: 'general', label: '일반' },
+                    { key: 'cctv', label: 'CCTV' },
+                    { key: 'iot', label: 'IoT' },
+                  ] as const
+                ).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={clsx(
+                      styles.filterTab,
+                      deviceFilter === key && styles.filterTabActive,
+                    )}
+                    onClick={() => setDeviceFilter(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-            <div className={styles.subFilterChips}>
-              {['교실', '문', '계단', '복도'].map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  className={clsx(
-                    styles.subFilterChip,
-                    subFilter === chip && styles.subFilterChipActive,
-                  )}
-                  onClick={() => setSubFilter((prev) => (prev === chip ? null : chip))}
-                >
-                  {chip}
-                </button>
-              ))}
+              <div className={styles.subFilterChips}>
+                {['교실', '문', '계단', '복도'].map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    className={clsx(
+                      styles.subFilterChip,
+                      subFilter === chip && styles.subFilterChipActive,
+                    )}
+                    onClick={() => setSubFilter((prev) => (prev === chip ? null : chip))}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+
+              {pinnedItem && (
+                <DeviceCard
+                  item={pinnedItem}
+                  selected
+                  editing={editingItemId === pinnedItem.id}
+                  editForm={editForm}
+                  onEditFormChange={setEditForm}
+                  onSelect={handlePanelItemSelect}
+                  onStartEdit={handleStartEdit}
+                  onSaveEdit={handleSaveEdit}
+                  onDelete={handlePanelItemDelete}
+                />
+              )}
             </div>
 
             {panelItems.length === 0 ? (
               <p className={styles.devicePanelEmpty}>표시할 장비가 없습니다</p>
             ) : (
-              panelItems.map((item) => {
-                const isSelected =
-                  selectedItem?.kind === 'device'
-                    ? item.kind === 'device' && selectedItem.data.id === item.id
-                    : selectedItem?.kind === 'poi'
-                      ? item.kind === 'poi' && selectedItem.data.id === item.id
-                      : false;
-                return (
-                  <div
-                    key={item.id}
-                    className={clsx(styles.deviceCard, isSelected && styles.deviceCardSelected)}
-                  >
-                    <span className={styles.deviceCardName}>{item.label}</span>
-                    <div className={styles.deviceCardRow}>
-                      <span className={styles.deviceCardKey}>장치 ID</span>
-                      <span className={styles.deviceCardValue}>{item.id.toUpperCase()}</span>
-                    </div>
-                    <div className={styles.deviceCardRow}>
-                      <span className={styles.deviceCardKey}>상태</span>
-                      <StatusBadge
-                        label={item.statusText}
-                        color={item.statusOnline ? 'green' : 'neutral'}
-                        dot
-                      />
-                    </div>
-                    <div className={styles.deviceCardRow}>
-                      <span className={styles.deviceCardKey}>설치 위치</span>
-                      <span className={styles.deviceCardValue}>{item.zone}</span>
-                    </div>
-                    <div className={styles.deviceCardActions}>
-                      <button
-                        type="button"
-                        className={styles.deviceCardEditBtn}
-                        onClick={() => handlePanelItemSelect(item)}
-                      >
-                        수정
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.deviceCardDeleteBtn}
-                        onClick={() => handlePanelItemDelete(item)}
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+              <div className={styles.devicePanelList}>
+                {panelItems
+                  .filter((item) => item !== pinnedItem)
+                  .map((item) => (
+                    <DeviceCard
+                      key={item.id}
+                      item={item}
+                      selected={false}
+                      editing={editingItemId === item.id}
+                      editForm={editForm}
+                      onEditFormChange={setEditForm}
+                      onSelect={handlePanelItemSelect}
+                      onStartEdit={handleStartEdit}
+                      onSaveEdit={handleSaveEdit}
+                      onDelete={handlePanelItemDelete}
+                    />
+                  ))}
+              </div>
             )}
           </div>
         </aside>

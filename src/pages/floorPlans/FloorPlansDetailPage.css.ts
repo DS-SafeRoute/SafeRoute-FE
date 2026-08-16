@@ -1,4 +1,4 @@
-import { keyframes, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -117,7 +117,7 @@ export const canvasActionButton = style({
 export const nodeAddPopup = style({
   position: 'absolute',
   zIndex: 15,
-  top: '7.2rem',
+  top: '9.6rem',
   right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
@@ -135,6 +135,12 @@ export const nodeAddTitle = style({
   ...vars.typography.body14Medium,
 });
 
+export const nodeAddHint = style({
+  marginTop: `calc(-1 * ${vars.space.s2})`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
 export const nodeAddField = style({
   display: 'flex',
   flexDirection: 'column',
@@ -146,14 +152,45 @@ export const nodeAddLabel = style({
   ...vars.typography.caption,
 });
 
-export const nodeAddSelect = style({
-  outline: 'none',
+export const deviceTypeChips = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: vars.space.s2,
+});
+
+export const deviceTypeChip = style({
   border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
   cursor: 'pointer',
   padding: `${vars.space.s2} ${vars.space.s3}`,
-  color: vars.color.textHigh,
+  color: vars.color.textMid,
   ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const deviceTypeChipActive = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+});
+
+export const zoneCameraDropdown = style({
+  display: 'block',
+  width: '100%',
+});
+
+globalStyle(`${zoneCameraDropdown} > button`, {
+  justifyContent: 'space-between',
+  width: '100%',
+});
+
+globalStyle(`${zoneCameraDropdown} > ul`, {
+  boxSizing: 'border-box',
+  width: '100%',
+  minWidth: '100%',
 });
 
 export const nodeAddInput = style({
@@ -298,13 +335,39 @@ export const devicePanel = style({
   backgroundColor: vars.color.white,
   width: '32rem',
   overflowY: 'auto',
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
 });
 
 export const devicePanelInner = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
-  padding: vars.space.s5,
+  paddingRight: vars.space.s5,
+  paddingBottom: vars.space.s5,
+  paddingLeft: vars.space.s5,
+});
+
+export const devicePanelSticky = style({
+  position: 'sticky',
+  zIndex: 2,
+  top: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  paddingTop: vars.space.s5,
+  paddingBottom: vars.space.s3,
+});
+
+export const devicePanelList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
 });
 
 export const filterTabs = style({
@@ -373,6 +436,7 @@ export const deviceCard = style({
   gap: vars.space.s2,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
+  cursor: 'pointer',
   padding: vars.space.s4,
 });
 
@@ -384,6 +448,34 @@ export const deviceCardSelected = style({
 export const deviceCardName = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
+});
+
+export const deviceCardNameInput = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.white,
+  padding: `${vars.space.s1} ${vars.space.s2}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+export const deviceCardValueInput = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.white,
+  padding: `0 ${vars.space.s2}`,
+  width: '14rem',
+  textAlign: 'right',
+  color: vars.color.textHigh,
+  ...vars.typography.caption,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
 });
 
 export const deviceCardRow = style({
@@ -419,6 +511,23 @@ export const deviceCardEditBtn = style({
   ...vars.typography.caption,
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const deviceCardDoneBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.primary}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primary,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.white,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.primaryHover,
+      backgroundColor: vars.color.primaryHover,
+    },
   },
 });
 
@@ -500,18 +609,25 @@ export const canvasHeader = style({
   padding: `${vars.space.s3} ${vars.space.s4}`,
 });
 
-export const canvasHeaderIcon = style({
+export const backButton = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
+  border: 'none',
   borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.primary,
-  width: '2rem',
-  height: '2rem',
-  color: vars.color.white,
-  fontSize: '1rem',
-  fontWeight: 700,
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  width: '2.4rem',
+  height: '2.4rem',
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray50 },
+  },
+});
+
+export const backButtonIcon = style({
+  transform: 'rotate(180deg)',
 });
 
 export const canvasHeaderText = style({
@@ -525,6 +641,7 @@ export const canvasHeaderFloor = style({
 });
 
 export const canvasBody = style({
+  position: 'relative',
   display: 'flex',
   flex: 1,
   alignItems: 'flex-start',
@@ -536,6 +653,10 @@ export const canvasBody = style({
   backgroundColor: vars.color.white,
   padding: vars.space.s6,
   overflow: 'auto',
+});
+
+export const canvasBodyWithActions = style({
+  paddingTop: '8rem',
 });
 
 export const mapWrap = style({

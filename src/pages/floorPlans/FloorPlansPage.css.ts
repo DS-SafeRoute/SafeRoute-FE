@@ -161,21 +161,46 @@ export const manageButton = style({
   },
 });
 
-export const cardActions = style({
+export const cardActionRow = style({
   display: 'flex',
   gap: vars.space.s2,
 });
 
-export const reuploadButton = style({
+export const detailButton = style({
+  display: 'flex',
   flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: vars.space.s1,
+  border: `1px solid ${vars.color.gray200}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.gray50,
+  cursor: 'pointer',
+  height: '3.6rem',
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.gray300,
+      backgroundColor: vars.color.gray100,
+    },
+  },
+});
+
+export const reuploadButton = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: vars.space.s1,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
   backgroundColor: vars.color.white,
   cursor: 'pointer',
-  padding: `${vars.space.s2} 0`,
-  textAlign: 'center',
+  padding: `0 ${vars.space.s3}`,
+  height: '3.6rem',
   color: vars.color.textMid,
-  ...vars.typography.body14,
+  ...vars.typography.caption,
   selectors: {
     '&:hover': {
       borderColor: vars.color.gray300,
@@ -184,17 +209,16 @@ export const reuploadButton = style({
   },
 });
 
-export const deleteButtonCard = style({
-  flex: 1,
-  border: `1px solid ${vars.color.dangerLight}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} 0`,
-  textAlign: 'center',
-  color: vars.color.danger,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { backgroundColor: '#FFF5F5' },
+export const deleteButtonCard = style([
+  reuploadButton,
+  {
+    border: `1px solid ${vars.color.dangerLight}`,
+    color: vars.color.danger,
+    selectors: {
+      '&:hover': {
+        borderColor: vars.color.dangerLight,
+        backgroundColor: '#FFF5F5',
+      },
+    },
   },
-});
+]);
