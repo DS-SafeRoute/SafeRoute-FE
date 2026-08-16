@@ -1,7 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
+
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
-import EditIcon from '@assets/icons/ic-edit.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
-import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
@@ -14,13 +14,25 @@ interface BuildingCardProps {
   building: Building;
   onEdit: (building: Building) => void;
   onDelete: (building: Building) => void;
-  onFloorPlan: (building: Building) => void;
 }
 
 const formatTrainingDate = (date: string) => (date === '-' ? date : date.split('-').join('.'));
 
-const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardProps) => {
+const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const isIotWarning = building.iotOnline < building.iotTotal;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <article className={styles.container}>
@@ -37,6 +49,42 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             color={building.status === 'normal' ? 'green' : 'yellow'}
             dot
           />
+          <div ref={menuRef} className={styles.kebabWrapper}>
+            <button
+              type="button"
+              className={styles.kebabButton}
+              aria-label="더보기"
+              onClick={() => setMenuOpen((prev) => !prev)}
+            >
+              <span className={styles.kebabDot} />
+              <span className={styles.kebabDot} />
+              <span className={styles.kebabDot} />
+            </button>
+            {menuOpen && (
+              <div className={styles.menu}>
+                <button
+                  type="button"
+                  className={styles.menuItem}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEdit(building);
+                  }}
+                >
+                  수정하기
+                </button>
+                <button
+                  type="button"
+                  className={styles.menuItemDanger}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDelete(building);
+                  }}
+                >
+                  삭제하기
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -73,32 +121,6 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             </span>
           )}
         </div>
-      </div>
-
-      <div className={styles.footer}>
-        <button
-          type="button"
-          className={styles.floorPlanButton}
-          onClick={() => onFloorPlan(building)}
-        >
-          도면 관리
-        </button>
-        <button
-          type="button"
-          className={styles.iconButton}
-          aria-label="수정"
-          onClick={() => onEdit(building)}
-        >
-          <EditIcon width={14} height={14} />
-        </button>
-        <button
-          type="button"
-          className={styles.iconButtonDanger}
-          aria-label="삭제"
-          onClick={() => onDelete(building)}
-        >
-          <TrashIcon width={14} height={14} />
-        </button>
       </div>
     </article>
   );
