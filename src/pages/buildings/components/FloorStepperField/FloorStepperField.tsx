@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 import * as styles from './FloorStepperField.css';
 
 interface FloorStepperFieldProps {
@@ -15,6 +17,9 @@ const FloorStepperField = ({
   min,
   errorMessage,
 }: FloorStepperFieldProps) => {
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
+  const isRequired = label.includes(' *');
   const numeric = Number(value) || 0;
   const isError = Boolean(errorMessage);
 
@@ -35,8 +40,8 @@ const FloorStepperField = ({
 
   return (
     <div className={styles.container}>
-      <span className={styles.label}>
-        {label.includes(' *') ? (
+      <label htmlFor={inputId} className={styles.label}>
+        {isRequired ? (
           <>
             {label.replace(' *', '')}
             <span className={styles.requiredMark} aria-hidden="true">
@@ -47,7 +52,7 @@ const FloorStepperField = ({
         ) : (
           label
         )}
-      </span>
+      </label>
       <div className={styles.controls({ isError })}>
         <button
           type="button"
@@ -59,12 +64,16 @@ const FloorStepperField = ({
           −
         </button>
         <input
+          id={inputId}
           className={styles.input}
           type="text"
           inputMode="numeric"
           value={value}
           onChange={handleInputChange}
           onBlur={handleBlur}
+          aria-required={isRequired}
+          aria-invalid={isError}
+          aria-describedby={isError ? errorId : undefined}
         />
         <button
           type="button"
@@ -75,7 +84,11 @@ const FloorStepperField = ({
           +
         </button>
       </div>
-      {errorMessage ? <span className={styles.errorText}>{errorMessage}</span> : null}
+      {errorMessage ? (
+        <span id={errorId} className={styles.errorText}>
+          {errorMessage}
+        </span>
+      ) : null}
     </div>
   );
 };

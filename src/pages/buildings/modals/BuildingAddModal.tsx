@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
+
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
@@ -7,7 +9,6 @@ import Modal from '@components/modal';
 import { isNonNegativeInt, isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
-import FloorStepperField from '../components/FloorStepperField/FloorStepperField';
 
 import type { Building } from '../types/buildings';
 

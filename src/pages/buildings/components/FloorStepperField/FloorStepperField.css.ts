@@ -27,6 +27,9 @@ export const controls = recipe({
     borderRadius: vars.radius.md,
     width: '100%',
     overflow: 'hidden',
+    selectors: {
+      '&:focus-within': { borderColor: vars.color.primary },
+    },
   },
   variants: {
     isError: {
@@ -64,6 +67,12 @@ export const input = style({
   textAlign: 'center',
   ...vars.typography.body14,
   color: vars.color.textHigh,
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${vars.color.primary}`,
+      outlineOffset: '-2px',
+    },
+  },
 });
 
 export const errorText = style({
