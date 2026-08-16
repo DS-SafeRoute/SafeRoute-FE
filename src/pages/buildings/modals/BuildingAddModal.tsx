@@ -53,7 +53,6 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
       lastTrainingDate: '-',
       aboveFloors: Number(form.floors),
       belowFloors: 0,
-      floorPlans: [],
       cctvTotal: 0,
       cctvOnline: 0,
       iotTotal: 0,

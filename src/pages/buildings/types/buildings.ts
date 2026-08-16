@@ -16,7 +16,6 @@ export interface Building {
   lastTrainingDate: string;
   aboveFloors: number;
   belowFloors: number;
-  floorPlans: number[];
   cctvTotal: number;
   cctvOnline: number;
   iotTotal: number;
