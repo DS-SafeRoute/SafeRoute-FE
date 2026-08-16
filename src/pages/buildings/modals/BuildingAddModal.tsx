@@ -4,7 +4,7 @@ import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
-import { isNonNegativeInt, isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
+import { isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
 
@@ -19,11 +19,10 @@ interface BuildingAddModalProps {
 interface FormState {
   name: string;
   area: string;
-  aboveFloors: string;
-  belowFloors: string;
+  floors: string;
 }
 
-const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '', belowFloors: '' };
+const INITIAL_FORM: FormState = { name: '', area: '', floors: '' };
 
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
@@ -39,10 +38,8 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
     if (!form.area.trim()) next.area = '면적을 입력해 주세요';
     else if (!isPositiveNumber(form.area)) next.area = '올바른 면적을 입력해 주세요';
-    if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
-    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
-    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
-      next.belowFloors = '올바른 층수를 입력해 주세요';
+    if (!form.floors.trim()) next.floors = '층수를 입력해 주세요';
+    else if (!isPositiveInt(form.floors)) next.floors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -54,8 +51,8 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
       area: Number(form.area),
       status: 'normal',
       lastTrainingDate: '-',
-      aboveFloors: Number(form.aboveFloors),
-      belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
+      aboveFloors: Number(form.floors),
+      belowFloors: 0,
       floorPlans: [],
       cctvTotal: 0,
       cctvOnline: 0,
@@ -103,18 +100,11 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
           errorMessage={errors.area}
         />
         <TextField
-          label="지상 층수 *"
+          label="층수 *"
           placeholder="5"
-          value={form.aboveFloors}
-          onChange={handleChange('aboveFloors')}
-          errorMessage={errors.aboveFloors}
-        />
-        <TextField
-          label="지하 층수"
-          placeholder="0"
-          value={form.belowFloors}
-          onChange={handleChange('belowFloors')}
-          errorMessage={errors.belowFloors}
+          value={form.floors}
+          onChange={handleChange('floors')}
+          errorMessage={errors.floors}
         />
       </div>
     </Modal>
