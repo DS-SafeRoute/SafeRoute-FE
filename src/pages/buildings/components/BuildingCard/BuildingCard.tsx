@@ -38,17 +38,19 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
     <article className={styles.container}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <span className={styles.name}>{building.name}</span>
+          <div className={styles.nameRow}>
+            <span className={styles.name}>{building.name}</span>
+            <StatusBadge
+              label={building.status === 'normal' ? '정상' : '점검 필요'}
+              color={building.status === 'normal' ? 'green' : 'yellow'}
+              dot
+            />
+          </div>
           <span className={styles.lastTraining}>
             최근 훈련 · {formatTrainingDate(building.lastTrainingDate)}
           </span>
         </div>
         <div className={styles.headerRight}>
-          <StatusBadge
-            label={building.status === 'normal' ? '정상' : '점검 필요'}
-            color={building.status === 'normal' ? 'green' : 'yellow'}
-            dot
-          />
           <div ref={menuRef} className={styles.kebabWrapper}>
             <button
               type="button"

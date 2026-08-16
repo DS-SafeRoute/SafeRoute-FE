@@ -4,7 +4,7 @@ import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
-import { isPositiveInt } from '@shared/utils/validation';
+import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
 
@@ -19,22 +19,26 @@ interface BuildingEditModalProps {
 
 interface FormState {
   name: string;
-  floors: string;
+  aboveFloors: string;
+  belowFloors: string;
 }
 
+const toFormState = (building: Building): FormState => ({
+  name: building.name,
+  aboveFloors: String(building.aboveFloors),
+  belowFloors: String(building.belowFloors),
+});
+
 const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditModalProps) => {
-  const [form, setForm] = useState<FormState>({
-    name: building.name,
-    floors: String(building.aboveFloors),
-  });
+  const [form, setForm] = useState<FormState>(toFormState(building));
   const [errors, setErrors] = useState<Partial<FormState>>({});
 
   useEffect(() => {
     if (open) {
-      setForm({ name: building.name, floors: String(building.aboveFloors) });
+      setForm(toFormState(building));
       setErrors({});
     }
-  }, [open, building.id, building.name, building.aboveFloors]);
+  }, [open, building]);
 
   const handleChange = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -44,8 +48,10 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
   const validate = () => {
     const next: Partial<FormState> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
-    if (!form.floors.trim()) next.floors = '층수를 입력해 주세요';
-    else if (!isPositiveInt(form.floors)) next.floors = '올바른 층수를 입력해 주세요';
+    if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
+    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
+    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
+      next.belowFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -55,7 +61,8 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
     onConfirm({
       ...building,
       name: form.name.trim(),
-      aboveFloors: Number(form.floors),
+      aboveFloors: Number(form.aboveFloors),
+      belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
     });
   };
 
@@ -83,11 +90,18 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
           errorMessage={errors.name}
         />
         <TextField
-          label="층수 *"
+          label="지상 층수 *"
           placeholder="5"
-          value={form.floors}
-          onChange={handleChange('floors')}
-          errorMessage={errors.floors}
+          value={form.aboveFloors}
+          onChange={handleChange('aboveFloors')}
+          errorMessage={errors.aboveFloors}
+        />
+        <TextField
+          label="지하 층수"
+          placeholder="0"
+          value={form.belowFloors}
+          onChange={handleChange('belowFloors')}
+          errorMessage={errors.belowFloors}
         />
       </div>
     </Modal>
