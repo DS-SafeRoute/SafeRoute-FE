@@ -51,3 +51,14 @@ export async function deleteFloor(floorId: number): Promise<void> {
   const res = await fetch(`${BASE}/floors/${floorId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`API error ${res.status}: DELETE /floors/${floorId}`);
 }
+
+export async function segmentFloor(
+  floorId: number,
+  params: { area: number; gridScale: number },
+): Promise<{ status: string }> {
+  return request<{ status: string }>(`${BASE}/floors/${floorId}/segment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+}

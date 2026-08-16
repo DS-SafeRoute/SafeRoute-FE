@@ -10,11 +10,12 @@ import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
-import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { deleteFloor, getFloorBuildings, segmentFloor, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
 import FloorDeleteConfirmModal from './modals/FloorDeleteConfirmModal';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
+import GridAreaSettingModal from './modals/GridAreaSettingModal';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
@@ -53,6 +54,7 @@ interface FloorSummary {
 
 type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
 type FloorActionTarget = { buildingId: number; buildingName: string; floor: FloorSummary };
+type SegmentTarget = { buildingId: number; floorId: number; previewUrl: string | null };
 
 interface FloorCardProps {
   floor: FloorSummary;
@@ -144,6 +146,7 @@ const FloorPlansPage = () => {
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FloorActionTarget | null>(null);
+  const [segmentTarget, setSegmentTarget] = useState<SegmentTarget | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -212,12 +215,37 @@ const FloorPlansPage = () => {
           description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
           variant: 'success',
         });
-        void navigate(`/floorPlans/${uploadTarget.buildingId}/${uploadTarget.floorId}`);
+        setSegmentTarget({
+          buildingId: uploadTarget.buildingId,
+          floorId: uploadTarget.floorId,
+          previewUrl: URL.createObjectURL(file),
+        });
       })
       .catch(() => {
         show({ title: '업로드에 실패했습니다.', variant: 'error' });
       })
       .finally(() => setUploadTarget(null));
+  };
+
+  const handleCloseSegmentModal = () => {
+    if (segmentTarget?.previewUrl) URL.revokeObjectURL(segmentTarget.previewUrl);
+    setSegmentTarget(null);
+  };
+
+  const handleSegmentConfirm = (params: { area: number; gridScale: number }) => {
+    if (!segmentTarget) return;
+    const { buildingId, floorId, previewUrl } = segmentTarget;
+    segmentFloor(floorId, params)
+      .then(() => {
+        void navigate(`/floorPlans/${buildingId}/${floorId}`);
+      })
+      .catch(() => {
+        show({ title: 'AI 분석 요청에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setSegmentTarget(null);
+      });
   };
 
   return (
@@ -283,6 +311,15 @@ const FloorPlansPage = () => {
           buildingName={deleteTarget.buildingName}
           floorNum={deleteTarget.floor.floorNum}
           onConfirm={handleDeleteConfirm}
+        />
+      )}
+
+      {segmentTarget && (
+        <GridAreaSettingModal
+          open
+          onClose={handleCloseSegmentModal}
+          mapImageUrl={segmentTarget.previewUrl}
+          onConfirm={handleSegmentConfirm}
         />
       )}
     </>
