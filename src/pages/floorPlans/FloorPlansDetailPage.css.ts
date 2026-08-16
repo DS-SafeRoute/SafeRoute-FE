@@ -1,4 +1,4 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -41,29 +41,6 @@ export const sectionLabel = style({
 
 export const divider = style({
   borderTop: `1px solid ${vars.color.gray100}`,
-});
-
-/* ── 건물/층 선택 ── */
-export const selectWrap = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-});
-
-export const selectField = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.4rem',
-});
-
-export const selectFieldLabel = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const dropdownFullWidth = style({
-  display: 'block',
-  width: '100%',
 });
 
 /* ── 층 목록 ── */
@@ -109,103 +86,6 @@ export const floorNavItemActive = style({
   color: vars.color.primary,
 });
 
-globalStyle(`${dropdownFullWidth} button`, {
-  justifyContent: 'space-between',
-  borderRadius: vars.radius.md,
-  width: '100%',
-});
-
-globalStyle(`${dropdownFullWidth} ul`, {
-  width: '100%',
-});
-
-/* ── AI 영역 분할 ── */
-export const aiLayerList = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.6rem',
-});
-
-export const aiLayerItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  cursor: 'pointer',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-});
-
-export const aiLayerCheckbox = style({
-  flexShrink: 0,
-  cursor: 'pointer',
-  width: '1.6rem',
-  height: '1.6rem',
-  accentColor: vars.color.primary,
-});
-
-/* ── 편집 모드 탭 ── */
-export const modeGroup = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s1,
-});
-
-export const modeTabGroup = style({
-  display: 'flex',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  overflow: 'hidden',
-});
-
-export const modeTab = style({
-  display: 'flex',
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRight: `1px solid ${vars.color.gray100}`,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s1}`,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-  selectors: {
-    '&:last-child': { borderRight: 'none' },
-    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray50 },
-    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
-  },
-});
-
-export const modeTabActive = style({
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
-  fontWeight: 700,
-});
-
-export const modeButton = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray50 },
-    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
-  },
-});
-
-export const modeButtonActive = style({
-  borderColor: vars.color.primary,
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
-  ...vars.typography.body14Medium,
-});
-
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
   position: 'absolute',
@@ -220,60 +100,6 @@ export const canvasZoomFloat = style({
   boxShadow: vars.shadow.md,
   backgroundColor: vars.color.white,
   padding: `0.4rem ${vars.space.s2}`,
-});
-
-/* ── 시뮬레이션 설정 ── */
-export const simSection = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-});
-
-export const simResetButton = style({
-  border: 'none',
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.danger,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  width: '100%',
-  color: vars.color.white,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:hover': {
-      opacity: 0.9,
-    },
-  },
-});
-
-/* ── 혼잡도 히트맵 ── */
-export const heatmapRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  cursor: 'pointer',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-});
-
-export const heatmapCheckbox = style({
-  flexShrink: 0,
-  cursor: 'pointer',
-  width: '1.6rem',
-  height: '1.6rem',
-  accentColor: vars.color.primary,
-});
-
-/* ── 보기 설정 (줌) ── */
-export const zoomRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-});
-
-export const zoomLabel = style({
-  flex: 1,
-  color: vars.color.textMid,
-  ...vars.typography.body14,
 });
 
 export const zoomValue = style({
@@ -300,33 +126,6 @@ export const zoomButton = style({
     '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
   },
 });
-
-/* ── 범례 ── */
-export const legend = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.6rem',
-  marginTop: 'auto',
-  paddingTop: vars.space.s4,
-});
-
-export const legendItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-});
-
-export const legendDot = style({
-  flexShrink: 0,
-  borderRadius: '50%',
-  width: '1rem',
-  height: '1rem',
-});
-
-export const legendDotIot = style({ backgroundColor: vars.color.success });
-export const legendDotCctv = style({ backgroundColor: vars.color.primary });
 
 /* ── 중앙 캔버스 영역 ── */
 export const canvasArea = style({
@@ -455,13 +254,6 @@ export const markerCctvOffline = style({
   color: vars.color.white,
 });
 export const markerIot = style({ backgroundColor: vars.color.success, color: vars.color.white });
-export const markerExit = style({ backgroundColor: '#16a34a', color: vars.color.white });
-export const markerStair = style({
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.primary,
-  color: vars.color.white,
-});
-export const markerFire = style({ backgroundColor: vars.color.danger, color: vars.color.white });
 
 /* ── Canvase placeholder ── */
 export const canvasPlaceholder = style({
@@ -479,22 +271,6 @@ export const canvasPlaceholder = style({
 export const canvasPlaceholderTitle = style({
   color: vars.color.textMid,
   ...vars.typography.body14Medium,
-});
-
-/* ── 히트맵 오버레이 ── */
-export const heatmapOverlay = style({
-  position: 'absolute',
-  zIndex: 2,
-  inset: 0,
-  pointerEvents: 'none',
-});
-
-/* ── 시뮬레이션 경로 ── */
-export const simPath = style({
-  position: 'absolute',
-  zIndex: 2,
-  inset: 0,
-  pointerEvents: 'none',
 });
 
 /* ── 우측: 선택 정보 패널 ── */
@@ -580,125 +356,6 @@ export const infoPanelActions = style({
 
 export const infoPanelActionBtn = style({ flex: 1 });
 
-/* ── 시뮬레이션 경로 애니메이션 ── */
-const dashMove = keyframes({
-  from: { strokeDashoffset: 300 },
-  to: { strokeDashoffset: 0 },
-});
-
-export const simPathAnimated = style({
-  animation: `${dashMove} 1.8s linear forwards`,
-  strokeDasharray: '8 5',
-  strokeDashoffset: 300,
-});
-
-/* ── 시뮬레이션 결과 패널 ── */
-export const simResultPanel = style({
-  position: 'absolute',
-  zIndex: 10,
-  bottom: vars.space.s6,
-  left: vars.space.s6,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s3,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: vars.color.white,
-  padding: vars.space.s4,
-  width: '24rem',
-});
-
-export const simResultTitle = style({
-  marginBottom: vars.space.s1,
-  ...vars.typography.body14Medium,
-  color: vars.color.textHigh,
-});
-
-export const simResultRow = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: vars.space.s2,
-  borderTop: `1px solid ${vars.color.gray50}`,
-  paddingTop: '0.4rem',
-  paddingBottom: '0.4rem',
-});
-
-export const simResultKey = style({
-  flexShrink: 0,
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const simResultValue = style({
-  textAlign: 'right',
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-});
-
-export const simResultBadge = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.3rem',
-  borderRadius: vars.radius.sm,
-  padding: `0.2rem ${vars.space.s2}`,
-  ...vars.typography.caption,
-});
-
-export const simResultBadgeSafe = style({
-  backgroundColor: 'rgba(220,252,231,0.8)',
-  color: '#15803d',
-});
-
-export const simResultBadgeDanger = style({
-  backgroundColor: 'rgba(254,226,226,0.8)',
-  color: '#b91c1c',
-});
-
-export const simRunButton = style({
-  border: 'none',
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.primary,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  width: '100%',
-  color: vars.color.white,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:hover:not(:disabled)': { opacity: 0.9 },
-    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
-  },
-});
-
-/* ── POI 유형 선택 ── */
-export const poiTypeGrid = style({
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: vars.space.s1,
-});
-
-export const poiTypeBtn = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.4rem',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} vars.space.s2`,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
-  },
-});
-
-export const poiTypeBtnActive = style({
-  fontWeight: 600,
-});
-
 /* ── 줌 리셋 ── */
 export const zoomValueClickable = style({
   borderRadius: vars.radius.sm,
@@ -746,90 +403,4 @@ export const toast = style({
 
 export const toastFading = style({
   animation: `${toastOut} 0.3s ease forwards`,
-});
-
-/* ── 시뮬레이션 우측 패널 ── */
-export const simPanel = style({
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-  borderLeft: `1px solid ${vars.color.gray100}`,
-  backgroundColor: vars.color.white,
-  width: '28rem',
-  overflowY: 'auto',
-});
-
-export const simPanelInner = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s4,
-  padding: '2rem 2rem 2.4rem',
-  minHeight: 'min-content',
-});
-
-export const simPanelTitle = style({
-  marginBottom: vars.space.s2,
-  ...vars.typography.body14Medium,
-  borderBottom: `1px solid ${vars.color.gray100}`,
-  paddingBottom: vars.space.s2,
-  color: vars.color.textHigh,
-  fontWeight: 700,
-});
-
-export const simClickModeBtn = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.4rem',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  width: '100%',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { borderColor: vars.color.gray300, backgroundColor: vars.color.gray50 },
-  },
-});
-
-export const simClickModeBtnActive = style({
-  border: `1.5px solid #2563eb`,
-  backgroundColor: 'rgba(37,99,235,0.07)',
-  color: '#2563eb',
-  fontWeight: 600,
-});
-
-export const simFireItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  border: `1px solid #f87171`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(254,202,202,0.5)',
-  padding: '0.4rem 0.8rem',
-  color: '#b91c1c',
-  fontSize: '1.2rem',
-});
-
-export const simStartInfo = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  border: `1px solid #86efac`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(220,252,231,0.5)',
-  padding: '0.5rem 0.8rem',
-  color: '#166534',
-  fontSize: '1.2rem',
-});
-
-export const simResultSection = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-  marginTop: vars.space.s2,
-  borderTop: `2px solid ${vars.color.gray100}`,
-  paddingTop: vars.space.s4,
 });
