@@ -5,11 +5,17 @@ import { vars } from '@styles/global.css';
 export const row = style({
   display: 'flex',
   alignItems: 'center',
+  transition: 'background-color 120ms ease',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   minHeight: '9.2rem',
   overflow: 'visible',
+  selectors: {
+    '&:hover': {
+      backgroundColor: vars.color.gray25,
+    },
+  },
 });
 
 export const mainButton = style({
@@ -25,7 +31,6 @@ export const mainButton = style({
   minWidth: 0,
   textAlign: 'left',
   selectors: {
-    '&:hover': { backgroundColor: vars.color.gray25 },
     '&:focus-visible': {
       outline: `2px solid ${vars.color.primary}`,
       outlineOffset: '-2px',
