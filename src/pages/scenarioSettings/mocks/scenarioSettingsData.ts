@@ -15,9 +15,16 @@ import type {
 } from '../types/scenarioSettings';
 
 export const basicInfo: BasicInfo = {
+  scenarioName: '2026년 4월 정기 훈련',
+  targetBuilding: SCENARIO_BUILDING_OPTIONS[0],
+  scheduledAt: '2026-04-15T10:00',
+  expectedParticipants: '52',
+};
+
+export const emptyBasicInfo: BasicInfo = {
   scenarioName: '',
   targetBuilding: SCENARIO_BUILDING_OPTIONS[0],
-  scheduledAt: '2026-04-15',
+  scheduledAt: '',
   expectedParticipants: '',
 };
 
