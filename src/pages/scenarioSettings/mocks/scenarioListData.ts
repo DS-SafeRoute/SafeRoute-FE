@@ -1,6 +1,6 @@
-import { SCENARIO_STATUS, type ScenarioSummary } from '../types/scenarioList';
+import { SCENARIO_STATUS, type ScenarioSummary } from '@pages/scenarioSettings/types/scenarioList';
 
-export const scenarioListData: ScenarioSummary[] = [
+export const SCENARIO_LIST_DATA: readonly ScenarioSummary[] = [
   {
     id: 'april-regular',
     name: '2026년 4월 정기 훈련',
@@ -39,7 +39,7 @@ export const scenarioListData: ScenarioSummary[] = [
   },
 ];
 
-export const scenarioStatusFilterOptions = [
+export const SCENARIO_STATUS_FILTER_OPTIONS = [
   { label: '전체 상태', value: 'ALL' },
   { label: '임시저장', value: SCENARIO_STATUS.DRAFT },
   { label: '준비완료', value: SCENARIO_STATUS.READY },

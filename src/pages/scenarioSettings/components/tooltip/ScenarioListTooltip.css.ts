@@ -5,13 +5,6 @@ import { vars } from '@styles/global.css';
 export const trigger = style({
   position: 'relative',
   display: 'inline-flex',
-  selectors: {
-    '&:focus-visible': {
-      outline: `2px solid ${vars.color.primary}`,
-      outlineOffset: '2px',
-      borderRadius: vars.radius.md,
-    },
-  },
 });
 
 export const content = style({
@@ -39,7 +32,7 @@ export const content = style({
       visibility: 'visible',
       opacity: 1,
     },
-    [`${trigger}:focus-visible &`]: {
+    [`${trigger}:focus-within &`]: {
       transform: 'translateY(0)',
       visibility: 'visible',
       opacity: 1,

@@ -17,4 +17,4 @@ export const ROUTES = {
 } as const;
 
 export const getScenarioDetailPath = (scenarioId: string) =>
-  ROUTES.SCENARIO_DETAIL.replace(':scenarioId', scenarioId);
+  ROUTES.SCENARIO_DETAIL.replace(':scenarioId', encodeURIComponent(scenarioId));

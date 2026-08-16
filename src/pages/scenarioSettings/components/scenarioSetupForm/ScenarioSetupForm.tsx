@@ -18,7 +18,7 @@ import type {
 
 interface ScenarioSetupFormProps {
   basicInfo: BasicInfo;
-  conditions: FireConditionField[];
+  conditions: readonly FireConditionField[];
   options: FireConditionOptions;
   isRunning?: boolean;
   readOnly?: boolean;

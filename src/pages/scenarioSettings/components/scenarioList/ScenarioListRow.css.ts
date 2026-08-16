@@ -68,3 +68,17 @@ export const actions = style({
 export const deleteButton = style({
   backgroundColor: vars.color.dangerSurface,
 });
+
+export const disabledDeleteButton = style({
+  borderColor: vars.color.gray100,
+  backgroundColor: vars.color.gray50,
+  cursor: 'not-allowed',
+  color: vars.color.gray300,
+  selectors: {
+    '&[aria-disabled="true"]:hover': {
+      borderColor: vars.color.gray100,
+      backgroundColor: vars.color.gray50,
+      color: vars.color.gray300,
+    },
+  },
+});

@@ -15,42 +15,47 @@ import TrainingPreviewCard from './components/cards/trainingPreviewCard/Training
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
-import { scenarioListData } from './mocks/scenarioListData';
+import { SCENARIO_LIST_DATA } from './mocks/scenarioListData';
 import {
-  basicInfo,
-  emptyBasicInfo,
-  currentRouteText,
-  liveMetrics,
-  liveStatus,
-  previewStatus,
-  fireConditionOptions,
-  previewMetrics,
-  recommendationText,
-  proposedRouteText,
-  routeProposalText,
-  selectedFireConditions,
+  CURRENT_ROUTE_TEXT,
+  DEFAULT_FIRE_CONDITIONS,
+  EMPTY_BASIC_INFO,
+  FIRE_CONDITION_OPTIONS,
+  LIVE_METRICS,
+  LIVE_STATUS,
+  PREVIEW_METRICS,
+  PREVIEW_STATUS,
+  PROPOSED_ROUTE_TEXT,
+  RECOMMENDATION_TEXT,
+  ROUTE_PROPOSAL_TEXT,
+  SCENARIO_DETAIL_DATA,
 } from './mocks/scenarioSettingsData';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
 
-const ScenarioSettingsPage = () => {
+import type { ScenarioSummary } from './types/scenarioList';
+import type { ScenarioDetail } from './types/scenarioSettings';
+
+interface ScenarioSettingsContentProps {
+  scenario?: ScenarioSummary;
+  scenarioDetail?: ScenarioDetail;
+}
+
+const ScenarioSettingsContent = ({ scenario, scenarioDetail }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
-  const { scenarioId } = useParams();
   const { show } = useToast();
-  const isCreatePage = scenarioId === undefined;
-  const scenario = scenarioListData.find((item) => item.id === scenarioId);
+  const isCreatePage = scenario === undefined;
   const isInitiallyEditing = isCreatePage || scenario?.status === SCENARIO_STATUS.DRAFT;
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(isInitiallyEditing);
   const [startedAt, setStartedAt] = useState<number | null>(() =>
     scenario?.status === SCENARIO_STATUS.IN_PROGRESS ? Date.now() - 8 * 60 * 1000 : null,
   );
-  const [currentRoute, setCurrentRoute] = useState(currentRouteText);
-  const [routeProposal, setRouteProposal] = useState<string | null>(routeProposalText);
+  const [currentRoute, setCurrentRoute] = useState(CURRENT_ROUTE_TEXT);
+  const [routeProposal, setRouteProposal] = useState<string | null>(ROUTE_PROPOSAL_TEXT);
   const isRunning = startedAt !== null;
-  const scenarioBasicInfo = isCreatePage
-    ? emptyBasicInfo
-    : { ...basicInfo, scenarioName: scenario?.name ?? basicInfo.scenarioName };
+  const scenarioBasicInfo = scenarioDetail?.basicInfo ?? EMPTY_BASIC_INFO;
+  const fireConditions = scenarioDetail?.fireConditions ?? DEFAULT_FIRE_CONDITIONS;
 
   const startTraining = () => {
     setStartedAt(Date.now());
@@ -70,21 +75,17 @@ const ScenarioSettingsPage = () => {
   };
 
   const handleApplyRouteProposal = () => {
-    setCurrentRoute(proposedRouteText);
+    setCurrentRoute(PROPOSED_ROUTE_TEXT);
     setRouteProposal(null);
   };
-
-  if (!isCreatePage && !scenario) {
-    return <Navigate replace to={ROUTES.SCENARIO_LIST} />;
-  }
 
   return (
     <div className={styles.container}>
       <div className={styles.contentGrid}>
         <ScenarioSetupForm
           basicInfo={scenarioBasicInfo}
-          conditions={selectedFireConditions}
-          options={fireConditionOptions}
+          conditions={fireConditions}
+          options={FIRE_CONDITION_OPTIONS}
           isRunning={isRunning}
           readOnly={!isEditing && !isRunning}
         />
@@ -94,8 +95,8 @@ const ScenarioSettingsPage = () => {
             startedAt={startedAt}
             currentRoute={currentRoute}
             routeProposal={routeProposal}
-            liveStatus={liveStatus}
-            liveMetrics={liveMetrics}
+            liveStatus={LIVE_STATUS}
+            liveMetrics={LIVE_METRICS}
             onEnd={() => setIsEndModalOpen(true)}
             onRejectRouteProposal={handleRejectRouteProposal}
             onApplyRouteProposal={handleApplyRouteProposal}
@@ -129,8 +130,8 @@ const ScenarioSettingsPage = () => {
                 >
                   시나리오 시작
                 </Button>
-                <RecommendationCard icon={<SparklesIcon />} message={recommendationText} />
-                <TrainingPreviewCard status={previewStatus} metrics={previewMetrics} />
+                <RecommendationCard icon={<SparklesIcon />} message={RECOMMENDATION_TEXT} />
+                <TrainingPreviewCard status={PREVIEW_STATUS} metrics={PREVIEW_METRICS} />
                 <Button
                   type="button"
                   variant="ghost"
@@ -152,6 +153,26 @@ const ScenarioSettingsPage = () => {
         onReport={() => void navigate(ROUTES.REPORTS)}
       />
     </div>
+  );
+};
+
+const ScenarioSettingsPage = () => {
+  const { scenarioId } = useParams();
+  const scenario = scenarioId
+    ? SCENARIO_LIST_DATA.find((item) => item.id === scenarioId)
+    : undefined;
+  const scenarioDetail = scenarioId ? SCENARIO_DETAIL_DATA[scenarioId] : undefined;
+
+  if (scenarioId && (!scenario || !scenarioDetail)) {
+    return <Navigate replace to={ROUTES.SCENARIO_LIST} />;
+  }
+
+  return (
+    <ScenarioSettingsContent
+      key={scenarioId ?? 'new'}
+      scenario={scenario}
+      scenarioDetail={scenarioDetail}
+    />
   );
 };
 

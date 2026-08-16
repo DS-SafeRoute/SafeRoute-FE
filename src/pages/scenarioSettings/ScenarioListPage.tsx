@@ -13,17 +13,17 @@ import { ROUTES, getScenarioDetailPath } from '@constants/path';
 
 import ScenarioDeleteModal from './components/scenarioDeleteModal/ScenarioDeleteModal';
 import ScenarioListRow from './components/scenarioList/ScenarioListRow';
-import { scenarioListData, scenarioStatusFilterOptions } from './mocks/scenarioListData';
+import { SCENARIO_LIST_DATA, SCENARIO_STATUS_FILTER_OPTIONS } from './mocks/scenarioListData';
 import * as styles from './ScenarioListPage.css';
 
 import type { ScenarioSummary } from './types/scenarioList';
 
-type StatusFilter = (typeof scenarioStatusFilterOptions)[number]['value'];
+type StatusFilter = (typeof SCENARIO_STATUS_FILTER_OPTIONS)[number]['value'];
 
 const ScenarioListPage = () => {
   const navigate = useNavigate();
   const { show } = useToast();
-  const [scenarios, setScenarios] = useState(scenarioListData);
+  const [scenarios, setScenarios] = useState<ScenarioSummary[]>(() => [...SCENARIO_LIST_DATA]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<ScenarioSummary | null>(null);
 
@@ -60,7 +60,7 @@ const ScenarioListPage = () => {
         <div className={styles.toolbar}>
           <Dropdown
             shape="rounded"
-            options={scenarioStatusFilterOptions}
+            options={SCENARIO_STATUS_FILTER_OPTIONS}
             value={statusFilter}
             onChange={setStatusFilter}
           />

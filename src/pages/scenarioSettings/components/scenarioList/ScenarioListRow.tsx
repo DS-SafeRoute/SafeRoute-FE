@@ -25,10 +25,13 @@ const ScenarioListRow = ({ scenario, onOpen, onDelete }: ScenarioListRowProps) =
       variant={scenario.deletable ? 'dangerOutlined' : 'ghost'}
       size="sm"
       iconOnly
-      disabled={!scenario.deletable}
-      className={scenario.deletable ? styles.deleteButton : undefined}
+      aria-disabled={scenario.deletable ? undefined : true}
+      className={scenario.deletable ? styles.deleteButton : styles.disabledDeleteButton}
       aria-label={`${scenario.name} 삭제`}
-      onClick={() => onDelete(scenario)}
+      onClick={() => {
+        if (!scenario.deletable) return;
+        onDelete(scenario);
+      }}
     >
       <TrashIcon />
     </Button>
