@@ -27,14 +27,6 @@ import type {
   SegmentationStatus,
 } from './types/floorPlans';
 
-const AI_LAYERS: { key: AiLayer; label: string }[] = [
-  { key: 'wall', label: '벽' },
-  { key: 'corridor', label: '복도' },
-  { key: 'stairwell', label: '계단실' },
-  { key: 'exit', label: '비상구' },
-  { key: 'room', label: '방' },
-];
-
 type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
 
 type PoiType = 'exit' | 'stair' | 'extinguisher' | 'assembly' | 'firstaid';
@@ -1073,17 +1065,17 @@ const FloorPlansDetailPage = () => {
       .finally(() => setLoadingFloor(false));
   }, [floorId]);
 
-  const [selectedBuildingId, setSelectedBuildingId] = useState(buildingId ?? '');
+  const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
-  const [editMode, setEditMode] = useState<EditMode>('view');
-  const [aiLayers, setAiLayers] = useState<Record<AiLayer, boolean>>({
+  const [editMode] = useState<EditMode>('view');
+  const [aiLayers] = useState<Record<AiLayer, boolean>>({
     wall: true,
     corridor: true,
     stairwell: true,
     exit: true,
     room: true,
   });
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showHeatmap] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [selectedExit, setSelectedExit] = useState('');
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
@@ -1094,8 +1086,8 @@ const FloorPlansDetailPage = () => {
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
-  const [selectedPoiType, setSelectedPoiType] = useState<PoiType>('exit');
-  const [placingDeviceType, setPlacingDeviceType] = useState<PlacingDeviceType | null>(null);
+  const [selectedPoiType] = useState<PoiType>('exit');
+  const [placingDeviceType] = useState<PlacingDeviceType | null>(null);
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
@@ -1108,8 +1100,8 @@ const FloorPlansDetailPage = () => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
   const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastFading, setToastFading] = useState(false);
+  const [toastMsg] = useState<string | null>(null);
+  const [toastFading] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1125,49 +1117,9 @@ const FloorPlansDetailPage = () => {
     [],
   );
 
-  const showToast = (msg: string) => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    if (toastFadeRef.current) clearTimeout(toastFadeRef.current);
-    setToastMsg(msg);
-    setToastFading(false);
-    toastTimerRef.current = setTimeout(() => {
-      setToastFading(true);
-      toastFadeRef.current = setTimeout(() => setToastMsg(null), 300);
-    }, 2200);
-  };
-
-  const TOAST_MSG: Partial<Record<EditMode, string>> = {
-    view: '보기 모드',
-    poi: 'POI 편집 모드 · 도면을 클릭해 마커를 추가하세요',
-  };
-
-  const handleEditModeChange = (mode: EditMode) => {
-    setEditMode(mode);
-    setEditingPoiId(null);
-    setRelocatingPoiId(null);
-    setSimClickMode(null);
-    const msg = TOAST_MSG[mode];
-    if (msg) showToast(msg);
-  };
-
   const currentBuilding = floorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
   const currentFloor =
     currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
-
-  const FLOOR_STATUS_LABEL: Record<string, string> = {
-    NONE: '미등록',
-    PENDING: '대기중',
-    PROCESSING: '처리중',
-    DONE: '등록완료',
-    FAILED: '오류',
-  };
-
-  const buildingOptions = floorBuildings.map((b) => ({ label: b.name, value: String(b.id) }));
-  const floorOptions =
-    currentBuilding?.floors.map((f) => ({
-      label: `${formatFloor(f.floorNum)}  ·  ${FLOOR_STATUS_LABEL[f.segmentationStatus]}`,
-      value: String(f.id),
-    })) ?? [];
 
   const exitOptions = (currentFloor?.pois ?? [])
     .filter((p) => p.type === 'exit')
@@ -1179,18 +1131,6 @@ const FloorPlansDetailPage = () => {
   const allDoors = Object.values(DOOR_PTS);
   const isPathDanger = fireMarkers.some((f) => allDoors.some((d) => isNear(f, d)));
 
-  const handleBuildingChange = (newId: string) => {
-    const newBuilding = floorBuildings.find((b) => String(b.id) === newId);
-    const firstFloor = newBuilding?.floors[0];
-    setSelectedBuildingId(newId);
-    setSelectedFloorId(firstFloor ? String(firstFloor.id) : '');
-    setSelectedItem(null);
-    setSelectedExit('');
-    setFireMarkers([]);
-    setSimStart(null);
-    if (firstFloor) void navigate(`/floorPlans/${newId}/${firstFloor.id}`);
-  };
-
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
     setSelectedItem(null);
@@ -1199,10 +1139,6 @@ const FloorPlansDetailPage = () => {
     setSimStart(null);
     setSimState('idle');
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
-  };
-
-  const toggleAiLayer = (key: AiLayer) => {
-    setAiLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const baseStatus = currentFloor?.segmentationStatus ?? 'NONE';
@@ -1332,31 +1268,31 @@ const FloorPlansDetailPage = () => {
         {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner} style={{ padding: '2rem 2rem 2.4rem' }}>
-            {/* 건물/층 선택 */}
-            <div className={styles.section}>
-              <span className={styles.sectionLabel}>건물 선택</span>
-              <div className={styles.selectWrap}>
-                <div className={styles.selectField}>
-                  <span className={styles.selectFieldLabel}>건물</span>
-                  <Dropdown
-                    className={styles.dropdownFullWidth}
-                    options={buildingOptions}
-                    value={selectedBuildingId}
-                    onChange={handleBuildingChange}
-                    placeholder="건물 선택"
-                  />
-                </div>
-                <div className={styles.selectField}>
-                  <span className={styles.selectFieldLabel}>층</span>
-                  <Dropdown
-                    className={styles.dropdownFullWidth}
-                    options={floorOptions}
-                    value={selectedFloorId}
-                    onChange={handleFloorChange}
-                    placeholder="층 선택"
-                    disabled={!currentBuilding}
-                  />
-                </div>
+            {/* 층 목록 */}
+            <div className={styles.floorNavCard}>
+              <div className={styles.floorNavHeader}>층 목록</div>
+              <div className={styles.floorNavList}>
+                {[...(currentBuilding?.floors ?? [])]
+                  .sort((a, b) => b.floorNum - a.floorNum)
+                  .map((f) => {
+                    const isCurrent = String(f.id) === selectedFloorId;
+                    const isNone = f.segmentationStatus === 'NONE';
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className={clsx(
+                          styles.floorNavItem,
+                          isCurrent && styles.floorNavItemActive,
+                        )}
+                        onClick={() => handleFloorChange(String(f.id))}
+                      >
+                        <span>{formatFloor(f.floorNum)}</span>
+                        {isCurrent && <StatusBadge label="현재" color="blue" />}
+                        {!isCurrent && isNone && <StatusBadge label="미등록" color="neutral" />}
+                      </button>
+                    );
+                  })}
               </div>
             </div>
 
@@ -1383,199 +1319,6 @@ const FloorPlansDetailPage = () => {
               >
                 {isProcessing ? 'AI 처리 중...' : isDone ? 'AI 재분석' : 'AI 영역 분할 실행'}
               </Button>
-            </div>
-
-            <div className={styles.divider} />
-
-            {/* 보기 / POI편집 탭 */}
-            <div className={styles.modeTabGroup}>
-              {(
-                [
-                  { mode: 'view', label: '보기' },
-                  { mode: 'poi', label: 'POI 편집' },
-                ] as const
-              ).map(({ mode, label }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={clsx(styles.modeTab, editMode === mode && styles.modeTabActive)}
-                  disabled={!isDone}
-                  onClick={() => handleEditModeChange(mode)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* 보기 모드 */}
-            {editMode === 'view' && (
-              <>
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>AI 영역 분할</span>
-                  <div className={styles.aiLayerList}>
-                    {AI_LAYERS.map(({ key, label }) => (
-                      <label key={key} className={styles.aiLayerItem}>
-                        <input
-                          type="checkbox"
-                          className={styles.aiLayerCheckbox}
-                          checked={aiLayers[key]}
-                          disabled={!isDone}
-                          onChange={() => toggleAiLayer(key)}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <label className={styles.heatmapRow}>
-                  <input
-                    type="checkbox"
-                    className={styles.heatmapCheckbox}
-                    checked={showHeatmap}
-                    disabled={!isDone}
-                    onChange={() => setShowHeatmap((v) => !v)}
-                  />
-                  혼잡도 히트맵
-                </label>
-              </>
-            )}
-
-            {/* POI 편집 모드 */}
-            {editMode === 'poi' && (
-              <>
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>POI 유형</span>
-                  <div className={styles.poiTypeGrid}>
-                    {(
-                      Object.entries(POI_TYPE_CONFIG) as [
-                        PoiType,
-                        (typeof POI_TYPE_CONFIG)[PoiType],
-                      ][]
-                    ).map(([type, cfg]) => (
-                      <button
-                        key={type}
-                        type="button"
-                        className={clsx(
-                          styles.poiTypeBtn,
-                          placingDeviceType === null &&
-                            selectedPoiType === type &&
-                            styles.poiTypeBtnActive,
-                        )}
-                        style={
-                          placingDeviceType === null && selectedPoiType === type
-                            ? {
-                                borderColor: cfg.color,
-                                backgroundColor: `${cfg.color}15`,
-                                color: cfg.color,
-                              }
-                            : {}
-                        }
-                        onClick={() => {
-                          setSelectedPoiType(type);
-                          setPlacingDeviceType(null);
-                        }}
-                      >
-                        {cfg.icon} {cfg.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>장치 배치</span>
-                  <div className={styles.poiTypeGrid}>
-                    {(
-                      Object.entries(DEVICE_PLACE_CONFIG) as [
-                        PlacingDeviceType,
-                        (typeof DEVICE_PLACE_CONFIG)[PlacingDeviceType],
-                      ][]
-                    ).map(([type, cfg]) => (
-                      <button
-                        key={type}
-                        type="button"
-                        className={clsx(
-                          styles.poiTypeBtn,
-                          placingDeviceType === type && styles.poiTypeBtnActive,
-                        )}
-                        style={
-                          placingDeviceType === type
-                            ? {
-                                borderColor: cfg.color,
-                                backgroundColor: `${cfg.color}15`,
-                                color: cfg.color,
-                              }
-                            : {}
-                        }
-                        onClick={() =>
-                          setPlacingDeviceType((prev) => (prev === type ? null : type))
-                        }
-                      >
-                        {type === 'cctv' ? '📷' : '💡'} {cfg.label}
-                      </button>
-                    ))}
-                  </div>
-                  {addedDevices.length > 0 && (
-                    <ul
-                      style={{
-                        margin: '0.6rem 0 0',
-                        padding: 0,
-                        listStyle: 'none',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.4rem',
-                      }}
-                    >
-                      {addedDevices.map((d) => (
-                        <li
-                          key={d.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: '1.15rem',
-                            color: '#374151',
-                          }}
-                        >
-                          <span>{d.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleAddedDeviceDelete(d.id)}
-                            style={{
-                              border: 'none',
-                              background: 'none',
-                              cursor: 'pointer',
-                              color: '#ef4444',
-                              fontSize: '1.2rem',
-                              padding: '0 0.2rem',
-                            }}
-                            title="삭제"
-                          >
-                            ✕
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                <p style={{ margin: 0, color: '#9ca3af', fontSize: '1.1rem', lineHeight: 1.4 }}>
-                  {placingDeviceType
-                    ? `도면을 클릭해 ${DEVICE_PLACE_CONFIG[placingDeviceType].label} 위치를 등록합니다`
-                    : `도면을 클릭해 ${(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label} 마커를 추가합니다`}
-                </p>
-              </>
-            )}
-
-            {/* 범례 */}
-            <div className={styles.legend}>
-              <div className={styles.legendItem}>
-                <span className={clsx(styles.legendDot, styles.legendDotIot)} />
-                유도등
-              </div>
-              <div className={styles.legendItem}>
-                <span className={clsx(styles.legendDot, styles.legendDotCctv)} />
-                CCTV
-              </div>
             </div>
           </div>
         </aside>

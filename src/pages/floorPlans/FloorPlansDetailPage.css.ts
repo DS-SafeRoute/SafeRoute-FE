@@ -66,6 +66,49 @@ export const dropdownFullWidth = style({
   width: '100%',
 });
 
+/* ── 층 목록 ── */
+export const floorNavCard = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  overflow: 'hidden',
+});
+
+export const floorNavHeader = style({
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  padding: `${vars.space.s3} ${vars.space.s4}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const floorNavList = style({
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+export const floorNavItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  border: 'none',
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  padding: `${vars.space.s3} ${vars.space.s4}`,
+  width: '100%',
+  textAlign: 'left',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:last-child': { borderBottom: 'none' },
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const floorNavItemActive = style({
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+});
+
 globalStyle(`${dropdownFullWidth} button`, {
   justifyContent: 'space-between',
   borderRadius: vars.radius.md,
