@@ -13,11 +13,10 @@ import { formatFloor } from '@utils/floor';
 import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
 import FloorDeleteConfirmModal from './modals/FloorDeleteConfirmModal';
-import FloorManageModal from './modals/FloorManageModal';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 
-import type { Floor, FloorBuilding, SegmentationStatus } from './types/floorPlans';
+import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
 const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBadgeColor }> = {
   NONE: { label: '미등록', color: 'neutral' },
@@ -44,23 +43,34 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
   return <span className={styles.metaValue}>—</span>;
 };
 
-type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
-
-interface FloorCardProps {
-  floor: {
-    id: number;
-    floorNum: number;
-    mapImageUrl: string | null;
-    segmentationStatus: SegmentationStatus;
-    processedAt: string | null;
-  };
-  buildingId: number;
-  onManage: (buildingId: number) => void;
-  onUpload: (target: UploadTarget) => void;
-  buildingName: string;
+interface FloorSummary {
+  id: number;
+  floorNum: number;
+  mapImageUrl: string | null;
+  segmentationStatus: SegmentationStatus;
+  processedAt: string | null;
 }
 
-const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: FloorCardProps) => {
+type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
+type FloorActionTarget = { buildingId: number; buildingName: string; floor: FloorSummary };
+
+interface FloorCardProps {
+  floor: FloorSummary;
+  buildingId: number;
+  buildingName: string;
+  onUpload: (target: UploadTarget) => void;
+  onReupload: (target: FloorActionTarget) => void;
+  onDelete: (target: FloorActionTarget) => void;
+}
+
+const FloorCard = ({
+  floor,
+  buildingId,
+  buildingName,
+  onUpload,
+  onReupload,
+  onDelete,
+}: FloorCardProps) => {
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
   const isProcessing =
     floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
@@ -100,15 +110,27 @@ const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: Floo
         >
           도면 업로드
         </button>
-      ) : (
-        <button
-          type="button"
-          className={styles.manageButton}
-          disabled={isProcessing}
-          onClick={() => !isProcessing && onManage(buildingId)}
-        >
-          {isProcessing ? '처리 중...' : '도면 관리'}
+      ) : isProcessing ? (
+        <button type="button" className={styles.manageButton} disabled>
+          처리 중...
         </button>
+      ) : (
+        <div className={styles.cardActions}>
+          <button
+            type="button"
+            className={styles.reuploadButton}
+            onClick={() => onReupload({ buildingId, buildingName, floor })}
+          >
+            재업로드
+          </button>
+          <button
+            type="button"
+            className={styles.deleteButtonCard}
+            onClick={() => onDelete({ buildingId, buildingName, floor })}
+          >
+            삭제
+          </button>
+        </div>
       )}
     </div>
   );
@@ -120,9 +142,8 @@ const FloorPlansPage = () => {
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
-  const [manageBuildingId, setManageBuildingId] = useState<number | null>(null);
-  const [reuploadTarget, setReuploadTarget] = useState<Floor | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Floor | null>(null);
+  const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FloorActionTarget | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -134,19 +155,12 @@ const FloorPlansPage = () => {
       .finally(() => setLoading(false));
   }, [show]);
 
-  const handleManage = (buildingId: number) => {
-    setManageBuildingId(buildingId);
-  };
-
-  const manageBuilding = buildings.find((b) => b.id === manageBuildingId) ?? null;
-
-  const handleOpenFloorUpload = (floor: Floor) => {
-    if (!manageBuilding) return;
+  const handleOpenFloorUpload = (target: FloorActionTarget) => {
     setUploadTarget({
-      buildingId: manageBuilding.id,
-      buildingName: manageBuilding.name,
-      floorId: floor.id,
-      floorNum: floor.floorNum,
+      buildingId: target.buildingId,
+      buildingName: target.buildingName,
+      floorId: target.floor.id,
+      floorNum: target.floor.floorNum,
     });
   };
 
@@ -156,10 +170,8 @@ const FloorPlansPage = () => {
   };
 
   const handleDeleteConfirm = () => {
-    if (!manageBuilding || !deleteTarget) return;
-    const buildingId = manageBuilding.id;
-    const buildingName = manageBuilding.name;
-    const floor = deleteTarget;
+    if (!deleteTarget) return;
+    const { buildingId, buildingName, floor } = deleteTarget;
     deleteFloor(floor.id)
       .then(() => {
         setBuildings((prev) =>
@@ -234,8 +246,9 @@ const FloorPlansPage = () => {
                       floor={floor}
                       buildingId={building.id}
                       buildingName={building.name}
-                      onManage={handleManage}
                       onUpload={setUploadTarget}
+                      onReupload={setReuploadTarget}
+                      onDelete={setDeleteTarget}
                     />
                   ))}
               </div>
@@ -253,23 +266,12 @@ const FloorPlansPage = () => {
         />
       )}
 
-      {manageBuilding && (
-        <FloorManageModal
-          open
-          onClose={() => setManageBuildingId(null)}
-          buildingName={manageBuilding.name}
-          floors={manageBuilding.floors}
-          onUpload={handleOpenFloorUpload}
-          onReupload={setReuploadTarget}
-          onDelete={setDeleteTarget}
-        />
-      )}
-
       {reuploadTarget && (
         <FloorReuploadConfirmModal
           open
           onClose={() => setReuploadTarget(null)}
-          floorNum={reuploadTarget.floorNum}
+          buildingName={reuploadTarget.buildingName}
+          floorNum={reuploadTarget.floor.floorNum}
           onConfirm={handleReuploadConfirm}
         />
       )}
@@ -278,7 +280,8 @@ const FloorPlansPage = () => {
         <FloorDeleteConfirmModal
           open
           onClose={() => setDeleteTarget(null)}
-          floorNum={deleteTarget.floorNum}
+          buildingName={deleteTarget.buildingName}
+          floorNum={deleteTarget.floor.floorNum}
           onConfirm={handleDeleteConfirm}
         />
       )}

@@ -160,3 +160,41 @@ export const manageButton = style({
     },
   },
 });
+
+export const cardActions = style({
+  display: 'flex',
+  gap: vars.space.s2,
+});
+
+export const reuploadButton = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} 0`,
+  textAlign: 'center',
+  color: vars.color.textMid,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.gray300,
+      backgroundColor: vars.color.gray25,
+    },
+  },
+});
+
+export const deleteButtonCard = style({
+  flex: 1,
+  border: `1px solid ${vars.color.dangerLight}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} 0`,
+  textAlign: 'center',
+  color: vars.color.danger,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: '#FFF5F5' },
+  },
+});
