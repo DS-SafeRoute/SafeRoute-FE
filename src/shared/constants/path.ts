@@ -3,7 +3,9 @@ export const ROUTES = {
   LOGIN: '/login',
   SIGNUP: '/signup',
   LANDING: '/landing',
-  SCENARIO_SETTINGS: '/scenarioSettings',
+  SCENARIO_LIST: '/scenarioSettings',
+  SCENARIO_CREATE: '/scenarioSettings/new',
+  SCENARIO_DETAIL: '/scenarioSettings/:scenarioId',
   MANAGEMENT: '/management',
   BUILDINGS: '/buildings',
   FLOOR_PLANS: '/floorPlans',
@@ -13,3 +15,6 @@ export const ROUTES = {
   TRAINING_MONITORING: '/trainingAnalysis/monitoring',
   REPORTS: '/reports',
 } as const;
+
+export const getScenarioDetailPath = (scenarioId: string) =>
+  ROUTES.SCENARIO_DETAIL.replace(':scenarioId', scenarioId);
