@@ -62,6 +62,17 @@ export const cardTop = style({
   justifyContent: 'space-between',
 });
 
+export const cardIcon = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primaryLight,
+  width: '3.6rem',
+  height: '3.6rem',
+  color: vars.color.primary,
+});
+
 export const floorLabel = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
@@ -147,87 +158,5 @@ export const manageButton = style({
       opacity: '0.5',
       cursor: 'not-allowed',
     },
-  },
-});
-
-export const deleteButton = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'transparent',
-  cursor: 'pointer',
-  padding: vars.space.s1,
-  color: vars.color.textLow,
-  selectors: {
-    '&:hover': {
-      backgroundColor: vars.color.gray50,
-      color: vars.color.danger,
-    },
-  },
-});
-
-export const confirmOverlay = style({
-  position: 'fixed',
-  zIndex: 50,
-  inset: 0,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: 'rgba(0,0,0,0.4)',
-});
-
-export const confirmBox = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s4,
-  borderRadius: vars.radius.lg,
-  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-  backgroundColor: vars.color.white,
-  padding: vars.space.s6,
-  width: '32rem',
-});
-
-export const confirmTitle = style({
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-  fontWeight: vars.fontWeight.semibold,
-});
-
-export const confirmDesc = style({
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-});
-
-export const confirmActions = style({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: vars.space.s2,
-});
-
-export const confirmCancelBtn = style({
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s4}`,
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray25 },
-  },
-});
-
-export const confirmDeleteBtn = style({
-  border: 'none',
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.danger,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s4}`,
-  color: vars.color.white,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { opacity: '0.85' },
   },
 });

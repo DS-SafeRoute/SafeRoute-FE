@@ -3,7 +3,7 @@ import type { FloorBuilding } from '../types/floorPlans';
 export const mockFloorBuildings: FloorBuilding[] = [
   {
     id: 1,
-    name: 'A동 본관',
+    name: 'A동 - 본관',
     floors: [
       {
         id: 11,
@@ -144,7 +144,7 @@ export const mockFloorBuildings: FloorBuilding[] = [
   },
   {
     id: 2,
-    name: 'B동 별관',
+    name: 'B동 - 별관',
     floors: [
       {
         id: 21,

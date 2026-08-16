@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router';
 
+import MapIcon from '@assets/icons/ic-map.svg?react';
+
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
-import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
 import FloorUploadModal from './modals/FloorUploadModal';
 
@@ -24,11 +26,11 @@ const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBa
 
 const formatDate = (iso: string | null) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  const date = new Date(iso);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
@@ -40,7 +42,6 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
 };
 
 type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
-type DeleteTarget = { buildingId: number; floorId: number; floorNum: number; buildingName: string };
 
 interface FloorCardProps {
   floor: {
@@ -53,18 +54,10 @@ interface FloorCardProps {
   buildingId: number;
   onManage: (buildingId: number, floorId: number) => void;
   onUpload: (target: UploadTarget) => void;
-  onDelete: (target: DeleteTarget) => void;
   buildingName: string;
 }
 
-const FloorCard = ({
-  floor,
-  buildingId,
-  buildingName,
-  onManage,
-  onUpload,
-  onDelete,
-}: FloorCardProps) => {
+const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: FloorCardProps) => {
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
   const isProcessing =
     floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
@@ -73,35 +66,13 @@ const FloorCard = ({
   return (
     <div className={styles.floorCard}>
       <div className={styles.cardTop}>
-        <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <StatusBadge label={label} color={color} />
-          <button
-            type="button"
-            className={styles.deleteButton}
-            title="층 삭제"
-            onClick={() =>
-              onDelete({ buildingId, floorId: floor.id, floorNum: floor.floorNum, buildingName })
-            }
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6M14 11v6" />
-              <path d="M9 6V4h6v2" />
-            </svg>
-          </button>
+        <div className={styles.cardIcon}>
+          <MapIcon width={16} height={16} />
         </div>
+        <StatusBadge label={label} color={color} />
       </div>
+
+      <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
 
       <div className={styles.divider} />
 
@@ -146,7 +117,6 @@ const FloorPlansPage = () => {
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -157,29 +127,6 @@ const FloorPlansPage = () => {
       })
       .finally(() => setLoading(false));
   }, [show]);
-
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return;
-    deleteFloor(deleteTarget.floorId)
-      .then(() => {
-        setBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== deleteTarget.buildingId
-              ? b
-              : { ...b, floors: b.floors.filter((f) => f.id !== deleteTarget.floorId) },
-          ),
-        );
-        show({
-          title: '층 도면이 삭제되었습니다.',
-          description: `${deleteTarget.buildingName} · ${formatFloor(deleteTarget.floorNum)} 도면이 삭제되었습니다.`,
-          variant: 'success',
-        });
-      })
-      .catch(() => {
-        show({ title: '삭제에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setDeleteTarget(null));
-  };
 
   const handleManage = (buildingId: number, floorId: number) => {
     void navigate(`/floorPlans/${buildingId}/${floorId}`);
@@ -242,7 +189,6 @@ const FloorPlansPage = () => {
                       buildingName={building.name}
                       onManage={handleManage}
                       onUpload={setUploadTarget}
-                      onDelete={setDeleteTarget}
                     />
                   ))}
               </div>
@@ -258,34 +204,6 @@ const FloorPlansPage = () => {
           floorNum={uploadTarget.floorNum}
           onConfirm={handleUploadConfirm}
         />
-      )}
-
-      {deleteTarget && (
-        <div className={styles.confirmOverlay} onClick={() => setDeleteTarget(null)}>
-          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.confirmTitle}>층 도면 삭제</p>
-            <p className={styles.confirmDesc}>
-              {deleteTarget.buildingName} · {formatFloor(deleteTarget.floorNum)} 도면을 삭제하면
-              복구할 수 없습니다. 계속하시겠습니까?
-            </p>
-            <div className={styles.confirmActions}>
-              <button
-                type="button"
-                className={styles.confirmCancelBtn}
-                onClick={() => setDeleteTarget(null)}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className={styles.confirmDeleteBtn}
-                onClick={handleDeleteConfirm}
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </>
   );
