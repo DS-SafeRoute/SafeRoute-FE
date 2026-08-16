@@ -35,7 +35,19 @@ const FloorStepperField = ({
 
   return (
     <div className={styles.container}>
-      <span className={styles.label}>{label}</span>
+      <span className={styles.label}>
+        {label.includes(' *') ? (
+          <>
+            {label.replace(' *', '')}
+            <span className={styles.requiredMark} aria-hidden="true">
+              {' '}
+              *
+            </span>
+          </>
+        ) : (
+          label
+        )}
+      </span>
       <div className={styles.controls({ isError })}>
         <button
           type="button"

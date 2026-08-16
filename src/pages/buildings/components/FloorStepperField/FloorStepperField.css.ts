@@ -5,6 +5,7 @@ import { vars } from '@styles/global.css';
 
 export const container = style({
   display: 'flex',
+  flex: 1,
   flexDirection: 'column',
   gap: vars.space.s2,
 });
@@ -14,13 +15,17 @@ export const label = style({
   ...vars.typography.body14Medium,
 });
 
+export const requiredMark = style({
+  color: vars.color.danger,
+});
+
 export const controls = recipe({
   base: {
     display: 'flex',
     alignItems: 'center',
     border: `1px solid ${vars.color.gray100}`,
     borderRadius: vars.radius.md,
-    width: 'fit-content',
+    width: '100%',
     overflow: 'hidden',
   },
   variants: {
@@ -50,10 +55,11 @@ export const stepButton = style({
 });
 
 export const input = style({
+  flex: 1,
   outline: 'none',
   border: 'none',
   backgroundColor: vars.color.white,
-  width: '5.2rem',
+  minWidth: 0,
   height: '4.4rem',
   textAlign: 'center',
   ...vars.typography.body14,

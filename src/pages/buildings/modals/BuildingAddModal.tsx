@@ -24,7 +24,7 @@ interface FormState {
   belowFloors: string;
 }
 
-const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '', belowFloors: '' };
+const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '1', belowFloors: '0' };
 
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
