@@ -13,6 +13,7 @@ import { formatFloor } from '@utils/floor';
 import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
 import FloorManageModal from './modals/FloorManageModal';
+import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 
 import type { Floor, FloorBuilding, SegmentationStatus } from './types/floorPlans';
@@ -119,6 +120,7 @@ const FloorPlansPage = () => {
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [manageBuildingId, setManageBuildingId] = useState<number | null>(null);
+  const [reuploadTarget, setReuploadTarget] = useState<Floor | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -144,6 +146,11 @@ const FloorPlansPage = () => {
       floorId: floor.id,
       floorNum: floor.floorNum,
     });
+  };
+
+  const handleReuploadConfirm = () => {
+    if (reuploadTarget) handleOpenFloorUpload(reuploadTarget);
+    setReuploadTarget(null);
   };
 
   const handleDeleteFloor = (floor: Floor) => {
@@ -248,8 +255,17 @@ const FloorPlansPage = () => {
           buildingName={manageBuilding.name}
           floors={manageBuilding.floors}
           onUpload={handleOpenFloorUpload}
-          onReupload={handleOpenFloorUpload}
+          onReupload={setReuploadTarget}
           onDelete={handleDeleteFloor}
+        />
+      )}
+
+      {reuploadTarget && (
+        <FloorReuploadConfirmModal
+          open
+          onClose={() => setReuploadTarget(null)}
+          floorNum={reuploadTarget.floorNum}
+          onConfirm={handleReuploadConfirm}
         />
       )}
     </>
