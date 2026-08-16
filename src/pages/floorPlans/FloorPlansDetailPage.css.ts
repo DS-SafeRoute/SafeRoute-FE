@@ -289,6 +289,153 @@ export const zoneLegendDelete = style({
   },
 });
 
+/* ── 우측 장비 목록 패널 ── */
+export const devicePanel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexShrink: 0,
+  borderLeft: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  width: '32rem',
+  overflowY: 'auto',
+});
+
+export const devicePanelInner = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  padding: vars.space.s5,
+});
+
+export const filterTabs = style({
+  display: 'flex',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  overflow: 'hidden',
+});
+
+export const filterTab = style({
+  display: 'flex',
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const filterTabActive = style({
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+  fontWeight: vars.fontWeight.semibold,
+});
+
+export const subFilterChips = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: vars.space.s1,
+});
+
+export const subFilterChip = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: '0.4rem 1rem',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const subFilterChipActive = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+});
+
+export const devicePanelEmpty = style({
+  margin: 0,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
+export const deviceCard = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  padding: vars.space.s4,
+});
+
+export const deviceCardSelected = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+});
+
+export const deviceCardName = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const deviceCardRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+
+export const deviceCardKey = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const deviceCardValue = style({
+  color: vars.color.textHigh,
+  ...vars.typography.caption,
+});
+
+export const deviceCardActions = style({
+  display: 'flex',
+  gap: vars.space.s2,
+  marginTop: vars.space.s1,
+});
+
+export const deviceCardEditBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const deviceCardDeleteBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.dangerLight}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.danger,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: '#FFF5F5' },
+  },
+});
+
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
   position: 'absolute',
@@ -475,89 +622,6 @@ export const canvasPlaceholderTitle = style({
   color: vars.color.textMid,
   ...vars.typography.body14Medium,
 });
-
-/* ── 우측: 선택 정보 패널 ── */
-export const infoPanel = style({
-  position: 'absolute',
-  zIndex: 10,
-  right: vars.space.s6,
-  bottom: vars.space.s6,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: vars.color.white,
-  padding: vars.space.s4,
-  width: '22rem',
-});
-
-export const infoPanelHeader = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: vars.space.s1,
-});
-
-export const infoPanelTitle = style({
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-});
-
-export const infoPanelClose = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  background: 'none',
-  cursor: 'pointer',
-  padding: vars.space.s1,
-  color: vars.color.textLow,
-  selectors: {
-    '&:hover': { color: vars.color.textHigh },
-  },
-});
-
-export const infoPanelThumb = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: vars.space.s2,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.gray50,
-  height: '7rem',
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const infoPanelRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingTop: '0.4rem',
-  paddingBottom: '0.4rem',
-});
-
-export const infoPanelKey = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const infoPanelValue = style({
-  textAlign: 'right',
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-});
-
-export const infoPanelActions = style({
-  display: 'flex',
-  gap: vars.space.s2,
-  marginTop: vars.space.s2,
-});
-
-export const infoPanelActionBtn = style({ flex: 1 });
 
 /* ── 줌 리셋 ── */
 export const zoomValueClickable = style({

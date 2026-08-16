@@ -28,6 +28,17 @@ import type {
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
 
+type PanelItem = {
+  id: string;
+  kind: 'device' | 'poi';
+  type: 'cctv' | 'iot' | 'general';
+  label: string;
+  statusText: string;
+  statusOnline: boolean;
+  zone: string;
+  source: 'floor' | 'added' | 'poi';
+};
+
 type PoiType = 'exit' | 'stair' | 'extinguisher' | 'assembly' | 'firstaid';
 
 const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: string }> = {
@@ -464,88 +475,6 @@ const DevicePin = ({
   );
 };
 
-/* ── 선택 정보 패널 ── */
-const InfoPanel = ({ selected, onClose }: { selected: SelectedItem; onClose: () => void }) => {
-  if (selected.kind === 'device') {
-    const d = selected.data;
-    return (
-      <div className={styles.infoPanel}>
-        <div className={styles.infoPanelHeader}>
-          <span className={styles.infoPanelTitle}>선택 정보 · {d.label}</span>
-          <button
-            type="button"
-            className={styles.infoPanelClose}
-            onClick={onClose}
-            aria-label="닫기"
-          >
-            <XIcon width={14} height={14} />
-          </button>
-        </div>
-        {d.type === 'cctv' && <div className={styles.infoPanelThumb}>CCTV thumbnail</div>}
-        <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>장치 ID</span>
-          <span className={styles.infoPanelValue}>{d.id.toUpperCase()}</span>
-        </div>
-        {d.model && (
-          <div className={styles.infoPanelRow}>
-            <span className={styles.infoPanelKey}>모델</span>
-            <span className={styles.infoPanelValue}>{d.model}</span>
-          </div>
-        )}
-        <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>상태</span>
-          <StatusBadge
-            label={d.status === 'online' ? '실시간' : '오프라인'}
-            color={d.status === 'online' ? 'green' : 'neutral'}
-            dot
-          />
-        </div>
-        {d.resolution && (
-          <div className={styles.infoPanelRow}>
-            <span className={styles.infoPanelKey}>해상도</span>
-            <span className={styles.infoPanelValue}>{d.resolution}</span>
-          </div>
-        )}
-        <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>설치 위치</span>
-          <span className={styles.infoPanelValue}>{d.zone}</span>
-        </div>
-        <div className={styles.infoPanelActions}>
-          <Button
-            variant="outlined"
-            size="sm"
-            className={styles.infoPanelActionBtn}
-            onClick={onClose}
-          >
-            설정
-          </Button>
-          <Button variant="primary" size="sm" className={styles.infoPanelActionBtn}>
-            스트림 보기
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const p = selected.data;
-  return (
-    <div className={styles.infoPanel}>
-      <div className={styles.infoPanelHeader}>
-        <span className={styles.infoPanelTitle}>선택 정보 · {p.label}</span>
-        <button type="button" className={styles.infoPanelClose} onClick={onClose} aria-label="닫기">
-          <XIcon width={14} height={14} />
-        </button>
-      </div>
-      <div className={styles.infoPanelRow}>
-        <span className={styles.infoPanelKey}>유형</span>
-        <span className={styles.infoPanelValue}>
-          {p.type === 'exit' ? '비상구' : p.type === 'stair' ? '계단' : '화재 구역'}
-        </span>
-      </div>
-    </div>
-  );
-};
-
 /* ── 장비 추가 팝업 ── */
 const NodeAddPopup = ({
   onCancel,
@@ -978,6 +907,8 @@ const FloorPlansDetailPage = () => {
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
   const [zones, setZones] = useState<{ id: string; type: ZoneType; label: string }[]>([]);
+  const [deviceFilter, setDeviceFilter] = useState<'all' | 'general' | 'cctv' | 'iot'>('all');
+  const [subFilter, setSubFilter] = useState<string | null>(null);
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
@@ -1091,6 +1022,71 @@ const FloorPlansDetailPage = () => {
 
   const handleZoneDelete = (id: string) => {
     setZones((prev) => prev.filter((z) => z.id !== id));
+  };
+
+  const allPanelItems: PanelItem[] = [
+    ...(floor?.devices ?? []).map((d) => ({
+      id: d.id,
+      kind: 'device' as const,
+      type: d.type as 'cctv' | 'iot',
+      label: d.label,
+      statusText: d.status === 'online' ? '실시간' : '오프라인',
+      statusOnline: d.status === 'online',
+      zone: d.zone,
+      source: 'floor' as const,
+    })),
+    ...addedDevices.map((d) => ({
+      id: d.id,
+      kind: 'device' as const,
+      type: d.type,
+      label: d.label,
+      statusText: '실시간',
+      statusOnline: true,
+      zone: d.zone,
+      source: 'added' as const,
+    })),
+    ...poiMarkers.map((p) => ({
+      id: p.id,
+      kind: 'poi' as const,
+      type: 'general' as const,
+      label: p.label,
+      statusText: '등록됨',
+      statusOnline: true,
+      zone: '-',
+      source: 'poi' as const,
+    })),
+  ];
+
+  const panelItems = allPanelItems.filter((item) => {
+    if (deviceFilter !== 'all' && item.type !== deviceFilter) return false;
+    if (subFilter && !item.zone.includes(subFilter)) return false;
+    return true;
+  });
+
+  const handlePanelItemSelect = (item: PanelItem) => {
+    if (item.kind !== 'device') return;
+    const data =
+      item.source === 'floor'
+        ? floor?.devices.find((d) => d.id === item.id)
+        : addedDevices.find((d) => d.id === item.id);
+    if (data) setSelectedItem({ kind: 'device', data });
+  };
+
+  const handlePanelItemDelete = (item: PanelItem) => {
+    if (item.kind === 'poi') {
+      handlePoiDelete(item.id);
+      return;
+    }
+    if (item.source === 'added') {
+      handleAddedDeviceDelete(item.id);
+      return;
+    }
+    setFloor((prev) =>
+      prev ? { ...prev, devices: prev.devices.filter((d) => d.id !== item.id) } : prev,
+    );
+    if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
+      setSelectedItem(null);
+    }
   };
 
   const handlePoiClick = (id: string) => {
@@ -1289,12 +1285,101 @@ const FloorPlansDetailPage = () => {
               +
             </button>
           </div>
-
-          {/* 선택된 항목 패널 */}
-          {selectedItem && (
-            <InfoPanel selected={selectedItem} onClose={() => setSelectedItem(null)} />
-          )}
         </div>
+
+        {/* ── 우측 장비 목록 패널 ── */}
+        <aside className={styles.devicePanel}>
+          <div className={styles.devicePanelInner}>
+            <div className={styles.filterTabs}>
+              {(
+                [
+                  { key: 'all', label: '전체' },
+                  { key: 'general', label: '일반' },
+                  { key: 'cctv', label: 'CCTV' },
+                  { key: 'iot', label: 'IoT' },
+                ] as const
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={clsx(styles.filterTab, deviceFilter === key && styles.filterTabActive)}
+                  onClick={() => setDeviceFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.subFilterChips}>
+              {['교실', '문', '계단', '복도'].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  className={clsx(
+                    styles.subFilterChip,
+                    subFilter === chip && styles.subFilterChipActive,
+                  )}
+                  onClick={() => setSubFilter((prev) => (prev === chip ? null : chip))}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            {panelItems.length === 0 ? (
+              <p className={styles.devicePanelEmpty}>표시할 장비가 없습니다</p>
+            ) : (
+              panelItems.map((item) => {
+                const isSelected =
+                  selectedItem?.kind === 'device'
+                    ? item.kind === 'device' && selectedItem.data.id === item.id
+                    : selectedItem?.kind === 'poi'
+                      ? item.kind === 'poi' && selectedItem.data.id === item.id
+                      : false;
+                return (
+                  <div
+                    key={item.id}
+                    className={clsx(styles.deviceCard, isSelected && styles.deviceCardSelected)}
+                  >
+                    <span className={styles.deviceCardName}>{item.label}</span>
+                    <div className={styles.deviceCardRow}>
+                      <span className={styles.deviceCardKey}>장치 ID</span>
+                      <span className={styles.deviceCardValue}>{item.id.toUpperCase()}</span>
+                    </div>
+                    <div className={styles.deviceCardRow}>
+                      <span className={styles.deviceCardKey}>상태</span>
+                      <StatusBadge
+                        label={item.statusText}
+                        color={item.statusOnline ? 'green' : 'neutral'}
+                        dot
+                      />
+                    </div>
+                    <div className={styles.deviceCardRow}>
+                      <span className={styles.deviceCardKey}>설치 위치</span>
+                      <span className={styles.deviceCardValue}>{item.zone}</span>
+                    </div>
+                    <div className={styles.deviceCardActions}>
+                      <button
+                        type="button"
+                        className={styles.deviceCardEditBtn}
+                        onClick={() => handlePanelItemSelect(item)}
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.deviceCardDeleteBtn}
+                        onClick={() => handlePanelItemDelete(item)}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </aside>
       </div>
 
       <FloorUploadModal
