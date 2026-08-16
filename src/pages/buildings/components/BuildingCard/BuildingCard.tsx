@@ -17,6 +17,8 @@ interface BuildingCardProps {
   onFloorPlan: (building: Building) => void;
 }
 
+const formatTrainingDate = (date: string) => (date === '-' ? date : date.split('-').join('.'));
+
 const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardProps) => {
   const isIotWarning = building.iotOnline < building.iotTotal;
 
@@ -25,7 +27,9 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <span className={styles.name}>{building.name}</span>
-          <span className={styles.lastTraining}>최근 훈련 · {building.lastTrainingDate}</span>
+          <span className={styles.lastTraining}>
+            최근 훈련 · {formatTrainingDate(building.lastTrainingDate)}
+          </span>
         </div>
         <div className={styles.headerRight}>
           <StatusBadge
