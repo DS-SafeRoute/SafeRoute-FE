@@ -12,6 +12,7 @@ import { formatFloor } from '@utils/floor';
 
 import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
+import FloorDeleteConfirmModal from './modals/FloorDeleteConfirmModal';
 import FloorManageModal from './modals/FloorManageModal';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -121,6 +122,7 @@ const FloorPlansPage = () => {
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [manageBuildingId, setManageBuildingId] = useState<number | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<Floor | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Floor | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -153,9 +155,11 @@ const FloorPlansPage = () => {
     setReuploadTarget(null);
   };
 
-  const handleDeleteFloor = (floor: Floor) => {
-    if (!manageBuilding) return;
+  const handleDeleteConfirm = () => {
+    if (!manageBuilding || !deleteTarget) return;
     const buildingId = manageBuilding.id;
+    const buildingName = manageBuilding.name;
+    const floor = deleteTarget;
     deleteFloor(floor.id)
       .then(() => {
         setBuildings((prev) =>
@@ -165,13 +169,14 @@ const FloorPlansPage = () => {
         );
         show({
           title: '층 도면이 삭제되었습니다.',
-          description: `${manageBuilding.name} · ${formatFloor(floor.floorNum)} 도면이 삭제되었습니다.`,
+          description: `${buildingName} · ${formatFloor(floor.floorNum)} 도면이 삭제되었습니다.`,
           variant: 'success',
         });
       })
       .catch(() => {
         show({ title: '삭제에 실패했습니다.', variant: 'error' });
-      });
+      })
+      .finally(() => setDeleteTarget(null));
   };
 
   const handleUploadConfirm = (file: File) => {
@@ -256,7 +261,7 @@ const FloorPlansPage = () => {
           floors={manageBuilding.floors}
           onUpload={handleOpenFloorUpload}
           onReupload={setReuploadTarget}
-          onDelete={handleDeleteFloor}
+          onDelete={setDeleteTarget}
         />
       )}
 
@@ -266,6 +271,15 @@ const FloorPlansPage = () => {
           onClose={() => setReuploadTarget(null)}
           floorNum={reuploadTarget.floorNum}
           onConfirm={handleReuploadConfirm}
+        />
+      )}
+
+      {deleteTarget && (
+        <FloorDeleteConfirmModal
+          open
+          onClose={() => setDeleteTarget(null)}
+          floorNum={deleteTarget.floorNum}
+          onConfirm={handleDeleteConfirm}
         />
       )}
     </>
