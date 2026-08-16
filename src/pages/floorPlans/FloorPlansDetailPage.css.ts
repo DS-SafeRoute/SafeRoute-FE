@@ -113,6 +113,95 @@ export const canvasActionButton = style({
   },
 });
 
+/* ── 장비 추가 팝업 ── */
+export const nodeAddPopup = style({
+  position: 'absolute',
+  zIndex: 15,
+  top: '7.2rem',
+  right: vars.space.s6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s4,
+  width: '23rem',
+});
+
+export const nodeAddTitle = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const nodeAddField = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s1,
+});
+
+export const nodeAddLabel = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const nodeAddSelect = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+});
+
+export const nodeAddInput = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+export const nodeAddActions = style({
+  display: 'flex',
+  gap: vars.space.s2,
+});
+
+export const nodeAddCancelBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const nodeAddSubmitBtn = style({
+  flex: 1,
+  border: 'none',
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primary,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.white,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover:not(:disabled)': { backgroundColor: vars.color.primaryHover },
+    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
+  },
+});
+
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
   position: 'absolute',

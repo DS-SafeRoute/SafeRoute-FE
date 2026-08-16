@@ -546,6 +546,71 @@ const InfoPanel = ({ selected, onClose }: { selected: SelectedItem; onClose: () 
   );
 };
 
+/* ── 장비 추가 팝업 ── */
+const NodeAddPopup = ({
+  onCancel,
+  onAdd,
+}: {
+  onCancel: () => void;
+  onAdd: (type: PlacingDeviceType, deviceId: string, location: string) => void;
+}) => {
+  const [type, setType] = useState<PlacingDeviceType>('cctv');
+  const [deviceId, setDeviceId] = useState('');
+  const [location, setLocation] = useState('');
+
+  return (
+    <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+      <span className={styles.nodeAddTitle}>장비 정보 입력</span>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>장비 종류</span>
+        <select
+          className={styles.nodeAddSelect}
+          value={type}
+          onChange={(e) => setType(e.target.value as PlacingDeviceType)}
+        >
+          <option value="cctv">CCTV</option>
+          <option value="iot">IoT 유도등</option>
+        </select>
+      </div>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>장치 ID</span>
+        <input
+          className={styles.nodeAddInput}
+          value={deviceId}
+          onChange={(e) => setDeviceId(e.target.value)}
+          placeholder="CCTV-A3-05"
+        />
+      </div>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>설치 위치</span>
+        <input
+          className={styles.nodeAddInput}
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="3층 · 복도 동측"
+        />
+      </div>
+
+      <div className={styles.nodeAddActions}>
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={styles.nodeAddSubmitBtn}
+          disabled={!deviceId.trim()}
+          onClick={() => onAdd(type, deviceId.trim(), location.trim())}
+        >
+          추가
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /* ── 도면 캔버스 ── */
 const FloorCanvas = ({
   floor,
@@ -814,6 +879,7 @@ const FloorPlansDetailPage = () => {
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
@@ -895,6 +961,24 @@ const FloorPlansDetailPage = () => {
 
   const handleAddedDeviceDelete = (id: string) => {
     setAddedDevices((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleAddDevice = (type: PlacingDeviceType, deviceId: string, location: string) => {
+    const cfg = DEVICE_PLACE_CONFIG[type];
+    const count = addedDevices.filter((d) => d.type === type).length + 1;
+    setAddedDevices((prev) => [
+      ...prev,
+      {
+        id: `added-${type}-${Date.now()}`,
+        type,
+        label: deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
+        x: 50,
+        y: 50,
+        status: 'online',
+        zone: location || '사용자 등록',
+      },
+    ]);
+    setNodeAddOpen(false);
   };
 
   const handlePoiClick = (id: string) => {
@@ -1008,7 +1092,11 @@ const FloorPlansDetailPage = () => {
           {/* 장비 추가 / 구역 추가 */}
           {currentFloor?.segmentationStatus === 'DONE' && (
             <div className={styles.canvasActionFloat}>
-              <button type="button" className={styles.canvasActionButton}>
+              <button
+                type="button"
+                className={styles.canvasActionButton}
+                onClick={() => setNodeAddOpen((v) => !v)}
+              >
                 <PlusIcon width={14} height={14} />
                 장비 추가
               </button>
@@ -1017,6 +1105,10 @@ const FloorPlansDetailPage = () => {
                 구역 추가
               </button>
             </div>
+          )}
+
+          {nodeAddOpen && (
+            <NodeAddPopup onCancel={() => setNodeAddOpen(false)} onAdd={handleAddDevice} />
           )}
 
           {/* 플로팅 줌 컨트롤 */}
