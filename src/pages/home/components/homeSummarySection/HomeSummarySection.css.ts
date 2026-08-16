@@ -25,13 +25,6 @@ export const metricCard = style([
   },
 ]);
 
-export const metricHeader = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  marginBottom: '1.4rem',
-});
-
 export const metricIcon = styleVariants({
   blue: {
     backgroundColor: vars.color.primaryLight2,
@@ -55,6 +48,7 @@ export const metricIconBase = style({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
+  marginBottom: '1.4rem',
   borderRadius: '1rem',
   width: '4rem',
   height: '4rem',
@@ -63,27 +57,6 @@ export const metricIconBase = style({
 globalStyle(`${metricIconBase} svg`, {
   width: '2rem',
   height: '2rem',
-});
-
-export const metricTrend = styleVariants({
-  positive: {
-    color: vars.color.success,
-  },
-  negative: {
-    color: vars.color.danger,
-  },
-});
-
-export const metricTrendBase = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: vars.space.s1,
-  ...vars.typography.captionBold,
-});
-
-globalStyle(`${metricTrendBase} svg`, {
-  width: '1.2rem',
-  height: '1.2rem',
 });
 
 export const metricValueRow = style({

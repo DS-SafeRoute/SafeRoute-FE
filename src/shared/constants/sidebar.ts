@@ -1,5 +1,4 @@
 import BuildingIcon from '@assets/icons/ic-building.svg?react';
-import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import DashBoardIcon from '@assets/icons/ic-dashboard.svg?react';
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
 import HomeIcon from '@assets/icons/ic-home.svg?react';
@@ -18,7 +17,6 @@ export const sidebarItems = [
     items: [
       { label: '건물 관리', icon: BuildingIcon, path: ROUTES.BUILDINGS },
       { label: '도면 관리', icon: MapIcon, path: ROUTES.FLOOR_PLANS },
-      { label: '카메라 관리', icon: CameraIcon, path: ROUTES.CAMERAS },
     ],
   },
   { label: '훈련 분석', icon: VideoIcon, path: ROUTES.TRAINING_ANALYSIS },

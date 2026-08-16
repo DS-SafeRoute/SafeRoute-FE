@@ -7,13 +7,12 @@ import CheckCircleIcon from '@assets/icons/ic-check-circle.svg?react';
 import ClockIcon from '@assets/icons/ic-clock.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import PlayIcon from '@assets/icons/ic-play.svg?react';
-import TrendDownIcon from '@assets/icons/ic-trenddown.svg?react';
 import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
 
-import HomeSummarySection from './components/HomeSummarySection/HomeSummarySection';
-import RecentTrainingSection from './components/RecentTrainingSection/RecentTrainingSection';
-import ScheduledTrainingSection from './components/ScheduledTrainingSection/ScheduledTrainingSection';
-import SystemStatusSection from './components/SystemStatusSection/SystemStatusSection';
+import HomeSummarySection from './components/homeSummarySection/HomeSummarySection';
+import RecentTrainingSection from './components/recentTrainingSection/RecentTrainingSection';
+import ScheduledTrainingSection from './components/scheduledTrainingSection/ScheduledTrainingSection';
+import SystemStatusSection from './components/systemStatusSection/SystemStatusSection';
 import { HOME_TRAINING_STATUS } from './constants/home';
 import * as styles from './HomePage.css';
 import {
@@ -30,11 +29,6 @@ const metricIcons: Record<HomeMetric['iconKey'], JSX.Element> = {
   clock: <ClockIcon />,
   trend: <TrendUpIcon />,
   user: <UsersIcon />,
-};
-
-const trendIcons: Record<HomeMetric['trendDirection'], JSX.Element> = {
-  up: <TrendUpIcon />,
-  down: <TrendDownIcon />,
 };
 
 const sectionIcons = {
@@ -57,30 +51,31 @@ const HomePage = () => {
 
   return (
     <div className={styles.container}>
-      <HomeSummarySection
-        metrics={homeMetrics.map((metric) => ({
-          ...metric,
-          icon: metricIcons[metric.iconKey],
-          trendIcon: trendIcons[metric.trendDirection],
-        }))}
-      />
+      <div className={styles.sectionContainer}>
+        <HomeSummarySection
+          metrics={homeMetrics.map((metric) => ({
+            ...metric,
+            icon: metricIcons[metric.iconKey],
+          }))}
+        />
 
-      <div className={styles.contentGrid}>
-        <RecentTrainingSection records={recentTrainingRecords} actionIcon={sectionIcons.action} />
+        <div className={styles.contentGrid}>
+          <RecentTrainingSection records={recentTrainingRecords} actionIcon={sectionIcons.action} />
 
-        <div className={styles.sideColumn}>
-          <ScheduledTrainingSection
-            training={training}
-            onStart={handleTrainingStart}
-            sectionIcon={sectionIcons.calendar}
-            actionIcon={sectionIcons.play}
-          />
-          <SystemStatusSection
-            items={systemStatusItems.map((item) => ({
-              ...item,
-              icon: item.iconKey === 'success' ? sectionIcons.success : undefined,
-            }))}
-          />
+          <div className={styles.sideColumn}>
+            <ScheduledTrainingSection
+              training={training}
+              onStart={handleTrainingStart}
+              sectionIcon={sectionIcons.calendar}
+              actionIcon={sectionIcons.play}
+            />
+            <SystemStatusSection
+              items={systemStatusItems.map((item) => ({
+                ...item,
+                icon: item.iconKey === 'success' ? sectionIcons.success : undefined,
+              }))}
+            />
+          </div>
         </div>
       </div>
     </div>

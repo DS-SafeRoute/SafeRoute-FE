@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
+import clsx from 'clsx';
 import { createPortal } from 'react-dom';
 
 import XIcon from '@assets/icons/ic-x.svg?react';
@@ -18,6 +19,9 @@ export interface ModalProps {
   description?: string;
   warning?: string;
   variant?: 'form' | 'confirm';
+  icon?: ReactNode;
+  className?: string;
+  confirmBodyClassName?: string;
 }
 
 const FOCUSABLE = [
@@ -39,6 +43,9 @@ const Modal = ({
   description,
   warning,
   variant = 'form',
+  icon,
+  className,
+  confirmBodyClassName,
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -103,7 +110,7 @@ const Modal = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div ref={modalRef} className={styles.container({ size })} tabIndex={-1}>
+      <div ref={modalRef} className={clsx(styles.container({ size }), className)} tabIndex={-1}>
         {variant === 'form' && (
           <div className={styles.header}>
             <div className={styles.headerText}>
@@ -124,7 +131,8 @@ const Modal = ({
         )}
 
         {variant === 'confirm' && (
-          <div className={styles.confirmBody}>
+          <div className={clsx(styles.confirmBody, confirmBodyClassName)}>
+            {icon}
             <h2 id="modal-title" className={styles.confirmTitle}>
               {title}
             </h2>

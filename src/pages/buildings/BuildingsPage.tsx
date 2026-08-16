@@ -3,8 +3,6 @@ import { useState } from 'react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
-import GNB from '@components/gnb';
-import ToastContainer from '@components/toast/ToastContainer';
 import useToast from '@components/toast/useToast';
 
 import * as styles from './BuildingsPage.css';
@@ -28,7 +26,7 @@ type ModalState =
 const BuildingsPage = () => {
   const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
   const [modal, setModal] = useState<ModalState>(null);
-  const { toasts, leavingIds, show, dismiss } = useToast();
+  const { show } = useToast();
 
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
@@ -86,14 +84,6 @@ const BuildingsPage = () => {
 
   return (
     <>
-      <GNB
-        breadcrumbs={[{ label: '훈련 관리' }]}
-        title="건물 관리"
-        description="등록된 건물과 시설을 관리합니다"
-        userName="김안전"
-        userRole="관리자"
-      />
-
       <div className={styles.container}>
         <OrganizationCard organization={mockOrganization} buildingCount={buildings.length} />
 
@@ -148,8 +138,6 @@ const BuildingsPage = () => {
           onUpdate={handleUpdateFloorPlans}
         />
       )}
-
-      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
     </>
   );
 };

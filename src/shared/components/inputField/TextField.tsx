@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import type { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
 import clsx from 'clsx';
 
@@ -7,11 +7,12 @@ import EyeIcon from '@assets/icons/ic-eye.svg?react';
 
 import * as styles from './TextField.css';
 
-export type TextFieldProps = {
+export interface TextFieldProps extends Omit<ComponentPropsWithoutRef<'input'>, 'children'> {
   label?: string;
   helperText?: string;
   errorMessage?: string;
-} & Omit<ComponentPropsWithoutRef<'input'>, 'children'>;
+  leftIcon?: ReactNode;
+}
 
 const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
   (
@@ -19,6 +20,7 @@ const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
       label,
       helperText,
       errorMessage,
+      leftIcon,
       className,
       type = 'text',
       onFocus,
@@ -57,6 +59,7 @@ const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
           </span>
         ) : null}
         <span className={styles.fieldShell({ isError, isFocused, disabled })}>
+          {leftIcon ? <span className={styles.leftIcon}>{leftIcon}</span> : null}
           <input
             {...props}
             ref={inputRef}

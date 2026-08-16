@@ -1,12 +1,38 @@
 import { createBrowserRouter } from 'react-router';
 
 import AppLayout from '@/layout/AppLayout';
+import ProtectedRoute from '@/routes/ProtectedRoute';
 import { ROUTES } from '@/shared/constants/path';
 
 const router = createBrowserRouter([
   {
+    path: ROUTES.LANDING,
+    lazy: async () => {
+      const { default: LandingPage } = await import('@/pages/landing/LandingPage');
+      return { Component: LandingPage };
+    },
+  },
+  {
+    path: ROUTES.LOGIN,
+    lazy: async () => {
+      const { default: LoginPage } = await import('@/pages/login/LoginPage');
+      return { Component: LoginPage };
+    },
+  },
+  {
+    path: ROUTES.SIGNUP,
+    lazy: async () => {
+      const { default: SignupPage } = await import('@/pages/signup/SignupPage');
+      return { Component: SignupPage };
+    },
+  },
+  {
     path: ROUTES.HOME,
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: ROUTES.HOME,
@@ -45,6 +71,14 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: ROUTES.FLOOR_PLANS_DETAIL,
+        lazy: async () => {
+          const { default: FloorPlansDetailPage } =
+            await import('@/pages/floorPlans/FloorPlansDetailPage');
+          return { Component: FloorPlansDetailPage };
+        },
+      },
+      {
         path: ROUTES.CAMERAS,
         lazy: async () => {
           const { default: CamerasPage } = await import('@/pages/cameras/CamerasPage');
@@ -57,6 +91,14 @@ const router = createBrowserRouter([
           const { default: TrainingAnalysisPage } =
             await import('@/pages/trainingAnalysis/TrainingAnalysisPage');
           return { Component: TrainingAnalysisPage };
+        },
+      },
+      {
+        path: ROUTES.TRAINING_MONITORING,
+        lazy: async () => {
+          const { default: TrainingMonitoringPage } =
+            await import('@/pages/trainingAnalysis/TrainingMonitoringPage');
+          return { Component: TrainingMonitoringPage };
         },
       },
       {

@@ -12,15 +12,9 @@ const HomeSummarySection = ({ metrics }: HomeSummarySectionProps) => (
   <section className={styles.summaryGrid} aria-label="홈 요약 지표">
     {metrics.map((metric) => (
       <article key={metric.id} className={styles.metricCard}>
-        <div className={styles.metricHeader}>
-          <span className={clsx(styles.metricIconBase, styles.metricIcon[metric.iconTone])}>
-            {metric.icon}
-          </span>
-          <span className={clsx(styles.metricTrendBase, styles.metricTrend[metric.trendTone])}>
-            {metric.trendIcon}
-            {metric.trend}
-          </span>
-        </div>
+        <span className={clsx(styles.metricIconBase, styles.metricIcon[metric.iconTone])}>
+          {metric.icon}
+        </span>
 
         <div className={styles.metricValueRow}>
           <strong className={styles.metricValue}>{metric.value}</strong>

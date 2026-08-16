@@ -56,7 +56,11 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
                   <ul className={styles.groupList}>
                     {subItems.map((child) => {
                       const ChildIcon = child.icon;
-                      const isActive = location.pathname === child.path;
+                      const isActive =
+                        child.path === '/'
+                          ? location.pathname === child.path
+                          : location.pathname === child.path ||
+                            location.pathname.startsWith(`${child.path}/`);
 
                       return (
                         <li key={child.label}>
@@ -81,7 +85,11 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
               );
             }
 
-            const isActive = location.pathname === item.path;
+            const isActive =
+              item.path === '/'
+                ? location.pathname === item.path
+                : location.pathname === item.path ||
+                  location.pathname.startsWith(`${item.path ?? ''}/`);
 
             return (
               <li key={item.label}>

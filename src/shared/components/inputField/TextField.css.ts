@@ -11,7 +11,11 @@ export const root = style({
 
 export const label = style({
   color: vars.color.textHigh,
-  ...vars.typography.body14,
+  ...vars.typography.body14Medium,
+});
+
+export const requiredMark = style({
+  color: vars.color.danger,
 });
 
 export const requiredMark = style({
@@ -95,6 +99,14 @@ export const iconButton = style({
   ':disabled': {
     cursor: 'not-allowed',
   },
+});
+
+export const leftIcon = style({
+  display: 'inline-flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: vars.color.textLow,
 });
 
 export const icon = style({
