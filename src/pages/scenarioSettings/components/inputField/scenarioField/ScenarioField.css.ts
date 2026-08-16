@@ -1,4 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 
 import { vars } from '@styles/global.css';
 
@@ -14,17 +15,27 @@ export const label = style({
   ...vars.typography.body14Medium,
 });
 
-export const fieldShell = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s3,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  padding: '0 1.6rem',
-  height: '4.4rem',
-  color: vars.color.textHigh,
-  ...vars.typography.body14,
+export const fieldShell = recipe({
+  base: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.s3,
+    border: `1px solid ${vars.color.gray100}`,
+    borderRadius: vars.radius.md,
+    backgroundColor: vars.color.white,
+    padding: '0 1.6rem',
+    height: '4.4rem',
+    color: vars.color.textHigh,
+    ...vars.typography.body14,
+  },
+  variants: {
+    disabled: {
+      true: {
+        backgroundColor: vars.color.gray50,
+      },
+      false: {},
+    },
+  },
 });
 
 export const withLeadingIcon = style({
@@ -40,15 +51,34 @@ globalStyle(`${withLeadingIcon} svg`, {
   height: '1.4rem',
 });
 
-export const select = style({
-  appearance: 'none',
-  outline: 'none',
-  border: 'none',
-  background: 'transparent',
-  width: '100%',
-  color: vars.color.textHigh,
-  WebkitAppearance: 'none',
-  ...vars.typography.body14,
+export const select = recipe({
+  base: {
+    appearance: 'none',
+    opacity: 1,
+    outline: 'none',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    width: '100%',
+    color: vars.color.textHigh,
+    WebkitAppearance: 'none',
+    ...vars.typography.body14,
+  },
+  variants: {
+    disabled: {
+      true: {
+        cursor: 'not-allowed',
+        color: vars.color.textLow,
+      },
+      false: {},
+    },
+    readOnly: {
+      true: {
+        cursor: 'default',
+      },
+      false: {},
+    },
+  },
 });
 
 export const trailingIcon = style({

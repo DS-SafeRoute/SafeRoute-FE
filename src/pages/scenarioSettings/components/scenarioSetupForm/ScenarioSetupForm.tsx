@@ -52,12 +52,14 @@ const ScenarioSetupForm = ({
           label="대상 건물"
           value={basicInfo.targetBuilding}
           options={SCENARIO_BUILDING_OPTIONS}
-          disabled={isRunning || readOnly}
+          disabled={isRunning}
+          readOnly={readOnly}
         />
         <DateTimeField
           label="실시 일시"
           defaultValue={basicInfo.scheduledAt}
-          disabled={isRunning || readOnly}
+          disabled={isRunning}
+          readOnly={readOnly}
         />
         <TextField
           label="예상 참가 인원"
@@ -87,7 +89,8 @@ const ScenarioSetupForm = ({
               value={condition.value}
               options={options[condition.key]}
               leadingIcon={condition.key === 'origin' ? <AlertIcon /> : undefined}
-              disabled={isRunning || readOnly}
+              disabled={isRunning}
+              readOnly={readOnly}
             />
           ))}
       </div>
