@@ -611,6 +611,102 @@ const NodeAddPopup = ({
   );
 };
 
+/* ── 구역 설정 팝업 ── */
+type ZoneType = 'general' | 'camera';
+
+const ZoneAddPopup = ({
+  cameraOptions,
+  onCancel,
+  onSave,
+}: {
+  cameraOptions: { id: string; label: string }[];
+  onCancel: () => void;
+  onSave: (type: ZoneType, label: string) => void;
+}) => {
+  const [zoneType, setZoneType] = useState<ZoneType>('general');
+  const [zoneName, setZoneName] = useState('');
+  const [cameraId, setCameraId] = useState(cameraOptions[0]?.id ?? '');
+
+  const canSave = zoneType === 'general' ? zoneName.trim().length > 0 : cameraId.length > 0;
+
+  const handleSave = () => {
+    if (zoneType === 'general') {
+      onSave('general', zoneName.trim());
+    } else {
+      const camera = cameraOptions.find((c) => c.id === cameraId);
+      onSave('camera', camera ? `${camera.label} 시야 구역` : '카메라 시야 구역');
+    }
+  };
+
+  return (
+    <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+      <span className={styles.nodeAddTitle}>구역 설정</span>
+
+      <div className={styles.zoneTypeTabs}>
+        <button
+          type="button"
+          className={clsx(styles.zoneTypeTab, zoneType === 'general' && styles.zoneTypeTabActive)}
+          onClick={() => setZoneType('general')}
+        >
+          일반 구역
+        </button>
+        <button
+          type="button"
+          className={clsx(styles.zoneTypeTab, zoneType === 'camera' && styles.zoneTypeTabActive)}
+          onClick={() => setZoneType('camera')}
+        >
+          카메라 영역
+        </button>
+      </div>
+
+      {zoneType === 'general' ? (
+        <div className={styles.nodeAddField}>
+          <input
+            className={styles.nodeAddInput}
+            value={zoneName}
+            onChange={(e) => setZoneName(e.target.value)}
+            placeholder="3층 앞 복도 구역"
+          />
+        </div>
+      ) : (
+        <div className={styles.nodeAddField}>
+          <span className={styles.nodeAddLabel}>카메라 선택</span>
+          <select
+            className={styles.nodeAddSelect}
+            value={cameraId}
+            onChange={(e) => setCameraId(e.target.value)}
+            disabled={cameraOptions.length === 0}
+          >
+            {cameraOptions.length === 0 ? (
+              <option value="">등록된 카메라 없음</option>
+            ) : (
+              cameraOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      )}
+
+      <div className={styles.nodeAddActions}>
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={styles.nodeAddSubmitBtn}
+          disabled={!canSave}
+          onClick={handleSave}
+        >
+          저장
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /* ── 도면 캔버스 ── */
 const FloorCanvas = ({
   floor,
@@ -880,6 +976,8 @@ const FloorPlansDetailPage = () => {
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
+  const [zoneAddOpen, setZoneAddOpen] = useState(false);
+  const [zones, setZones] = useState<{ id: string; type: ZoneType; label: string }[]>([]);
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
@@ -979,6 +1077,20 @@ const FloorPlansDetailPage = () => {
       },
     ]);
     setNodeAddOpen(false);
+  };
+
+  const cameraOptions = [
+    ...(floor?.devices ?? []).filter((d) => d.type === 'cctv'),
+    ...addedDevices.filter((d) => d.type === 'cctv'),
+  ].map((d) => ({ id: d.id, label: d.label }));
+
+  const handleAddZone = (type: ZoneType, label: string) => {
+    setZones((prev) => [...prev, { id: `zone-${Date.now()}`, type, label }]);
+    setZoneAddOpen(false);
+  };
+
+  const handleZoneDelete = (id: string) => {
+    setZones((prev) => prev.filter((z) => z.id !== id));
   };
 
   const handlePoiClick = (id: string) => {
@@ -1100,7 +1212,11 @@ const FloorPlansDetailPage = () => {
                 <PlusIcon width={14} height={14} />
                 장비 추가
               </button>
-              <button type="button" className={styles.canvasActionButton}>
+              <button
+                type="button"
+                className={styles.canvasActionButton}
+                onClick={() => setZoneAddOpen((v) => !v)}
+              >
                 <PlusIcon width={14} height={14} />
                 구역 추가
               </button>
@@ -1109,6 +1225,41 @@ const FloorPlansDetailPage = () => {
 
           {nodeAddOpen && (
             <NodeAddPopup onCancel={() => setNodeAddOpen(false)} onAdd={handleAddDevice} />
+          )}
+
+          {zoneAddOpen && (
+            <ZoneAddPopup
+              cameraOptions={cameraOptions}
+              onCancel={() => setZoneAddOpen(false)}
+              onSave={handleAddZone}
+            />
+          )}
+
+          {zones.length > 0 && (
+            <div className={styles.zoneLegend}>
+              <span className={styles.zoneLegendTitle}>구역 목록</span>
+              {zones.map((z) => (
+                <div key={z.id} className={styles.zoneLegendItem}>
+                  <span
+                    className={clsx(
+                      styles.zoneLegendDot,
+                      z.type === 'general'
+                        ? styles.zoneLegendDotGeneral
+                        : styles.zoneLegendDotCamera,
+                    )}
+                  />
+                  <span className={styles.zoneLegendLabel}>{z.label}</span>
+                  <button
+                    type="button"
+                    className={styles.zoneLegendDelete}
+                    onClick={() => handleZoneDelete(z.id)}
+                    aria-label={`${z.label} 삭제`}
+                  >
+                    <XIcon width={11} height={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* 플로팅 줌 컨트롤 */}

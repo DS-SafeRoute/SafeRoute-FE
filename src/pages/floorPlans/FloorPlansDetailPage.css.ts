@@ -202,6 +202,93 @@ export const nodeAddSubmitBtn = style({
   },
 });
 
+export const zoneTypeTabs = style({
+  display: 'flex',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  overflow: 'hidden',
+});
+
+export const zoneTypeTab = style({
+  display: 'flex',
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const zoneTypeTabActive = style({
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+  fontWeight: vars.fontWeight.semibold,
+});
+
+/* ── 구역 목록 ── */
+export const zoneLegend = style({
+  position: 'absolute',
+  zIndex: 10,
+  bottom: vars.space.s6,
+  left: vars.space.s6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.md,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s4,
+  minWidth: '18rem',
+});
+
+export const zoneLegendTitle = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const zoneLegendItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const zoneLegendDot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  width: '0.8rem',
+  height: '0.8rem',
+});
+
+export const zoneLegendDotGeneral = style({ backgroundColor: vars.color.primary });
+export const zoneLegendDotCamera = style({ backgroundColor: vars.color.success });
+
+export const zoneLegendLabel = style({
+  flex: 1,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+});
+
+export const zoneLegendDelete = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  background: 'none',
+  cursor: 'pointer',
+  color: vars.color.textLow,
+  selectors: {
+    '&:hover': { color: vars.color.danger },
+  },
+});
+
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
   position: 'absolute',
