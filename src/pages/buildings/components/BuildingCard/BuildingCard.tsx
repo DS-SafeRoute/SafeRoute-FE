@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
-import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
@@ -15,10 +14,11 @@ interface BuildingCardProps {
   building: Building;
   onEdit: (building: Building) => void;
   onDelete: (building: Building) => void;
-  onFloorPlan: (building: Building) => void;
 }
 
-const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardProps) => {
+const formatTrainingDate = (date: string) => (date === '-' ? date : date.split('-').join('.'));
+
+const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isIotWarning = building.iotOnline < building.iotTotal;
@@ -38,15 +38,19 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
     <article className={styles.container}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <span className={styles.name}>{building.name}</span>
-          <span className={styles.lastTraining}>최근 훈련 · {building.lastTrainingDate}</span>
+          <div className={styles.nameRow}>
+            <span className={styles.name}>{building.name}</span>
+            <StatusBadge
+              label={building.status === 'normal' ? '정상' : '점검 필요'}
+              color={building.status === 'normal' ? 'green' : 'yellow'}
+              dot
+            />
+          </div>
+          <span className={styles.lastTraining}>
+            최근 훈련 · {formatTrainingDate(building.lastTrainingDate)}
+          </span>
         </div>
         <div className={styles.headerRight}>
-          <StatusBadge
-            label={building.status === 'normal' ? '정상' : '점검 필요'}
-            color={building.status === 'normal' ? 'green' : 'yellow'}
-            dot
-          />
           <div ref={menuRef} className={styles.kebabWrapper}>
             <button
               type="button"
@@ -68,7 +72,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
                     onEdit(building);
                   }}
                 >
-                  수정
+                  수정하기
                 </button>
                 <button
                   type="button"
@@ -78,7 +82,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
                     onDelete(building);
                   }}
                 >
-                  삭제
+                  삭제하기
                 </button>
               </div>
             )}
@@ -92,9 +96,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             <LayersIcon className={styles.statIcon} width={14} height={14} />
             층수
           </span>
-          <span className={styles.statValue}>
-            {building.aboveFloors}F{building.belowFloors > 0 ? ` / B${building.belowFloors}` : ''}
-          </span>
+          <span className={styles.statValue}>{building.aboveFloors}층</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -121,17 +123,6 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             </span>
           )}
         </div>
-      </div>
-
-      <div className={styles.footer}>
-        <button
-          type="button"
-          className={styles.floorPlanButton}
-          onClick={() => onFloorPlan(building)}
-        >
-          층별 · 도면 관리
-          <ChevronRightIcon width={14} height={14} />
-        </button>
       </div>
     </article>
   );

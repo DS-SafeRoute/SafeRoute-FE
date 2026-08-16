@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
+
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
@@ -23,7 +25,7 @@ interface FormState {
   belowFloors: string;
 }
 
-const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '', belowFloors: '' };
+const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '1', belowFloors: '0' };
 
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
@@ -31,6 +33,11 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
 
   const handleChange = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const handleFloorChange = (field: 'aboveFloors' | 'belowFloors') => (value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
@@ -56,7 +63,6 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
       lastTrainingDate: '-',
       aboveFloors: Number(form.aboveFloors),
       belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
-      floorPlans: [],
       cctvTotal: 0,
       cctvOnline: 0,
       iotTotal: 0,
@@ -102,20 +108,22 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
           onChange={handleChange('area')}
           errorMessage={errors.area}
         />
-        <TextField
-          label="지상 층수 *"
-          placeholder="5"
-          value={form.aboveFloors}
-          onChange={handleChange('aboveFloors')}
-          errorMessage={errors.aboveFloors}
-        />
-        <TextField
-          label="지하 층수"
-          placeholder="0"
-          value={form.belowFloors}
-          onChange={handleChange('belowFloors')}
-          errorMessage={errors.belowFloors}
-        />
+        <div className={styles.floorRow}>
+          <FloorStepperField
+            label="지상 *"
+            value={form.aboveFloors}
+            onChange={handleFloorChange('aboveFloors')}
+            min={1}
+            errorMessage={errors.aboveFloors}
+          />
+          <FloorStepperField
+            label="지하"
+            value={form.belowFloors}
+            onChange={handleFloorChange('belowFloors')}
+            min={0}
+            errorMessage={errors.belowFloors}
+          />
+        </div>
       </div>
     </Modal>
   );
