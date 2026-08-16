@@ -43,70 +43,6 @@ export const lastTraining = style({
   ...vars.typography.caption,
 });
 
-export const kebabWrapper = style({
-  position: 'relative',
-});
-
-export const kebabButton = style({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.3rem',
-  borderRadius: vars.radius.md,
-  cursor: 'pointer',
-  width: '2.8rem',
-  height: '2.8rem',
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
-  },
-});
-
-export const kebabDot = style({
-  display: 'block',
-  borderRadius: '50%',
-  backgroundColor: vars.color.textMid,
-  width: '0.3rem',
-  height: '0.3rem',
-});
-
-export const menu = style({
-  position: 'absolute',
-  zIndex: 10,
-  top: 'calc(100% + 0.4rem)',
-  right: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-  backgroundColor: vars.color.white,
-  minWidth: '7.2rem',
-  overflow: 'hidden',
-});
-
-export const menuItem = style({
-  cursor: 'pointer',
-  padding: `${vars.space.s3} ${vars.space.s4}`,
-  textAlign: 'center',
-  color: vars.color.textHigh,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
-  },
-});
-
-export const menuItemDanger = style({
-  cursor: 'pointer',
-  padding: `${vars.space.s3} ${vars.space.s4}`,
-  textAlign: 'center',
-  color: vars.color.danger,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.dangerLight },
-  },
-});
-
 export const stats = style({
   display: 'flex',
   gap: vars.space.s6,
@@ -163,22 +99,56 @@ export const statValueWarning = style({
 });
 
 export const footer = style({
+  display: 'flex',
+  gap: vars.space.s2,
   padding: `${vars.space.s4} ${vars.space.s6}`,
 });
 
 export const floorPlanButton = style({
   display: 'flex',
+  flex: 1,
   alignItems: 'center',
   justifyContent: 'center',
   gap: vars.space.s1,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
   cursor: 'pointer',
-  width: '100%',
   height: '3.6rem',
   color: vars.color.textMid,
   ...vars.typography.body14,
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray50 },
+  },
+});
+
+export const iconButton = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  cursor: 'pointer',
+  width: '3.2rem',
+  height: '3.6rem',
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray50 },
+  },
+});
+
+export const iconButtonDanger = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  cursor: 'pointer',
+  width: '3.2rem',
+  height: '3.6rem',
+  color: vars.color.danger,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.dangerLight },
   },
 });

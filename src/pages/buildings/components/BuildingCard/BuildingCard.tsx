@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
-import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
+import EditIcon from '@assets/icons/ic-edit.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
+import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
@@ -19,20 +18,7 @@ interface BuildingCardProps {
 }
 
 const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardProps) => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const isIotWarning = building.iotOnline < building.iotTotal;
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen]);
 
   return (
     <article className={styles.container}>
@@ -47,42 +33,6 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             color={building.status === 'normal' ? 'green' : 'yellow'}
             dot
           />
-          <div ref={menuRef} className={styles.kebabWrapper}>
-            <button
-              type="button"
-              className={styles.kebabButton}
-              aria-label="더보기"
-              onClick={() => setMenuOpen((prev) => !prev)}
-            >
-              <span className={styles.kebabDot} />
-              <span className={styles.kebabDot} />
-              <span className={styles.kebabDot} />
-            </button>
-            {menuOpen && (
-              <div className={styles.menu}>
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onEdit(building);
-                  }}
-                >
-                  수정
-                </button>
-                <button
-                  type="button"
-                  className={styles.menuItemDanger}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete(building);
-                  }}
-                >
-                  삭제
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -92,9 +42,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             <LayersIcon className={styles.statIcon} width={14} height={14} />
             층수
           </span>
-          <span className={styles.statValue}>
-            {building.aboveFloors}F{building.belowFloors > 0 ? ` / B${building.belowFloors}` : ''}
-          </span>
+          <span className={styles.statValue}>{building.aboveFloors}층</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -129,8 +77,23 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
           className={styles.floorPlanButton}
           onClick={() => onFloorPlan(building)}
         >
-          층별 · 도면 관리
-          <ChevronRightIcon width={14} height={14} />
+          도면 관리
+        </button>
+        <button
+          type="button"
+          className={styles.iconButton}
+          aria-label="수정"
+          onClick={() => onEdit(building)}
+        >
+          <EditIcon width={14} height={14} />
+        </button>
+        <button
+          type="button"
+          className={styles.iconButtonDanger}
+          aria-label="삭제"
+          onClick={() => onDelete(building)}
+        >
+          <TrashIcon width={14} height={14} />
         </button>
       </div>
     </article>
