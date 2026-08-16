@@ -15,6 +15,7 @@ import { formatFloor } from '@utils/floor';
 
 import { getFloorBuildings, getFloorDetail } from './api/floorPlansApi';
 import * as styles from './FloorPlansDetailPage.css';
+import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 
 import type {
@@ -904,6 +905,7 @@ const FloorPlansDetailPage = () => {
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
   const [zones, setZones] = useState<{ id: string; type: ZoneType; label: string }[]>([]);
@@ -1073,12 +1075,20 @@ const FloorPlansDetailPage = () => {
   };
 
   const handlePanelItemDelete = (item: PanelItem) => {
+    setDeleteConfirmTarget(item);
+  };
+
+  const handleDeleteConfirm = () => {
+    const item = deleteConfirmTarget;
+    if (!item) return;
     if (item.kind === 'poi') {
       handlePoiDelete(item.id);
+      setDeleteConfirmTarget(null);
       return;
     }
     if (item.source === 'added') {
       handleAddedDeviceDelete(item.id);
+      setDeleteConfirmTarget(null);
       return;
     }
     setFloor((prev) =>
@@ -1087,6 +1097,7 @@ const FloorPlansDetailPage = () => {
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
       setSelectedItem(null);
     }
+    setDeleteConfirmTarget(null);
   };
 
   const handlePoiClick = (id: string) => {
@@ -1389,6 +1400,15 @@ const FloorPlansDetailPage = () => {
         floorNum={currentFloor?.floorNum ?? 0}
         onConfirm={() => setUploadModalOpen(false)}
       />
+
+      {deleteConfirmTarget && (
+        <EquipmentDeleteConfirmModal
+          open
+          onClose={() => setDeleteConfirmTarget(null)}
+          label={deleteConfirmTarget.label}
+          onConfirm={handleDeleteConfirm}
+        />
+      )}
     </>
   );
 };
