@@ -13,12 +13,13 @@ export interface DropdownOption<T extends string = string> {
 }
 
 export interface DropdownProps<T extends string = string> {
-  options: DropdownOption<T>[];
+  options: readonly DropdownOption<T>[];
   value: T;
   onChange: (value: T) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  shape?: 'pill' | 'rounded';
 }
 
 const Dropdown = <T extends string = string>({
@@ -28,6 +29,7 @@ const Dropdown = <T extends string = string>({
   placeholder = '선택',
   disabled = false,
   className,
+  shape = 'pill',
 }: DropdownProps<T>) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,7 +67,7 @@ const Dropdown = <T extends string = string>({
     <div ref={containerRef} className={clsx(styles.container, className)}>
       <button
         type="button"
-        className={styles.trigger({ disabled })}
+        className={styles.trigger({ disabled, shape })}
         aria-expanded={open}
         aria-haspopup="listbox"
         disabled={disabled}

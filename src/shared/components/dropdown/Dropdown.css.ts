@@ -13,12 +13,13 @@ export const trigger = recipe({
     position: 'relative',
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: vars.space.s2,
     border: `1px solid ${vars.color.gray100}`,
-    borderRadius: vars.radius.pill,
     backgroundColor: vars.color.white,
     cursor: 'pointer',
     padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
+    minWidth: '14rem',
     color: vars.color.textHigh,
     ...vars.typography.body14Medium,
     selectors: {
@@ -27,6 +28,10 @@ export const trigger = recipe({
     },
   },
   variants: {
+    shape: {
+      pill: { borderRadius: vars.radius.pill },
+      rounded: { borderRadius: vars.radius.md },
+    },
     disabled: {
       true: {
         opacity: 0.4,
