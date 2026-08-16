@@ -61,19 +61,6 @@ export const previewImg = style({
   maxHeight: '20rem',
 });
 
-export const pdfIcon = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.gray50,
-  width: '7.2rem',
-  height: '4.8rem',
-  color: vars.color.danger,
-  ...vars.typography.body14Bold,
-});
-
 export const previewName = style({
   color: vars.color.textMid,
   ...vars.typography.body14,

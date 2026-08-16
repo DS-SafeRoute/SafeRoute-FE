@@ -10,11 +10,12 @@ import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
-import { getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
+import FloorManageModal from './modals/FloorManageModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 
-import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
+import type { Floor, FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
 const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBadgeColor }> = {
   NONE: { label: '미등록', color: 'neutral' },
@@ -52,7 +53,7 @@ interface FloorCardProps {
     processedAt: string | null;
   };
   buildingId: number;
-  onManage: (buildingId: number, floorId: number) => void;
+  onManage: (buildingId: number) => void;
   onUpload: (target: UploadTarget) => void;
   buildingName: string;
 }
@@ -102,7 +103,7 @@ const FloorCard = ({ floor, buildingId, buildingName, onManage, onUpload }: Floo
           type="button"
           className={styles.manageButton}
           disabled={isProcessing}
-          onClick={() => !isProcessing && onManage(buildingId, floor.id)}
+          onClick={() => !isProcessing && onManage(buildingId)}
         >
           {isProcessing ? '처리 중...' : '도면 관리'}
         </button>
@@ -117,6 +118,7 @@ const FloorPlansPage = () => {
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
+  const [manageBuildingId, setManageBuildingId] = useState<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -128,8 +130,41 @@ const FloorPlansPage = () => {
       .finally(() => setLoading(false));
   }, [show]);
 
-  const handleManage = (buildingId: number, floorId: number) => {
-    void navigate(`/floorPlans/${buildingId}/${floorId}`);
+  const handleManage = (buildingId: number) => {
+    setManageBuildingId(buildingId);
+  };
+
+  const manageBuilding = buildings.find((b) => b.id === manageBuildingId) ?? null;
+
+  const handleOpenFloorUpload = (floor: Floor) => {
+    if (!manageBuilding) return;
+    setUploadTarget({
+      buildingId: manageBuilding.id,
+      buildingName: manageBuilding.name,
+      floorId: floor.id,
+      floorNum: floor.floorNum,
+    });
+  };
+
+  const handleDeleteFloor = (floor: Floor) => {
+    if (!manageBuilding) return;
+    const buildingId = manageBuilding.id;
+    deleteFloor(floor.id)
+      .then(() => {
+        setBuildings((prev) =>
+          prev.map((b) =>
+            b.id !== buildingId ? b : { ...b, floors: b.floors.filter((f) => f.id !== floor.id) },
+          ),
+        );
+        show({
+          title: '층 도면이 삭제되었습니다.',
+          description: `${manageBuilding.name} · ${formatFloor(floor.floorNum)} 도면이 삭제되었습니다.`,
+          variant: 'success',
+        });
+      })
+      .catch(() => {
+        show({ title: '삭제에 실패했습니다.', variant: 'error' });
+      });
   };
 
   const handleUploadConfirm = (file: File) => {
@@ -203,6 +238,18 @@ const FloorPlansPage = () => {
           buildingName={uploadTarget.buildingName}
           floorNum={uploadTarget.floorNum}
           onConfirm={handleUploadConfirm}
+        />
+      )}
+
+      {manageBuilding && (
+        <FloorManageModal
+          open
+          onClose={() => setManageBuildingId(null)}
+          buildingName={manageBuilding.name}
+          floors={manageBuilding.floors}
+          onUpload={handleOpenFloorUpload}
+          onReupload={handleOpenFloorUpload}
+          onDelete={handleDeleteFloor}
         />
       )}
     </>

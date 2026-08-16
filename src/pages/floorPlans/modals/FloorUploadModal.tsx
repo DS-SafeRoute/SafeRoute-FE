@@ -41,25 +41,22 @@ const FloorUploadModal = ({
     };
   }, [preview]);
 
-  const isPdf = file?.type === 'application/pdf';
-
   const handleFileSelect = (selected: File) => {
     if (preview) URL.revokeObjectURL(preview);
     setFile(selected);
-    setPreview(selected.type === 'application/pdf' ? null : URL.createObjectURL(selected));
+    setPreview(URL.createObjectURL(selected));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
-    if (selected) handleFileSelect(selected);
+    if (selected && selected.type === 'image/jpeg') handleFileSelect(selected);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
-    const allowed = ['image/png', 'image/jpeg', 'application/pdf'];
-    if (dropped && allowed.includes(dropped.type)) handleFileSelect(dropped);
+    if (dropped && dropped.type === 'image/jpeg') handleFileSelect(dropped);
   };
 
   const handleConfirm = () => {
@@ -100,11 +97,7 @@ const FloorUploadModal = ({
 
       {file ? (
         <div className={styles.previewWrap}>
-          {isPdf ? (
-            <span className={styles.pdfIcon}>PDF</span>
-          ) : (
-            preview && <img src={preview} alt="도면 미리보기" className={styles.previewImg} />
-          )}
+          {preview && <img src={preview} alt="도면 미리보기" className={styles.previewImg} />}
           <span className={styles.previewName}>{file.name}</span>
           <button
             type="button"
@@ -130,14 +123,14 @@ const FloorUploadModal = ({
         >
           <UploadIcon width={28} height={28} className={styles.dropzoneIcon} />
           <span className={styles.dropzoneText}>클릭하거나 파일을 드래그해 주세요</span>
-          <span className={styles.dropzoneHint}>PNG, JPG, PDF 형식만 지원</span>
+          <span className={styles.dropzoneHint}>JPG 형식만 지원</span>
         </div>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,.pdf"
+        accept="image/jpeg"
         className={styles.fileInput}
         onChange={handleInputChange}
       />
