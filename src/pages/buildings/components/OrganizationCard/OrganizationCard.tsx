@@ -23,7 +23,7 @@ const OrganizationCard = ({ organization, buildingCount }: OrganizationCardProps
           {organization.isRepresentative && <StatusBadge label="대표" color="blue" />}
         </div>
         <p className={styles.address}>
-          {organization.address} · 등록일 {organization.registeredAt}
+          {organization.address} · 등록일 {organization.registeredAt.split('-').join('.')}
         </p>
       </div>
     </div>

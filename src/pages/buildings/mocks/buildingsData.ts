@@ -11,7 +11,7 @@ export const mockOrganization: Organization = {
 export const mockBuildings: Building[] = [
   {
     id: 1,
-    name: 'A동 본관',
+    name: 'A동 · 본관',
     area: 12500,
     status: 'normal',
     lastTrainingDate: '2025-05-12',
@@ -25,7 +25,7 @@ export const mockBuildings: Building[] = [
   },
   {
     id: 2,
-    name: 'B동 별관',
+    name: 'B동 · 별관',
     area: 8200,
     status: 'normal',
     lastTrainingDate: '2025-05-12',
@@ -39,7 +39,7 @@ export const mockBuildings: Building[] = [
   },
   {
     id: 3,
-    name: 'C동 체육관',
+    name: 'C동 · 체육관',
     area: 3600,
     status: 'warning',
     lastTrainingDate: '2025-04-20',
@@ -53,7 +53,7 @@ export const mockBuildings: Building[] = [
   },
   {
     id: 4,
-    name: 'D동 강당',
+    name: 'D동 · 강당',
     area: 2100,
     status: 'normal',
     lastTrainingDate: '2025-05-01',
