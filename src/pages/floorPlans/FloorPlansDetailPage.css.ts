@@ -86,6 +86,33 @@ export const floorNavItemActive = style({
   color: vars.color.primary,
 });
 
+/* ── 장비/구역 추가 ── */
+export const canvasActionFloat = style({
+  position: 'absolute',
+  zIndex: 10,
+  top: vars.space.s6,
+  right: vars.space.s6,
+  display: 'flex',
+  gap: vars.space.s2,
+});
+
+export const canvasActionButton = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  boxShadow: vars.shadow.sm,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  color: vars.color.textMid,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
   position: 'absolute',

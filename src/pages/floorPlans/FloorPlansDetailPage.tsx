@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
+import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 import XIcon from '@assets/icons/ic-x.svg?react';
 
@@ -1003,6 +1004,20 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
           </div>
+
+          {/* 장비 추가 / 구역 추가 */}
+          {currentFloor?.segmentationStatus === 'DONE' && (
+            <div className={styles.canvasActionFloat}>
+              <button type="button" className={styles.canvasActionButton}>
+                <PlusIcon width={14} height={14} />
+                장비 추가
+              </button>
+              <button type="button" className={styles.canvasActionButton}>
+                <PlusIcon width={14} height={14} />
+                구역 추가
+              </button>
+            </div>
+          )}
 
           {/* 플로팅 줌 컨트롤 */}
           <div className={styles.canvasZoomFloat}>
