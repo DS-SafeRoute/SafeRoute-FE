@@ -59,7 +59,6 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
     onConfirm({
       name: form.name.trim(),
       area: Number(form.area),
-      status: 'normal',
       lastTrainingDate: '-',
       aboveFloors: Number(form.aboveFloors),
       belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,

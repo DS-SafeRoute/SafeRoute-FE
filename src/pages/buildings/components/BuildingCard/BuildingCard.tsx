@@ -4,8 +4,6 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
-import StatusBadge from '@components/chip/StatusBadge';
-
 import * as styles from './BuildingCard.css';
 
 import type { Building } from '../../types/buildings';
@@ -40,11 +38,6 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
         <div className={styles.headerLeft}>
           <div className={styles.nameRow}>
             <span className={styles.name}>{building.name}</span>
-            <StatusBadge
-              label={building.status === 'normal' ? '정상' : '점검 필요'}
-              color={building.status === 'normal' ? 'green' : 'yellow'}
-              dot
-            />
           </div>
           <span className={styles.lastTraining}>
             최근 훈련 · {formatTrainingDate(building.lastTrainingDate)}

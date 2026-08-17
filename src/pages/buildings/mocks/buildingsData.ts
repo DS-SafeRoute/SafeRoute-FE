@@ -4,8 +4,6 @@ export const mockOrganization: Organization = {
   id: 1,
   name: '서울중학교',
   address: '서울특별시 강남구 테헤란로 123',
-  registeredAt: '2024-03-01',
-  isRepresentative: true,
 };
 
 export const mockBuildings: Building[] = [
@@ -13,7 +11,6 @@ export const mockBuildings: Building[] = [
     id: 1,
     name: 'A동 · 본관',
     area: 12500,
-    status: 'normal',
     lastTrainingDate: '2025-05-12',
     aboveFloors: 5,
     belowFloors: 1,
@@ -26,7 +23,6 @@ export const mockBuildings: Building[] = [
     id: 2,
     name: 'B동 · 별관',
     area: 8200,
-    status: 'normal',
     lastTrainingDate: '2025-05-12',
     aboveFloors: 3,
     belowFloors: 0,
@@ -39,7 +35,6 @@ export const mockBuildings: Building[] = [
     id: 3,
     name: 'C동 · 체육관',
     area: 3600,
-    status: 'warning',
     lastTrainingDate: '2025-04-20',
     aboveFloors: 2,
     belowFloors: 0,
@@ -52,7 +47,6 @@ export const mockBuildings: Building[] = [
     id: 4,
     name: 'D동 · 강당',
     area: 2100,
-    status: 'normal',
     lastTrainingDate: '2025-05-01',
     aboveFloors: 1,
     belowFloors: 0,
