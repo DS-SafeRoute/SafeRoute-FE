@@ -69,3 +69,15 @@ export const sideColumn = style({
   gap: vars.space.s4,
   minWidth: 0,
 });
+
+export const draftButton = style({
+  borderColor: vars.color.gray100,
+  backgroundColor: vars.color.gray200,
+  color: vars.color.textHigh,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      borderColor: vars.color.gray200,
+      backgroundColor: vars.color.gray100,
+    },
+  },
+});

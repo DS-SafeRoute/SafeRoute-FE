@@ -22,6 +22,11 @@ export interface FireConditionOptions {
   guideLight: readonly string[];
 }
 
+export interface ScenarioDetail {
+  basicInfo: BasicInfo;
+  fireConditions: readonly FireConditionField[];
+}
+
 export interface PreviewMetric {
   id: string;
   label: string;

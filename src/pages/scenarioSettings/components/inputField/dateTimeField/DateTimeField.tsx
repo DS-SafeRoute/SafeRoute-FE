@@ -8,6 +8,7 @@ interface DateTimeFieldProps {
   label: string;
   defaultValue: string;
   disabled?: boolean;
+  readOnly?: boolean;
 }
 
 const formatDateTime = (value: string) => {
@@ -23,17 +24,23 @@ const formatDateTime = (value: string) => {
   return `${year}.${month}.${day}`;
 };
 
-const DateTimeField = ({ label, defaultValue, disabled = false }: DateTimeFieldProps) => {
+const DateTimeField = ({
+  label,
+  defaultValue,
+  disabled = false,
+  readOnly = false,
+}: DateTimeFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(defaultValue);
+  const isInactive = disabled || readOnly;
 
   return (
     <label className={styles.root}>
       <span className={styles.label}>{label}</span>
       <button
         type="button"
-        className={styles.trigger}
-        disabled={disabled}
+        className={styles.trigger({ disabled, readOnly })}
+        disabled={isInactive}
         onClick={() => {
           inputRef.current?.showPicker?.();
           inputRef.current?.focus();
@@ -42,12 +49,12 @@ const DateTimeField = ({ label, defaultValue, disabled = false }: DateTimeFieldP
         <span className={styles.icon}>
           <CalendarIcon />
         </span>
-        <span className={styles.value}>{formatDateTime(value)}</span>
+        <span className={styles.value({ disabled })}>{formatDateTime(value)}</span>
       </button>
       <input
         ref={inputRef}
         type="date"
-        disabled={disabled}
+        disabled={isInactive}
         value={value}
         className={styles.hiddenInput}
         onChange={(event) => {

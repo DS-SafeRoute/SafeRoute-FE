@@ -22,6 +22,7 @@ export interface ModalProps {
   icon?: ReactNode;
   className?: string;
   confirmBodyClassName?: string;
+  footerClassName?: string;
 }
 
 const FOCUSABLE = [
@@ -46,6 +47,7 @@ const Modal = ({
   icon,
   className,
   confirmBodyClassName,
+  footerClassName,
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -143,7 +145,7 @@ const Modal = ({
 
         {children && <div className={styles.body}>{children}</div>}
 
-        {footer && <div className={styles.footer}>{footer}</div>}
+        {footer && <div className={clsx(styles.footer, footerClassName)}>{footer}</div>}
       </div>
     </div>,
     document.body,

@@ -10,7 +10,7 @@ import { ROUTES } from '@constants/path';
 
 export const sidebarItems = [
   { label: '홈', icon: HomeIcon, path: ROUTES.HOME },
-  { label: '시나리오 설정', icon: DashBoardIcon, path: ROUTES.SCENARIO_SETTINGS },
+  { label: '시나리오 설정', icon: DashBoardIcon, path: ROUTES.SCENARIO_LIST },
   {
     label: '관리',
     icon: LayersIcon,
