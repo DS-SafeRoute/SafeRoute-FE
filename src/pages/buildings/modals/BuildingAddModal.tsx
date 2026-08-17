@@ -12,6 +12,7 @@ import Modal from '@components/modal';
 import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
+import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
 
 import type { BuildingType } from '../types/buildings';
 
@@ -29,14 +30,6 @@ interface FormState {
   aboveFloors: string;
   belowFloors: string;
 }
-
-const BUILDING_TYPE_OPTIONS: { value: BuildingType; label: string }[] = [
-  { value: 'CLASSROOM', label: '교실' },
-  { value: 'CAFETERIA', label: '식당' },
-  { value: 'LIBRARY', label: '도서관' },
-  { value: 'DORMITORY', label: '기숙사' },
-  { value: 'GYM', label: '체육관' },
-];
 
 const INITIAL_FORM: FormState = {
   name: '',

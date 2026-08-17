@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 
-import type { CreateBuildingRequest } from '@apis/__generated__/data-contracts';
+import type {
+  CreateBuildingRequest,
+  UpdateBuildingRequest,
+} from '@apis/__generated__/data-contracts';
 
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
@@ -9,6 +12,7 @@ import useToast from '@components/toast/useToast';
 
 import { useBuildingsQuery } from './api/useBuildingsQuery';
 import { useCreateBuildingMutation } from './api/useCreateBuildingMutation';
+import { useUpdateBuildingMutation } from './api/useUpdateBuildingMutation';
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
 import OrganizationCard from './components/OrganizationCard/OrganizationCard';
@@ -28,7 +32,8 @@ type ModalState =
 const BuildingsPage = () => {
   const { data, isLoading, isError } = useBuildingsQuery();
   const createBuildingMutation = useCreateBuildingMutation();
-  // 수정/삭제는 아직 실 API로 안 붙어서, 응답 도착 시 로컬 상태로 복사해두고 그 위에서 낙관적으로 반영함
+  const updateBuildingMutation = useUpdateBuildingMutation();
+  // 삭제는 아직 실 API로 안 붙어서, 응답 도착 시 로컬 상태로 복사해두고 그 위에서 낙관적으로 반영함
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [modal, setModal] = useState<ModalState>(null);
   const { show } = useToast();
@@ -57,14 +62,25 @@ const BuildingsPage = () => {
     });
   };
 
-  const handleConfirmEdit = (updated: Building) => {
-    setBuildings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-    setModal(null);
-    show({
-      title: '건물 정보가 수정되었습니다.',
-      description: `${updated.name} 정보가 업데이트되었습니다.`,
-      variant: 'success',
-    });
+  const handleConfirmEdit = (body: UpdateBuildingRequest) => {
+    if (modal?.type !== 'edit') return;
+    const { building } = modal;
+    updateBuildingMutation.mutate(
+      { buildingId: building.id, body },
+      {
+        onSuccess: () => {
+          setModal(null);
+          show({
+            title: '건물 정보가 수정되었습니다.',
+            description: `${body.name} 정보가 업데이트되었습니다.`,
+            variant: 'success',
+          });
+        },
+        onError: () => {
+          show({ title: '건물 수정에 실패했습니다.', variant: 'error' });
+        },
+      },
+    );
   };
 
   const handleConfirmDelete = () => {
@@ -135,6 +151,7 @@ const BuildingsPage = () => {
           onClose={handleCloseModal}
           building={modal.building}
           onConfirm={handleConfirmEdit}
+          isSubmitting={updateBuildingMutation.isPending}
         />
       )}
 
