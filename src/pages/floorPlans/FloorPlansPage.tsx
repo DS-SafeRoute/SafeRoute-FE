@@ -78,8 +78,6 @@ const FloorCard = ({
 }: FloorCardProps) => {
   const navigate = useNavigate();
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
-  const isProcessing =
-    floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
   const isNone = floor.segmentationStatus === 'NONE';
   const isDone = floor.segmentationStatus === 'DONE';
 
@@ -116,10 +114,6 @@ const FloorCard = ({
           }
         >
           도면 업로드
-        </button>
-      ) : isProcessing ? (
-        <button type="button" className={styles.manageButton} disabled>
-          처리 중...
         </button>
       ) : (
         <div className={styles.cardActionRow}>

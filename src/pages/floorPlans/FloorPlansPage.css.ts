@@ -139,28 +139,6 @@ export const uploadButton = style({
   },
 });
 
-export const manageButton = style({
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} 0`,
-  width: '100%',
-  textAlign: 'center',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover:not(:disabled)': {
-      borderColor: vars.color.gray300,
-      backgroundColor: vars.color.gray25,
-    },
-    '&:disabled': {
-      opacity: '0.5',
-      cursor: 'not-allowed',
-    },
-  },
-});
-
 export const cardActionRow = style({
   display: 'flex',
   gap: vars.space.s2,
