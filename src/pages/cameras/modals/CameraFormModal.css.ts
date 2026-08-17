@@ -80,10 +80,6 @@ export const errorText = style({
   ...vars.typography.caption,
 });
 
-export const requiredMark = style({
-  color: vars.color.danger,
-});
-
 export const selectWrap = style({
   position: 'relative',
 });

@@ -6,6 +6,7 @@ import type { CreateBuildingRequest } from '@apis/__generated__/data-contracts';
 
 import { Button } from '@components/Button';
 import FilterChip from '@components/chip/FilterChip';
+import RequiredFieldText from '@components/inputField/RequiredFieldText';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
@@ -131,7 +132,9 @@ const BuildingAddModal = ({
           errorMessage={errors.address}
         />
         <div className={styles.field}>
-          <span className={styles.fieldLabel}>건물 유형 *</span>
+          <span className={styles.fieldLabel}>
+            <RequiredFieldText label="건물 유형 *" />
+          </span>
           <div className={styles.chipRow}>
             {BUILDING_TYPE_OPTIONS.map((option) => (
               <FilterChip
