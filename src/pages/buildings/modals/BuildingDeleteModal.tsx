@@ -8,9 +8,16 @@ interface BuildingDeleteModalProps {
   onClose: () => void;
   building: Building;
   onConfirm: () => void;
+  isSubmitting?: boolean;
 }
 
-const BuildingDeleteModal = ({ open, onClose, building, onConfirm }: BuildingDeleteModalProps) => (
+const BuildingDeleteModal = ({
+  open,
+  onClose,
+  building,
+  onConfirm,
+  isSubmitting = false,
+}: BuildingDeleteModalProps) => (
   <Modal
     variant="confirm"
     open={open}
@@ -20,10 +27,10 @@ const BuildingDeleteModal = ({ open, onClose, building, onConfirm }: BuildingDel
     warning="경고: 이 작업은 되돌릴 수 없습니다. 건물과 관련된 모든 도면 데이터가 영구적으로 삭제됩니다."
     footer={
       <>
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
           취소
         </Button>
-        <Button variant="danger" onClick={onConfirm}>
+        <Button variant="danger" onClick={onConfirm} isLoading={isSubmitting}>
           삭제
         </Button>
       </>

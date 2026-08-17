@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type {
   CreateBuildingRequest,
@@ -12,6 +12,7 @@ import useToast from '@components/toast/useToast';
 
 import { useBuildingsQuery } from './api/useBuildingsQuery';
 import { useCreateBuildingMutation } from './api/useCreateBuildingMutation';
+import { useDeleteBuildingMutation } from './api/useDeleteBuildingMutation';
 import { useUpdateBuildingMutation } from './api/useUpdateBuildingMutation';
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
@@ -33,14 +34,10 @@ const BuildingsPage = () => {
   const { data, isLoading, isError } = useBuildingsQuery();
   const createBuildingMutation = useCreateBuildingMutation();
   const updateBuildingMutation = useUpdateBuildingMutation();
-  // 삭제는 아직 실 API로 안 붙어서, 응답 도착 시 로컬 상태로 복사해두고 그 위에서 낙관적으로 반영함
-  const [buildings, setBuildings] = useState<Building[]>([]);
+  const deleteBuildingMutation = useDeleteBuildingMutation();
+  const buildings = data ?? [];
   const [modal, setModal] = useState<ModalState>(null);
   const { show } = useToast();
-
-  useEffect(() => {
-    if (data) setBuildings(data);
-  }, [data]);
 
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
@@ -86,12 +83,18 @@ const BuildingsPage = () => {
   const handleConfirmDelete = () => {
     if (modal?.type !== 'delete') return;
     const { building } = modal;
-    setBuildings((prev) => prev.filter((b) => b.id !== building.id));
-    setModal(null);
-    show({
-      title: '건물이 삭제되었습니다.',
-      description: `${building.name}이(가) 삭제되었습니다.`,
-      variant: 'default',
+    deleteBuildingMutation.mutate(building.id, {
+      onSuccess: () => {
+        setModal(null);
+        show({
+          title: '건물이 삭제되었습니다.',
+          description: `${building.name}이(가) 삭제되었습니다.`,
+          variant: 'default',
+        });
+      },
+      onError: () => {
+        show({ title: '건물 삭제에 실패했습니다.', variant: 'error' });
+      },
     });
   };
 
@@ -161,6 +164,7 @@ const BuildingsPage = () => {
           onClose={handleCloseModal}
           building={modal.building}
           onConfirm={handleConfirmDelete}
+          isSubmitting={deleteBuildingMutation.isPending}
         />
       )}
     </>
