@@ -1,4 +1,4 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -113,6 +113,7 @@ export const canvasActionButton = style({
   },
 });
 
+/* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({
   position: 'absolute',
@@ -127,12 +128,28 @@ export const nodeAddPopup = style({
   boxShadow: vars.shadow.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
-  width: '23rem',
+  width: '25rem',
+});
+
+export const nodeAddHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
 });
 
 export const nodeAddTitle = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
+});
+
+export const nodeAddStepBadge = style({
+  flexShrink: 0,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray50,
+  padding: `0.2rem ${vars.space.s2}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
 });
 
 export const nodeAddHint = style({
@@ -177,22 +194,6 @@ export const deviceTypeChipActive = style({
   color: vars.color.primary,
 });
 
-export const zoneCameraDropdown = style({
-  display: 'block',
-  width: '100%',
-});
-
-globalStyle(`${zoneCameraDropdown} > button`, {
-  justifyContent: 'space-between',
-  width: '100%',
-});
-
-globalStyle(`${zoneCameraDropdown} > ul`, {
-  boxSizing: 'border-box',
-  width: '100%',
-  minWidth: '100%',
-});
-
 export const nodeAddInput = style({
   outline: 'none',
   border: `1px solid ${vars.color.gray100}`,
@@ -208,6 +209,20 @@ export const nodeAddInput = style({
 export const nodeAddActions = style({
   display: 'flex',
   gap: vars.space.s2,
+});
+
+export const nodeAddBackBtn = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  color: vars.color.textMid,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
 });
 
 export const nodeAddCancelBtn = style({
@@ -239,52 +254,6 @@ export const nodeAddSubmitBtn = style({
   },
 });
 
-export const zoneTypeTabs = style({
-  display: 'flex',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  overflow: 'hidden',
-});
-
-export const zoneTypeTab = style({
-  display: 'flex',
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: vars.space.s2,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray25 },
-  },
-});
-
-export const zoneTypeTabActive = style({
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
-  fontWeight: vars.fontWeight.semibold,
-});
-
-/* ── 구역 목록 ── */
-export const zoneLegend = style({
-  position: 'absolute',
-  zIndex: 10,
-  bottom: vars.space.s6,
-  left: vars.space.s6,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: vars.color.white,
-  padding: vars.space.s4,
-  minWidth: '18rem',
-});
-
 export const zoneLegendTitle = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
@@ -296,34 +265,83 @@ export const zoneLegendItem = style({
   gap: vars.space.s2,
 });
 
-export const zoneLegendDot = style({
-  flexShrink: 0,
-  borderRadius: '50%',
-  width: '0.8rem',
-  height: '0.8rem',
-});
-
-export const zoneLegendDotGeneral = style({ backgroundColor: vars.color.primary });
-export const zoneLegendDotCamera = style({ backgroundColor: vars.color.success });
-
 export const zoneLegendLabel = style({
   flex: 1,
   color: vars.color.textMid,
   ...vars.typography.caption,
 });
 
-export const zoneLegendDelete = style({
+/* ── 마크 설명(노드/구역 종류) 범례 ── */
+export const nodeTypeLegend = style({
+  position: 'absolute',
+  zIndex: 10,
+  right: vars.space.s6,
+  bottom: '7.6rem',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s4,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.md,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s5,
+  width: '16rem',
+});
+
+export const nodeTypeLegendSection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+});
+
+export const nodeTypeLegendDivider = style({
+  borderTop: `1px solid ${vars.color.gray100}`,
+});
+
+export const nodeTypeDot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  width: '0.8rem',
+  height: '0.8rem',
+});
+
+export const nodeTypeDotDoor = style({ backgroundColor: '#2563eb' });
+export const nodeTypeDotIot = style({ backgroundColor: vars.color.success });
+export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
+
+export const nodeTypeAreaSwatch = style({
+  flexShrink: 0,
+  border: '1px solid',
+  borderRadius: vars.radius.sm,
+  width: '1.2rem',
+  height: '1.2rem',
+});
+
+export const nodeTypeAreaSwatchStair = style({
+  borderColor: '#f97316',
+  backgroundColor: 'rgba(249,115,22,0.25)',
+});
+export const nodeTypeAreaSwatchGeneral = style({
+  borderColor: vars.color.gray500,
+  backgroundColor: 'rgba(107,114,128,0.15)',
+});
+export const nodeTypeAreaSwatchCamera = style({
+  borderColor: vars.color.purple,
+  backgroundColor: 'rgba(139,92,246,0.18)',
+});
+
+export const nodeTypeCctvBadge = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  border: 'none',
-  background: 'none',
-  cursor: 'pointer',
-  color: vars.color.textLow,
-  selectors: {
-    '&:hover': { color: vars.color.danger },
-  },
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.purple,
+  width: '1.6rem',
+  height: '1.6rem',
+  color: vars.color.white,
+  fontSize: '0.9rem',
+  fontWeight: 700,
 });
 
 /* ── 우측 장비 목록 패널 ── */
@@ -358,7 +376,6 @@ export const devicePanelSticky = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
-  borderBottom: `1px solid ${vars.color.gray100}`,
   backgroundColor: vars.color.white,
   paddingTop: vars.space.s5,
   paddingBottom: vars.space.s3,
@@ -443,6 +460,55 @@ export const deviceCard = style({
 export const deviceCardSelected = style({
   borderColor: vars.color.primary,
   backgroundColor: vars.color.primaryLight2,
+});
+
+export const zoneCardHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+});
+
+export const zoneCardTitleGroup = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const zoneCardDot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  width: '0.7rem',
+  height: '0.7rem',
+});
+
+export const zoneCardDotDoor = style({ backgroundColor: '#2563eb' });
+export const zoneCardDotStair = style({ backgroundColor: '#f97316' });
+export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
+
+export const finalExitToggle = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `0.1rem ${vars.space.s2}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { borderColor: vars.color.gray300, color: vars.color.textMid },
+  },
+});
+
+export const finalExitBadge = style({
+  flexShrink: 0,
+  border: 'none',
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.successLight,
+  cursor: 'pointer',
+  padding: `0.1rem ${vars.space.s2}`,
+  color: vars.color.successText,
+  ...vars.typography.caption,
 });
 
 export const deviceCardName = style({
@@ -544,6 +610,57 @@ export const deviceCardDeleteBtn = style({
     '&:hover': { backgroundColor: '#FFF5F5' },
   },
 });
+
+/* ── 구역/문/계단 카드 — 한 줄로 압축, 수정·삭제는 아이콘 버튼 ── */
+export const zoneCardHeaderActions = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  gap: vars.space.s1,
+});
+
+export const zoneCardIconBtn = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  width: '2.6rem',
+  height: '2.6rem',
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const zoneCardIconBtnDone = style([
+  zoneCardIconBtn,
+  {
+    borderColor: vars.color.primary,
+    backgroundColor: vars.color.primary,
+    color: vars.color.white,
+    selectors: {
+      '&:hover': {
+        borderColor: vars.color.primaryHover,
+        backgroundColor: vars.color.primaryHover,
+      },
+    },
+  },
+]);
+
+export const zoneCardIconBtnDelete = style([
+  zoneCardIconBtn,
+  {
+    borderColor: vars.color.dangerLight,
+    color: vars.color.danger,
+    selectors: {
+      '&:hover': { backgroundColor: '#FFF5F5' },
+    },
+  },
+]);
 
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
@@ -719,12 +836,30 @@ export const markerLabel = style({
   ...vars.typography.caption,
 });
 
-export const markerCctv = style({ backgroundColor: vars.color.primary, color: vars.color.white });
+export const markerCctv = style({ backgroundColor: vars.color.purple, color: vars.color.white });
 export const markerCctvOffline = style({
   backgroundColor: vars.color.gray300,
   color: vars.color.white,
 });
 export const markerIot = style({ backgroundColor: vars.color.success, color: vars.color.white });
+
+const pulse = keyframes({
+  '0%, 100%': { opacity: 1 },
+  '50%': { opacity: 0.4 },
+});
+
+export const stagedCameraMarker = style({
+  position: 'absolute',
+  zIndex: 2,
+  transform: 'translate(-50%, -50%)',
+  border: `2px dashed ${vars.color.purple}`,
+  borderRadius: '50%',
+  backgroundColor: 'rgba(139,92,246,0.25)',
+  pointerEvents: 'none',
+  width: '2.4rem',
+  height: '2.4rem',
+  animation: `${pulse} 1.4s ease-in-out infinite`,
+});
 
 /* ── Canvase placeholder ── */
 export const canvasPlaceholder = style({
