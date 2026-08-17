@@ -1309,14 +1309,23 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   }, []);
 
-  // 현재 층 상세
+  // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
   useEffect(() => {
     if (!floorId) return;
+    let cancelled = false;
+    setFloor(null);
     setLoadingFloor(true);
     getFloorDetail(Number(floorId))
-      .then(setFloor)
+      .then((data) => {
+        if (!cancelled) setFloor(data);
+      })
       .catch(() => {})
-      .finally(() => setLoadingFloor(false));
+      .finally(() => {
+        if (!cancelled) setLoadingFloor(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [floorId]);
 
   // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
@@ -2217,12 +2226,11 @@ const FloorPlansDetailPage = () => {
               />
             )}
 
-            {loadingFloor && (
+            {loadingFloor ? (
               <div style={{ padding: '4rem', color: '#6b7280', fontSize: '1.4rem' }}>
                 도면을 불러오는 중...
               </div>
-            )}
-            {!loadingFloor && currentFloor ? (
+            ) : currentFloor ? (
               <FloorCanvas
                 mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
