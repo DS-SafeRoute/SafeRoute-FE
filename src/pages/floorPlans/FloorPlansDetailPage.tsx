@@ -948,6 +948,7 @@ const DeviceCard = ({
   onDelete: (item: PanelItem) => void;
 }) => (
   <div
+    data-panel-id={item.id}
     className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
     onClick={() => onSelect(item)}
   >
@@ -1410,6 +1411,7 @@ const FloorPlansDetailPage = () => {
   const nodePopupRef = useRef<HTMLDivElement>(null);
   const zonePopupRef = useRef<HTMLDivElement>(null);
   const mapWrapRef = useRef<HTMLDivElement>(null);
+  const devicePanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(
     () => () => {
@@ -1418,6 +1420,22 @@ const FloorPlansDetailPage = () => {
     },
     [],
   );
+
+  // 선택된 카드를 상단에 고정하지 않는 대신, 리스트 안에서 스크롤로 한 번 보여줌 (하이퍼링크 이동과 동일한 느낌)
+  const focusedPanelId =
+    selectedItem?.kind === 'device' || selectedItem?.kind === 'poi'
+      ? selectedItem.data.id
+      : selectedZoneRef?.kind === 'door' || selectedZoneRef?.kind === 'zone'
+        ? selectedZoneRef.id
+        : selectedZoneRef?.kind === 'stair'
+          ? 'stair'
+          : null;
+
+  useEffect(() => {
+    if (!focusedPanelId) return;
+    const target = devicePanelRef.current?.querySelector(`[data-panel-id="${focusedPanelId}"]`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusedPanelId]);
 
   // 장비 추가 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 클릭은 배치로 처리)
   // 정보 입력(1단계) 이후에는 위치·시야 지정 진행 상태가 있으므로 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
@@ -1753,6 +1771,7 @@ const FloorPlansDetailPage = () => {
     return (
       <div
         key={d.id}
+        data-panel-id={d.id}
         className={clsx(styles.deviceCard, isDoorSelected(d.id) && styles.deviceCardSelected)}
         onClick={() => handleZoneRefSelect({ kind: 'door', id: d.id })}
       >
@@ -1806,6 +1825,7 @@ const FloorPlansDetailPage = () => {
 
   const renderStairCard = () => (
     <div
+      data-panel-id="stair"
       className={clsx(styles.deviceCard, isStairSelected && styles.deviceCardSelected)}
       onClick={() => stairArea && handleZoneRefSelect({ kind: 'stair' })}
     >
@@ -1857,6 +1877,7 @@ const FloorPlansDetailPage = () => {
     return (
       <div
         key={z.id}
+        data-panel-id={z.id}
         className={clsx(styles.deviceCard, isZoneSelected(z.id) && styles.deviceCardSelected)}
         onClick={() => handleZoneRefSelect({ kind: 'zone', id: z.id })}
       >
@@ -1949,13 +1970,12 @@ const FloorPlansDetailPage = () => {
     return true;
   });
 
-  const pinnedItem = panelItems.find((item) =>
+  const isPanelItemSelected = (item: PanelItem) =>
     selectedItem?.kind === 'device'
       ? item.kind === 'device' && selectedItem.data.id === item.id
       : selectedItem?.kind === 'poi'
         ? item.kind === 'poi' && selectedItem.data.id === item.id
-        : false,
-  );
+        : false;
 
   const handlePanelItemSelect = (item: PanelItem) => {
     if (item.kind !== 'device') return;
@@ -2341,7 +2361,7 @@ const FloorPlansDetailPage = () => {
         </div>
 
         {/* ── 우측 장비 목록 패널 ── */}
-        <aside className={styles.devicePanel}>
+        <aside ref={devicePanelRef} className={styles.devicePanel}>
           <div className={styles.devicePanelInner}>
             <div className={styles.devicePanelSticky}>
               <div className={styles.filterTabs}>
@@ -2410,20 +2430,6 @@ const FloorPlansDetailPage = () => {
                   ))}
                 </div>
               )}
-
-              {topFilter !== 'zone' && pinnedItem && (
-                <DeviceCard
-                  item={pinnedItem}
-                  selected
-                  editing={editingItemId === pinnedItem.id}
-                  editForm={editForm}
-                  onEditFormChange={setEditForm}
-                  onSelect={handlePanelItemSelect}
-                  onStartEdit={handleStartEdit}
-                  onSaveEdit={handleSaveEdit}
-                  onDelete={handlePanelItemDelete}
-                />
-              )}
             </div>
 
             <div className={styles.devicePanelList}>
@@ -2432,22 +2438,20 @@ const FloorPlansDetailPage = () => {
                   ? topFilter === 'device' && (
                       <p className={styles.devicePanelEmpty}>표시할 장비가 없습니다</p>
                     )
-                  : panelItems
-                      .filter((item) => item !== pinnedItem)
-                      .map((item) => (
-                        <DeviceCard
-                          key={item.id}
-                          item={item}
-                          selected={false}
-                          editing={editingItemId === item.id}
-                          editForm={editForm}
-                          onEditFormChange={setEditForm}
-                          onSelect={handlePanelItemSelect}
-                          onStartEdit={handleStartEdit}
-                          onSaveEdit={handleSaveEdit}
-                          onDelete={handlePanelItemDelete}
-                        />
-                      )))}
+                  : panelItems.map((item) => (
+                      <DeviceCard
+                        key={item.id}
+                        item={item}
+                        selected={isPanelItemSelected(item)}
+                        editing={editingItemId === item.id}
+                        editForm={editForm}
+                        onEditFormChange={setEditForm}
+                        onSelect={handlePanelItemSelect}
+                        onStartEdit={handleStartEdit}
+                        onSaveEdit={handleSaveEdit}
+                        onDelete={handlePanelItemDelete}
+                      />
+                    )))}
 
               {topFilter !== 'device' && (
                 <>
