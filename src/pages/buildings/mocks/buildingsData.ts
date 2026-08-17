@@ -1,58 +1,8 @@
-import type { Building, Organization } from '../types/buildings';
+import type { Organization } from '../types/buildings';
 
+// 조직(학교) 정보를 내려주는 API가 아직 없어 목업 유지 — project_floorplans_api_mismatch 메모 참고
 export const mockOrganization: Organization = {
   id: 1,
   name: '서울중학교',
   address: '서울특별시 강남구 테헤란로 123',
 };
-
-export const mockBuildings: Building[] = [
-  {
-    id: 1,
-    name: 'A동 · 본관',
-    area: 12500,
-    lastTrainingDate: '2025-05-12',
-    aboveFloors: 5,
-    belowFloors: 1,
-    cctvTotal: 12,
-    cctvOnline: 12,
-    iotTotal: 24,
-    iotOnline: 24,
-  },
-  {
-    id: 2,
-    name: 'B동 · 별관',
-    area: 8200,
-    lastTrainingDate: '2025-05-12',
-    aboveFloors: 3,
-    belowFloors: 0,
-    cctvTotal: 6,
-    cctvOnline: 6,
-    iotTotal: 12,
-    iotOnline: 12,
-  },
-  {
-    id: 3,
-    name: 'C동 · 체육관',
-    area: 3600,
-    lastTrainingDate: '2025-04-20',
-    aboveFloors: 2,
-    belowFloors: 0,
-    cctvTotal: 8,
-    cctvOnline: 6,
-    iotTotal: 16,
-    iotOnline: 14,
-  },
-  {
-    id: 4,
-    name: 'D동 · 강당',
-    area: 2100,
-    lastTrainingDate: '2025-05-01',
-    aboveFloors: 1,
-    belowFloors: 0,
-    cctvTotal: 4,
-    cctvOnline: 4,
-    iotTotal: 8,
-    iotOnline: 8,
-  },
-];

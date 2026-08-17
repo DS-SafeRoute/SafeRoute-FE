@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import useToast from '@components/toast/useToast';
 
+import { useBuildingsQuery } from './api/useBuildingsQuery';
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
 import OrganizationCard from './components/OrganizationCard/OrganizationCard';
-import { mockBuildings, mockOrganization } from './mocks/buildingsData';
+import { mockOrganization } from './mocks/buildingsData';
 import BuildingAddModal from './modals/BuildingAddModal';
 import BuildingDeleteModal from './modals/BuildingDeleteModal';
 import BuildingEditModal from './modals/BuildingEditModal';
@@ -22,17 +23,23 @@ type ModalState =
   | null;
 
 const BuildingsPage = () => {
-  const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
+  const { data, isLoading, isError } = useBuildingsQuery();
+  // 추가/수정/삭제는 아직 목록 조회만 실 API로 붙인 상태라, 응답 도착 시 로컬 상태로 복사해두고 그 위에서 낙관적으로 반영함
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [modal, setModal] = useState<ModalState>(null);
   const { show } = useToast();
+
+  useEffect(() => {
+    if (data) setBuildings(data);
+  }, [data]);
 
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
   const handleDelete = (building: Building) => setModal({ type: 'delete', building });
 
   const handleConfirmAdd = (building: Omit<Building, 'id'>) => {
-    const newId = Math.max(0, ...buildings.map((b) => b.id)) + 1;
-    setBuildings((prev) => [...prev, { id: newId, ...building }]);
+    const newBuilding: Building = { id: crypto.randomUUID(), ...building };
+    setBuildings((prev) => [...prev, newBuilding]);
     setModal(null);
     show({
       title: '건물이 추가되었습니다.',
@@ -78,16 +85,30 @@ const BuildingsPage = () => {
           </Button>
         </div>
 
-        <div className={styles.grid}>
-          {buildings.map((building) => (
-            <BuildingCard
-              key={building.id}
-              building={building}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+        {isLoading && (
+          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>
+            불러오는 중...
+          </p>
+        )}
+
+        {isError && (
+          <p style={{ color: 'var(--color-danger)', fontSize: '1.4rem', padding: '2rem 0' }}>
+            건물 목록을 불러오지 못했습니다.
+          </p>
+        )}
+
+        {!isLoading && !isError && (
+          <div className={styles.grid}>
+            {buildings.map((building) => (
+              <BuildingCard
+                key={building.id}
+                building={building}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {modal?.type === 'add' && (

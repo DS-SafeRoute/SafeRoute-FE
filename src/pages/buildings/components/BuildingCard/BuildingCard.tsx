@@ -14,12 +14,17 @@ interface BuildingCardProps {
   onDelete: (building: Building) => void;
 }
 
-const formatTrainingDate = (date: string) => (date === '-' ? date : date.split('-').join('.'));
+const formatTrainingDate = (date: string | null) =>
+  date ? date.split('T')[0].split('-').join('.') : '-';
 
 const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isIotWarning = building.iotOnline < building.iotTotal;
+  const cctvTotal = building.cctvTotal ?? 0;
+  const cctvOnline = building.cctvOnline ?? 0;
+  const iotTotal = building.iotTotal ?? 0;
+  const iotOnline = building.iotOnline ?? 0;
+  const isIotWarning = iotOnline < iotTotal;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -40,7 +45,7 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             <span className={styles.name}>{building.name}</span>
           </div>
           <span className={styles.lastTraining}>
-            최근 훈련 · {formatTrainingDate(building.lastTrainingDate)}
+            최근 훈련 · {formatTrainingDate(building.lastTrainedAt)}
           </span>
         </div>
         <div className={styles.headerRight}>
@@ -89,7 +94,7 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             <LayersIcon className={styles.statIcon} width={14} height={14} />
             층수
           </span>
-          <span className={styles.statValue}>{building.aboveFloors}층</span>
+          <span className={styles.statValue}>{building.totalFloors}층</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -97,7 +102,7 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             CCTV
           </span>
           <span className={styles.statValue}>
-            {building.cctvOnline}/{building.cctvTotal}
+            {cctvOnline}/{cctvTotal}
           </span>
         </div>
         <div className={styles.statItem}>
@@ -107,12 +112,12 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
           </span>
           {isIotWarning ? (
             <span className={styles.statValueWarning}>
-              {building.iotOnline}/{building.iotTotal}
+              {iotOnline}/{iotTotal}
               <span aria-label="경고">⚠</span>
             </span>
           ) : (
             <span className={styles.statValue}>
-              {building.iotOnline}/{building.iotTotal}
+              {iotOnline}/{iotTotal}
             </span>
           )}
         </div>

@@ -6,7 +6,7 @@ import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
-import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
+import { isPositiveInt } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
 
@@ -21,14 +21,12 @@ interface BuildingEditModalProps {
 
 interface FormState {
   name: string;
-  aboveFloors: string;
-  belowFloors: string;
+  totalFloors: string;
 }
 
 const toFormState = (building: Building): FormState => ({
   name: building.name,
-  aboveFloors: String(building.aboveFloors),
-  belowFloors: String(building.belowFloors),
+  totalFloors: String(building.totalFloors),
 });
 
 const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditModalProps) => {
@@ -47,7 +45,7 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
-  const handleFloorChange = (field: 'aboveFloors' | 'belowFloors') => (value: string) => {
+  const handleFloorChange = (field: 'totalFloors') => (value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
@@ -55,10 +53,8 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
   const validate = () => {
     const next: Partial<FormState> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
-    if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
-    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
-    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
-      next.belowFloors = '올바른 층수를 입력해 주세요';
+    if (!form.totalFloors.trim()) next.totalFloors = '층수를 입력해 주세요';
+    else if (!isPositiveInt(form.totalFloors)) next.totalFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -68,8 +64,7 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
     onConfirm({
       ...building,
       name: form.name.trim(),
-      aboveFloors: Number(form.aboveFloors),
-      belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
+      totalFloors: Number(form.totalFloors),
     });
   };
 
@@ -98,18 +93,11 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
         />
         <div className={styles.floorRow}>
           <FloorStepperField
-            label="지상 *"
-            value={form.aboveFloors}
-            onChange={handleFloorChange('aboveFloors')}
+            label="층수 *"
+            value={form.totalFloors}
+            onChange={handleFloorChange('totalFloors')}
             min={1}
-            errorMessage={errors.aboveFloors}
-          />
-          <FloorStepperField
-            label="지하"
-            value={form.belowFloors}
-            onChange={handleFloorChange('belowFloors')}
-            min={0}
-            errorMessage={errors.belowFloors}
+            errorMessage={errors.totalFloors}
           />
         </div>
       </div>

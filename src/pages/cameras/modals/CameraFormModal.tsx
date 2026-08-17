@@ -12,8 +12,7 @@ import Modal from '@components/modal';
 
 import * as styles from './CameraFormModal.css';
 
-import type { Building } from '../../buildings/types/buildings';
-import type { Camera } from '../types/cameras';
+import type { Camera, CameraBuildingOption } from '../types/cameras';
 
 type FormState = {
   name: string;
@@ -53,7 +52,7 @@ const cameraToForm = (camera: Camera): FormState => ({
   password: camera.password,
 });
 
-const getFloorOptions = (building: Building) => {
+const getFloorOptions = (building: CameraBuildingOption) => {
   const floors: { label: string; value: string }[] = [];
   for (let f = building.aboveFloors; f >= 1; f--) {
     floors.push({ label: `${f}층`, value: String(f) });
@@ -148,7 +147,7 @@ interface CameraFormModalProps {
   open: boolean;
   onClose: () => void;
   camera?: Camera;
-  buildings: Building[];
+  buildings: CameraBuildingOption[];
   onConfirm: (data: Omit<Camera, 'id' | 'status'>) => void;
 }
 

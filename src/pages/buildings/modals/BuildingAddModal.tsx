@@ -6,7 +6,7 @@ import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
-import { isNonNegativeInt, isPositiveInt, isPositiveNumber } from '@shared/utils/validation';
+import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
 
@@ -20,12 +20,11 @@ interface BuildingAddModalProps {
 
 interface FormState {
   name: string;
-  area: string;
   aboveFloors: string;
   belowFloors: string;
 }
 
-const INITIAL_FORM: FormState = { name: '', area: '', aboveFloors: '1', belowFloors: '0' };
+const INITIAL_FORM: FormState = { name: '', aboveFloors: '1', belowFloors: '0' };
 
 const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
@@ -44,8 +43,6 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
   const validate = () => {
     const next: Partial<FormState> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
-    if (!form.area.trim()) next.area = '면적을 입력해 주세요';
-    else if (!isPositiveNumber(form.area)) next.area = '올바른 면적을 입력해 주세요';
     if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
     else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
     if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
@@ -56,16 +53,16 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
 
   const handleConfirm = () => {
     if (!validate()) return;
+    const totalFloors =
+      Number(form.aboveFloors) + (form.belowFloors.trim() ? Number(form.belowFloors) : 0);
     onConfirm({
       name: form.name.trim(),
-      area: Number(form.area),
-      lastTrainingDate: '-',
-      aboveFloors: Number(form.aboveFloors),
-      belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
-      cctvTotal: 0,
-      cctvOnline: 0,
-      iotTotal: 0,
-      iotOnline: 0,
+      // TODO(#54): buildingType/address 입력 필드는 다음 커밋에서 추가 예정
+      address: '',
+      buildingType: 'CLASSROOM',
+      totalFloors,
+      isActive: true,
+      lastTrainedAt: null,
     });
     setForm(INITIAL_FORM);
     setErrors({});
@@ -99,13 +96,6 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
           value={form.name}
           onChange={handleChange('name')}
           errorMessage={errors.name}
-        />
-        <TextField
-          label="연면적(m²) *"
-          placeholder="12,500"
-          value={form.area}
-          onChange={handleChange('area')}
-          errorMessage={errors.area}
         />
         <div className={styles.floorRow}>
           <FloorStepperField
