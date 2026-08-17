@@ -33,6 +33,7 @@ const FloorUploadModal = ({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,12 +42,15 @@ const FloorUploadModal = ({
     };
   }, [preview]);
 
-  const isPdf = file?.type === 'application/pdf';
-
   const handleFileSelect = (selected: File) => {
+    if (selected.type !== 'image/jpeg') {
+      setFileError('JPG 형식의 파일만 업로드할 수 있어요');
+      return;
+    }
+    setFileError(null);
     if (preview) URL.revokeObjectURL(preview);
     setFile(selected);
-    setPreview(selected.type === 'application/pdf' ? null : URL.createObjectURL(selected));
+    setPreview(URL.createObjectURL(selected));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,8 +62,7 @@ const FloorUploadModal = ({
     e.preventDefault();
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
-    const allowed = ['image/png', 'image/jpeg', 'application/pdf'];
-    if (dropped && allowed.includes(dropped.type)) handleFileSelect(dropped);
+    if (dropped) handleFileSelect(dropped);
   };
 
   const handleConfirm = () => {
@@ -73,6 +76,7 @@ const FloorUploadModal = ({
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview(null);
+    setFileError(null);
     onClose();
   };
 
@@ -100,11 +104,7 @@ const FloorUploadModal = ({
 
       {file ? (
         <div className={styles.previewWrap}>
-          {isPdf ? (
-            <span className={styles.pdfIcon}>PDF</span>
-          ) : (
-            preview && <img src={preview} alt="도면 미리보기" className={styles.previewImg} />
-          )}
+          {preview && <img src={preview} alt="도면 미리보기" className={styles.previewImg} />}
           <span className={styles.previewName}>{file.name}</span>
           <button
             type="button"
@@ -130,14 +130,18 @@ const FloorUploadModal = ({
         >
           <UploadIcon width={28} height={28} className={styles.dropzoneIcon} />
           <span className={styles.dropzoneText}>클릭하거나 파일을 드래그해 주세요</span>
-          <span className={styles.dropzoneHint}>PNG, JPG, PDF 형식만 지원</span>
+          {fileError ? (
+            <span className={styles.dropzoneError}>{fileError}</span>
+          ) : (
+            <span className={styles.dropzoneHint}>JPG 형식만 지원</span>
+          )}
         </div>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,.pdf"
+        accept="image/jpeg"
         className={styles.fileInput}
         onChange={handleInputChange}
       />

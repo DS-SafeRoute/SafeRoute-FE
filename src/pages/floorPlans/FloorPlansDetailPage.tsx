@@ -4,18 +4,23 @@ import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
+import CheckIcon from '@assets/icons/ic-check.svg?react';
+import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
+import EditIcon from '@assets/icons/ic-edit.svg?react';
+import PlusIcon from '@assets/icons/ic-plus.svg?react';
+import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
-import XIcon from '@assets/icons/ic-x.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
-import Dropdown from '@components/dropdown';
 
 import { formatFloor } from '@utils/floor';
 
-import { getFloorBuildings, getFloorDetail } from './api/floorPlansApi';
+import { getFloorBuildings, getFloorDetail, segmentFloor, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansDetailPage.css';
+import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
+import GridAreaSettingModal from './modals/GridAreaSettingModal';
 
 import type {
   AiLayer,
@@ -24,18 +29,20 @@ import type {
   Floor,
   FloorBuilding,
   PoiMarker,
-  SegmentationStatus,
 } from './types/floorPlans';
 
-const AI_LAYERS: { key: AiLayer; label: string }[] = [
-  { key: 'wall', label: '벽' },
-  { key: 'corridor', label: '복도' },
-  { key: 'stairwell', label: '계단실' },
-  { key: 'exit', label: '비상구' },
-  { key: 'room', label: '방' },
-];
-
 type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
+
+type PanelItem = {
+  id: string;
+  kind: 'device' | 'poi';
+  type: 'cctv' | 'iot' | 'light' | 'general';
+  label: string;
+  statusText: string;
+  statusOnline: boolean;
+  zone: string;
+  source: 'floor' | 'added' | 'poi';
+};
 
 type PoiType = 'exit' | 'stair' | 'extinguisher' | 'assembly' | 'firstaid';
 
@@ -47,16 +54,20 @@ const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: str
   firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
 };
 
-type PlacingDeviceType = 'cctv' | 'iot';
+type PlacingDeviceType = 'cctv' | 'iot' | 'light' | 'door';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
-  cctv: { label: 'CCTV', color: '#2563eb' },
-  iot: { label: 'IoT 유도등', color: '#16a34a' },
+  cctv: { label: 'CCTV', color: '#8b5cf6' },
+  iot: { label: 'IoT', color: '#16a34a' },
+  light: { label: '유도등', color: '#d97706' },
+  door: { label: '문 · 출입구', color: '#2563eb' },
 };
 
 type AddedDevice = {
   id: string;
-  type: PlacingDeviceType;
+  type: 'cctv' | 'iot';
+  placeType: PlacingEquipmentType;
   label: string;
   x: number; // %
   y: number; // %
@@ -64,204 +75,194 @@ type AddedDevice = {
   zone: string;
 };
 
-/* ── 경로탐색 헬퍼 ── */
-type Pt = { x: number; y: number };
+type ZoneType = 'general' | 'camera';
 
-/* 복도 양쪽 외벽에 비상구 위치 */
-const DOOR_PTS = {
-  room301: { x: 110, y: 195 },
-  room302: { x: 400, y: 195 },
-  room303: { x: 110, y: 225 },
-  room304: { x: 400, y: 225 },
-};
+type ZoneRect = { x: number; y: number; w: number; h: number };
 
-const EXIT_PTS = {
-  A: { x: 22, y: 210 }, // 좌측 외벽 복도 높이
-  B: { x: 538, y: 210 }, // 우측 외벽 복도 높이
-};
+type ZoneEntry = { id: string; type: ZoneType; label: string; rect?: ZoneRect };
 
-const CORR_Y = 210; // 복도 중심 Y
+type DoorNode = { id: string; x: number; y: number; isFinalExit: boolean };
 
-function getZone(
-  x: number,
-  y: number,
-): 'room301' | 'room302' | 'room303' | 'room304' | 'corridor' | 'other' {
-  if (x >= 20 && x <= 250 && y >= 20 && y <= 195) return 'room301';
-  if (x >= 310 && x <= 540 && y >= 20 && y <= 195) return 'room302';
-  if (x >= 20 && x <= 250 && y >= 225 && y <= 380) return 'room303';
-  if (x >= 310 && x <= 540 && y >= 225 && y <= 380) return 'room304';
-  if (y >= 195 && y <= 225) return 'corridor';
-  return 'other';
-}
+type ZoneRefSelection =
+  | { kind: 'door'; id: string }
+  | { kind: 'stair' }
+  | { kind: 'zone'; id: string };
 
-function computeEvacPath(start: Pt, isExitB: boolean): Pt[] {
-  const exitPt = isExitB ? EXIT_PTS.B : EXIT_PTS.A;
-  const path: Pt[] = [start];
-  const zone = getZone(start.x, start.y);
+const GRID_SIZE = 20;
 
-  // Step 1: 시작 방 → 복도 문
-  const doorMap: Record<string, Pt> = {
-    room301: DOOR_PTS.room301,
-    room302: DOOR_PTS.room302,
-    room303: DOOR_PTS.room303,
-    room304: DOOR_PTS.room304,
-  };
-  if (doorMap[zone]) {
-    const door = doorMap[zone];
-    // 방 안에서 문 방향으로 직선 이동 후 문 통과
-    path.push({ x: start.x, y: door.y });
-    path.push(door);
-  }
+/* ── Mock SVG 도면 (3층 예시, Figma 레이아웃 매칭) ── */
+const FLOOR_BOUNDS = { x: 20, y: 20, w: 520, h: 380 };
 
-  // Step 2: 복도 중심선(Y=210)에 맞추기
-  const last = path[path.length - 1];
-  if (Math.abs(last.y - CORR_Y) > 3) {
-    path.push({ x: last.x, y: CORR_Y });
-  }
-
-  // Step 3: 복도를 수평으로 이동 → 비상구(외벽)
-  const currX = path[path.length - 1].x;
-  if (Math.abs(currX - exitPt.x) > 10) {
-    path.push({ x: exitPt.x, y: CORR_Y });
-  }
-  path.push(exitPt);
-
-  return path;
-}
-
-function interpolatePoly(pts: Pt[], t: number): Pt {
-  let total = 0;
-  const segs = pts.slice(1).map((p, i) => {
-    const dx = p.x - pts[i].x;
-    const dy = p.y - pts[i].y;
-    const len = Math.hypot(dx, dy);
-    total += len;
-    return { dx, dy, len };
-  });
-  const target = t * total;
-  let acc = 0;
-  for (let i = 0; i < segs.length; i++) {
-    const { dx, dy, len } = segs[i];
-    if (acc + len >= target) {
-      const r = len > 0 ? (target - acc) / len : 0;
-      return { x: pts[i].x + r * dx, y: pts[i].y + r * dy };
-    }
-    acc += len;
-  }
-  return pts[pts.length - 1];
-}
-
-function polyLen(pts: Pt[]): number {
-  let total = 0;
-  for (let i = 1; i < pts.length; i++) {
-    total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-  }
-  return total;
-}
-
-function isNear(a: Pt, b: Pt, d = 55): boolean {
-  return Math.hypot(a.x - b.x, a.y - b.y) < d;
-}
-
-/* ── Mock SVG 도면 (3층 예시) ── */
-const ROOMS: {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  baseFill: string;
-}[] = [
-  {
-    id: 'room-301',
-    label: 'ROOM 301',
-    x: 20,
-    y: 20,
-    w: 230,
-    h: 175,
-    baseFill: 'rgba(254,226,226,0.5)',
-  },
-  {
-    id: 'room-302',
-    label: 'ROOM 302',
-    x: 310,
-    y: 20,
-    w: 230,
-    h: 175,
-    baseFill: 'rgba(255,237,213,0.5)',
-  },
-  {
-    id: 'room-303',
-    label: 'ROOM 303',
-    x: 20,
-    y: 225,
-    w: 230,
-    h: 155,
-    baseFill: 'rgba(243,244,246,0.5)',
-  },
-  {
-    id: 'room-304',
-    label: 'ROOM 304',
-    x: 310,
-    y: 225,
-    w: 230,
-    h: 155,
-    baseFill: 'rgba(243,244,246,0.5)',
-  },
+const FLOOR_WALLS: { x1: number; y1: number; x2: number; y2: number }[] = [
+  { x1: 200, y1: 20, x2: 200, y2: 220 },
+  { x1: 20, y1: 220, x2: 360, y2: 220 },
+  { x1: 360, y1: 20, x2: 360, y2: 400 },
+  { x1: 360, y1: 260, x2: 540, y2: 260 },
 ];
+
+const INITIAL_STAIR_AREA: ZoneRect = { x: 380, y: 300, w: 120, h: 80 };
+
+/* 기존(사전 등록) CCTV 장비에 시야 구역이 없을 경우 위치 기준으로 기본 구역을 만들어줌 */
+const buildDefaultCctvZoneRect = (device: DeviceMarker): ZoneRect => {
+  const size = 100;
+  const cx = (device.x / 100) * 560;
+  const cy = (device.y / 100) * 420;
+  const clampedX = Math.min(
+    Math.max(cx - size / 2, FLOOR_BOUNDS.x),
+    FLOOR_BOUNDS.x + FLOOR_BOUNDS.w - size,
+  );
+  const clampedY = Math.min(
+    Math.max(cy - size / 2, FLOOR_BOUNDS.y),
+    FLOOR_BOUNDS.y + FLOOR_BOUNDS.h - size,
+  );
+  return {
+    x: Math.round(clampedX / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(clampedY / GRID_SIZE) * GRID_SIZE,
+    w: size,
+    h: size,
+  };
+};
+
+const isSameRect = (a: ZoneRect, b: ZoneRect): boolean =>
+  a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+const INITIAL_DOOR_NODES: DoorNode[] = [
+  { id: 'door-1', x: 110, y: 220, isFinalExit: false },
+  { id: 'door-2', x: 280, y: 220, isFinalExit: false },
+  { id: 'door-3', x: 360, y: 140, isFinalExit: false },
+  { id: 'door-4', x: 450, y: 260, isFinalExit: false },
+  { id: 'door-5', x: 360, y: 400, isFinalExit: false },
+];
+
+const GRID_LINES_X = Array.from(
+  { length: Math.floor(FLOOR_BOUNDS.w / GRID_SIZE) + 1 },
+  (_, i) => FLOOR_BOUNDS.x + i * GRID_SIZE,
+);
+const GRID_LINES_Y = Array.from(
+  { length: Math.floor(FLOOR_BOUNDS.h / GRID_SIZE) + 1 },
+  (_, i) => FLOOR_BOUNDS.y + i * GRID_SIZE,
+);
 
 const MockFloorMap3F = ({
   aiLayers,
-  showHeatmap,
-  evacPath,
-  isPathDanger,
   editMode,
+  placingActive,
+  zoneAddActive,
+  zoneDraftRect,
+  onZoneDraftChange,
+  onZoneDragEnd,
+  savedZones,
+  stairArea,
+  doorNodes,
+  editingDoorId,
+  onDoorNodeMove,
+  selectedZoneRef,
+  onZoneRefSelect,
+  selectedCctvZoneId,
+  onCctvZoneClick,
   poiMarkers,
-  simAnimating,
-  simDone,
   relocatingPoiId,
-  fireMarkers,
-  simStart,
-  simClickMode,
   onMapClick,
-  onFireMapClick,
-  onFireMarkerDelete: handleFireMarkerDelete,
   onPoiClick,
+  onBackgroundClick,
 }: {
   aiLayers: Record<string, boolean>;
-  showHeatmap: boolean;
-  evacPath: Pt[] | null;
-  isPathDanger: boolean;
   editMode: EditMode;
+  placingActive: boolean;
+  zoneAddActive: boolean;
+  zoneDraftRect: ZoneRect | null;
+  onZoneDraftChange: (rect: ZoneRect | null) => void;
+  onZoneDragEnd: () => void;
+  savedZones: ZoneEntry[];
+  stairArea: ZoneRect | null;
+  doorNodes: DoorNode[];
+  editingDoorId: string | null;
+  onDoorNodeMove: (id: string, x: number, y: number) => void;
+  selectedZoneRef: ZoneRefSelection | null;
+  onZoneRefSelect: (ref: ZoneRefSelection) => void;
+  selectedCctvZoneId: string | null;
+  onCctvZoneClick: (zoneId: string) => void;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
-  simAnimating: boolean;
-  simDone: boolean;
   relocatingPoiId: string | null;
-  fireMarkers: Array<{ id: string; x: number; y: number }>;
-  simStart: { x: number; y: number } | null;
-  simClickMode: 'fire' | 'start' | null;
   onMapClick: (x: number, y: number) => void;
-  onFireMapClick: (x: number, y: number) => void;
-  onFireMarkerDelete: (id: string) => void;
   onPoiClick: (id: string) => void;
+  onBackgroundClick: () => void;
 }) => {
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const doorDragMovedRef = useRef(false);
+
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.round(((e.clientX - rect.left) / rect.width) * 560);
     const y = Math.round(((e.clientY - rect.top) / rect.height) * 420);
-    if (simClickMode === 'start' || simClickMode === 'fire') {
-      onFireMapClick(x, y);
-      return;
-    }
-    if (editMode === 'poi') {
+    if (editMode === 'poi' || placingActive) {
       onMapClick(x, y);
       return;
     }
+    if (zoneAddActive) return;
+    onBackgroundClick();
+  };
+
+  const svgPoint = (clientX: number, clientY: number, svgEl: SVGSVGElement) => {
+    const rect = svgEl.getBoundingClientRect();
+    const rawX = ((clientX - rect.left) / rect.width) * 560;
+    const rawY = ((clientY - rect.top) / rect.height) * 420;
+    return {
+      x: Math.max(0, Math.min(560, Math.round(rawX / GRID_SIZE) * GRID_SIZE)),
+      y: Math.max(0, Math.min(420, Math.round(rawY / GRID_SIZE) * GRID_SIZE)),
+    };
+  };
+
+  const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!zoneAddActive) return;
+    e.preventDefault();
+    const svgEl = e.currentTarget;
+    const start = svgPoint(e.clientX, e.clientY, svgEl);
+    dragStartRef.current = start;
+    onZoneDraftChange({ x: start.x, y: start.y, w: 0, h: 0 });
+
+    const onMove = (mv: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const cur = svgPoint(mv.clientX, mv.clientY, svgEl);
+      const x = Math.min(dragStartRef.current.x, cur.x);
+      const y = Math.min(dragStartRef.current.y, cur.y);
+      const w = Math.abs(cur.x - dragStartRef.current.x);
+      const h = Math.abs(cur.y - dragStartRef.current.y);
+      onZoneDraftChange({ x, y, w, h });
+    };
+    const onUp = () => {
+      dragStartRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      onZoneDragEnd();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const handleDoorMouseDown = (e: React.MouseEvent<SVGGElement>, doorId: string) => {
+    if (doorId !== editingDoorId) return;
+    e.stopPropagation();
+    e.preventDefault();
+    doorDragMovedRef.current = false;
+    const svgEl = e.currentTarget.ownerSVGElement;
+    if (!svgEl) return;
+
+    const onMove = (mv: MouseEvent) => {
+      doorDragMovedRef.current = true;
+      const point = svgPoint(mv.clientX, mv.clientY, svgEl);
+      onDoorNodeMove(doorId, point.x, point.y);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   };
 
   const svgCursor =
-    relocatingPoiId || editMode === 'poi' || simClickMode === 'start' || simClickMode === 'fire'
+    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive
       ? 'crosshair'
       : 'default';
 
@@ -273,6 +274,7 @@ const MockFloorMap3F = ({
       xmlns="http://www.w3.org/2000/svg"
       style={{ cursor: svgCursor }}
       onClick={handleSvgClick}
+      onMouseDown={handleSvgMouseDown}
     >
       {/* 배경 */}
       <rect width="560" height="420" fill="#f8f9fa" />
@@ -280,283 +282,215 @@ const MockFloorMap3F = ({
       {/* 외벽 (wall) */}
       {aiLayers.wall && (
         <rect
-          x="20"
-          y="20"
-          width="520"
-          height="380"
-          fill="none"
+          x={FLOOR_BOUNDS.x}
+          y={FLOOR_BOUNDS.y}
+          width={FLOOR_BOUNDS.w}
+          height={FLOOR_BOUNDS.h}
+          fill="white"
           stroke="#374151"
           strokeWidth="2.5"
         />
       )}
 
-      {/* 실 (room) */}
-      {aiLayers.room &&
-        ROOMS.map((room) => (
-          <g key={room.id}>
-            <rect
-              x={room.x}
-              y={room.y}
-              width={room.w}
-              height={room.h}
-              fill={room.baseFill}
-              stroke="#d1d5db"
-              strokeWidth={1}
+      {/* 그리드 오버레이 */}
+      {aiLayers.wall && (
+        <g opacity={0.6}>
+          {GRID_LINES_X.map((x) => (
+            <line
+              key={`gx-${x}`}
+              x1={x}
+              y1={FLOOR_BOUNDS.y}
+              x2={x}
+              y2={FLOOR_BOUNDS.y + FLOOR_BOUNDS.h}
+              stroke="#b8bdc7"
+              strokeWidth="1"
             />
-            <text
-              x={room.x + room.w / 2}
-              y={room.y + room.h / 2 + 4}
-              textAnchor="middle"
-              fill="#6b7280"
-              fontSize="12"
-              fontFamily="sans-serif"
-            >
-              {room.label}
-            </text>
-          </g>
+          ))}
+          {GRID_LINES_Y.map((y) => (
+            <line
+              key={`gy-${y}`}
+              x1={FLOOR_BOUNDS.x}
+              y1={y}
+              x2={FLOOR_BOUNDS.x + FLOOR_BOUNDS.w}
+              y2={y}
+              stroke="#b8bdc7"
+              strokeWidth="1"
+            />
+          ))}
+        </g>
+      )}
+
+      {/* 내벽 (AI 세그멘테이션 결과) */}
+      {aiLayers.room &&
+        FLOOR_WALLS.map((w, i) => (
+          <line
+            key={`wall-${i}`}
+            x1={w.x1}
+            y1={w.y1}
+            x2={w.x2}
+            y2={w.y2}
+            stroke="#374151"
+            strokeWidth="2"
+          />
         ))}
 
-      {/* 복도 (corridor) */}
-      {aiLayers.corridor && (
-        <rect
-          x="20"
-          y="195"
-          width="520"
-          height="30"
-          fill="rgba(219,234,254,0.4)"
-          stroke="#bfdbfe"
-          strokeWidth="1"
-        />
-      )}
-
-      {/* 계단실 (stairwell) */}
-      {aiLayers.stairwell && (
-        <>
-          <rect
-            x="250"
-            y="185"
-            width="60"
-            height="40"
-            fill="rgba(191,219,254,0.7)"
-            stroke="#93c5fd"
-            strokeWidth="1.5"
-          />
-          <text
-            x="280"
-            y="209"
-            textAnchor="middle"
-            fill="#1d4ed8"
-            fontSize="10"
-            fontWeight="600"
-            fontFamily="sans-serif"
-          >
-            STAIR
-          </text>
-        </>
-      )}
-
-      {/* 비상구 (exit) — 복도 좌우 외벽 */}
-      {aiLayers.exit && (
-        <>
-          {/* EXIT A — 좌측 외벽 (복도 높이) */}
-          <rect x="16" y="198" width="8" height="24" fill="white" />
-          <circle cx="22" cy="210" r="16" fill="#16a34a" />
-          <text
-            x="22"
-            y="214"
-            textAnchor="middle"
-            fill="white"
-            fontSize="11"
-            fontWeight="bold"
-            fontFamily="sans-serif"
-          >
-            E
-          </text>
-          <text
-            x="22"
-            y="236"
-            textAnchor="middle"
-            fill="#16a34a"
-            fontSize="9"
-            fontFamily="sans-serif"
-          >
-            EXIT A
-          </text>
-          {/* EXIT B — 우측 외벽 (복도 높이) */}
-          <rect x="536" y="198" width="8" height="24" fill="white" />
-          <circle cx="538" cy="210" r="16" fill="#16a34a" />
-          <text
-            x="538"
-            y="214"
-            textAnchor="middle"
-            fill="white"
-            fontSize="11"
-            fontWeight="bold"
-            fontFamily="sans-serif"
-          >
-            E
-          </text>
-          <text
-            x="538"
-            y="236"
-            textAnchor="middle"
-            fill="#16a34a"
-            fontSize="9"
-            fontFamily="sans-serif"
-          >
-            EXIT B
-          </text>
-        </>
-      )}
-
-      {/* 시뮬레이션 경로 */}
-      {evacPath &&
-        evacPath.length > 1 &&
+      {/* 계단 (AI 세그멘테이션 결과, 주황색 영역) */}
+      {aiLayers.room &&
+        stairArea &&
         (() => {
-          const stroke = isPathDanger ? '#f97316' : '#3b82f6';
-          const d = evacPath.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+          const isStairSelected = selectedZoneRef?.kind === 'stair';
           return (
-            <g>
-              <path
-                key={simAnimating ? 'anim' : 'static'}
-                d={d}
-                fill="none"
-                stroke={stroke}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                pathLength="300"
-                className={simAnimating ? styles.simPathAnimated : undefined}
-                strokeDasharray={simAnimating ? undefined : '8 5'}
+            <g
+              onClick={(e) => {
+                if (zoneAddActive) return;
+                e.stopPropagation();
+                onZoneRefSelect({ kind: 'stair' });
+              }}
+              style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
+            >
+              <rect
+                x={stairArea.x}
+                y={stairArea.y}
+                width={stairArea.w}
+                height={stairArea.h}
+                fill="rgba(249,115,22,0.18)"
+                stroke={isStairSelected ? '#2563eb' : '#f97316'}
+                strokeWidth={isStairSelected ? '3' : '1.5'}
               />
-              {(simAnimating || simDone) &&
-                [0.1, 0.28, 0.46, 0.64, 0.82].map((t) => {
-                  const p = interpolatePoly(evacPath, t);
-                  return <circle key={t} cx={p.x} cy={p.y} r="5" fill={stroke} opacity="0.8" />;
-                })}
+              <text
+                x={stairArea.x + stairArea.w / 2}
+                y={stairArea.y + stairArea.h / 2 + 3}
+                textAnchor="middle"
+                fill="#c2410c"
+                fontSize="10"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                계단
+              </text>
             </g>
           );
         })()}
 
-      {/* 혼잡도 히트맵 */}
-      {showHeatmap && (
-        <g opacity="0.4">
-          <ellipse cx="140" cy="240" rx="70" ry="50" fill="#ef4444" />
-          <ellipse cx="350" cy="255" rx="55" ry="40" fill="#f97316" />
-          <ellipse cx="220" cy="290" rx="40" ry="35" fill="#eab308" />
-        </g>
-      )}
+      {/* 문 · 출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
+      {aiLayers.room &&
+        doorNodes.map((d) => {
+          const isEditingThis = d.id === editingDoorId;
+          const isSelected = selectedZoneRef?.kind === 'door' && selectedZoneRef.id === d.id;
+          return (
+            <g
+              key={d.id}
+              onMouseDown={(e) => handleDoorMouseDown(e, d.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (doorDragMovedRef.current) {
+                  doorDragMovedRef.current = false;
+                  return;
+                }
+                if (editingDoorId) return;
+                onZoneRefSelect({ kind: 'door', id: d.id });
+              }}
+              style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
+            >
+              {isSelected && (
+                <circle
+                  cx={d.x}
+                  cy={d.y}
+                  r={(d.isFinalExit ? 7 : 4) + 5}
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth="2"
+                  strokeDasharray="3 2"
+                />
+              )}
+              <circle
+                cx={d.x}
+                cy={d.y}
+                r={d.isFinalExit ? 7 : isEditingThis ? 6 : 4}
+                fill={d.isFinalExit ? '#16a34a' : '#2563eb'}
+                stroke={isEditingThis ? '#f59e0b' : d.isFinalExit ? 'white' : 'none'}
+                strokeWidth={isEditingThis ? 3 : d.isFinalExit ? 2 : 0}
+              />
+              {d.isFinalExit && (
+                <text
+                  x={d.x}
+                  y={d.y - 14}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontWeight="700"
+                  fill="#16a34a"
+                  fontFamily="sans-serif"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  최종 탈출구
+                </text>
+              )}
+            </g>
+          );
+        })}
 
-      {/* 문 (door) — 복도와 각 방 사이 */}
-      {aiLayers.room && (
-        <g>
-          {/* ROOM 301 → 복도 문 */}
-          <rect x="85" y="192" width="50" height="6" fill="white" />
-          <line x1="85" y1="195" x2="85" y2="170" stroke="#374151" strokeWidth="1.2" />
-          <path
-            d="M 85 170 A 25 25 0 0 1 110 195"
-            fill="rgba(219,234,254,0.3)"
-            stroke="#374151"
-            strokeWidth="1"
-          />
-          {/* ROOM 302 → 복도 문 */}
-          <rect x="375" y="192" width="50" height="6" fill="white" />
-          <line x1="425" y1="195" x2="425" y2="170" stroke="#374151" strokeWidth="1.2" />
-          <path
-            d="M 425 170 A 25 25 0 0 0 400 195"
-            fill="rgba(219,234,254,0.3)"
-            stroke="#374151"
-            strokeWidth="1"
-          />
-          {/* ROOM 303 → 복도 문 */}
-          <rect x="85" y="222" width="50" height="6" fill="white" />
-          <line x1="85" y1="225" x2="85" y2="250" stroke="#374151" strokeWidth="1.2" />
-          <path
-            d="M 85 250 A 25 25 0 0 0 110 225"
-            fill="rgba(219,234,254,0.3)"
-            stroke="#374151"
-            strokeWidth="1"
-          />
-          {/* ROOM 304 → 복도 문 */}
-          <rect x="375" y="222" width="50" height="6" fill="white" />
-          <line x1="425" y1="225" x2="425" y2="250" stroke="#374151" strokeWidth="1.2" />
-          <path
-            d="M 425 250 A 25 25 0 0 1 400 225"
-            fill="rgba(219,234,254,0.3)"
-            stroke="#374151"
-            strokeWidth="1"
-          />
-        </g>
-      )}
+      {/* 저장된 구역 — 카메라 시야는 해당 노드/카드를 선택했을 때만 표시 */}
+      {savedZones.map((z) => {
+        if (!z.rect) return null;
+        const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
+        const isCctvLinked = selectedCctvZoneId === z.id;
+        const highlighted = isSelected || isCctvLinked;
+        if (z.type === 'camera' && !highlighted) return null;
+        return (
+          <g
+            key={z.id}
+            onClick={(e) => {
+              if (zoneAddActive) return;
+              e.stopPropagation();
+              if (z.type === 'camera') {
+                onCctvZoneClick(z.id);
+              } else {
+                onZoneRefSelect({ kind: 'zone', id: z.id });
+              }
+            }}
+            style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
+          >
+            <rect
+              x={z.rect.x}
+              y={z.rect.y}
+              width={z.rect.w}
+              height={z.rect.h}
+              fill={z.type === 'general' ? 'rgba(107,114,128,0.15)' : 'rgba(139,92,246,0.18)'}
+              stroke={z.type === 'general' ? (isSelected ? '#2563eb' : '#6b7280') : '#8b5cf6'}
+              strokeWidth={z.type === 'general' ? (isSelected ? '3' : '1.5') : '2'}
+              strokeDasharray={z.type === 'camera' ? '4 3' : undefined}
+            />
+            {z.type === 'general' && (
+              <text
+                x={z.rect.x + z.rect.w / 2}
+                y={z.rect.y + z.rect.h / 2 + 3}
+                textAnchor="middle"
+                fill="#374151"
+                fontSize="10"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                {z.label}
+              </text>
+            )}
+          </g>
+        );
+      })}
 
-      {/* 훈련 시작 위치 마커 */}
-      {simStart && (
-        <g>
-          <circle
-            cx={simStart.x}
-            cy={simStart.y}
-            r="15"
-            fill="#16a34a"
-            stroke="white"
-            strokeWidth="2"
-            opacity="0.95"
-          />
-          <text
-            x={simStart.x}
-            y={simStart.y + 5}
-            textAnchor="middle"
-            fill="white"
-            fontSize="13"
-            fontFamily="sans-serif"
-            fontWeight="bold"
-          >
-            S
-          </text>
-          <text
-            x={simStart.x}
-            y={simStart.y + 28}
-            textAnchor="middle"
-            fill="#16a34a"
-            fontSize="9"
-            fontFamily="sans-serif"
-          >
-            시작위치
-          </text>
-        </g>
+      {/* 구역 추가 드래그 선택 영역 */}
+      {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
+        <rect
+          x={zoneDraftRect.x}
+          y={zoneDraftRect.y}
+          width={zoneDraftRect.w}
+          height={zoneDraftRect.h}
+          fill="rgba(37,99,235,0.18)"
+          stroke="#2563eb"
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+          style={{ pointerEvents: 'none' }}
+        />
       )}
-
-      {/* 임의 화재 마커 (POI 방식) */}
-      {fireMarkers.map((m) => (
-        <g
-          key={m.id}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleFireMarkerDelete(m.id);
-          }}
-          style={{ cursor: 'pointer' }}
-        >
-          <circle
-            cx={m.x}
-            cy={m.y}
-            r="14"
-            fill="#ef4444"
-            stroke="white"
-            strokeWidth="2"
-            opacity="0.9"
-          />
-          <text
-            x={m.x}
-            y={m.y + 5}
-            textAnchor="middle"
-            fill="white"
-            fontSize="13"
-            fontFamily="sans-serif"
-          >
-            🔥
-          </text>
-          <title>클릭해서 화재 마커 삭제</title>
-        </g>
-      ))}
 
       {/* POI 마커 */}
       {poiMarkers.map((m) => {
@@ -706,113 +640,418 @@ const DevicePin = ({
   );
 };
 
-/* ── 선택 정보 패널 ── */
-const InfoPanel = ({ selected, onClose }: { selected: SelectedItem; onClose: () => void }) => {
-  if (selected.kind === 'device') {
-    const d = selected.data;
+/* ── 사용자가 추가한 장치 마커 (위치 드래그 지원) ── */
+const AddedDevicePin = ({
+  device,
+  posX,
+  posY,
+  selected,
+  draggable,
+  onClick,
+  onDragEnd,
+}: {
+  device: AddedDevice;
+  posX: number;
+  posY: number;
+  selected: boolean;
+  draggable: boolean;
+  onClick: () => void;
+  onDragEnd: (id: string, x: number, y: number) => void;
+}) => {
+  const isDragging = useRef(false);
+  const didMove = useRef(false);
+  const color = DEVICE_PLACE_CONFIG[device.placeType].color;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!draggable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.current = true;
+    didMove.current = false;
+
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    if (!container) return;
+
+    const onMove = (mv: MouseEvent) => {
+      if (!isDragging.current) return;
+      didMove.current = true;
+      const rect = container.getBoundingClientRect();
+      const rawX = ((mv.clientX - rect.left) / rect.width) * 100;
+      const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
+      onDragEnd(device.id, Math.max(0, Math.min(100, rawX)), Math.max(0, Math.min(100, rawY)));
+    };
+    const onUp = () => {
+      isDragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={device.label}
+      className={styles.markerWrap}
+      style={{ left: `${posX}%`, top: `${posY}%`, cursor: draggable ? 'grab' : 'pointer' }}
+      onMouseDown={handleMouseDown}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (didMove.current) return;
+        onClick();
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+    >
+      <div
+        className={styles.markerCircle}
+        style={{ backgroundColor: color, border: '2px dashed white' }}
+        title={device.label}
+      >
+        {device.type === 'cctv' ? (
+          <CameraIcon width={12} height={12} aria-hidden="true" />
+        ) : (
+          <WifiIcon width={12} height={12} aria-hidden="true" />
+        )}
+      </div>
+      {selected && <span className={styles.markerLabel}>{device.label}</span>}
+    </div>
+  );
+};
+
+/* ── 장비 추가 팝업 ──
+ * 두 단계(정보 입력 → 위치 지정)로 구성. CCTV는 위치 지정 뒤 시야 범위 지정까지 총 세 단계.
+ * 종료 버튼 규칙: 아직 생성되지 않는 중간 단계는 "다음", 실제로 저장되는 마지막 클릭만 "추가"로 통일
+ * (구역추가 팝업과도 동일한 규칙 — 툴바의 "+ 노드 추가"/"+ 구역 추가"와 같은 동사로 시작·종료되게 함).
+ */
+const NodeAddPopup = ({
+  containerRef,
+  type,
+  onTypeChange,
+  stage,
+  hasDraftRect,
+  onCancel,
+  onBack,
+  onAdd,
+  onFinalize,
+}: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  type: PlacingDeviceType;
+  onTypeChange: (type: PlacingDeviceType) => void;
+  stage: 'form' | 'position' | 'fov' | 'ready';
+  hasDraftRect: boolean;
+  onCancel: () => void;
+  onBack: () => void;
+  onAdd: (type: PlacingDeviceType, deviceId: string, location: string) => void;
+  onFinalize: () => void;
+}) => {
+  const [deviceId, setDeviceId] = useState('');
+  const [location, setLocation] = useState('');
+
+  const isDoor = type === 'door';
+  const isCctv = type === 'cctv';
+  const totalSteps = isCctv ? 3 : 2;
+  const stepNumber = stage === 'form' ? 1 : stage === 'position' ? 2 : totalSteps;
+
+  if (stage !== 'form') {
     return (
-      <div className={styles.infoPanel}>
-        <div className={styles.infoPanelHeader}>
-          <span className={styles.infoPanelTitle}>선택 정보 · {d.label}</span>
+      <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.nodeAddHeader}>
+          <span className={styles.nodeAddTitle}>{DEVICE_PLACE_CONFIG[type].label} 위치 지정</span>
+          <span className={styles.nodeAddStepBadge}>
+            {stepNumber}/{totalSteps}
+          </span>
+        </div>
+        <span className={styles.nodeAddHint}>
+          {stage === 'position'
+            ? '도면을 클릭해서 위치를 지정해주세요'
+            : stage === 'fov'
+              ? '도면을 드래그해서 카메라 시야 구역을 지정해주세요'
+              : '위치 지정을 마쳤어요. 추가 버튼을 누르면 저장됩니다.'}
+        </span>
+
+        <div className={styles.nodeAddActions}>
+          <button type="button" className={styles.nodeAddBackBtn} onClick={onBack}>
+            이전
+          </button>
+          <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+            취소
+          </button>
           <button
             type="button"
-            className={styles.infoPanelClose}
-            onClick={onClose}
-            aria-label="닫기"
+            className={styles.nodeAddSubmitBtn}
+            disabled={stage === 'position' || (stage === 'fov' && !hasDraftRect)}
+            onClick={onFinalize}
           >
-            <XIcon width={14} height={14} />
+            추가
           </button>
-        </div>
-        {d.type === 'cctv' && <div className={styles.infoPanelThumb}>CCTV thumbnail</div>}
-        <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>장치 ID</span>
-          <span className={styles.infoPanelValue}>{d.id.toUpperCase()}</span>
-        </div>
-        {d.model && (
-          <div className={styles.infoPanelRow}>
-            <span className={styles.infoPanelKey}>모델</span>
-            <span className={styles.infoPanelValue}>{d.model}</span>
-          </div>
-        )}
-        <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>상태</span>
-          <StatusBadge
-            label={d.status === 'online' ? '실시간' : '오프라인'}
-            color={d.status === 'online' ? 'green' : 'neutral'}
-            dot
-          />
-        </div>
-        {d.resolution && (
-          <div className={styles.infoPanelRow}>
-            <span className={styles.infoPanelKey}>해상도</span>
-            <span className={styles.infoPanelValue}>{d.resolution}</span>
-          </div>
-        )}
-        <div className={styles.infoPanelRow}>
-          <span className={styles.infoPanelKey}>설치 위치</span>
-          <span className={styles.infoPanelValue}>{d.zone}</span>
-        </div>
-        <div className={styles.infoPanelActions}>
-          <Button
-            variant="outlined"
-            size="sm"
-            className={styles.infoPanelActionBtn}
-            onClick={onClose}
-          >
-            설정
-          </Button>
-          <Button variant="primary" size="sm" className={styles.infoPanelActionBtn}>
-            스트림 보기
-          </Button>
         </div>
       </div>
     );
   }
 
-  const p = selected.data;
   return (
-    <div className={styles.infoPanel}>
-      <div className={styles.infoPanelHeader}>
-        <span className={styles.infoPanelTitle}>선택 정보 · {p.label}</span>
-        <button type="button" className={styles.infoPanelClose} onClick={onClose} aria-label="닫기">
-          <XIcon width={14} height={14} />
-        </button>
-      </div>
-      <div className={styles.infoPanelRow}>
-        <span className={styles.infoPanelKey}>유형</span>
-        <span className={styles.infoPanelValue}>
-          {p.type === 'exit' ? '비상구' : p.type === 'stair' ? '계단' : '화재 구역'}
+    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.nodeAddHeader}>
+        <span className={styles.nodeAddTitle}>노드 정보 입력</span>
+        <span className={styles.nodeAddStepBadge}>
+          {stepNumber}/{totalSteps}
         </span>
+      </div>
+      <span className={styles.nodeAddHint}>
+        {isDoor
+          ? '종류를 확인하고 다음을 누르면 위치를 지정할 수 있어요'
+          : isCctv
+            ? '정보를 입력하고 다음을 누르면 위치를 지정한 뒤 시야 범위까지 이어서 지정하게 돼요'
+            : '정보를 입력하고 다음을 누르면 위치를 지정할 수 있어요'}
+      </span>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>노드 종류</span>
+        <div className={styles.deviceTypeChips}>
+          {(['cctv', 'iot', 'light', 'door'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
+              onClick={() => onTypeChange(t)}
+            >
+              {DEVICE_PLACE_CONFIG[t].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!isDoor && (
+        <>
+          <div className={styles.nodeAddField}>
+            <span className={styles.nodeAddLabel}>장치 ID</span>
+            <input
+              className={styles.nodeAddInput}
+              value={deviceId}
+              onChange={(e) => setDeviceId(e.target.value)}
+              placeholder="CCTV-A3-05"
+            />
+          </div>
+
+          <div className={styles.nodeAddField}>
+            <span className={styles.nodeAddLabel}>설치 위치</span>
+            <input
+              className={styles.nodeAddInput}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="3층 · 복도 동측"
+            />
+          </div>
+        </>
+      )}
+
+      <div className={styles.nodeAddActions}>
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={styles.nodeAddSubmitBtn}
+          disabled={!isDoor && !deviceId.trim()}
+          onClick={() => onAdd(type, deviceId.trim(), location.trim())}
+        >
+          다음
+        </button>
       </div>
     </div>
   );
 };
 
+/* ── 구역 설정 팝업 ── */
+const ZoneAddPopup = ({
+  containerRef,
+  hasDraftRect,
+  isDuplicateRect,
+  onCancel,
+  onSave,
+}: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  hasDraftRect: boolean;
+  isDuplicateRect: boolean;
+  onCancel: () => void;
+  onSave: (label: string) => void;
+}) => {
+  const [zoneName, setZoneName] = useState('');
+
+  const handleSave = () => {
+    onSave(zoneName.trim());
+  };
+
+  return (
+    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.nodeAddHeader}>
+        <span className={styles.nodeAddTitle}>구역 설정</span>
+        <span className={styles.nodeAddStepBadge}>{hasDraftRect ? '2/2' : '1/2'}</span>
+      </div>
+      <span className={styles.nodeAddHint}>
+        {hasDraftRect && isDuplicateRect
+          ? '이미 같은 위치와 크기의 구역이 있어요. 도면을 다시 드래그해서 다른 영역을 지정해주세요.'
+          : hasDraftRect
+            ? '영역 지정을 마쳤어요. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.'
+            : '이름을 입력하거나 도면을 드래그해서 영역을 지정해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
+      </span>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>구역 이름</span>
+        <input
+          className={styles.nodeAddInput}
+          value={zoneName}
+          onChange={(e) => setZoneName(e.target.value)}
+          placeholder="3층 앞 복도 구역"
+        />
+      </div>
+
+      <div className={styles.nodeAddActions}>
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={styles.nodeAddSubmitBtn}
+          disabled={!zoneName.trim() || !hasDraftRect || isDuplicateRect}
+          onClick={handleSave}
+        >
+          추가
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ── 장비 카드 ── */
+const DeviceCard = ({
+  item,
+  selected,
+  editing,
+  editForm,
+  onEditFormChange,
+  onSelect,
+  onStartEdit,
+  onSaveEdit,
+  onDelete,
+}: {
+  item: PanelItem;
+  selected: boolean;
+  editing: boolean;
+  editForm: { label: string; zone: string };
+  onEditFormChange: (form: { label: string; zone: string }) => void;
+  onSelect: (item: PanelItem) => void;
+  onStartEdit: (item: PanelItem) => void;
+  onSaveEdit: (item: PanelItem) => void;
+  onDelete: (item: PanelItem) => void;
+}) => (
+  <div
+    data-panel-id={item.id}
+    className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
+    onClick={() => onSelect(item)}
+  >
+    {editing ? (
+      <input
+        className={styles.deviceCardNameInput}
+        value={editForm.label}
+        onChange={(e) => onEditFormChange({ ...editForm, label: e.target.value })}
+        onClick={(e) => e.stopPropagation()}
+      />
+    ) : (
+      <span className={styles.deviceCardName}>{item.label}</span>
+    )}
+    <div className={styles.deviceCardRow}>
+      <span className={styles.deviceCardKey}>장치 ID</span>
+      <span className={styles.deviceCardValue}>{item.id.toUpperCase()}</span>
+    </div>
+    <div className={styles.deviceCardRow}>
+      <span className={styles.deviceCardKey}>상태</span>
+      <StatusBadge label={item.statusText} color={item.statusOnline ? 'green' : 'neutral'} dot />
+    </div>
+    <div className={styles.deviceCardRow}>
+      <span className={styles.deviceCardKey}>설치 위치</span>
+      {editing ? (
+        <input
+          className={styles.deviceCardValueInput}
+          value={editForm.zone}
+          onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className={styles.deviceCardValue}>{item.zone}</span>
+      )}
+    </div>
+    <div className={styles.deviceCardActions}>
+      {editing ? (
+        <button
+          type="button"
+          className={styles.deviceCardDoneBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSaveEdit(item);
+          }}
+        >
+          완료
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={styles.deviceCardEditBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit(item);
+          }}
+        >
+          수정
+        </button>
+      )}
+      <button
+        type="button"
+        className={styles.deviceCardDeleteBtn}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(item);
+        }}
+      >
+        삭제
+      </button>
+    </div>
+  </div>
+);
+
 /* ── 도면 캔버스 ── */
 const FloorCanvas = ({
+  mapWrapRef,
   floor,
   selected,
   aiLayers,
-  showHeatmap,
   zoom,
-  evacPath,
-  isPathDanger,
   editMode,
+  editingItemId,
+  placingActive,
+  zoneAddActive,
+  zoneDraftRect,
+  onZoneDraftChange,
+  onZoneDragEnd,
+  savedZones,
+  stairArea,
+  doorNodes,
+  editingDoorId,
+  onDoorNodeMove,
+  selectedZoneRef,
+  onZoneRefSelect,
+  selectedCctvZoneId,
+  onCctvZoneClick,
+  stagedCameraPosition,
   poiMarkers,
-  simAnimating,
-  simDone,
   editingPoiId,
   relocatingPoiId,
-  fireMarkers,
-  simStart,
-  simClickMode,
   devicePositions,
   addedDevices,
-  onAddedDeviceDelete,
   onSelectDevice,
   onMapClick,
-  onFireMapClick,
-  onFireMarkerDelete,
   onPoiClick,
   onPoiLabelChange,
   onPoiDelete,
@@ -820,30 +1059,37 @@ const FloorCanvas = ({
   onPoiPopoverClose,
   onDeviceMoved,
   onUpload,
+  onBackgroundClick,
 }: {
+  mapWrapRef: React.RefObject<HTMLDivElement>;
   floor: Floor;
   selected: SelectedItem | null;
   aiLayers: Record<string, boolean>;
-  showHeatmap: boolean;
   zoom: number;
-  evacPath: Pt[] | null;
-  isPathDanger: boolean;
   editMode: EditMode;
+  editingItemId: string | null;
+  placingActive: boolean;
+  zoneAddActive: boolean;
+  zoneDraftRect: ZoneRect | null;
+  onZoneDraftChange: (rect: ZoneRect | null) => void;
+  onZoneDragEnd: () => void;
+  savedZones: ZoneEntry[];
+  stairArea: ZoneRect | null;
+  doorNodes: DoorNode[];
+  editingDoorId: string | null;
+  onDoorNodeMove: (id: string, x: number, y: number) => void;
+  selectedZoneRef: ZoneRefSelection | null;
+  onZoneRefSelect: (ref: ZoneRefSelection) => void;
+  selectedCctvZoneId: string | null;
+  onCctvZoneClick: (zoneId: string) => void;
+  stagedCameraPosition: { x: number; y: number } | null;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
-  simAnimating: boolean;
-  simDone: boolean;
   editingPoiId: string | null;
   relocatingPoiId: string | null;
-  fireMarkers: Array<{ id: string; x: number; y: number }>;
-  simStart: { x: number; y: number } | null;
-  simClickMode: 'fire' | 'start' | null;
   devicePositions: Record<string, { x: number; y: number }>;
   addedDevices: AddedDevice[];
-  onAddedDeviceDelete: (id: string) => void;
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
-  onFireMapClick: (x: number, y: number) => void;
-  onFireMarkerDelete: (id: string) => void;
   onPoiClick: (id: string) => void;
   onPoiLabelChange: (id: string, label: string) => void;
   onPoiDelete: (id: string) => void;
@@ -851,6 +1097,7 @@ const FloorCanvas = ({
   onPoiPopoverClose: () => void;
   onDeviceMoved: (id: string, x: number, y: number) => void;
   onUpload: () => void;
+  onBackgroundClick: () => void;
 }) => {
   const hasMockMap = floor.segmentationStatus === 'DONE';
 
@@ -871,25 +1118,36 @@ const FloorCanvas = ({
   const scale = zoom / 100;
 
   return (
-    <div className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
+    <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
         aiLayers={aiLayers}
-        showHeatmap={showHeatmap}
-        evacPath={evacPath}
-        isPathDanger={isPathDanger}
         editMode={editMode}
+        placingActive={placingActive}
+        zoneAddActive={zoneAddActive}
+        zoneDraftRect={zoneDraftRect}
+        onZoneDraftChange={onZoneDraftChange}
+        onZoneDragEnd={onZoneDragEnd}
+        savedZones={savedZones}
+        stairArea={stairArea}
+        doorNodes={doorNodes}
+        editingDoorId={editingDoorId}
+        onDoorNodeMove={onDoorNodeMove}
+        selectedZoneRef={selectedZoneRef}
+        onZoneRefSelect={onZoneRefSelect}
+        selectedCctvZoneId={selectedCctvZoneId}
+        onCctvZoneClick={onCctvZoneClick}
         poiMarkers={poiMarkers}
-        simAnimating={simAnimating}
-        simDone={simDone}
         relocatingPoiId={relocatingPoiId}
-        fireMarkers={fireMarkers}
-        simStart={simStart}
-        simClickMode={simClickMode}
         onMapClick={onMapClick}
-        onFireMapClick={onFireMapClick}
-        onFireMarkerDelete={onFireMarkerDelete}
         onPoiClick={onPoiClick}
+        onBackgroundClick={onBackgroundClick}
       />
+      {stagedCameraPosition && (
+        <div
+          className={styles.stagedCameraMarker}
+          style={{ left: `${stagedCameraPosition.x}%`, top: `${stagedCameraPosition.y}%` }}
+        />
+      )}
       {floor.devices.map((device) => {
         const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
         return (
@@ -899,7 +1157,7 @@ const FloorCanvas = ({
             posX={pos.x}
             posY={pos.y}
             selected={selected?.kind === 'device' && selected.data.id === device.id}
-            draggable={editMode === 'view'}
+            draggable={editingItemId === device.id}
             onClick={() => onSelectDevice(device)}
             onDragEnd={onDeviceMoved}
           />
@@ -909,29 +1167,17 @@ const FloorCanvas = ({
       {/* 사용자가 추가한 장치 마커 */}
       {addedDevices.map((d) => {
         const pos = devicePositions[d.id] ?? { x: d.x, y: d.y };
-        const color = DEVICE_PLACE_CONFIG[d.type].color;
         return (
-          <div
+          <AddedDevicePin
             key={d.id}
-            className={styles.markerWrap}
-            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-          >
-            <div
-              className={styles.markerCircle}
-              style={{ backgroundColor: color, border: `2px dashed white`, cursor: 'pointer' }}
-              title={d.label}
-              onClick={() => onAddedDeviceDelete(d.id)}
-            >
-              {d.type === 'cctv' ? (
-                <CameraIcon width={12} height={12} aria-hidden="true" />
-              ) : (
-                <WifiIcon width={12} height={12} aria-hidden="true" />
-              )}
-            </div>
-            <span className={styles.markerLabel} style={{ color }}>
-              {d.label}
-            </span>
-          </div>
+            device={d}
+            posX={pos.x}
+            posY={pos.y}
+            selected={selected?.kind === 'device' && selected.data.id === d.id}
+            draggable={editingItemId === d.id}
+            onClick={() => onSelectDevice(d as unknown as DeviceMarker)}
+            onDragEnd={onDeviceMoved}
+          />
         );
       })}
 
@@ -1063,43 +1309,103 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   }, []);
 
-  // 현재 층 상세
+  // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
   useEffect(() => {
     if (!floorId) return;
+    let cancelled = false;
+    setFloor(null);
     setLoadingFloor(true);
     getFloorDetail(Number(floorId))
-      .then(setFloor)
+      .then((data) => {
+        if (!cancelled) setFloor(data);
+      })
       .catch(() => {})
-      .finally(() => setLoadingFloor(false));
+      .finally(() => {
+        if (!cancelled) setLoadingFloor(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [floorId]);
 
-  const [selectedBuildingId, setSelectedBuildingId] = useState(buildingId ?? '');
+  // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
+  useEffect(() => {
+    if (!floor) return;
+    const cctvDevices = floor.devices.filter((d) => d.type === 'cctv');
+    if (cctvDevices.length === 0) return;
+    setZones((prev) => {
+      const missing = cctvDevices.filter(
+        (d) => !prev.some((z) => z.type === 'camera' && z.label === `${d.label} 시야 구역`),
+      );
+      if (missing.length === 0) return prev;
+      return [
+        ...prev,
+        ...missing.map((d) => ({
+          id: `zone-cctv-${d.id}`,
+          type: 'camera' as const,
+          label: `${d.label} 시야 구역`,
+          rect: buildDefaultCctvZoneRect(d),
+        })),
+      ];
+    });
+  }, [floor]);
+
+  const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
-  const [editMode, setEditMode] = useState<EditMode>('view');
-  const [aiLayers, setAiLayers] = useState<Record<AiLayer, boolean>>({
+  const [editMode] = useState<EditMode>('view');
+  const [aiLayers] = useState<Record<AiLayer, boolean>>({
     wall: true,
     corridor: true,
     stairwell: true,
     exit: true,
     room: true,
   });
-  const [showHeatmap, setShowHeatmap] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const [selectedExit, setSelectedExit] = useState('');
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
-  const [simStart, setSimStart] = useState<{ x: number; y: number } | null>(null);
-  const [simClickMode, setSimClickMode] = useState<'fire' | 'start' | null>(null);
-  const [segStatusOverride, setSegStatusOverride] = useState<SegmentationStatus | null>(null);
+  const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [segmentTarget, setSegmentTarget] = useState<{ previewUrl: string } | null>(null);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
+  const [nodeAddOpen, setNodeAddOpen] = useState(false);
+  const [zoneAddOpen, setZoneAddOpen] = useState(false);
+  const [zones, setZones] = useState<ZoneEntry[]>([]);
+  const [zoneDraftRect, setZoneDraftRectState] = useState<ZoneRect | null>(null);
+  const zoneDraftRectRef = useRef<ZoneRect | null>(null);
+  const setZoneDraftRect = (rect: ZoneRect | null) => {
+    zoneDraftRectRef.current = rect;
+    setZoneDraftRectState(rect);
+  };
+  const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
+  const [deviceTypeFilter, setDeviceTypeFilter] = useState<'cctv' | 'iot' | 'light' | null>(null);
+  const [zoneTypeFilter, setZoneTypeFilter] = useState<'door' | 'stair' | 'general' | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
+    label: '',
+    zone: '',
+  });
   const [poiMarkers, setPoiMarkers] = useState<
     Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
   >([]);
-  const [selectedPoiType, setSelectedPoiType] = useState<PoiType>('exit');
-  const [placingDeviceType, setPlacingDeviceType] = useState<PlacingDeviceType | null>(null);
+  const [selectedPoiType] = useState<PoiType>('exit');
+  const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
+  const [doorNodes, setDoorNodes] = useState<DoorNode[]>(INITIAL_DOOR_NODES);
+  const [stairArea, setStairArea] = useState<ZoneRect | null>(INITIAL_STAIR_AREA);
+  const [editingDoorId, setEditingDoorId] = useState<string | null>(null);
+  const [editingStair, setEditingStair] = useState(false);
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [zoneEditLabel, setZoneEditLabel] = useState('');
+  // CCTV 카드 수정 중 해당 카메라의 시야 구역을 다시 드래그할 수 있게 하는 대상 구역 id
+  const [editingCctvZoneId, setEditingCctvZoneId] = useState<string | null>(null);
+  const [deviceDraftInfo, setDeviceDraftInfo] = useState<{
+    deviceId: string;
+    location: string;
+  } | null>(null);
+  const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
   const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
-  const [fireMarkers, setFireMarkers] = useState<Array<{ id: string; x: number; y: number }>>([]);
   const [devicePositions, setDevicePositions] = useState<Record<string, { x: number; y: number }>>(
     {},
   );
@@ -1107,109 +1413,130 @@ const FloorPlansDetailPage = () => {
   const handleDeviceMoved = (id: string, x: number, y: number) => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
-  const [simState, setSimState] = useState<'idle' | 'running' | 'done'>('idle');
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastFading, setToastFading] = useState(false);
+  const [toastMsg] = useState<string | null>(null);
+  const [toastFading] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const simTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodePopupRef = useRef<HTMLDivElement>(null);
+  const zonePopupRef = useRef<HTMLDivElement>(null);
+  const mapWrapRef = useRef<HTMLDivElement>(null);
+  const devicePanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(
     () => () => {
-      if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
-      if (simTimerRef.current) clearTimeout(simTimerRef.current);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (toastFadeRef.current) clearTimeout(toastFadeRef.current);
     },
     [],
   );
 
-  const showToast = (msg: string) => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    if (toastFadeRef.current) clearTimeout(toastFadeRef.current);
-    setToastMsg(msg);
-    setToastFading(false);
-    toastTimerRef.current = setTimeout(() => {
-      setToastFading(true);
-      toastFadeRef.current = setTimeout(() => setToastMsg(null), 300);
-    }, 2200);
-  };
+  // 선택된 카드를 상단에 고정하지 않는 대신, 리스트 안에서 스크롤로 한 번 보여줌 (하이퍼링크 이동과 동일한 느낌)
+  const focusedPanelId =
+    selectedItem?.kind === 'device' || selectedItem?.kind === 'poi'
+      ? selectedItem.data.id
+      : selectedZoneRef?.kind === 'door' || selectedZoneRef?.kind === 'zone'
+        ? selectedZoneRef.id
+        : selectedZoneRef?.kind === 'stair'
+          ? 'stair'
+          : null;
 
-  const TOAST_MSG: Partial<Record<EditMode, string>> = {
-    view: '보기 모드',
-    poi: 'POI 편집 모드 · 도면을 클릭해 마커를 추가하세요',
-  };
+  useEffect(() => {
+    if (!focusedPanelId) return;
+    const target = devicePanelRef.current?.querySelector(`[data-panel-id="${focusedPanelId}"]`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusedPanelId]);
 
-  const handleEditModeChange = (mode: EditMode) => {
-    setEditMode(mode);
-    setEditingPoiId(null);
-    setRelocatingPoiId(null);
-    setSimClickMode(null);
-    const msg = TOAST_MSG[mode];
-    if (msg) showToast(msg);
-  };
+  // 장비 추가 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 클릭은 배치로 처리)
+  // 정보 입력(1단계) 이후에는 위치·시야 지정 진행 상태가 있으므로 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  useEffect(() => {
+    if (!nodeAddOpen || deviceDraftInfo) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (nodePopupRef.current?.contains(target)) return;
+      if (mapWrapRef.current?.contains(target)) return;
+      setNodeAddOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [nodeAddOpen, deviceDraftInfo]);
+
+  // 장비 추가 팝업이 닫히면 배치 진행 상태 초기화
+  useEffect(() => {
+    if (!nodeAddOpen) {
+      setDeviceDraftInfo(null);
+      setNodeStagedPosition(null);
+      setZoneDraftRect(null);
+    }
+  }, [nodeAddOpen]);
+
+  // 구역 설정 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 드래그는 구역 선택으로 처리)
+  // 영역을 이미 그린 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  useEffect(() => {
+    const hasDraft = !!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0;
+    if (!zoneAddOpen || hasDraft) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (zonePopupRef.current?.contains(target)) return;
+      if (mapWrapRef.current?.contains(target)) return;
+      setZoneAddOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [zoneAddOpen, zoneDraftRect]);
+
+  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역도 초기화
+  useEffect(() => {
+    if (!zoneAddOpen) setZoneDraftRect(null);
+  }, [zoneAddOpen]);
 
   const currentBuilding = floorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
   const currentFloor =
     currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
 
-  const FLOOR_STATUS_LABEL: Record<string, string> = {
-    NONE: '미등록',
-    PENDING: '대기중',
-    PROCESSING: '처리중',
-    DONE: '등록완료',
-    FAILED: '오류',
-  };
-
-  const buildingOptions = floorBuildings.map((b) => ({ label: b.name, value: String(b.id) }));
-  const floorOptions =
-    currentBuilding?.floors.map((f) => ({
-      label: `${formatFloor(f.floorNum)}  ·  ${FLOOR_STATUS_LABEL[f.segmentationStatus]}`,
-      value: String(f.id),
-    })) ?? [];
-
-  const exitOptions = (currentFloor?.pois ?? [])
-    .filter((p) => p.type === 'exit')
-    .map((p) => ({ label: p.label, value: p.id }));
-
-  const selectedExitLabel = exitOptions.find((o) => o.value === selectedExit)?.label ?? '';
-  const isExitB = selectedExitLabel.toUpperCase().includes('B');
-  const evacPath = selectedExit ? computeEvacPath(simStart ?? { x: 280, y: 210 }, isExitB) : null;
-  const allDoors = Object.values(DOOR_PTS);
-  const isPathDanger = fireMarkers.some((f) => allDoors.some((d) => isNear(f, d)));
-
-  const handleBuildingChange = (newId: string) => {
-    const newBuilding = floorBuildings.find((b) => String(b.id) === newId);
-    const firstFloor = newBuilding?.floors[0];
-    setSelectedBuildingId(newId);
-    setSelectedFloorId(firstFloor ? String(firstFloor.id) : '');
-    setSelectedItem(null);
-    setSelectedExit('');
-    setFireMarkers([]);
-    setSimStart(null);
-    if (firstFloor) void navigate(`/floorPlans/${newId}/${firstFloor.id}`);
-  };
-
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
     setSelectedItem(null);
-    setSelectedExit('');
-    setFireMarkers([]);
-    setSimStart(null);
-    setSimState('idle');
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
   };
 
-  const toggleAiLayer = (key: AiLayer) => {
-    setAiLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  const handleUploadConfirm = (file: File) => {
+    if (!currentFloor) return;
+    uploadFloor(Number(selectedBuildingId), currentFloor.floorNum, file)
+      .then((newFloor) => {
+        setFloorBuildings((prev) =>
+          prev.map((b) =>
+            String(b.id) !== selectedBuildingId
+              ? b
+              : {
+                  ...b,
+                  floors: b.floors.map((f) =>
+                    f.id !== currentFloor.id ? f : { ...f, ...newFloor },
+                  ),
+                },
+          ),
+        );
+        setSegmentTarget({ previewUrl: URL.createObjectURL(file) });
+      })
+      .finally(() => setUploadModalOpen(false));
   };
 
-  const baseStatus = currentFloor?.segmentationStatus ?? 'NONE';
-  const segStatus = segStatusOverride ?? baseStatus;
-  const isDone = segStatus === 'DONE';
-  const isProcessing = segStatus === 'PROCESSING';
-  const canRunAI = segStatus === 'NONE' || segStatus === 'FAILED' || segStatus === 'DONE';
+  const handleCloseSegmentModal = () => {
+    if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);
+    setSegmentTarget(null);
+  };
+
+  const handleSegmentConfirm = (params: { area: number; gridScale: number }) => {
+    if (!currentFloor) return;
+    segmentFloor(currentFloor.id, params)
+      .then(() => getFloorDetail(currentFloor.id))
+      .then(setFloor)
+      .finally(() => {
+        if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);
+        setSegmentTarget(null);
+      });
+  };
 
   const handleMapClick = (x: number, y: number) => {
     if (relocatingPoiId) {
@@ -1217,26 +1544,15 @@ const FloorPlansDetailPage = () => {
       setRelocatingPoiId(null);
       return;
     }
-    // 장치 배치 모드
-    if (placingDeviceType) {
-      const cfg = DEVICE_PLACE_CONFIG[placingDeviceType];
-      const count = addedDevices.filter((d) => d.type === placingDeviceType).length + 1;
-      const id = `added-${placingDeviceType}-${Date.now()}`;
+    // 장치 배치 모드 (정보 입력 후 추가를 눌러야 위치 지정 단계로 진입)
+    if (nodeAddOpen) {
       // x, y는 SVG 좌표(0-560, 0-420) → % 변환
       const pctX = (x / 560) * 100;
       const pctY = (y / 420) * 100;
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id,
-          type: placingDeviceType,
-          label: `${cfg.label}-${String(count).padStart(2, '0')}`,
-          x: pctX,
-          y: pctY,
-          status: 'online',
-          zone: '사용자 등록',
-        },
-      ]);
+      // 위치가 이미 지정된 뒤에는(예: 카메라 시야 구역 드래그 중 발생하는 클릭) 다시 덮어쓰지 않음
+      if (deviceDraftInfo && !nodeStagedPosition) {
+        setNodeStagedPosition({ x: pctX, y: pctY });
+      }
       return;
     }
     // POI 배치
@@ -1254,6 +1570,517 @@ const FloorPlansDetailPage = () => {
 
   const handleAddedDeviceDelete = (id: string) => {
     setAddedDevices((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleAddDevice = (_type: PlacingDeviceType, deviceId: string, location: string) => {
+    // 모든 장비는 위치를 지정해야 최종 저장됨 — 팝업은 계속 열어둠
+    setDeviceDraftInfo({ deviceId, location });
+  };
+
+  // 한 단계씩 되돌아가기: 위치(및 시야)가 지정된 상태면 그것만 취소, 아니면 정보 입력 단계로
+  const handleNodeAddBack = () => {
+    if (nodeStagedPosition) {
+      setNodeStagedPosition(null);
+      setZoneDraftRect(null);
+    } else {
+      setDeviceDraftInfo(null);
+    }
+  };
+
+  const handleFinalizePlacement = () => {
+    if (!deviceDraftInfo || !nodeStagedPosition) return;
+    const cfg = DEVICE_PLACE_CONFIG[nodeAddType];
+
+    if (nodeAddType === 'cctv') {
+      const rect = zoneDraftRect;
+      if (!rect || rect.w <= 0 || rect.h <= 0) return;
+      const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
+      const label = deviceDraftInfo.deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`;
+      setAddedDevices((prev) => [
+        ...prev,
+        {
+          id: `added-cctv-${Date.now()}`,
+          type: 'cctv',
+          placeType: 'cctv',
+          label,
+          x: nodeStagedPosition.x,
+          y: nodeStagedPosition.y,
+          status: 'online',
+          zone: deviceDraftInfo.location || '사용자 등록',
+        },
+      ]);
+      setZones((prev) => [
+        ...prev,
+        { id: `zone-${Date.now()}`, type: 'camera', label: `${label} 시야 구역`, rect },
+      ]);
+    } else if (nodeAddType === 'door') {
+      const x = Math.round(((nodeStagedPosition.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
+      const y = Math.round(((nodeStagedPosition.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
+      setDoorNodes((prev) => [...prev, { id: `door-${Date.now()}`, x, y, isFinalExit: false }]);
+    } else {
+      const count = addedDevices.filter((d) => d.type === 'iot').length + 1;
+      setAddedDevices((prev) => [
+        ...prev,
+        {
+          id: `added-${nodeAddType}-${Date.now()}`,
+          type: 'iot',
+          placeType: nodeAddType,
+          label: deviceDraftInfo.deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
+          x: nodeStagedPosition.x,
+          y: nodeStagedPosition.y,
+          status: 'online',
+          zone: deviceDraftInfo.location || '사용자 등록',
+        },
+      ]);
+    }
+
+    setDeviceDraftInfo(null);
+    setNodeStagedPosition(null);
+    setZoneDraftRect(null);
+    setNodeAddOpen(false);
+  };
+
+  const handleZoneDragEnd = () => {
+    const rect = zoneDraftRectRef.current;
+    if (editingStair) {
+      // 드래그만으로 바로 저장하지 않고 미리보기만 남겨둠 — 패널의 "완료" 버튼을 눌러야 반영됨
+      return;
+    }
+    if (editingCctvZoneId) {
+      if (rect && rect.w > 0 && rect.h > 0) {
+        const zoneId = editingCctvZoneId;
+        setZones((prev) => prev.map((z) => (z.id === zoneId ? { ...z, rect } : z)));
+      }
+      setZoneDraftRect(null);
+    }
+  };
+
+  const handleDoorNodeClick = (id: string) => {
+    setDoorNodes((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, isFinalExit: !d.isFinalExit } : d)),
+    );
+  };
+
+  const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean => {
+    if (!a || a.kind !== b.kind) return false;
+    if (a.kind === 'door' && b.kind === 'door') return a.id === b.id;
+    if (a.kind === 'zone' && b.kind === 'zone') return a.id === b.id;
+    return a.kind === 'stair' && b.kind === 'stair';
+  };
+
+  // 우측 패널 카드 클릭 — 이미 필터를 통과해 보이는 카드이므로 필터는 건드리지 않음
+  const handleZoneRefSelect = (ref: ZoneRefSelection) => {
+    setSelectedItem(null);
+    setEditingItemId(null);
+    setSelectedZoneRef((prev) => (isSameZoneRef(prev, ref) ? null : ref));
+  };
+
+  // 도면 클릭 — 선택한 항목이 필터에 가려져 있을 수 있으므로 패널에 드러나도록 필터를 초기화
+  const handleZoneRefSelectFromMap = (ref: ZoneRefSelection) => {
+    handleZoneRefSelect(ref);
+    setTopFilter((prev) => (prev === 'device' ? 'all' : prev));
+    setZoneTypeFilter(null);
+  };
+
+  // 카메라 시야 구역을 도면에서 클릭하면 카메라 시야는 별도 카드가 없으므로 연결된 CCTV 장비를 선택
+  const handleCctvZoneClick = (zoneId: string) => {
+    const zone = zones.find((z) => z.id === zoneId);
+    if (!zone) return;
+    const cctvLabel = zone.label.replace(/ 시야 구역$/, '');
+    const floorDevice = floor?.devices.find((d) => d.type === 'cctv' && d.label === cctvLabel);
+    const addedDevice = addedDevices.find((d) => d.type === 'cctv' && d.label === cctvLabel);
+    const device = floorDevice ?? (addedDevice as unknown as DeviceMarker | undefined);
+    if (!device) return;
+    setSelectedItem({ kind: 'device', data: device });
+    setSelectedZoneRef(null);
+    setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+  };
+
+  const handleDoorNodeMove = (id: string, x: number, y: number) => {
+    setDoorNodes((prev) => prev.map((d) => (d.id === id ? { ...d, x, y } : d)));
+  };
+
+  const handleDoorDelete = (id: string) => {
+    setDoorNodes((prev) => prev.filter((d) => d.id !== id));
+    setEditingDoorId((prev) => (prev === id ? null : prev));
+  };
+
+  const handleStartEditDoor = (id: string) => {
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEditingStair(false);
+    setEditingCctvZoneId(null);
+    setEditingDoorId((prev) => (prev === id ? null : id));
+  };
+
+  const handleStartEditStair = () => {
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEditingDoorId(null);
+    setEditingCctvZoneId(null);
+    setZoneDraftRect(null);
+    setEditingStair(true);
+  };
+
+  // 계단 수정 완료 — 드래그로 그려둔 영역이 있으면 그때 반영하고 편집 모드 종료
+  const handleFinishEditStair = () => {
+    const rect = zoneDraftRectRef.current;
+    if (rect && rect.w > 0 && rect.h > 0) setStairArea(rect);
+    setEditingStair(false);
+    setZoneDraftRect(null);
+  };
+
+  const handleStairDelete = () => {
+    setStairArea(null);
+    setEditingStair(false);
+    setSelectedZoneRef((prev) => (prev?.kind === 'stair' ? null : prev));
+  };
+
+  const handleStartEditZone = (zone: ZoneEntry) => {
+    setEditingZoneId(zone.id);
+    setZoneEditLabel(zone.label);
+  };
+
+  const handleSaveZoneLabel = (id: string) => {
+    const trimmed = zoneEditLabel.trim();
+    if (trimmed) {
+      setZones((prev) => prev.map((z) => (z.id === id ? { ...z, label: trimmed } : z)));
+    }
+    setEditingZoneId(null);
+  };
+
+  const handleAddZone = (label: string) => {
+    const rect = zoneDraftRect;
+    if (!rect || rect.w <= 0 || rect.h <= 0) return;
+    if (zones.some((z) => z.rect && isSameRect(z.rect, rect))) return;
+    setZones((prev) => [...prev, { id: `zone-${Date.now()}`, type: 'general', label, rect }]);
+    setZoneAddOpen(false);
+  };
+
+  const handleZoneDelete = (id: string) => {
+    setZones((prev) => prev.filter((z) => z.id !== id));
+  };
+
+  const selectedCctvZoneId =
+    selectedItem?.kind === 'device' && selectedItem.data.type === 'cctv'
+      ? (zones.find(
+          (z) => z.type === 'camera' && z.label === `${selectedItem.data.label} 시야 구역`,
+        )?.id ?? null)
+      : null;
+
+  const isDoorSelected = (id: string) =>
+    selectedZoneRef?.kind === 'door' && selectedZoneRef.id === id;
+  const isStairSelected = selectedZoneRef?.kind === 'stair';
+  const isZoneSelected = (id: string) =>
+    (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) || selectedCctvZoneId === id;
+
+  const renderDoorCard = (d: DoorNode) => {
+    const i = doorNodes.findIndex((x) => x.id === d.id);
+    const isEditing = editingDoorId === d.id;
+    return (
+      <div
+        key={d.id}
+        data-panel-id={d.id}
+        className={clsx(styles.deviceCard, isDoorSelected(d.id) && styles.deviceCardSelected)}
+        onClick={() => handleZoneRefSelect({ kind: 'door', id: d.id })}
+      >
+        <div className={styles.zoneCardHeader}>
+          <span className={styles.zoneCardTitleGroup}>
+            <span className={clsx(styles.zoneCardDot, styles.zoneCardDotDoor)} />
+            <span className={styles.deviceCardName}>문 · 출입구 {i + 1}</span>
+          </span>
+          <span className={styles.zoneCardHeaderActions}>
+            <button
+              type="button"
+              className={d.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDoorNodeClick(d.id);
+              }}
+            >
+              {d.isFinalExit ? '최종 탈출구' : '탈출구로 지정'}
+            </button>
+            <button
+              type="button"
+              aria-label={isEditing ? '수정 완료' : '수정'}
+              className={isEditing ? styles.zoneCardIconBtnDone : styles.zoneCardIconBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStartEditDoor(d.id);
+              }}
+            >
+              {isEditing ? (
+                <CheckIcon width={14} height={14} />
+              ) : (
+                <EditIcon width={14} height={14} />
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label="삭제"
+              className={styles.zoneCardIconBtnDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDoorDelete(d.id);
+              }}
+            >
+              <TrashIcon width={14} height={14} />
+            </button>
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStairCard = () => (
+    <div
+      data-panel-id="stair"
+      className={clsx(styles.deviceCard, isStairSelected && styles.deviceCardSelected)}
+      onClick={() => stairArea && handleZoneRefSelect({ kind: 'stair' })}
+    >
+      <div className={styles.zoneCardHeader}>
+        <span className={styles.zoneCardTitleGroup}>
+          <span className={clsx(styles.zoneCardDot, styles.zoneCardDotStair)} />
+          <span className={styles.deviceCardName}>계단 영역</span>
+        </span>
+        <span className={styles.zoneCardHeaderActions}>
+          <button
+            type="button"
+            aria-label={editingStair ? '수정 완료' : stairArea ? '수정' : '추가'}
+            className={editingStair ? styles.zoneCardIconBtnDone : styles.zoneCardIconBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (editingStair) {
+                handleFinishEditStair();
+              } else {
+                handleStartEditStair();
+              }
+            }}
+          >
+            {editingStair ? (
+              <CheckIcon width={14} height={14} />
+            ) : (
+              <EditIcon width={14} height={14} />
+            )}
+          </button>
+          {stairArea && (
+            <button
+              type="button"
+              aria-label="삭제"
+              className={styles.zoneCardIconBtnDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStairDelete();
+              }}
+            >
+              <TrashIcon width={14} height={14} />
+            </button>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+
+  const renderZoneCard = (z: ZoneEntry) => {
+    const isEditing = editingZoneId === z.id;
+    return (
+      <div
+        key={z.id}
+        data-panel-id={z.id}
+        className={clsx(styles.deviceCard, isZoneSelected(z.id) && styles.deviceCardSelected)}
+        onClick={() => handleZoneRefSelect({ kind: 'zone', id: z.id })}
+      >
+        <div className={styles.zoneCardHeader}>
+          <span className={styles.zoneCardTitleGroup}>
+            <span className={clsx(styles.zoneCardDot, styles.zoneCardDotGeneral)} />
+            {isEditing ? (
+              <input
+                className={styles.deviceCardNameInput}
+                value={zoneEditLabel}
+                onChange={(e) => setZoneEditLabel(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className={styles.deviceCardName}>{z.label}</span>
+            )}
+          </span>
+          <span className={styles.zoneCardHeaderActions}>
+            <button
+              type="button"
+              aria-label={isEditing ? '수정 완료' : '수정'}
+              className={isEditing ? styles.zoneCardIconBtnDone : styles.zoneCardIconBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isEditing) {
+                  handleSaveZoneLabel(z.id);
+                } else {
+                  handleStartEditZone(z);
+                }
+              }}
+            >
+              {isEditing ? (
+                <CheckIcon width={14} height={14} />
+              ) : (
+                <EditIcon width={14} height={14} />
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label="삭제"
+              className={styles.zoneCardIconBtnDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleZoneDelete(z.id);
+              }}
+            >
+              <TrashIcon width={14} height={14} />
+            </button>
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const allPanelItems: PanelItem[] = [
+    ...(floor?.devices ?? []).map((d) => ({
+      id: d.id,
+      kind: 'device' as const,
+      type: d.type as 'cctv' | 'iot',
+      label: d.label,
+      statusText: d.status === 'online' ? '실시간' : '오프라인',
+      statusOnline: d.status === 'online',
+      zone: d.zone,
+      source: 'floor' as const,
+    })),
+    ...addedDevices.map((d) => ({
+      id: d.id,
+      kind: 'device' as const,
+      type: d.placeType,
+      label: d.label,
+      statusText: '실시간',
+      statusOnline: true,
+      zone: d.zone,
+      source: 'added' as const,
+    })),
+    ...poiMarkers.map((p) => ({
+      id: p.id,
+      kind: 'poi' as const,
+      type: 'general' as const,
+      label: p.label,
+      statusText: '등록됨',
+      statusOnline: true,
+      zone: '-',
+      source: 'poi' as const,
+    })),
+  ];
+
+  const panelItems = allPanelItems.filter((item) => {
+    if (deviceTypeFilter && item.type !== deviceTypeFilter) return false;
+    return true;
+  });
+
+  const isPanelItemSelected = (item: PanelItem) =>
+    selectedItem?.kind === 'device'
+      ? item.kind === 'device' && selectedItem.data.id === item.id
+      : selectedItem?.kind === 'poi'
+        ? item.kind === 'poi' && selectedItem.data.id === item.id
+        : false;
+
+  const handlePanelItemSelect = (item: PanelItem) => {
+    if (item.kind !== 'device') return;
+    const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === item.id;
+    if (isSame) {
+      setSelectedItem(null);
+      setEditingItemId(null);
+      return;
+    }
+    const data =
+      item.source === 'floor'
+        ? floor?.devices.find((d) => d.id === item.id)
+        : addedDevices.find((d) => d.id === item.id);
+    if (data) setSelectedItem({ kind: 'device', data });
+    setSelectedZoneRef(null);
+    if (editingItemId && editingItemId !== item.id) setEditingItemId(null);
+  };
+
+  const handleStartEdit = (item: PanelItem) => {
+    if (item.kind !== 'device') return;
+    if (selectedItem?.kind !== 'device' || selectedItem.data.id !== item.id) {
+      handlePanelItemSelect(item);
+    }
+    setEditForm({ label: item.label, zone: item.zone });
+    setEditingItemId(item.id);
+    if (item.type === 'cctv') {
+      const zone = zones.find((z) => z.type === 'camera' && z.label === `${item.label} 시야 구역`);
+      setEditingCctvZoneId(zone?.id ?? null);
+    } else {
+      setEditingCctvZoneId(null);
+    }
+  };
+
+  const handleSaveEdit = (item: PanelItem) => {
+    const oldLabel = item.label;
+    const newLabel = editForm.label;
+    if (item.source === 'floor') {
+      setFloor((prev) =>
+        prev
+          ? {
+              ...prev,
+              devices: prev.devices.map((d) =>
+                d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d,
+              ),
+            }
+          : prev,
+      );
+    } else if (item.source === 'added') {
+      setAddedDevices((prev) =>
+        prev.map((d) => (d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d)),
+      );
+    }
+    if (item.type === 'cctv' && newLabel !== oldLabel) {
+      setZones((prev) =>
+        prev.map((z) =>
+          z.type === 'camera' && z.label === `${oldLabel} 시야 구역`
+            ? { ...z, label: `${newLabel} 시야 구역` }
+            : z,
+        ),
+      );
+    }
+    if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
+      setSelectedItem({
+        kind: 'device',
+        data: { ...selectedItem.data, label: newLabel, zone: editForm.zone },
+      });
+    }
+    setEditingItemId(null);
+    setEditingCctvZoneId(null);
+  };
+
+  const handlePanelItemDelete = (item: PanelItem) => {
+    setDeleteConfirmTarget(item);
+  };
+
+  const handleDeleteConfirm = () => {
+    const item = deleteConfirmTarget;
+    if (!item) return;
+    if (editingItemId === item.id) setEditingItemId(null);
+    if (item.kind === 'poi') {
+      handlePoiDelete(item.id);
+      setDeleteConfirmTarget(null);
+      return;
+    }
+    if (item.source === 'added') {
+      handleAddedDeviceDelete(item.id);
+      setDeleteConfirmTarget(null);
+      return;
+    }
+    setFloor((prev) =>
+      prev ? { ...prev, devices: prev.devices.filter((d) => d.id !== item.id) } : prev,
+    );
+    if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
+      setSelectedItem(null);
+    }
+    setDeleteConfirmTarget(null);
   };
 
   const handlePoiClick = (id: string) => {
@@ -1274,307 +2101,36 @@ const FloorPlansDetailPage = () => {
     setEditingPoiId(null);
   };
 
-  const handleFireMapClick = (x: number, y: number) => {
-    if (simClickMode === 'start') {
-      setSimStart({ x, y });
-      setSimClickMode(null);
-    } else if (simClickMode === 'fire') {
-      setFireMarkers((prev) => [...prev, { id: `fire-${Date.now()}`, x, y }]);
-    }
-  };
-
-  const handleFireMarkerDelete = (id: string) => {
-    setFireMarkers((prev) => prev.filter((m) => m.id !== id));
-  };
-
-  const handleRunSimulation = () => {
-    if (simTimerRef.current) clearTimeout(simTimerRef.current);
-    setSimState('running');
-    simTimerRef.current = setTimeout(() => setSimState('done'), 2000);
-  };
-
-  const handleResetSimulation = () => {
-    if (simTimerRef.current) clearTimeout(simTimerRef.current);
-    setSimState('idle');
-    setSelectedExit('');
-    setFireMarkers([]);
-    setSimStart(null);
-    setSimClickMode(null);
-  };
-
-  const handleRunAI = () => {
-    if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
-    setSegStatusOverride('PROCESSING');
-    aiTimerRef.current = setTimeout(() => setSegStatusOverride('DONE'), 2500);
-  };
-
-  const SEG_STATUS_LABEL: Record<SegmentationStatus, string> = {
-    NONE: '미처리',
-    PENDING: '대기중',
-    PROCESSING: '처리중',
-    DONE: '완료',
-    FAILED: '실패',
-  };
-  const SEG_STATUS_COLOR: Record<
-    SegmentationStatus,
-    'neutral' | 'yellow' | 'blue' | 'green' | 'red'
-  > = {
-    NONE: 'neutral',
-    PENDING: 'yellow',
-    PROCESSING: 'blue',
-    DONE: 'green',
-    FAILED: 'red',
-  };
-
   return (
     <>
       <div className={styles.layout}>
         {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner} style={{ padding: '2rem 2rem 2.4rem' }}>
-            {/* 건물/층 선택 */}
-            <div className={styles.section}>
-              <span className={styles.sectionLabel}>건물 선택</span>
-              <div className={styles.selectWrap}>
-                <div className={styles.selectField}>
-                  <span className={styles.selectFieldLabel}>건물</span>
-                  <Dropdown
-                    className={styles.dropdownFullWidth}
-                    options={buildingOptions}
-                    value={selectedBuildingId}
-                    onChange={handleBuildingChange}
-                    placeholder="건물 선택"
-                  />
-                </div>
-                <div className={styles.selectField}>
-                  <span className={styles.selectFieldLabel}>층</span>
-                  <Dropdown
-                    className={styles.dropdownFullWidth}
-                    options={floorOptions}
-                    value={selectedFloorId}
-                    onChange={handleFloorChange}
-                    placeholder="층 선택"
-                    disabled={!currentBuilding}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.divider} />
-
-            {/* AI 세그멘테이션 */}
-            <div className={styles.section}>
-              <div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-              >
-                <span className={styles.sectionLabel}>AI 세그멘테이션</span>
-                <StatusBadge
-                  label={SEG_STATUS_LABEL[segStatus]}
-                  color={SEG_STATUS_COLOR[segStatus]}
-                  dot
-                />
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={!canRunAI}
-                isLoading={isProcessing}
-                onClick={handleRunAI}
-              >
-                {isProcessing ? 'AI 처리 중...' : isDone ? 'AI 재분석' : 'AI 영역 분할 실행'}
-              </Button>
-            </div>
-
-            <div className={styles.divider} />
-
-            {/* 보기 / POI편집 탭 */}
-            <div className={styles.modeTabGroup}>
-              {(
-                [
-                  { mode: 'view', label: '보기' },
-                  { mode: 'poi', label: 'POI 편집' },
-                ] as const
-              ).map(({ mode, label }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={clsx(styles.modeTab, editMode === mode && styles.modeTabActive)}
-                  disabled={!isDone}
-                  onClick={() => handleEditModeChange(mode)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* 보기 모드 */}
-            {editMode === 'view' && (
-              <>
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>AI 영역 분할</span>
-                  <div className={styles.aiLayerList}>
-                    {AI_LAYERS.map(({ key, label }) => (
-                      <label key={key} className={styles.aiLayerItem}>
-                        <input
-                          type="checkbox"
-                          className={styles.aiLayerCheckbox}
-                          checked={aiLayers[key]}
-                          disabled={!isDone}
-                          onChange={() => toggleAiLayer(key)}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <label className={styles.heatmapRow}>
-                  <input
-                    type="checkbox"
-                    className={styles.heatmapCheckbox}
-                    checked={showHeatmap}
-                    disabled={!isDone}
-                    onChange={() => setShowHeatmap((v) => !v)}
-                  />
-                  혼잡도 히트맵
-                </label>
-              </>
-            )}
-
-            {/* POI 편집 모드 */}
-            {editMode === 'poi' && (
-              <>
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>POI 유형</span>
-                  <div className={styles.poiTypeGrid}>
-                    {(
-                      Object.entries(POI_TYPE_CONFIG) as [
-                        PoiType,
-                        (typeof POI_TYPE_CONFIG)[PoiType],
-                      ][]
-                    ).map(([type, cfg]) => (
+            {/* 층 목록 */}
+            <div className={styles.floorNavCard}>
+              <div className={styles.floorNavHeader}>층 목록</div>
+              <div className={styles.floorNavList}>
+                {[...(currentBuilding?.floors ?? [])]
+                  .sort((a, b) => b.floorNum - a.floorNum)
+                  .map((f) => {
+                    const isCurrent = String(f.id) === selectedFloorId;
+                    const isNone = f.segmentationStatus === 'NONE';
+                    return (
                       <button
-                        key={type}
+                        key={f.id}
                         type="button"
                         className={clsx(
-                          styles.poiTypeBtn,
-                          placingDeviceType === null &&
-                            selectedPoiType === type &&
-                            styles.poiTypeBtnActive,
+                          styles.floorNavItem,
+                          isCurrent && styles.floorNavItemActive,
                         )}
-                        style={
-                          placingDeviceType === null && selectedPoiType === type
-                            ? {
-                                borderColor: cfg.color,
-                                backgroundColor: `${cfg.color}15`,
-                                color: cfg.color,
-                              }
-                            : {}
-                        }
-                        onClick={() => {
-                          setSelectedPoiType(type);
-                          setPlacingDeviceType(null);
-                        }}
+                        onClick={() => handleFloorChange(String(f.id))}
                       >
-                        {cfg.icon} {cfg.label}
+                        <span>{formatFloor(f.floorNum)}</span>
+                        {isNone && <StatusBadge label="미등록" color="neutral" />}
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>장치 배치</span>
-                  <div className={styles.poiTypeGrid}>
-                    {(
-                      Object.entries(DEVICE_PLACE_CONFIG) as [
-                        PlacingDeviceType,
-                        (typeof DEVICE_PLACE_CONFIG)[PlacingDeviceType],
-                      ][]
-                    ).map(([type, cfg]) => (
-                      <button
-                        key={type}
-                        type="button"
-                        className={clsx(
-                          styles.poiTypeBtn,
-                          placingDeviceType === type && styles.poiTypeBtnActive,
-                        )}
-                        style={
-                          placingDeviceType === type
-                            ? {
-                                borderColor: cfg.color,
-                                backgroundColor: `${cfg.color}15`,
-                                color: cfg.color,
-                              }
-                            : {}
-                        }
-                        onClick={() =>
-                          setPlacingDeviceType((prev) => (prev === type ? null : type))
-                        }
-                      >
-                        {type === 'cctv' ? '📷' : '💡'} {cfg.label}
-                      </button>
-                    ))}
-                  </div>
-                  {addedDevices.length > 0 && (
-                    <ul
-                      style={{
-                        margin: '0.6rem 0 0',
-                        padding: 0,
-                        listStyle: 'none',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.4rem',
-                      }}
-                    >
-                      {addedDevices.map((d) => (
-                        <li
-                          key={d.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: '1.15rem',
-                            color: '#374151',
-                          }}
-                        >
-                          <span>{d.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleAddedDeviceDelete(d.id)}
-                            style={{
-                              border: 'none',
-                              background: 'none',
-                              cursor: 'pointer',
-                              color: '#ef4444',
-                              fontSize: '1.2rem',
-                              padding: '0 0.2rem',
-                            }}
-                            title="삭제"
-                          >
-                            ✕
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                <p style={{ margin: 0, color: '#9ca3af', fontSize: '1.1rem', lineHeight: 1.4 }}>
-                  {placingDeviceType
-                    ? `도면을 클릭해 ${DEVICE_PLACE_CONFIG[placingDeviceType].label} 위치를 등록합니다`
-                    : `도면을 클릭해 ${(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label} 마커를 추가합니다`}
-                </p>
-              </>
-            )}
-
-            {/* 범례 */}
-            <div className={styles.legend}>
-              <div className={styles.legendItem}>
-                <span className={clsx(styles.legendDot, styles.legendDotIot)} />
-                유도등
-              </div>
-              <div className={styles.legendItem}>
-                <span className={clsx(styles.legendDot, styles.legendDotCctv)} />
-                CCTV
+                    );
+                  })}
               </div>
             </div>
           </div>
@@ -1589,52 +2145,143 @@ const FloorPlansDetailPage = () => {
 
           {currentFloor && (
             <div className={styles.canvasHeader}>
-              <span className={styles.canvasHeaderIcon}>B</span>
+              <button
+                type="button"
+                className={styles.backButton}
+                onClick={() => navigate('/floorPlans')}
+                aria-label="도면 관리 목록으로"
+              >
+                <ChevronRightIcon width={16} height={16} className={styles.backButtonIcon} />
+              </button>
               <span className={styles.canvasHeaderText}>{currentBuilding?.name ?? ''}</span>
               <span className={styles.canvasHeaderFloor}>{formatFloor(currentFloor.floorNum)}</span>
             </div>
           )}
 
-          <div className={styles.canvasBody}>
-            {loadingFloor && (
+          <div
+            className={clsx(
+              styles.canvasBody,
+              currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
+            )}
+          >
+            {/* 장비 추가 / 구역 추가 */}
+            {currentFloor?.segmentationStatus === 'DONE' && (
+              <div className={styles.canvasActionFloat}>
+                <button
+                  type="button"
+                  className={styles.canvasActionButton}
+                  onClick={() => {
+                    setZoneAddOpen(false);
+                    setNodeAddOpen((v) => !v);
+                  }}
+                >
+                  <PlusIcon width={14} height={14} />
+                  노드 추가
+                </button>
+                <button
+                  type="button"
+                  className={styles.canvasActionButton}
+                  onClick={() => {
+                    setNodeAddOpen(false);
+                    setZoneAddOpen((v) => !v);
+                  }}
+                >
+                  <PlusIcon width={14} height={14} />
+                  구역 추가
+                </button>
+              </div>
+            )}
+
+            {nodeAddOpen && (
+              <NodeAddPopup
+                containerRef={nodePopupRef}
+                type={nodeAddType}
+                onTypeChange={setNodeAddType}
+                stage={
+                  !deviceDraftInfo
+                    ? 'form'
+                    : !nodeStagedPosition
+                      ? 'position'
+                      : nodeAddType === 'cctv'
+                        ? 'fov'
+                        : 'ready'
+                }
+                hasDraftRect={!!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0}
+                onCancel={() => setNodeAddOpen(false)}
+                onBack={handleNodeAddBack}
+                onAdd={handleAddDevice}
+                onFinalize={handleFinalizePlacement}
+              />
+            )}
+
+            {zoneAddOpen && (
+              <ZoneAddPopup
+                containerRef={zonePopupRef}
+                hasDraftRect={!!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0}
+                isDuplicateRect={
+                  !!zoneDraftRect && zones.some((z) => z.rect && isSameRect(z.rect, zoneDraftRect))
+                }
+                onCancel={() => setZoneAddOpen(false)}
+                onSave={handleAddZone}
+              />
+            )}
+
+            {loadingFloor ? (
               <div style={{ padding: '4rem', color: '#6b7280', fontSize: '1.4rem' }}>
                 도면을 불러오는 중...
               </div>
-            )}
-            {!loadingFloor && currentFloor ? (
+            ) : currentFloor ? (
               <FloorCanvas
+                mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
                 selected={selectedItem}
                 aiLayers={aiLayers}
-                showHeatmap={showHeatmap}
                 zoom={zoom}
-                evacPath={evacPath}
-                isPathDanger={isPathDanger}
                 editMode={editMode}
+                editingItemId={editingItemId}
+                placingActive={nodeAddOpen}
+                zoneAddActive={
+                  zoneAddOpen ||
+                  editingStair ||
+                  !!editingCctvZoneId ||
+                  (nodeAddType === 'cctv' && !!deviceDraftInfo && !!nodeStagedPosition)
+                }
+                zoneDraftRect={zoneDraftRect}
+                onZoneDraftChange={setZoneDraftRect}
+                onZoneDragEnd={handleZoneDragEnd}
+                savedZones={zones}
+                stairArea={stairArea}
+                doorNodes={doorNodes}
+                editingDoorId={editingDoorId}
+                onDoorNodeMove={handleDoorNodeMove}
+                selectedZoneRef={selectedZoneRef}
+                onZoneRefSelect={handleZoneRefSelectFromMap}
+                selectedCctvZoneId={selectedCctvZoneId}
+                onCctvZoneClick={handleCctvZoneClick}
+                stagedCameraPosition={nodeStagedPosition}
                 poiMarkers={poiMarkers}
-                simAnimating={simState === 'running'}
-                simDone={simState === 'done'}
                 editingPoiId={editingPoiId}
                 relocatingPoiId={relocatingPoiId}
-                fireMarkers={fireMarkers}
-                simStart={simStart}
-                simClickMode={simClickMode}
                 onSelectDevice={(d) => {
                   if (editMode === 'poi') return;
-                  setSelectedItem({ kind: 'device', data: d });
+                  const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
+                  setSelectedItem(isSame ? null : { kind: 'device', data: d });
+                  setSelectedZoneRef(null);
+                  setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
                 }}
                 onMapClick={handleMapClick}
-                onFireMapClick={handleFireMapClick}
-                onFireMarkerDelete={handleFireMarkerDelete}
                 onPoiClick={handlePoiClick}
                 onPoiLabelChange={handlePoiLabelChange}
                 onPoiDelete={handlePoiDelete}
                 onPoiRelocate={handlePoiRelocate}
                 onPoiPopoverClose={() => setEditingPoiId(null)}
+                onBackgroundClick={() => {
+                  setSelectedItem(null);
+                  setSelectedZoneRef(null);
+                }}
                 devicePositions={devicePositions}
                 onDeviceMoved={handleDeviceMoved}
                 addedDevices={addedDevices}
-                onAddedDeviceDelete={handleAddedDeviceDelete}
                 onUpload={() => setUploadModalOpen(true)}
               />
             ) : (
@@ -1643,6 +2290,54 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
           </div>
+
+          {currentFloor?.segmentationStatus === 'DONE' && (
+            <div className={styles.nodeTypeLegend}>
+              <div className={styles.nodeTypeLegendSection}>
+                <span className={styles.zoneLegendTitle}>노드 종류</span>
+                <div className={styles.zoneLegendItem}>
+                  <span className={styles.nodeTypeCctvBadge}>CC</span>
+                  <span className={styles.zoneLegendLabel}>CCTV</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotIot)} />
+                  <span className={styles.zoneLegendLabel}>IoT</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotLight)} />
+                  <span className={styles.zoneLegendLabel}>유도등</span>
+                </div>
+              </div>
+
+              <div className={styles.nodeTypeLegendDivider} />
+
+              <div className={styles.nodeTypeLegendSection}>
+                <span className={styles.zoneLegendTitle}>구역 종류</span>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotDoor)} />
+                  <span className={styles.zoneLegendLabel}>문 · 출입구</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span
+                    className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchStair)}
+                  />
+                  <span className={styles.zoneLegendLabel}>계단</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span
+                    className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchGeneral)}
+                  />
+                  <span className={styles.zoneLegendLabel}>일반 구역</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span
+                    className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchCamera)}
+                  />
+                  <span className={styles.zoneLegendLabel}>카메라 시야</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 플로팅 줌 컨트롤 */}
           <div className={styles.canvasZoomFloat}>
@@ -1671,210 +2366,117 @@ const FloorPlansDetailPage = () => {
               +
             </button>
           </div>
-
-          {/* 선택된 항목 패널 */}
-          {selectedItem && simState !== 'done' && (
-            <InfoPanel selected={selectedItem} onClose={() => setSelectedItem(null)} />
-          )}
         </div>
 
-        {/* ── 우측 경로 시뮬레이션 패널 (항상 표시) ── */}
-        {(() => {
-          const fireCount = fireMarkers.length;
-          const pathLength = evacPath ? polyLen(evacPath) : 300;
-          const estTime = Math.round(pathLength * 0.22 + fireCount * 6);
-          const isSafe = !isPathDanger && fireCount < 3;
-          return (
-            <aside className={styles.simPanel}>
-              <div className={styles.simPanelInner}>
-                <div className={styles.simPanelTitle}>경로 시뮬레이션</div>
-
-                {/* 출구 선택 */}
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>목표 출구</span>
-                  <Dropdown
-                    className={styles.dropdownFullWidth}
-                    options={exitOptions}
-                    value={selectedExit}
-                    onChange={(v) => {
-                      setSelectedExit(v);
-                      setSimState('idle');
-                    }}
-                    placeholder="출구 선택"
-                    disabled={exitOptions.length === 0 || simState === 'running'}
-                  />
-                </div>
-
-                <div className={styles.divider} />
-
-                {/* 훈련 시작 위치 */}
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>훈련 시작 위치</span>
-                  {simStart ? (
-                    <div className={styles.simStartInfo}>
-                      <span>
-                        S ({simStart.x}, {simStart.y})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSimStart(null)}
-                        disabled={simState === 'running'}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: '#16a34a',
-                          fontSize: '1.2rem',
-                          padding: '0 0.2rem',
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, color: '#9ca3af', fontSize: '1.1rem' }}>
-                      미설정 (기본값: 중앙)
-                    </p>
-                  )}
+        {/* ── 우측 장비 목록 패널 ── */}
+        <aside ref={devicePanelRef} className={styles.devicePanel}>
+          <div className={styles.devicePanelInner}>
+            <div className={styles.devicePanelSticky}>
+              <div className={styles.filterTabs}>
+                {(
+                  [
+                    { key: 'all', label: '전체' },
+                    { key: 'device', label: '장비' },
+                    { key: 'zone', label: '구역' },
+                  ] as const
+                ).map(({ key, label }) => (
                   <button
+                    key={key}
                     type="button"
-                    className={clsx(
-                      styles.simClickModeBtn,
-                      simClickMode === 'start' && styles.simClickModeBtnActive,
-                    )}
-                    disabled={simState === 'running'}
-                    onClick={() => setSimClickMode((m) => (m === 'start' ? null : 'start'))}
+                    className={clsx(styles.filterTab, topFilter === key && styles.filterTabActive)}
+                    onClick={() => setTopFilter(key)}
                   >
-                    {simClickMode === 'start'
-                      ? '📍 도면을 클릭해 위치 지정 중'
-                      : '도면에서 시작 위치 설정'}
+                    {label}
                   </button>
-                </div>
-
-                <div className={styles.divider} />
-
-                {/* 화재 위치 */}
-                <div className={styles.section}>
-                  <span className={styles.sectionLabel}>
-                    화재 위치
-                    {fireCount > 0 && (
-                      <span style={{ marginLeft: '0.4rem', color: '#ef4444', fontWeight: 600 }}>
-                        ({fireCount})
-                      </span>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    className={clsx(
-                      styles.simClickModeBtn,
-                      simClickMode === 'fire' && styles.simClickModeBtnActive,
-                    )}
-                    disabled={simState === 'running'}
-                    onClick={() => setSimClickMode((m) => (m === 'fire' ? null : 'fire'))}
-                  >
-                    {simClickMode === 'fire' ? '🔥 도면을 클릭해 추가 중' : '화재 위치 추가'}
-                  </button>
-                  {fireMarkers.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      {fireMarkers.map((m, i) => (
-                        <div key={m.id} className={styles.simFireItem}>
-                          <span>🔥 화재 {i + 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleFireMarkerDelete(m.id)}
-                            disabled={simState === 'running'}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              color: '#ef4444',
-                              fontSize: '1.2rem',
-                              padding: '0 0.2rem',
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className={styles.divider} />
-
-                {/* 실행/초기화 */}
-                <div className={styles.section}>
-                  <button
-                    type="button"
-                    className={styles.simRunButton}
-                    disabled={!selectedExit || simState === 'running'}
-                    onClick={handleRunSimulation}
-                  >
-                    {simState === 'running'
-                      ? '시뮬레이션 실행 중...'
-                      : simState === 'done'
-                        ? '다시 실행'
-                        : '시뮬레이션 실행'}
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.simResetButton}
-                    disabled={simState === 'running'}
-                    onClick={handleResetSimulation}
-                  >
-                    초기화
-                  </button>
-                </div>
-
-                {/* 시뮬레이션 결과 */}
-                {simState === 'done' && selectedExit && (
-                  <div className={styles.simResultSection}>
-                    <div className={styles.simResultTitle}>시뮬레이션 결과</div>
-                    <div className={styles.simResultRow}>
-                      <span className={styles.simResultKey}>목표 출구</span>
-                      <span className={styles.simResultValue}>{selectedExitLabel}</span>
-                    </div>
-                    {simStart && (
-                      <div className={styles.simResultRow}>
-                        <span className={styles.simResultKey}>시작 위치</span>
-                        <span className={styles.simResultValue}>
-                          ({simStart.x}, {simStart.y})
-                        </span>
-                      </div>
-                    )}
-                    <div className={styles.simResultRow}>
-                      <span className={styles.simResultKey}>예상 대피 시간</span>
-                      <span className={styles.simResultValue}>{estTime}초</span>
-                    </div>
-                    <div className={styles.simResultRow}>
-                      <span className={styles.simResultKey}>경유 구역</span>
-                      <span className={styles.simResultValue}>
-                        복도 → 계단실 → {selectedExitLabel}
-                      </span>
-                    </div>
-                    <div className={styles.simResultRow}>
-                      <span className={styles.simResultKey}>화재 구역 회피</span>
-                      <span
-                        className={clsx(
-                          styles.simResultBadge,
-                          isSafe ? styles.simResultBadgeSafe : styles.simResultBadgeDanger,
-                        )}
-                      >
-                        {isSafe ? '✓ 안전' : '⚠ 위험'}
-                      </span>
-                    </div>
-                    {fireCount > 0 && (
-                      <div className={styles.simResultRow}>
-                        <span className={styles.simResultKey}>화재 마커</span>
-                        <span className={styles.simResultValue}>{fireCount}개</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                ))}
               </div>
-            </aside>
-          );
-        })()}
+
+              {topFilter === 'device' && (
+                <div className={styles.subFilterChips}>
+                  {(
+                    [
+                      { key: 'cctv', label: 'CCTV' },
+                      { key: 'iot', label: 'IoT' },
+                      { key: 'light', label: '유도등' },
+                    ] as const
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={clsx(
+                        styles.subFilterChip,
+                        deviceTypeFilter === key && styles.subFilterChipActive,
+                      )}
+                      onClick={() => setDeviceTypeFilter((prev) => (prev === key ? null : key))}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {topFilter === 'zone' && (
+                <div className={styles.subFilterChips}>
+                  {(
+                    [
+                      { key: 'door', label: '문 · 출입구' },
+                      { key: 'stair', label: '계단' },
+                      { key: 'general', label: '일반' },
+                    ] as const
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={clsx(
+                        styles.subFilterChip,
+                        zoneTypeFilter === key && styles.subFilterChipActive,
+                      )}
+                      onClick={() => setZoneTypeFilter((prev) => (prev === key ? null : key))}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.devicePanelList}>
+              {topFilter !== 'zone' &&
+                (panelItems.length === 0
+                  ? topFilter === 'device' && (
+                      <p className={styles.devicePanelEmpty}>표시할 장비가 없습니다</p>
+                    )
+                  : panelItems.map((item) => (
+                      <DeviceCard
+                        key={item.id}
+                        item={item}
+                        selected={isPanelItemSelected(item)}
+                        editing={editingItemId === item.id}
+                        editForm={editForm}
+                        onEditFormChange={setEditForm}
+                        onSelect={handlePanelItemSelect}
+                        onStartEdit={handleStartEdit}
+                        onSaveEdit={handleSaveEdit}
+                        onDelete={handlePanelItemDelete}
+                      />
+                    )))}
+
+              {topFilter !== 'device' && (
+                <>
+                  {(!zoneTypeFilter || zoneTypeFilter === 'door') &&
+                    doorNodes.map((d) => renderDoorCard(d))}
+
+                  {(!zoneTypeFilter || zoneTypeFilter === 'stair') && renderStairCard()}
+
+                  {zones
+                    .filter((z) => z.type === 'general')
+                    .filter((z) => !zoneTypeFilter || zoneTypeFilter === z.type)
+                    .map((z) => renderZoneCard(z))}
+                </>
+              )}
+            </div>
+          </div>
+        </aside>
       </div>
 
       <FloorUploadModal
@@ -1882,8 +2484,26 @@ const FloorPlansDetailPage = () => {
         onClose={() => setUploadModalOpen(false)}
         buildingName={currentBuilding?.name ?? ''}
         floorNum={currentFloor?.floorNum ?? 0}
-        onConfirm={() => setUploadModalOpen(false)}
+        onConfirm={handleUploadConfirm}
       />
+
+      {segmentTarget && (
+        <GridAreaSettingModal
+          open
+          onClose={handleCloseSegmentModal}
+          mapImageUrl={segmentTarget.previewUrl}
+          onConfirm={handleSegmentConfirm}
+        />
+      )}
+
+      {deleteConfirmTarget && (
+        <EquipmentDeleteConfirmModal
+          open
+          onClose={() => setDeleteConfirmTarget(null)}
+          label={deleteConfirmTarget.label}
+          onConfirm={handleDeleteConfirm}
+        />
+      )}
     </>
   );
 };

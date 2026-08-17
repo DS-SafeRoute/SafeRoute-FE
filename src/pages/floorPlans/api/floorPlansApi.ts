@@ -1,4 +1,4 @@
-import type { Floor, FloorBuilding } from '../types/floorPlans';
+import type { Floor, FloorBuilding, SegmentationStatus } from '../types/floorPlans';
 
 const BASE = '/api/v1';
 
@@ -50,4 +50,17 @@ export async function uploadFloor(
 export async function deleteFloor(floorId: number): Promise<void> {
   const res = await fetch(`${BASE}/floors/${floorId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`API error ${res.status}: DELETE /floors/${floorId}`);
+}
+
+export type SegmentationResponse = { status: SegmentationStatus };
+
+export async function segmentFloor(
+  floorId: number,
+  params: { area: number; gridScale: number },
+): Promise<SegmentationResponse> {
+  return request<SegmentationResponse>(`${BASE}/floors/${floorId}/segment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
 }

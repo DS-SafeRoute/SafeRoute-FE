@@ -40,6 +40,11 @@ export const dropzoneHint = style({
   ...vars.typography.caption,
 });
 
+export const dropzoneError = style({
+  color: vars.color.danger,
+  ...vars.typography.caption,
+});
+
 export const fileInput = style({
   display: 'none',
 });
@@ -59,19 +64,6 @@ export const previewImg = style({
   objectFit: 'contain',
   maxWidth: '100%',
   maxHeight: '20rem',
-});
-
-export const pdfIcon = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.gray50,
-  width: '7.2rem',
-  height: '4.8rem',
-  color: vars.color.danger,
-  ...vars.typography.body14Bold,
 });
 
 export const previewName = style({

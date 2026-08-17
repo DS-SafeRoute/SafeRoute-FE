@@ -2,15 +2,23 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router';
 
+import EyeIcon from '@assets/icons/ic-eye.svg?react';
+import MapIcon from '@assets/icons/ic-map.svg?react';
+import TrashIcon from '@assets/icons/ic-trash.svg?react';
+import UploadIcon from '@assets/icons/ic-upload.svg?react';
+
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
-import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { deleteFloor, getFloorBuildings, segmentFloor, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
+import FloorDeleteConfirmModal from './modals/FloorDeleteConfirmModal';
+import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
+import GridAreaSettingModal from './modals/GridAreaSettingModal';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
@@ -24,11 +32,11 @@ const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBa
 
 const formatDate = (iso: string | null) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  const date = new Date(iso);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
@@ -39,69 +47,50 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
   return <span className={styles.metaValue}>—</span>;
 };
 
+interface FloorSummary {
+  id: number;
+  floorNum: number;
+  mapImageUrl: string | null;
+  segmentationStatus: SegmentationStatus;
+  processedAt: string | null;
+}
+
 type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
-type DeleteTarget = { buildingId: number; floorId: number; floorNum: number; buildingName: string };
+type FloorActionTarget = { buildingId: number; buildingName: string; floor: FloorSummary };
+type SegmentTarget = { buildingId: number; floorId: number; previewUrl: string | null };
 
 interface FloorCardProps {
-  floor: {
-    id: number;
-    floorNum: number;
-    mapImageUrl: string | null;
-    segmentationStatus: SegmentationStatus;
-    processedAt: string | null;
-  };
+  floor: FloorSummary;
   buildingId: number;
-  onManage: (buildingId: number, floorId: number) => void;
-  onUpload: (target: UploadTarget) => void;
-  onDelete: (target: DeleteTarget) => void;
   buildingName: string;
+  onUpload: (target: UploadTarget) => void;
+  onReupload: (target: FloorActionTarget) => void;
+  onDelete: (target: FloorActionTarget) => void;
 }
 
 const FloorCard = ({
   floor,
   buildingId,
   buildingName,
-  onManage,
   onUpload,
+  onReupload,
   onDelete,
 }: FloorCardProps) => {
+  const navigate = useNavigate();
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
-  const isProcessing =
-    floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
   const isNone = floor.segmentationStatus === 'NONE';
+  const isDone = floor.segmentationStatus === 'DONE';
 
   return (
     <div className={styles.floorCard}>
       <div className={styles.cardTop}>
-        <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <StatusBadge label={label} color={color} />
-          <button
-            type="button"
-            className={styles.deleteButton}
-            title="층 삭제"
-            onClick={() =>
-              onDelete({ buildingId, floorId: floor.id, floorNum: floor.floorNum, buildingName })
-            }
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6M14 11v6" />
-              <path d="M9 6V4h6v2" />
-            </svg>
-          </button>
+        <div className={styles.cardIcon}>
+          <MapIcon width={16} height={16} />
         </div>
+        <StatusBadge label={label} color={color} />
       </div>
+
+      <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
 
       <div className={styles.divider} />
 
@@ -127,14 +116,34 @@ const FloorCard = ({
           도면 업로드
         </button>
       ) : (
-        <button
-          type="button"
-          className={styles.manageButton}
-          disabled={isProcessing}
-          onClick={() => !isProcessing && onManage(buildingId, floor.id)}
-        >
-          {isProcessing ? '처리 중...' : '도면 관리'}
-        </button>
+        <div className={styles.cardActionRow}>
+          {isDone && (
+            <button
+              type="button"
+              className={styles.detailButton}
+              onClick={() => navigate(`/floorPlans/${buildingId}/${floor.id}`)}
+            >
+              <EyeIcon width={14} height={14} />
+              상세보기
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.reuploadButton}
+            onClick={() => onReupload({ buildingId, buildingName, floor })}
+          >
+            <UploadIcon width={14} height={14} />
+            재업로드
+          </button>
+          <button
+            type="button"
+            className={styles.deleteButtonCard}
+            onClick={() => onDelete({ buildingId, buildingName, floor })}
+          >
+            <TrashIcon width={14} height={14} />
+            삭제
+          </button>
+        </div>
       )}
     </div>
   );
@@ -146,7 +155,9 @@ const FloorPlansPage = () => {
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FloorActionTarget | null>(null);
+  const [segmentTarget, setSegmentTarget] = useState<SegmentTarget | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -158,20 +169,42 @@ const FloorPlansPage = () => {
       .finally(() => setLoading(false));
   }, [show]);
 
+  const handleOpenFloorUpload = (target: FloorActionTarget) => {
+    setUploadTarget({
+      buildingId: target.buildingId,
+      buildingName: target.buildingName,
+      floorId: target.floor.id,
+      floorNum: target.floor.floorNum,
+    });
+  };
+
+  const handleReuploadConfirm = () => {
+    if (reuploadTarget) handleOpenFloorUpload(reuploadTarget);
+    setReuploadTarget(null);
+  };
+
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return;
-    deleteFloor(deleteTarget.floorId)
+    const { buildingId, buildingName, floor } = deleteTarget;
+    deleteFloor(floor.id)
       .then(() => {
         setBuildings((prev) =>
           prev.map((b) =>
-            b.id !== deleteTarget.buildingId
+            b.id !== buildingId
               ? b
-              : { ...b, floors: b.floors.filter((f) => f.id !== deleteTarget.floorId) },
+              : {
+                  ...b,
+                  floors: b.floors.map((f) =>
+                    f.id !== floor.id
+                      ? f
+                      : { ...f, segmentationStatus: 'NONE', mapImageUrl: null, processedAt: null },
+                  ),
+                },
           ),
         );
         show({
           title: '층 도면이 삭제되었습니다.',
-          description: `${deleteTarget.buildingName} · ${formatFloor(deleteTarget.floorNum)} 도면이 삭제되었습니다.`,
+          description: `${buildingName} · ${formatFloor(floor.floorNum)} 도면이 삭제되었습니다.`,
           variant: 'success',
         });
       })
@@ -179,10 +212,6 @@ const FloorPlansPage = () => {
         show({ title: '삭제에 실패했습니다.', variant: 'error' });
       })
       .finally(() => setDeleteTarget(null));
-  };
-
-  const handleManage = (buildingId: number, floorId: number) => {
-    void navigate(`/floorPlans/${buildingId}/${floorId}`);
   };
 
   const handleUploadConfirm = (file: File) => {
@@ -206,12 +235,36 @@ const FloorPlansPage = () => {
           description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
           variant: 'success',
         });
-        void navigate(`/floorPlans/${uploadTarget.buildingId}/${uploadTarget.floorId}`);
+        setSegmentTarget({
+          buildingId: uploadTarget.buildingId,
+          floorId: uploadTarget.floorId,
+          previewUrl: URL.createObjectURL(file),
+        });
       })
       .catch(() => {
         show({ title: '업로드에 실패했습니다.', variant: 'error' });
       })
       .finally(() => setUploadTarget(null));
+  };
+
+  const handleCloseSegmentModal = () => {
+    if (segmentTarget?.previewUrl) URL.revokeObjectURL(segmentTarget.previewUrl);
+    setSegmentTarget(null);
+  };
+
+  const handleSegmentConfirm = (params: { area: number; gridScale: number }) => {
+    if (!segmentTarget) return;
+    const { buildingId, floorId, previewUrl } = segmentTarget;
+    segmentFloor(floorId, params)
+      .then(() => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setSegmentTarget(null);
+        void navigate(`/floorPlans/${buildingId}/${floorId}`);
+      })
+      .catch(() => {
+        // 설정값과 미리보기를 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        show({ title: 'AI 분석 요청에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+      });
   };
 
   return (
@@ -240,8 +293,8 @@ const FloorPlansPage = () => {
                       floor={floor}
                       buildingId={building.id}
                       buildingName={building.name}
-                      onManage={handleManage}
                       onUpload={setUploadTarget}
+                      onReupload={setReuploadTarget}
                       onDelete={setDeleteTarget}
                     />
                   ))}
@@ -260,32 +313,33 @@ const FloorPlansPage = () => {
         />
       )}
 
+      {reuploadTarget && (
+        <FloorReuploadConfirmModal
+          open
+          onClose={() => setReuploadTarget(null)}
+          buildingName={reuploadTarget.buildingName}
+          floorNum={reuploadTarget.floor.floorNum}
+          onConfirm={handleReuploadConfirm}
+        />
+      )}
+
       {deleteTarget && (
-        <div className={styles.confirmOverlay} onClick={() => setDeleteTarget(null)}>
-          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.confirmTitle}>층 도면 삭제</p>
-            <p className={styles.confirmDesc}>
-              {deleteTarget.buildingName} · {formatFloor(deleteTarget.floorNum)} 도면을 삭제하면
-              복구할 수 없습니다. 계속하시겠습니까?
-            </p>
-            <div className={styles.confirmActions}>
-              <button
-                type="button"
-                className={styles.confirmCancelBtn}
-                onClick={() => setDeleteTarget(null)}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className={styles.confirmDeleteBtn}
-                onClick={handleDeleteConfirm}
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        </div>
+        <FloorDeleteConfirmModal
+          open
+          onClose={() => setDeleteTarget(null)}
+          buildingName={deleteTarget.buildingName}
+          floorNum={deleteTarget.floor.floorNum}
+          onConfirm={handleDeleteConfirm}
+        />
+      )}
+
+      {segmentTarget && (
+        <GridAreaSettingModal
+          open
+          onClose={handleCloseSegmentModal}
+          mapImageUrl={segmentTarget.previewUrl}
+          onConfirm={handleSegmentConfirm}
+        />
       )}
     </>
   );

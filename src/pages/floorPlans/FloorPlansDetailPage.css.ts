@@ -1,6 +1,10 @@
-import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
+
+/* 도면 상 구역 의미 색상 — 문·출입구/계단 표시에서 반복 사용되므로 한 곳에서만 정의 */
+const zoneDoorColor = '#2563EB';
+const zoneStairColor = '#F97316';
 
 /* ── 전체 레이아웃 ── */
 export const layout = style({
@@ -43,106 +47,176 @@ export const divider = style({
   borderTop: `1px solid ${vars.color.gray100}`,
 });
 
-/* ── 건물/층 선택 ── */
-export const selectWrap = style({
+/* ── 층 목록 ── */
+export const floorNavCard = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  overflow: 'hidden',
+});
+
+export const floorNavHeader = style({
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  padding: `${vars.space.s3} ${vars.space.s4}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const floorNavList = style({
   display: 'flex',
   flexDirection: 'column',
+});
+
+export const floorNavItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  border: 'none',
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  padding: `${vars.space.s3} ${vars.space.s4}`,
+  width: '100%',
+  textAlign: 'left',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:last-child': { borderBottom: 'none' },
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const floorNavItemActive = style({
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+});
+
+/* ── 장비/구역 추가 ── */
+export const canvasActionFloat = style({
+  position: 'absolute',
+  zIndex: 10,
+  top: vars.space.s6,
+  right: vars.space.s6,
+  display: 'flex',
   gap: vars.space.s2,
 });
 
-export const selectField = style({
+export const canvasActionButton = style({
   display: 'flex',
-  flexDirection: 'column',
-  gap: '0.4rem',
+  alignItems: 'center',
+  gap: vars.space.s1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  boxShadow: vars.shadow.sm,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  color: vars.color.textMid,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
 });
 
-export const selectFieldLabel = style({
+/* ── 카메라 시야 구역 지정 안내 ── */
+/* ── 장비 추가 팝업 ── */
+export const nodeAddPopup = style({
+  position: 'absolute',
+  zIndex: 15,
+  top: '9.6rem',
+  right: vars.space.s6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s4,
+  width: '25rem',
+});
+
+export const nodeAddHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+});
+
+export const nodeAddTitle = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const nodeAddStepBadge = style({
+  flexShrink: 0,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray50,
+  padding: `0.2rem ${vars.space.s2}`,
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
 
-export const dropdownFullWidth = style({
-  display: 'block',
-  width: '100%',
+export const nodeAddHint = style({
+  marginTop: `calc(-1 * ${vars.space.s2})`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
 });
 
-globalStyle(`${dropdownFullWidth} button`, {
-  justifyContent: 'space-between',
-  borderRadius: vars.radius.md,
-  width: '100%',
-});
-
-globalStyle(`${dropdownFullWidth} ul`, {
-  width: '100%',
-});
-
-/* ── AI 영역 분할 ── */
-export const aiLayerList = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.6rem',
-});
-
-export const aiLayerItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  cursor: 'pointer',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-});
-
-export const aiLayerCheckbox = style({
-  flexShrink: 0,
-  cursor: 'pointer',
-  width: '1.6rem',
-  height: '1.6rem',
-  accentColor: vars.color.primary,
-});
-
-/* ── 편집 모드 탭 ── */
-export const modeGroup = style({
+export const nodeAddField = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s1,
 });
 
-export const modeTabGroup = style({
-  display: 'flex',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  overflow: 'hidden',
+export const nodeAddLabel = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
 });
 
-export const modeTab = style({
+export const deviceTypeChips = style({
   display: 'flex',
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRight: `1px solid ${vars.color.gray100}`,
+  flexWrap: 'wrap',
+  gap: vars.space.s2,
+});
+
+export const deviceTypeChip = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
   backgroundColor: vars.color.white,
   cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s1}`,
+  padding: `${vars.space.s2} ${vars.space.s3}`,
   color: vars.color.textMid,
-  ...vars.typography.caption,
+  ...vars.typography.body14,
   selectors: {
-    '&:last-child': { borderRight: 'none' },
-    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray50 },
-    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+    '&:hover': { backgroundColor: vars.color.gray25 },
   },
 });
 
-export const modeTabActive = style({
+export const deviceTypeChipActive = style({
+  borderColor: vars.color.primary,
   backgroundColor: vars.color.primaryLight2,
   color: vars.color.primary,
-  fontWeight: 700,
 });
 
-export const modeButton = style({
+export const nodeAddInput = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+export const nodeAddActions = style({
   display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+  gap: vars.space.s2,
+});
+
+export const nodeAddBackBtn = style({
+  flexShrink: 0,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.md,
   backgroundColor: vars.color.white,
@@ -151,17 +225,446 @@ export const modeButton = style({
   color: vars.color.textMid,
   ...vars.typography.body14,
   selectors: {
-    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray50 },
-    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+    '&:hover': { backgroundColor: vars.color.gray25 },
   },
 });
 
-export const modeButtonActive = style({
+export const nodeAddCancelBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const nodeAddSubmitBtn = style({
+  flex: 1,
+  border: 'none',
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primary,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.white,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover:not(:disabled)': { backgroundColor: vars.color.primaryHover },
+    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
+  },
+});
+
+export const zoneLegendTitle = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const zoneLegendItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const zoneLegendLabel = style({
+  flex: 1,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+});
+
+/* ── 마크 설명(노드/구역 종류) 범례 ── */
+export const nodeTypeLegend = style({
+  position: 'absolute',
+  zIndex: 10,
+  right: vars.space.s6,
+  bottom: '7.6rem',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s4,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.md,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s5,
+  width: '16rem',
+});
+
+export const nodeTypeLegendSection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+});
+
+export const nodeTypeLegendDivider = style({
+  borderTop: `1px solid ${vars.color.gray100}`,
+});
+
+export const nodeTypeDot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  width: '0.8rem',
+  height: '0.8rem',
+});
+
+export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
+export const nodeTypeDotIot = style({ backgroundColor: vars.color.success });
+export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
+
+export const nodeTypeAreaSwatch = style({
+  flexShrink: 0,
+  border: '1px solid',
+  borderRadius: vars.radius.sm,
+  width: '1.2rem',
+  height: '1.2rem',
+});
+
+export const nodeTypeAreaSwatchStair = style({
+  borderColor: zoneStairColor,
+  backgroundColor: 'rgba(249,115,22,0.25)',
+});
+export const nodeTypeAreaSwatchGeneral = style({
+  borderColor: vars.color.gray500,
+  backgroundColor: 'rgba(107,114,128,0.15)',
+});
+export const nodeTypeAreaSwatchCamera = style({
+  borderColor: vars.color.purple,
+  backgroundColor: 'rgba(139,92,246,0.18)',
+});
+
+export const nodeTypeCctvBadge = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.purple,
+  width: '1.6rem',
+  height: '1.6rem',
+  color: vars.color.white,
+  fontSize: '0.9rem',
+  fontWeight: 700,
+});
+
+/* ── 우측 장비 목록 패널 ── */
+export const devicePanel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexShrink: 0,
+  borderLeft: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  width: '32rem',
+  overflowY: 'auto',
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
+});
+
+export const devicePanelInner = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  paddingRight: vars.space.s5,
+  paddingBottom: vars.space.s5,
+  paddingLeft: vars.space.s5,
+});
+
+export const devicePanelSticky = style({
+  position: 'sticky',
+  zIndex: 2,
+  top: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  backgroundColor: vars.color.white,
+  paddingTop: vars.space.s5,
+  paddingBottom: vars.space.s3,
+});
+
+export const devicePanelList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+});
+
+export const filterTabs = style({
+  display: 'flex',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  overflow: 'hidden',
+});
+
+export const filterTab = style({
+  display: 'flex',
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const filterTabActive = style({
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+  fontWeight: vars.fontWeight.semibold,
+});
+
+export const subFilterChips = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: vars.space.s1,
+});
+
+export const subFilterChip = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: '0.4rem 1rem',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const subFilterChipActive = style({
   borderColor: vars.color.primary,
   backgroundColor: vars.color.primaryLight2,
   color: vars.color.primary,
+});
+
+export const devicePanelEmpty = style({
+  margin: 0,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
+export const deviceCard = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  cursor: 'pointer',
+  padding: vars.space.s4,
+});
+
+export const deviceCardSelected = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+});
+
+export const zoneCardHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+});
+
+export const zoneCardTitleGroup = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const zoneCardDot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  width: '0.7rem',
+  height: '0.7rem',
+});
+
+export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
+export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
+export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
+
+export const finalExitToggle = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `0.1rem ${vars.space.s2}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { borderColor: vars.color.gray300, color: vars.color.textMid },
+  },
+});
+
+export const finalExitBadge = style({
+  flexShrink: 0,
+  border: 'none',
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.successLight,
+  cursor: 'pointer',
+  padding: `0.1rem ${vars.space.s2}`,
+  color: vars.color.successText,
+  ...vars.typography.caption,
+});
+
+export const deviceCardName = style({
+  color: vars.color.textHigh,
   ...vars.typography.body14Medium,
 });
+
+export const deviceCardNameInput = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.white,
+  padding: `${vars.space.s1} ${vars.space.s2}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+export const deviceCardValueInput = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.white,
+  padding: `0 ${vars.space.s2}`,
+  width: '14rem',
+  textAlign: 'right',
+  color: vars.color.textHigh,
+  ...vars.typography.caption,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+export const deviceCardRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+
+export const deviceCardKey = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const deviceCardValue = style({
+  color: vars.color.textHigh,
+  ...vars.typography.caption,
+});
+
+export const deviceCardActions = style({
+  display: 'flex',
+  gap: vars.space.s2,
+  marginTop: vars.space.s1,
+});
+
+export const deviceCardEditBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const deviceCardDoneBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.primary}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.primary,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.white,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.primaryHover,
+      backgroundColor: vars.color.primaryHover,
+    },
+  },
+});
+
+export const deviceCardDeleteBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.dangerLight}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: vars.space.s2,
+  color: vars.color.danger,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: '#FFF5F5' },
+  },
+});
+
+/* ── 구역/문/계단 카드 — 한 줄로 압축, 수정·삭제는 아이콘 버튼 ── */
+export const zoneCardHeaderActions = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  gap: vars.space.s1,
+});
+
+export const zoneCardIconBtn = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  width: '2.6rem',
+  height: '2.6rem',
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
+});
+
+export const zoneCardIconBtnDone = style([
+  zoneCardIconBtn,
+  {
+    borderColor: vars.color.primary,
+    backgroundColor: vars.color.primary,
+    color: vars.color.white,
+    selectors: {
+      '&:hover': {
+        borderColor: vars.color.primaryHover,
+        backgroundColor: vars.color.primaryHover,
+      },
+    },
+  },
+]);
+
+export const zoneCardIconBtnDelete = style([
+  zoneCardIconBtn,
+  {
+    borderColor: vars.color.dangerLight,
+    color: vars.color.danger,
+    selectors: {
+      '&:hover': { backgroundColor: '#FFF5F5' },
+    },
+  },
+]);
 
 /* ── 플로팅 줌 컨트롤 ── */
 export const canvasZoomFloat = style({
@@ -177,60 +680,6 @@ export const canvasZoomFloat = style({
   boxShadow: vars.shadow.md,
   backgroundColor: vars.color.white,
   padding: `0.4rem ${vars.space.s2}`,
-});
-
-/* ── 시뮬레이션 설정 ── */
-export const simSection = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-});
-
-export const simResetButton = style({
-  border: 'none',
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.danger,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  width: '100%',
-  color: vars.color.white,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:hover': {
-      opacity: 0.9,
-    },
-  },
-});
-
-/* ── 혼잡도 히트맵 ── */
-export const heatmapRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  cursor: 'pointer',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-});
-
-export const heatmapCheckbox = style({
-  flexShrink: 0,
-  cursor: 'pointer',
-  width: '1.6rem',
-  height: '1.6rem',
-  accentColor: vars.color.primary,
-});
-
-/* ── 보기 설정 (줌) ── */
-export const zoomRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-});
-
-export const zoomLabel = style({
-  flex: 1,
-  color: vars.color.textMid,
-  ...vars.typography.body14,
 });
 
 export const zoomValue = style({
@@ -258,33 +707,6 @@ export const zoomButton = style({
   },
 });
 
-/* ── 범례 ── */
-export const legend = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.6rem',
-  marginTop: 'auto',
-  paddingTop: vars.space.s4,
-});
-
-export const legendItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-});
-
-export const legendDot = style({
-  flexShrink: 0,
-  borderRadius: '50%',
-  width: '1rem',
-  height: '1rem',
-});
-
-export const legendDotIot = style({ backgroundColor: vars.color.success });
-export const legendDotCctv = style({ backgroundColor: vars.color.primary });
-
 /* ── 중앙 캔버스 영역 ── */
 export const canvasArea = style({
   position: 'relative',
@@ -308,18 +730,25 @@ export const canvasHeader = style({
   padding: `${vars.space.s3} ${vars.space.s4}`,
 });
 
-export const canvasHeaderIcon = style({
+export const backButton = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
+  border: 'none',
   borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.primary,
-  width: '2rem',
-  height: '2rem',
-  color: vars.color.white,
-  fontSize: '1rem',
-  fontWeight: 700,
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  width: '2.4rem',
+  height: '2.4rem',
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray50 },
+  },
+});
+
+export const backButtonIcon = style({
+  transform: 'rotate(180deg)',
 });
 
 export const canvasHeaderText = style({
@@ -333,6 +762,7 @@ export const canvasHeaderFloor = style({
 });
 
 export const canvasBody = style({
+  position: 'relative',
   display: 'flex',
   flex: 1,
   alignItems: 'flex-start',
@@ -344,6 +774,10 @@ export const canvasBody = style({
   backgroundColor: vars.color.white,
   padding: vars.space.s6,
   overflow: 'auto',
+});
+
+export const canvasBodyWithActions = style({
+  paddingTop: '8rem',
 });
 
 export const mapWrap = style({
@@ -406,19 +840,35 @@ export const markerLabel = style({
   ...vars.typography.caption,
 });
 
-export const markerCctv = style({ backgroundColor: vars.color.primary, color: vars.color.white });
+export const markerCctv = style({ backgroundColor: vars.color.purple, color: vars.color.white });
 export const markerCctvOffline = style({
   backgroundColor: vars.color.gray300,
   color: vars.color.white,
 });
 export const markerIot = style({ backgroundColor: vars.color.success, color: vars.color.white });
-export const markerExit = style({ backgroundColor: '#16a34a', color: vars.color.white });
-export const markerStair = style({
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.primary,
-  color: vars.color.white,
+
+const pulse = keyframes({
+  '0%, 100%': { opacity: 1 },
+  '50%': { opacity: 0.4 },
 });
-export const markerFire = style({ backgroundColor: vars.color.danger, color: vars.color.white });
+
+export const stagedCameraMarker = style({
+  position: 'absolute',
+  zIndex: 2,
+  transform: 'translate(-50%, -50%)',
+  border: `2px dashed ${vars.color.purple}`,
+  borderRadius: '50%',
+  backgroundColor: 'rgba(139,92,246,0.25)',
+  pointerEvents: 'none',
+  width: '2.4rem',
+  height: '2.4rem',
+  animation: `${pulse} 1.4s ease-in-out infinite`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
+});
 
 /* ── Canvase placeholder ── */
 export const canvasPlaceholder = style({
@@ -436,224 +886,6 @@ export const canvasPlaceholder = style({
 export const canvasPlaceholderTitle = style({
   color: vars.color.textMid,
   ...vars.typography.body14Medium,
-});
-
-/* ── 히트맵 오버레이 ── */
-export const heatmapOverlay = style({
-  position: 'absolute',
-  zIndex: 2,
-  inset: 0,
-  pointerEvents: 'none',
-});
-
-/* ── 시뮬레이션 경로 ── */
-export const simPath = style({
-  position: 'absolute',
-  zIndex: 2,
-  inset: 0,
-  pointerEvents: 'none',
-});
-
-/* ── 우측: 선택 정보 패널 ── */
-export const infoPanel = style({
-  position: 'absolute',
-  zIndex: 10,
-  right: vars.space.s6,
-  bottom: vars.space.s6,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: vars.color.white,
-  padding: vars.space.s4,
-  width: '22rem',
-});
-
-export const infoPanelHeader = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: vars.space.s1,
-});
-
-export const infoPanelTitle = style({
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-});
-
-export const infoPanelClose = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  background: 'none',
-  cursor: 'pointer',
-  padding: vars.space.s1,
-  color: vars.color.textLow,
-  selectors: {
-    '&:hover': { color: vars.color.textHigh },
-  },
-});
-
-export const infoPanelThumb = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: vars.space.s2,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.gray50,
-  height: '7rem',
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const infoPanelRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingTop: '0.4rem',
-  paddingBottom: '0.4rem',
-});
-
-export const infoPanelKey = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const infoPanelValue = style({
-  textAlign: 'right',
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-});
-
-export const infoPanelActions = style({
-  display: 'flex',
-  gap: vars.space.s2,
-  marginTop: vars.space.s2,
-});
-
-export const infoPanelActionBtn = style({ flex: 1 });
-
-/* ── 시뮬레이션 경로 애니메이션 ── */
-const dashMove = keyframes({
-  from: { strokeDashoffset: 300 },
-  to: { strokeDashoffset: 0 },
-});
-
-export const simPathAnimated = style({
-  animation: `${dashMove} 1.8s linear forwards`,
-  strokeDasharray: '8 5',
-  strokeDashoffset: 300,
-});
-
-/* ── 시뮬레이션 결과 패널 ── */
-export const simResultPanel = style({
-  position: 'absolute',
-  zIndex: 10,
-  bottom: vars.space.s6,
-  left: vars.space.s6,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s3,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: vars.color.white,
-  padding: vars.space.s4,
-  width: '24rem',
-});
-
-export const simResultTitle = style({
-  marginBottom: vars.space.s1,
-  ...vars.typography.body14Medium,
-  color: vars.color.textHigh,
-});
-
-export const simResultRow = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: vars.space.s2,
-  borderTop: `1px solid ${vars.color.gray50}`,
-  paddingTop: '0.4rem',
-  paddingBottom: '0.4rem',
-});
-
-export const simResultKey = style({
-  flexShrink: 0,
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const simResultValue = style({
-  textAlign: 'right',
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-});
-
-export const simResultBadge = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.3rem',
-  borderRadius: vars.radius.sm,
-  padding: `0.2rem ${vars.space.s2}`,
-  ...vars.typography.caption,
-});
-
-export const simResultBadgeSafe = style({
-  backgroundColor: 'rgba(220,252,231,0.8)',
-  color: '#15803d',
-});
-
-export const simResultBadgeDanger = style({
-  backgroundColor: 'rgba(254,226,226,0.8)',
-  color: '#b91c1c',
-});
-
-export const simRunButton = style({
-  border: 'none',
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.primary,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  width: '100%',
-  color: vars.color.white,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:hover:not(:disabled)': { opacity: 0.9 },
-    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
-  },
-});
-
-/* ── POI 유형 선택 ── */
-export const poiTypeGrid = style({
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: vars.space.s1,
-});
-
-export const poiTypeBtn = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.4rem',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} vars.space.s2`,
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
-  },
-});
-
-export const poiTypeBtnActive = style({
-  fontWeight: 600,
 });
 
 /* ── 줌 리셋 ── */
@@ -703,90 +935,4 @@ export const toast = style({
 
 export const toastFading = style({
   animation: `${toastOut} 0.3s ease forwards`,
-});
-
-/* ── 시뮬레이션 우측 패널 ── */
-export const simPanel = style({
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-  borderLeft: `1px solid ${vars.color.gray100}`,
-  backgroundColor: vars.color.white,
-  width: '28rem',
-  overflowY: 'auto',
-});
-
-export const simPanelInner = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s4,
-  padding: '2rem 2rem 2.4rem',
-  minHeight: 'min-content',
-});
-
-export const simPanelTitle = style({
-  marginBottom: vars.space.s2,
-  ...vars.typography.body14Medium,
-  borderBottom: `1px solid ${vars.color.gray100}`,
-  paddingBottom: vars.space.s2,
-  color: vars.color.textHigh,
-  fontWeight: 700,
-});
-
-export const simClickModeBtn = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '0.4rem',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
-  width: '100%',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { borderColor: vars.color.gray300, backgroundColor: vars.color.gray50 },
-  },
-});
-
-export const simClickModeBtnActive = style({
-  border: `1.5px solid #2563eb`,
-  backgroundColor: 'rgba(37,99,235,0.07)',
-  color: '#2563eb',
-  fontWeight: 600,
-});
-
-export const simFireItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  border: `1px solid #f87171`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(254,202,202,0.5)',
-  padding: '0.4rem 0.8rem',
-  color: '#b91c1c',
-  fontSize: '1.2rem',
-});
-
-export const simStartInfo = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  border: `1px solid #86efac`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(220,252,231,0.5)',
-  padding: '0.5rem 0.8rem',
-  color: '#166534',
-  fontSize: '1.2rem',
-});
-
-export const simResultSection = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-  marginTop: vars.space.s2,
-  borderTop: `2px solid ${vars.color.gray100}`,
-  paddingTop: vars.space.s4,
 });
