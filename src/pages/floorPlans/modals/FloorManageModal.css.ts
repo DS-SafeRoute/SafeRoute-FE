@@ -90,7 +90,7 @@ export const deleteButton = style({
   color: vars.color.danger,
   ...vars.typography.body14,
   selectors: {
-    '&:hover': { backgroundColor: '#FFF5F5' },
+    '&:hover': { backgroundColor: vars.color.dangerHoverBg },
   },
 });
 

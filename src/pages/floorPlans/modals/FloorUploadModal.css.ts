@@ -40,6 +40,11 @@ export const dropzoneHint = style({
   ...vars.typography.caption,
 });
 
+export const dropzoneError = style({
+  color: vars.color.danger,
+  ...vars.typography.caption,
+});
+
 export const fileInput = style({
   display: 'none',
 });

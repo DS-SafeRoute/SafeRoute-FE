@@ -35,7 +35,7 @@ const FloorManageModal = ({
     title={`${buildingName} 층별 관리`}
     description="각 층별 도면을 업로드하거나 삭제할 수 있습니다"
     footer={
-      <Button variant="ghost" onClick={onClose} style={{ width: '100%' }}>
+      <Button variant="ghost" fullWidth onClick={onClose}>
         닫기
       </Button>
     }

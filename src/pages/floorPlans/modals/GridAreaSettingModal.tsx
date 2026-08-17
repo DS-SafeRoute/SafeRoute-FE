@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { Button } from '@components/Button';
 import Modal from '@components/modal';
@@ -23,6 +23,8 @@ const GridAreaSettingModal = ({
 }: GridAreaSettingModalProps) => {
   const [area, setArea] = useState('');
   const [gridScale, setGridScale] = useState(5);
+  const areaInputId = useId();
+  const scaleSliderId = useId();
 
   const handleAreaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -39,11 +41,12 @@ const GridAreaSettingModal = ({
     onClose();
   };
 
+  const isAreaValid = Number(area) > 0;
+
   const handleSubmit = () => {
-    if (!area) return;
+    if (!isAreaValid) return;
+    // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
     onConfirm({ area: Number(area), gridScale });
-    setArea('');
-    setGridScale(5);
   };
 
   const cellSize = 20 + gridScale * 4;
@@ -60,7 +63,7 @@ const GridAreaSettingModal = ({
           <Button variant="ghost" className={styles.cancelButton} onClick={handleClose}>
             취소
           </Button>
-          <Button className={styles.confirmButton} disabled={!area} onClick={handleSubmit}>
+          <Button className={styles.confirmButton} disabled={!isAreaValid} onClick={handleSubmit}>
             입력하기
           </Button>
         </div>
@@ -86,9 +89,12 @@ const GridAreaSettingModal = ({
 
       <div className={styles.toolbar}>
         <div className={styles.areaField}>
-          <span className={styles.fieldLabel}>평수 (㎡)</span>
+          <label className={styles.fieldLabel} htmlFor={areaInputId}>
+            평수 (㎡)
+          </label>
           <div className={styles.areaInputShell}>
             <input
+              id={areaInputId}
               className={styles.areaInput}
               type="text"
               inputMode="decimal"
@@ -103,7 +109,9 @@ const GridAreaSettingModal = ({
         <div className={styles.divider} />
 
         <div className={styles.scaleField}>
-          <span className={styles.fieldLabel}>그리드 배율</span>
+          <label className={styles.fieldLabel} htmlFor={scaleSliderId}>
+            그리드 배율
+          </label>
           <div className={styles.scaleControls}>
             <button
               type="button"
@@ -115,6 +123,7 @@ const GridAreaSettingModal = ({
               −
             </button>
             <input
+              id={scaleSliderId}
               type="range"
               className={styles.scaleSlider}
               min={MIN_SCALE}

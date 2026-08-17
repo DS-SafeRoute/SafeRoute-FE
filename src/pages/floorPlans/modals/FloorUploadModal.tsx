@@ -33,6 +33,7 @@ const FloorUploadModal = ({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,6 +43,11 @@ const FloorUploadModal = ({
   }, [preview]);
 
   const handleFileSelect = (selected: File) => {
+    if (selected.type !== 'image/jpeg') {
+      setFileError('JPG 형식의 파일만 업로드할 수 있어요');
+      return;
+    }
+    setFileError(null);
     if (preview) URL.revokeObjectURL(preview);
     setFile(selected);
     setPreview(URL.createObjectURL(selected));
@@ -49,14 +55,14 @@ const FloorUploadModal = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
-    if (selected && selected.type === 'image/jpeg') handleFileSelect(selected);
+    if (selected) handleFileSelect(selected);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
-    if (dropped && dropped.type === 'image/jpeg') handleFileSelect(dropped);
+    if (dropped) handleFileSelect(dropped);
   };
 
   const handleConfirm = () => {
@@ -70,6 +76,7 @@ const FloorUploadModal = ({
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview(null);
+    setFileError(null);
     onClose();
   };
 
@@ -123,7 +130,11 @@ const FloorUploadModal = ({
         >
           <UploadIcon width={28} height={28} className={styles.dropzoneIcon} />
           <span className={styles.dropzoneText}>클릭하거나 파일을 드래그해 주세요</span>
-          <span className={styles.dropzoneHint}>JPG 형식만 지원</span>
+          {fileError ? (
+            <span className={styles.dropzoneError}>{fileError}</span>
+          ) : (
+            <span className={styles.dropzoneHint}>JPG 형식만 지원</span>
+          )}
         </div>
       )}
 

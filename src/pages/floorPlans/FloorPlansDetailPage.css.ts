@@ -2,6 +2,10 @@ import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
+/* 도면 상 구역 의미 색상 — 문·출입구/계단 표시에서 반복 사용되므로 한 곳에서만 정의 */
+const zoneDoorColor = '#2563EB';
+const zoneStairColor = '#F97316';
+
 /* ── 전체 레이아웃 ── */
 export const layout = style({
   display: 'flex',
@@ -305,7 +309,7 @@ export const nodeTypeDot = style({
   height: '0.8rem',
 });
 
-export const nodeTypeDotDoor = style({ backgroundColor: '#2563eb' });
+export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
 export const nodeTypeDotIot = style({ backgroundColor: vars.color.success });
 export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
 
@@ -318,7 +322,7 @@ export const nodeTypeAreaSwatch = style({
 });
 
 export const nodeTypeAreaSwatchStair = style({
-  borderColor: '#f97316',
+  borderColor: zoneStairColor,
   backgroundColor: 'rgba(249,115,22,0.25)',
 });
 export const nodeTypeAreaSwatchGeneral = style({
@@ -482,8 +486,8 @@ export const zoneCardDot = style({
   height: '0.7rem',
 });
 
-export const zoneCardDotDoor = style({ backgroundColor: '#2563eb' });
-export const zoneCardDotStair = style({ backgroundColor: '#f97316' });
+export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
+export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 
 export const finalExitToggle = style({
@@ -859,6 +863,11 @@ export const stagedCameraMarker = style({
   width: '2.4rem',
   height: '2.4rem',
   animation: `${pulse} 1.4s ease-in-out infinite`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
 });
 
 /* ── Canvase placeholder ── */

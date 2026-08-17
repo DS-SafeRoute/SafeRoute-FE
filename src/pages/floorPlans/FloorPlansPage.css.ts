@@ -195,7 +195,7 @@ export const deleteButtonCard = style([
     selectors: {
       '&:hover': {
         borderColor: vars.color.dangerLight,
-        backgroundColor: '#FFF5F5',
+        backgroundColor: vars.color.dangerHoverBg,
       },
     },
   },

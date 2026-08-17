@@ -190,7 +190,16 @@ const FloorPlansPage = () => {
       .then(() => {
         setBuildings((prev) =>
           prev.map((b) =>
-            b.id !== buildingId ? b : { ...b, floors: b.floors.filter((f) => f.id !== floor.id) },
+            b.id !== buildingId
+              ? b
+              : {
+                  ...b,
+                  floors: b.floors.map((f) =>
+                    f.id !== floor.id
+                      ? f
+                      : { ...f, segmentationStatus: 'NONE', mapImageUrl: null, processedAt: null },
+                  ),
+                },
           ),
         );
         show({
@@ -248,14 +257,13 @@ const FloorPlansPage = () => {
     const { buildingId, floorId, previewUrl } = segmentTarget;
     segmentFloor(floorId, params)
       .then(() => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setSegmentTarget(null);
         void navigate(`/floorPlans/${buildingId}/${floorId}`);
       })
       .catch(() => {
-        show({ title: 'AI 분석 요청에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => {
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setSegmentTarget(null);
+        // 설정값과 미리보기를 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        show({ title: 'AI 분석 요청에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
       });
   };
 
