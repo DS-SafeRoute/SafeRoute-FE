@@ -12,3 +12,20 @@ export const floorRow = style({
   display: 'flex',
   gap: vars.space.s4,
 });
+
+export const field = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+});
+
+export const fieldLabel = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const chipRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: vars.space.s2,
+});

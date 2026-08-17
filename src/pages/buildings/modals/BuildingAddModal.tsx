@@ -2,7 +2,10 @@ import { useState } from 'react';
 
 import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
 
+import type { CreateBuildingRequest } from '@apis/__generated__/data-contracts';
+
 import { Button } from '@components/Button';
+import FilterChip from '@components/chip/FilterChip';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
@@ -10,29 +13,55 @@ import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
 
 import * as styles from './BuildingAddModal.css';
 
-import type { Building } from '../types/buildings';
+import type { BuildingType } from '../types/buildings';
 
 interface BuildingAddModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (building: Omit<Building, 'id'>) => void;
+  onConfirm: (body: CreateBuildingRequest) => void;
+  isSubmitting?: boolean;
 }
 
 interface FormState {
   name: string;
+  address: string;
+  buildingType: BuildingType;
   aboveFloors: string;
   belowFloors: string;
 }
 
-const INITIAL_FORM: FormState = { name: '', aboveFloors: '1', belowFloors: '0' };
+const BUILDING_TYPE_OPTIONS: { value: BuildingType; label: string }[] = [
+  { value: 'CLASSROOM', label: '교실' },
+  { value: 'CAFETERIA', label: '식당' },
+  { value: 'LIBRARY', label: '도서관' },
+  { value: 'DORMITORY', label: '기숙사' },
+  { value: 'GYM', label: '체육관' },
+];
 
-const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) => {
+const INITIAL_FORM: FormState = {
+  name: '',
+  address: '',
+  buildingType: 'CLASSROOM',
+  aboveFloors: '1',
+  belowFloors: '0',
+};
+
+const BuildingAddModal = ({
+  open,
+  onClose,
+  onConfirm,
+  isSubmitting = false,
+}: BuildingAddModalProps) => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
-  const handleChange = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: 'name' | 'address') => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const handleBuildingTypeChange = (value: BuildingType) => {
+    setForm((prev) => ({ ...prev, buildingType: value }));
   };
 
   const handleFloorChange = (field: 'aboveFloors' | 'belowFloors') => (value: string) => {
@@ -41,8 +70,13 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
   };
 
   const validate = () => {
-    const next: Partial<FormState> = {};
+    const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
+    else if (form.name.trim().length < 2 || form.name.trim().length > 20)
+      next.name = '건물명은 2~20자로 입력해 주세요';
+    if (!form.address.trim()) next.address = '주소를 입력해 주세요';
+    else if (form.address.trim().length < 8 || form.address.trim().length > 100)
+      next.address = '주소는 8~100자로 입력해 주세요';
     if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
     else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
     if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
@@ -57,15 +91,12 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
       Number(form.aboveFloors) + (form.belowFloors.trim() ? Number(form.belowFloors) : 0);
     onConfirm({
       name: form.name.trim(),
-      // TODO(#54): buildingType/address 입력 필드는 다음 커밋에서 추가 예정
-      address: '',
-      buildingType: 'CLASSROOM',
+      address: form.address.trim(),
+      buildingType: form.buildingType,
       totalFloors,
-      isActive: true,
-      lastTrainedAt: null,
     });
-    setForm(INITIAL_FORM);
-    setErrors({});
+    // 성공 시 부모가 모달을 닫아 이 컴포넌트가 언마운트되며 폼이 자연히 초기화됨.
+    // 실패 시에는 입력값을 잃지 않도록 여기서 리셋하지 않음.
   };
 
   const handleClose = () => {
@@ -82,10 +113,12 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
       description="새 건물 정보를 입력합니다"
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose}>
+          <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
             취소
           </Button>
-          <Button onClick={handleConfirm}>추가 완료</Button>
+          <Button onClick={handleConfirm} isLoading={isSubmitting}>
+            추가 완료
+          </Button>
         </>
       }
     >
@@ -97,6 +130,26 @@ const BuildingAddModal = ({ open, onClose, onConfirm }: BuildingAddModalProps) =
           onChange={handleChange('name')}
           errorMessage={errors.name}
         />
+        <TextField
+          label="주소 *"
+          placeholder="서울특별시 강남구 테헤란로 123"
+          value={form.address}
+          onChange={handleChange('address')}
+          errorMessage={errors.address}
+        />
+        <div className={styles.field}>
+          <span className={styles.fieldLabel}>건물 유형 *</span>
+          <div className={styles.chipRow}>
+            {BUILDING_TYPE_OPTIONS.map((option) => (
+              <FilterChip
+                key={option.value}
+                label={option.label}
+                selected={form.buildingType === option.value}
+                onSelect={() => handleBuildingTypeChange(option.value)}
+              />
+            ))}
+          </div>
+        </div>
         <div className={styles.floorRow}>
           <FloorStepperField
             label="지상 *"
