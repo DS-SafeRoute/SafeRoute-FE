@@ -8,16 +8,29 @@ import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
 import type { Building } from '../types/buildings';
 
-// BuildingResponse는 스펙상 전 필드가 optional이라, 응답이 실제로 비어있는 경우를 대비해 기본값을 채워 UI가 다루기 쉬운 형태로 변환
-export const toBuilding = (response: BuildingResponse): Building => ({
-  id: response.id ?? '',
-  name: response.name ?? '',
-  address: response.address ?? '',
-  buildingType: response.buildingType ?? 'CLASSROOM',
-  totalFloors: response.totalFloors ?? 0,
-  isActive: response.isActive ?? true,
-  lastTrainedAt: response.lastTrainedAt ?? null,
-});
+// 필수 필드가 비어 있으면 상세 조회/수정/삭제 요청에 잘못된 id가 쓰이는 등 오류가 조용히 전파되므로, 기본값으로 채우지 않고 즉시 에러를 던짐
+export const toBuilding = (response: BuildingResponse): Building => {
+  const { id, name, address, buildingType, totalFloors, isActive, lastTrainedAt } = response;
+  if (
+    !id ||
+    !name ||
+    !address ||
+    !buildingType ||
+    totalFloors === undefined ||
+    isActive === undefined
+  ) {
+    throw new Error('건물 응답에 필수 필드가 누락되었습니다.');
+  }
+  return {
+    id,
+    name,
+    address,
+    buildingType,
+    totalFloors,
+    isActive,
+    lastTrainedAt: lastTrainedAt ?? null,
+  };
+};
 
 export const getBuildings = async () => {
   const buildings = await request<BuildingResponse[]>({
@@ -35,7 +48,7 @@ export const getBuilding = async (buildingId: string) => {
   return toBuilding(building);
 };
 
-export const createBuilding = async (body: CreateBuildingRequest) => {
+export const postBuilding = async (body: CreateBuildingRequest) => {
   const building = await request<BuildingResponse, CreateBuildingRequest>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.BUILDINGS.ROOT,
@@ -44,7 +57,7 @@ export const createBuilding = async (body: CreateBuildingRequest) => {
   return toBuilding(building);
 };
 
-export const updateBuilding = async (buildingId: string, body: UpdateBuildingRequest) => {
+export const putBuilding = async (buildingId: string, body: UpdateBuildingRequest) => {
   const building = await request<BuildingResponse, UpdateBuildingRequest>({
     method: HTTP_METHOD.PUT,
     url: API_ENDPOINTS.BUILDINGS.DETAIL(buildingId),

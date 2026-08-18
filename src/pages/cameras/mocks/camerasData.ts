@@ -1,8 +1,8 @@
-import type { Camera, CameraBuildingOption } from '../types/cameras';
+import type { Camera, CameraBuildingOption } from '@pages/cameras/types/cameras';
 
 export const mockCameraBuildings: CameraBuildingOption[] = [
-  { id: 1, name: 'A동 · 본관', aboveFloors: 5, belowFloors: 1 },
-  { id: 2, name: 'B동 · 별관', aboveFloors: 3, belowFloors: 0 },
+  { id: 1, name: 'A동 본관', aboveFloors: 5, belowFloors: 1 },
+  { id: 2, name: 'B동 별관', aboveFloors: 3, belowFloors: 0 },
   { id: 3, name: 'C동 · 체육관', aboveFloors: 2, belowFloors: 0 },
   { id: 4, name: 'D동 · 강당', aboveFloors: 1, belowFloors: 0 },
 ];

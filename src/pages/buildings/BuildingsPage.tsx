@@ -10,7 +10,7 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import { Button } from '@components/Button';
 import useToast from '@components/toast/useToast';
 
-import { useBuildingsQuery } from './api/useBuildingsQuery';
+import { useGetBuildingsQuery } from './api/useBuildingsQuery';
 import { useCreateBuildingMutation } from './api/useCreateBuildingMutation';
 import { useDeleteBuildingMutation } from './api/useDeleteBuildingMutation';
 import { useUpdateBuildingMutation } from './api/useUpdateBuildingMutation';
@@ -31,7 +31,7 @@ type ModalState =
   | null;
 
 const BuildingsPage = () => {
-  const { data, isLoading, isError } = useBuildingsQuery();
+  const { data, isLoading, isError } = useGetBuildingsQuery();
   const createBuildingMutation = useCreateBuildingMutation();
   const updateBuildingMutation = useUpdateBuildingMutation();
   const deleteBuildingMutation = useDeleteBuildingMutation();
@@ -113,19 +113,15 @@ const BuildingsPage = () => {
           </Button>
         </div>
 
-        {isLoading && (
-          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>
-            불러오는 중...
-          </p>
+        {isLoading && <p className={styles.stateMessage}>불러오는 중...</p>}
+
+        {isError && <p className={styles.errorMessage}>건물 목록을 불러오지 못했습니다.</p>}
+
+        {!isLoading && !isError && buildings.length === 0 && (
+          <p className={styles.stateMessage}>등록된 건물이 없습니다.</p>
         )}
 
-        {isError && (
-          <p style={{ color: 'var(--color-danger)', fontSize: '1.4rem', padding: '2rem 0' }}>
-            건물 목록을 불러오지 못했습니다.
-          </p>
-        )}
-
-        {!isLoading && !isError && (
+        {!isLoading && !isError && buildings.length > 0 && (
           <div className={styles.grid}>
             {buildings.map((building) => (
               <BuildingCard

@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { createBuilding } from './buildingsApi';
+import { postBuilding } from './buildingsApi';
+import { BUILDINGS_QUERY_KEY } from './useBuildingsQuery';
 
 export const useCreateBuildingMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createBuilding,
+    mutationFn: postBuilding,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['buildings'] });
+      queryClient.invalidateQueries({ queryKey: BUILDINGS_QUERY_KEY });
     },
   });
 };

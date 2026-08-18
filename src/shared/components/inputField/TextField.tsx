@@ -5,7 +5,8 @@ import clsx from 'clsx';
 
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 
-import RequiredFieldText from './RequiredFieldText';
+import RequiredFieldText from '@components/inputField/RequiredFieldText';
+
 import * as styles from './TextField.css';
 
 export interface TextFieldProps extends Omit<ComponentPropsWithoutRef<'input'>, 'children'> {

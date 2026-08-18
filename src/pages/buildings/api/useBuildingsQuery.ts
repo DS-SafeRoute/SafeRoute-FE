@@ -2,9 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getBuildings } from './buildingsApi';
 
-export const useBuildingsQuery = () => {
+export const BUILDINGS_QUERY_KEY = ['buildings'] as const;
+
+export const useGetBuildingsQuery = () => {
   return useQuery({
-    queryKey: ['buildings'],
+    queryKey: BUILDINGS_QUERY_KEY,
     queryFn: getBuildings,
   });
 };

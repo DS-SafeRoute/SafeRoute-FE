@@ -12,7 +12,7 @@ import Modal from '@components/modal';
 
 import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
 
-import * as styles from './BuildingAddModal.css';
+import * as styles from './buildingForm.css';
 import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
 
 import type { BuildingType } from '../types/buildings';
@@ -132,10 +132,10 @@ const BuildingAddModal = ({
           errorMessage={errors.address}
         />
         <div className={styles.field}>
-          <span className={styles.fieldLabel}>
+          <span id="building-type-label" className={styles.fieldLabel}>
             <RequiredFieldText label="건물 유형 *" />
           </span>
-          <div className={styles.chipRow}>
+          <div className={styles.chipRow} role="group" aria-labelledby="building-type-label">
             {BUILDING_TYPE_OPTIONS.map((option) => (
               <FilterChip
                 key={option.value}

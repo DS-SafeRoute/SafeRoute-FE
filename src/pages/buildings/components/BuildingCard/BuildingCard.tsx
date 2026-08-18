@@ -14,8 +14,15 @@ interface BuildingCardProps {
   onDelete: (building: Building) => void;
 }
 
-const formatTrainingDate = (date: string | null) =>
-  date ? date.split('T')[0].split('-').join('.') : '-';
+const formatTrainingDate = (date: string | null) => {
+  if (!date) return '-';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+};
 
 const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -113,7 +120,9 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
           {isIotWarning ? (
             <span className={styles.statValueWarning}>
               {iotOnline}/{iotTotal}
-              <span aria-label="경고">⚠</span>
+              <span role="img" aria-label="경고">
+                ⚠
+              </span>
             </span>
           ) : (
             <span className={styles.statValue}>
