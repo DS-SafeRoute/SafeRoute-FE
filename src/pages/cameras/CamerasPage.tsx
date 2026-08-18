@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 
+import { mockCameraBuildings, mockCameras } from '@pages/cameras/mocks/camerasData';
+
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
@@ -8,10 +10,8 @@ import useToast from '@components/toast/useToast';
 
 import * as styles from './CamerasPage.css';
 import CameraCard from './components/CameraCard/CameraCard';
-import { mockCameras } from './mocks/camerasData';
 import CameraDeleteModal from './modals/CameraDeleteModal';
 import CameraFormModal from './modals/CameraFormModal';
-import { mockBuildings } from '../buildings/mocks/buildingsData';
 
 import type { Camera } from './types/cameras';
 
@@ -130,7 +130,7 @@ const CamerasPage = () => {
         <CameraFormModal
           open
           onClose={() => setModal(null)}
-          buildings={mockBuildings}
+          buildings={mockCameraBuildings}
           onConfirm={handleConfirmAdd}
         />
       )}
@@ -140,7 +140,7 @@ const CamerasPage = () => {
           open
           onClose={() => setModal(null)}
           camera={modal.camera}
-          buildings={mockBuildings}
+          buildings={mockCameraBuildings}
           onConfirm={handleConfirmEdit}
         />
       )}

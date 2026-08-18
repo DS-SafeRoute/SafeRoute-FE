@@ -7,13 +7,13 @@ import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 
 import { Button } from '@components/Button';
 import * as dropdownStyles from '@components/dropdown/Dropdown.css';
+import RequiredFieldText from '@components/inputField/RequiredFieldText';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
 import * as styles from './CameraFormModal.css';
 
-import type { Building } from '../../buildings/types/buildings';
-import type { Camera } from '../types/cameras';
+import type { Camera, CameraBuildingOption } from '../types/cameras';
 
 type FormState = {
   name: string;
@@ -53,7 +53,7 @@ const cameraToForm = (camera: Camera): FormState => ({
   password: camera.password,
 });
 
-const getFloorOptions = (building: Building) => {
+const getFloorOptions = (building: CameraBuildingOption) => {
   const floors: { label: string; value: string }[] = [];
   for (let f = building.aboveFloors; f >= 1; f--) {
     floors.push({ label: `${f}층`, value: String(f) });
@@ -148,7 +148,7 @@ interface CameraFormModalProps {
   open: boolean;
   onClose: () => void;
   camera?: Camera;
-  buildings: Building[];
+  buildings: CameraBuildingOption[];
   onConfirm: (data: Omit<Camera, 'id' | 'status'>) => void;
 }
 
@@ -244,7 +244,7 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
         <div className={styles.row}>
           <div className={styles.fieldWrap}>
             <label className={styles.fieldLabel}>
-              건물 <span className={styles.requiredMark}>*</span>
+              <RequiredFieldText label="건물 *" />
             </label>
             <SelectField
               options={buildings.map((b) => ({ label: b.name, value: String(b.id) }))}
@@ -258,7 +258,7 @@ const CameraFormModal = ({ open, onClose, camera, buildings, onConfirm }: Camera
 
           <div className={styles.fieldWrap}>
             <label className={styles.fieldLabel}>
-              층수 <span className={styles.requiredMark}>*</span>
+              <RequiredFieldText label="층수 *" />
             </label>
             <SelectField
               options={floorOptions}

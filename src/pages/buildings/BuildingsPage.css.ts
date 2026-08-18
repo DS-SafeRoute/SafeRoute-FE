@@ -25,3 +25,15 @@ export const grid = style({
   gridTemplateColumns: 'repeat(2, 1fr)',
   gap: vars.space.s4,
 });
+
+export const stateMessage = style({
+  padding: `${vars.space.s5} 0`,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
+export const errorMessage = style({
+  padding: `${vars.space.s5} 0`,
+  color: vars.color.danger,
+  ...vars.typography.body14,
+});

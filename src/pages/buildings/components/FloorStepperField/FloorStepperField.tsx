@@ -1,5 +1,7 @@
 import { useId } from 'react';
 
+import RequiredFieldText from '@components/inputField/RequiredFieldText';
+
 import * as styles from './FloorStepperField.css';
 
 interface FloorStepperFieldProps {
@@ -41,17 +43,7 @@ const FloorStepperField = ({
   return (
     <div className={styles.container}>
       <label htmlFor={inputId} className={styles.label}>
-        {isRequired ? (
-          <>
-            {label.replace(' *', '')}
-            <span className={styles.requiredMark} aria-hidden="true">
-              {' '}
-              *
-            </span>
-          </>
-        ) : (
-          label
-        )}
+        <RequiredFieldText label={label} />
       </label>
       <div className={styles.controls({ isError })}>
         <button

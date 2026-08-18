@@ -2,38 +2,52 @@ import { useEffect, useState } from 'react';
 
 import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
 
+import type { UpdateBuildingRequest } from '@apis/__generated__/data-contracts';
+
 import { Button } from '@components/Button';
+import FilterChip from '@components/chip/FilterChip';
+import RequiredFieldText from '@components/inputField/RequiredFieldText';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
-import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
+import { isPositiveInt } from '@shared/utils/validation';
 
-import * as styles from './BuildingAddModal.css';
+import * as styles from './buildingForm.css';
+import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
 
-import type { Building } from '../types/buildings';
+import type { Building, BuildingType } from '../types/buildings';
 
 interface BuildingEditModalProps {
   open: boolean;
   onClose: () => void;
   building: Building;
-  onConfirm: (updated: Building) => void;
+  onConfirm: (body: UpdateBuildingRequest) => void;
+  isSubmitting?: boolean;
 }
 
 interface FormState {
   name: string;
-  aboveFloors: string;
-  belowFloors: string;
+  address: string;
+  buildingType: BuildingType;
+  totalFloors: string;
 }
 
 const toFormState = (building: Building): FormState => ({
   name: building.name,
-  aboveFloors: String(building.aboveFloors),
-  belowFloors: String(building.belowFloors),
+  address: building.address,
+  buildingType: building.buildingType,
+  totalFloors: String(building.totalFloors),
 });
 
-const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditModalProps) => {
+const BuildingEditModal = ({
+  open,
+  onClose,
+  building,
+  onConfirm,
+  isSubmitting = false,
+}: BuildingEditModalProps) => {
   const [form, setForm] = useState<FormState>(toFormState(building));
-  const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
   useEffect(() => {
     if (open) {
@@ -42,23 +56,30 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
     }
   }, [open, building]);
 
-  const handleChange = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: 'name' | 'address') => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
-  const handleFloorChange = (field: 'aboveFloors' | 'belowFloors') => (value: string) => {
+  const handleBuildingTypeChange = (value: BuildingType) => {
+    setForm((prev) => ({ ...prev, buildingType: value }));
+  };
+
+  const handleFloorChange = (field: 'totalFloors') => (value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
   const validate = () => {
-    const next: Partial<FormState> = {};
+    const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
-    if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
-    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
-    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
-      next.belowFloors = '올바른 층수를 입력해 주세요';
+    else if (form.name.trim().length < 2 || form.name.trim().length > 20)
+      next.name = '건물명은 2~20자로 입력해 주세요';
+    if (!form.address.trim()) next.address = '주소를 입력해 주세요';
+    else if (form.address.trim().length < 8 || form.address.trim().length > 100)
+      next.address = '주소는 8~100자로 입력해 주세요';
+    if (!form.totalFloors.trim()) next.totalFloors = '층수를 입력해 주세요';
+    else if (!isPositiveInt(form.totalFloors)) next.totalFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -66,10 +87,10 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
   const handleConfirm = () => {
     if (!validate()) return;
     onConfirm({
-      ...building,
       name: form.name.trim(),
-      aboveFloors: Number(form.aboveFloors),
-      belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
+      address: form.address.trim(),
+      buildingType: form.buildingType,
+      totalFloors: Number(form.totalFloors),
     });
   };
 
@@ -78,13 +99,15 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
       open={open}
       onClose={onClose}
       title="건물 정보 수정"
-      description="건물명과 층수를 수정합니다"
+      description="건물 정보를 수정합니다"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
             취소
           </Button>
-          <Button onClick={handleConfirm}>수정 완료</Button>
+          <Button onClick={handleConfirm} isLoading={isSubmitting}>
+            수정 완료
+          </Button>
         </>
       }
     >
@@ -96,20 +119,35 @@ const BuildingEditModal = ({ open, onClose, building, onConfirm }: BuildingEditM
           onChange={handleChange('name')}
           errorMessage={errors.name}
         />
+        <TextField
+          label="주소 *"
+          placeholder="서울특별시 강남구 테헤란로 123"
+          value={form.address}
+          onChange={handleChange('address')}
+          errorMessage={errors.address}
+        />
+        <div className={styles.field}>
+          <span id="building-type-label" className={styles.fieldLabel}>
+            <RequiredFieldText label="건물 유형 *" />
+          </span>
+          <div className={styles.chipRow} role="group" aria-labelledby="building-type-label">
+            {BUILDING_TYPE_OPTIONS.map((option) => (
+              <FilterChip
+                key={option.value}
+                label={option.label}
+                selected={form.buildingType === option.value}
+                onSelect={() => handleBuildingTypeChange(option.value)}
+              />
+            ))}
+          </div>
+        </div>
         <div className={styles.floorRow}>
           <FloorStepperField
-            label="지상 *"
-            value={form.aboveFloors}
-            onChange={handleFloorChange('aboveFloors')}
+            label="층수 *"
+            value={form.totalFloors}
+            onChange={handleFloorChange('totalFloors')}
             min={1}
-            errorMessage={errors.aboveFloors}
-          />
-          <FloorStepperField
-            label="지하"
-            value={form.belowFloors}
-            onChange={handleFloorChange('belowFloors')}
-            min={0}
-            errorMessage={errors.belowFloors}
+            errorMessage={errors.totalFloors}
           />
         </div>
       </div>

@@ -1,14 +1,23 @@
 import { useState } from 'react';
 
+import type {
+  CreateBuildingRequest,
+  UpdateBuildingRequest,
+} from '@apis/__generated__/data-contracts';
+
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import useToast from '@components/toast/useToast';
 
+import { useGetBuildingsQuery } from './api/useBuildingsQuery';
+import { useCreateBuildingMutation } from './api/useCreateBuildingMutation';
+import { useDeleteBuildingMutation } from './api/useDeleteBuildingMutation';
+import { useUpdateBuildingMutation } from './api/useUpdateBuildingMutation';
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
 import OrganizationCard from './components/OrganizationCard/OrganizationCard';
-import { mockBuildings, mockOrganization } from './mocks/buildingsData';
+import { mockOrganization } from './mocks/buildingsData';
 import BuildingAddModal from './modals/BuildingAddModal';
 import BuildingDeleteModal from './modals/BuildingDeleteModal';
 import BuildingEditModal from './modals/BuildingEditModal';
@@ -22,7 +31,11 @@ type ModalState =
   | null;
 
 const BuildingsPage = () => {
-  const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
+  const { data, isLoading, isError } = useGetBuildingsQuery();
+  const createBuildingMutation = useCreateBuildingMutation();
+  const updateBuildingMutation = useUpdateBuildingMutation();
+  const deleteBuildingMutation = useDeleteBuildingMutation();
+  const buildings = data ?? [];
   const [modal, setModal] = useState<ModalState>(null);
   const { show } = useToast();
 
@@ -30,36 +43,58 @@ const BuildingsPage = () => {
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
   const handleDelete = (building: Building) => setModal({ type: 'delete', building });
 
-  const handleConfirmAdd = (building: Omit<Building, 'id'>) => {
-    const newId = Math.max(0, ...buildings.map((b) => b.id)) + 1;
-    setBuildings((prev) => [...prev, { id: newId, ...building }]);
-    setModal(null);
-    show({
-      title: '건물이 추가되었습니다.',
-      description: `${building.name}이(가) 등록되었습니다.`,
-      variant: 'success',
+  const handleConfirmAdd = (body: CreateBuildingRequest) => {
+    createBuildingMutation.mutate(body, {
+      onSuccess: () => {
+        setModal(null);
+        show({
+          title: '건물이 추가되었습니다.',
+          description: `${body.name}이(가) 등록되었습니다.`,
+          variant: 'success',
+        });
+      },
+      onError: () => {
+        show({ title: '건물 추가에 실패했습니다.', variant: 'error' });
+      },
     });
   };
 
-  const handleConfirmEdit = (updated: Building) => {
-    setBuildings((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-    setModal(null);
-    show({
-      title: '건물 정보가 수정되었습니다.',
-      description: `${updated.name} 정보가 업데이트되었습니다.`,
-      variant: 'success',
-    });
+  const handleConfirmEdit = (body: UpdateBuildingRequest) => {
+    if (modal?.type !== 'edit') return;
+    const { building } = modal;
+    updateBuildingMutation.mutate(
+      { buildingId: building.id, body },
+      {
+        onSuccess: () => {
+          setModal(null);
+          show({
+            title: '건물 정보가 수정되었습니다.',
+            description: `${body.name} 정보가 업데이트되었습니다.`,
+            variant: 'success',
+          });
+        },
+        onError: () => {
+          show({ title: '건물 수정에 실패했습니다.', variant: 'error' });
+        },
+      },
+    );
   };
 
   const handleConfirmDelete = () => {
     if (modal?.type !== 'delete') return;
     const { building } = modal;
-    setBuildings((prev) => prev.filter((b) => b.id !== building.id));
-    setModal(null);
-    show({
-      title: '건물이 삭제되었습니다.',
-      description: `${building.name}이(가) 삭제되었습니다.`,
-      variant: 'default',
+    deleteBuildingMutation.mutate(building.id, {
+      onSuccess: () => {
+        setModal(null);
+        show({
+          title: '건물이 삭제되었습니다.',
+          description: `${building.name}이(가) 삭제되었습니다.`,
+          variant: 'default',
+        });
+      },
+      onError: () => {
+        show({ title: '건물 삭제에 실패했습니다.', variant: 'error' });
+      },
     });
   };
 
@@ -78,20 +113,35 @@ const BuildingsPage = () => {
           </Button>
         </div>
 
-        <div className={styles.grid}>
-          {buildings.map((building) => (
-            <BuildingCard
-              key={building.id}
-              building={building}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+        {isLoading && <p className={styles.stateMessage}>불러오는 중...</p>}
+
+        {isError && <p className={styles.errorMessage}>건물 목록을 불러오지 못했습니다.</p>}
+
+        {!isLoading && !isError && buildings.length === 0 && (
+          <p className={styles.stateMessage}>등록된 건물이 없습니다.</p>
+        )}
+
+        {!isLoading && !isError && buildings.length > 0 && (
+          <div className={styles.grid}>
+            {buildings.map((building) => (
+              <BuildingCard
+                key={building.id}
+                building={building}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {modal?.type === 'add' && (
-        <BuildingAddModal open onClose={handleCloseModal} onConfirm={handleConfirmAdd} />
+        <BuildingAddModal
+          open
+          onClose={handleCloseModal}
+          onConfirm={handleConfirmAdd}
+          isSubmitting={createBuildingMutation.isPending}
+        />
       )}
 
       {modal?.type === 'edit' && (
@@ -100,6 +150,7 @@ const BuildingsPage = () => {
           onClose={handleCloseModal}
           building={modal.building}
           onConfirm={handleConfirmEdit}
+          isSubmitting={updateBuildingMutation.isPending}
         />
       )}
 
@@ -109,6 +160,7 @@ const BuildingsPage = () => {
           onClose={handleCloseModal}
           building={modal.building}
           onConfirm={handleConfirmDelete}
+          isSubmitting={deleteBuildingMutation.isPending}
         />
       )}
     </>

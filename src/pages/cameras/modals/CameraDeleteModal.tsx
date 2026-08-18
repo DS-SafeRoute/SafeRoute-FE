@@ -17,7 +17,7 @@ const CameraDeleteModal = ({ open, onClose, camera, onConfirm }: CameraDeleteMod
     onClose={onClose}
     title="카메라 삭제"
     description={`정말로 '${camera.name}'을(를) 삭제하시겠습니까?`}
-    warning="경고: 이 작업은 되돌릴 수 없습니다. 카메라 및 스트림 정보가 영구적으로 삭제됩니다."
+    warning="이 작업은 되돌릴 수 없습니다. 카메라 및 스트림 정보가 영구적으로 삭제됩니다."
     footer={
       <>
         <Button variant="ghost" onClick={onClose}>

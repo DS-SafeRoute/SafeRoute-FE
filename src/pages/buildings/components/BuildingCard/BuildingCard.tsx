@@ -4,8 +4,6 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
-import StatusBadge from '@components/chip/StatusBadge';
-
 import * as styles from './BuildingCard.css';
 
 import type { Building } from '../../types/buildings';
@@ -16,12 +14,24 @@ interface BuildingCardProps {
   onDelete: (building: Building) => void;
 }
 
-const formatTrainingDate = (date: string) => (date === '-' ? date : date.split('-').join('.'));
+const formatTrainingDate = (date: string | null) => {
+  if (!date) return '-';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+};
 
 const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isIotWarning = building.iotOnline < building.iotTotal;
+  const cctvTotal = building.cctvTotal ?? 0;
+  const cctvOnline = building.cctvOnline ?? 0;
+  const iotTotal = building.iotTotal ?? 0;
+  const iotOnline = building.iotOnline ?? 0;
+  const isIotWarning = iotOnline < iotTotal;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -40,14 +50,9 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
         <div className={styles.headerLeft}>
           <div className={styles.nameRow}>
             <span className={styles.name}>{building.name}</span>
-            <StatusBadge
-              label={building.status === 'normal' ? '정상' : '점검 필요'}
-              color={building.status === 'normal' ? 'green' : 'yellow'}
-              dot
-            />
           </div>
           <span className={styles.lastTraining}>
-            최근 훈련 · {formatTrainingDate(building.lastTrainingDate)}
+            최근 훈련 · {formatTrainingDate(building.lastTrainedAt)}
           </span>
         </div>
         <div className={styles.headerRight}>
@@ -96,7 +101,7 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             <LayersIcon className={styles.statIcon} width={14} height={14} />
             층수
           </span>
-          <span className={styles.statValue}>{building.aboveFloors}층</span>
+          <span className={styles.statValue}>{building.totalFloors}층</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -104,7 +109,7 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             CCTV
           </span>
           <span className={styles.statValue}>
-            {building.cctvOnline}/{building.cctvTotal}
+            {cctvOnline}/{cctvTotal}
           </span>
         </div>
         <div className={styles.statItem}>
@@ -114,12 +119,14 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
           </span>
           {isIotWarning ? (
             <span className={styles.statValueWarning}>
-              {building.iotOnline}/{building.iotTotal}
-              <span aria-label="경고">⚠</span>
+              {iotOnline}/{iotTotal}
+              <span role="img" aria-label="경고">
+                ⚠
+              </span>
             </span>
           ) : (
             <span className={styles.statValue}>
-              {building.iotOnline}/{building.iotTotal}
+              {iotOnline}/{iotTotal}
             </span>
           )}
         </div>
