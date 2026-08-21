@@ -19,6 +19,27 @@ export interface ApiResponseBuildingResponse {
   result?: BuildingResponse;
 }
 
+export interface ApiResponseCctvRegistrationResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: CctvRegistrationResponse;
+}
+
+export interface ApiResponseCctvResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: CctvResponse;
+}
+
+export interface ApiResponseDeviceTokenIssueResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: DeviceTokenIssueResponse;
+}
+
 export interface ApiResponseEvacuationRouteResponse {
   code?: string;
   isSuccess?: boolean;
@@ -31,6 +52,20 @@ export interface ApiResponseFloorGraphResponse {
   isSuccess?: boolean;
   message?: string;
   result?: FloorGraphResponse;
+}
+
+export interface ApiResponseFloorGridCellPageResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: FloorGridCellPageResponse;
+}
+
+export interface ApiResponseFloorGridResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: FloorGridResponse;
 }
 
 export interface ApiResponseFloorResponse {
@@ -59,6 +94,13 @@ export interface ApiResponseListBuildingResponse {
   isSuccess?: boolean;
   message?: string;
   result?: BuildingResponse[];
+}
+
+export interface ApiResponseListCctvResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: CctvResponse[];
 }
 
 export interface ApiResponseListFloorResponse {
@@ -124,6 +166,13 @@ export interface ApiResponseTrainingSessionResponse {
   result?: TrainingSessionResponse;
 }
 
+export interface ApiResponseUserProfileResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: UserProfileResponse;
+}
+
 export interface ApiResponseVoid {
   code?: string;
   isSuccess?: boolean;
@@ -150,11 +199,60 @@ export interface BuildingResponse {
   updatedAt?: string;
 }
 
+export interface CctvGridCellResponse {
+  /** @format double */
+  centerX?: number;
+  /** @format double */
+  centerY?: number;
+  /** @format int32 */
+  columnIndex?: number;
+  /** @format uuid */
+  id?: string;
+  /** @format int32 */
+  rowIndex?: number;
+  walkable?: boolean;
+}
+
+export interface CctvRegistrationResponse {
+  cctv?: CctvResponse;
+  deviceToken?: string;
+}
+
+export interface CctvResponse {
+  /** @format double */
+  monitoredAreaM2?: number;
+  code?: string;
+  /** @format uuid */
+  customNodeId?: string;
+  enabled?: boolean;
+  /** @format uuid */
+  floorId?: string;
+  /** @format double */
+  gridCellSizeMeter?: number;
+  gridCells?: CctvGridCellResponse[];
+  /** @format uuid */
+  id?: string;
+  /** @format int32 */
+  monitoredGridCellCount?: number;
+  name?: string;
+  /** @format double */
+  x?: number;
+  /** @format double */
+  y?: number;
+}
+
 export type ChangeDirectionData = ApiResponseLightDirectionResponse;
 
 export interface ChangeLightDirectionRequest {
   direction: "LEFT" | "RIGHT" | "OFF";
 }
+
+export interface ConfigureCctvGridCellsRequest {
+  /** @minItems 1 */
+  gridCellIds: string[];
+}
+
+export type ConfigureGridCellsData = ApiResponseCctvResponse;
 
 export type ConfigureGuidanceData = ApiResponseIoTLightResponse;
 
@@ -165,6 +263,15 @@ export interface ConfigureGuidanceRequest {
   leftEdgeId: string;
   /** @format uuid */
   rightEdgeId: string;
+}
+
+export type ConnectEventImageData = any;
+
+export interface ConnectEventImageRequest {
+  /** @minLength 1 */
+  eventImageKey: string;
+  /** @format int64 */
+  uploadedAt: number;
 }
 
 export type CreateBuildingData = ApiResponseBuildingResponse;
@@ -183,6 +290,32 @@ export interface CreateBuildingRequest {
   name: string;
   /** @format int32 */
   totalFloors: number;
+}
+
+export type CreateCctvData = ApiResponseCctvRegistrationResponse;
+
+export interface CreateCctvRequest {
+  /** @format uuid */
+  floorId: string;
+  /** @minItems 1 */
+  gridCellIds: string[];
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  name: string;
+  /**
+   * @format double
+   * @min 0
+   * @max 1
+   */
+  x: number;
+  /**
+   * @format double
+   * @min 0
+   * @max 1
+   */
+  y: number;
 }
 
 export type CreateEdgeData = ApiResponseMapEdgeResponse;
@@ -231,6 +364,37 @@ export interface CreateMapNodeRequest {
 }
 
 export type CreateNodeData = ApiResponseMapNodeResponse;
+
+export type CreateOrRegenerateGridData = ApiResponseFloorGridResponse;
+
+export interface CreateOrUpdateFloorGridRequest {
+  /** @format double */
+  cellSizeMeter?: number;
+}
+
+export interface CreatePresignedImageUrlRequest {
+  /** @format int64 */
+  capturedAt: number;
+  /**
+   * @minLength 1
+   * @pattern [A-Za-z0-9_-]+
+   */
+  cctvCode: string;
+  /**
+   * @minLength 1
+   * @pattern image/jpeg
+   */
+  contentType: string;
+  imageType: "MONITORING" | "CONGESTION_EVENT";
+  /** @format uuid */
+  referenceId: string;
+  /** @format uuid */
+  requestId: string;
+  /** @format uuid */
+  trainingSessionId: string;
+}
+
+export type CreatePresignedUrlData = PresignedImageUrlResponse;
 
 export type CreateReportData = ReportResponse;
 
@@ -308,7 +472,15 @@ export type DeleteNodeData = ApiResponseVoid;
 
 export type DeleteScenarioData = any;
 
+export interface DeviceTokenIssueResponse {
+  deviceToken?: string;
+}
+
+export type DisableCctvData = ApiResponseCctvResponse;
+
 export type DisableLightData = ApiResponseIoTLightResponse;
+
+export type EnableCctvData = ApiResponseCctvResponse;
 
 export type EnableLightData = ApiResponseIoTLightResponse;
 
@@ -323,6 +495,46 @@ export interface EvacuationRouteResponse {
 export interface FloorGraphResponse {
   edges?: MapEdgeResponse[];
   nodes?: MapNodeResponse[];
+}
+
+export interface FloorGridCellPageResponse {
+  content?: FloorGridCellResponse[];
+  first?: boolean;
+  last?: boolean;
+  /** @format int32 */
+  page?: number;
+  /** @format int32 */
+  size?: number;
+  /** @format int64 */
+  totalElements?: number;
+  /** @format int32 */
+  totalPages?: number;
+}
+
+export interface FloorGridCellResponse {
+  /** @format double */
+  centerX?: number;
+  /** @format double */
+  centerY?: number;
+  /** @format int32 */
+  columnIndex?: number;
+  fired?: boolean;
+  /** @format uuid */
+  id?: string;
+  /** @format int32 */
+  rowIndex?: number;
+  walkable?: boolean;
+}
+
+export interface FloorGridResponse {
+  /** @format double */
+  cellSizeMeter?: number;
+  /** @format int32 */
+  columns?: number;
+  /** @format uuid */
+  floorId?: string;
+  /** @format int32 */
+  rows?: number;
 }
 
 export interface FloorResponse {
@@ -346,15 +558,25 @@ export type GetBuildingData = ApiResponseBuildingResponse;
 
 export type GetBuildingsData = ApiResponseListBuildingResponse;
 
+export type GetCctvData = ApiResponseCctvResponse;
+
+export type GetCctvsData = ApiResponseListCctvResponse;
+
 export type GetFloorData = ApiResponseFloorResponse;
 
 export type GetFloorsData = ApiResponseListFloorResponse;
 
 export type GetGraphData = ApiResponseFloorGraphResponse;
 
+export type GetGridCells1Data = ApiResponseFloorGridCellPageResponse;
+
+export type GetGridCellsData = ApiResponseCctvResponse;
+
 export type GetLightData = ApiResponseIoTLightResponse;
 
 export type GetLightsData = ApiResponseListIoTLightResponse;
+
+export type GetMyProfileData = ApiResponseUserProfileResponse;
 
 export type GetRecentReportsData = RecentTrainingReportResponse[];
 
@@ -390,6 +612,8 @@ export interface IoTLightResponse {
   y?: number;
 }
 
+export type IssueDeviceTokenData = ApiResponseDeviceTokenIssueResponse;
+
 export interface LightDirectionResponse {
   direction?: "LEFT" | "RIGHT" | "OFF";
   /** @format uuid */
@@ -414,11 +638,14 @@ export interface LoginResponse {
   expiresIn?: number;
   /** @format uuid */
   id?: string;
+  phoneNumber?: string;
   role?: "MANAGER" | "NORMAL";
   schoolName?: string;
   tokenType?: string;
   username?: string;
 }
+
+export type LogoutData = ApiResponseVoid;
 
 export interface MapEdgeResponse {
   bidirectional?: boolean;
@@ -445,6 +672,39 @@ export interface MapNodeResponse {
   y?: number;
 }
 
+export interface ObservationResponse {
+  /** @format double */
+  avgHeadcount?: number;
+  /** @format int64 */
+  capturedAt?: number;
+  cctvCode?: string;
+  /** @format int64 */
+  configVersion?: number;
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  density?: number;
+  eventId?: string;
+  /** @format int64 */
+  expiresAt?: number;
+  monitoringImageKey?: string;
+  /** @format int32 */
+  peakHeadcount?: number;
+  /** @format int32 */
+  sampleCount?: number;
+  trainingSessionId?: string;
+  /** @format int64 */
+  windowEnd?: number;
+  /** @format int64 */
+  windowStart?: number;
+}
+
+export interface PresignedImageUrlResponse {
+  /** @format int64 */
+  expiresAt?: number;
+  objectKey?: string;
+  uploadUrl?: string;
+}
+
 export interface RecentTrainingReportResponse {
   /** @format int32 */
   avgEvacuationSec?: number;
@@ -459,19 +719,32 @@ export interface RecentTrainingReportResponse {
 
 export type RejectData = ApiResponseRouteRecalculationResponse;
 
-export type ReportCongestionData = any;
+export type ReportCongestionData = ObservationResponse;
 
 export interface ReportCongestionRequest {
-  s3ImageKey?: string;
-  /** @format int32 */
+  /** @format double */
   avgHeadcount: number;
-  cctvCode?: string;
-  congestionLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  /** @format int64 */
+  capturedAt: number;
+  /** @minLength 1 */
+  cctvCode: string;
+  /** @format int64 */
+  configVersion: number;
+  congestionLevel: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  density: number;
   /** @format uuid */
   edgeId: string;
+  /** @format uuid */
+  eventId: string;
   headcountValid?: boolean;
+  monitoringImageKey?: string;
   /** @format int32 */
   peakHeadcount: number;
+  /** @format int32 */
+  sampleCount: number;
+  /** @format uuid */
+  trainingSessionId: string;
   /** @format int64 */
   windowEnd: number;
   /** @format int64 */
@@ -493,7 +766,7 @@ export interface ReportResponse {
 }
 
 export interface RouteRecalculationResponse {
-  congestionLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
   /** @format uuid */
   id?: string;
   recalculatedNodeIds?: string[];
@@ -549,6 +822,8 @@ export interface SignupRequest {
    * @maxLength 100
    */
   password: string;
+  /** @pattern ^$|^[0-9-]{9,20}$ */
+  phoneNumber?: string;
   role?: "MANAGER" | "NORMAL";
   /**
    * @minLength 5
@@ -568,6 +843,7 @@ export interface SignupResponse {
   email?: string;
   /** @format uuid */
   id?: string;
+  phoneNumber?: string;
   role?: "MANAGER" | "NORMAL";
   schoolName?: string;
   username?: string;
@@ -611,6 +887,13 @@ export interface UpdateBuildingRequest {
   totalFloors: number;
 }
 
+export type UpdateFloorData = ApiResponseFloorResponse;
+
+export interface UpdateFloorRequest {
+  /** @format int32 */
+  floorNum: number;
+}
+
 export interface UpdateIoTLightRequest {
   /** @minLength 1 */
   name: string;
@@ -628,6 +911,8 @@ export interface UpdateMapNodePositionRequest {
   /** @format double */
   y: number;
 }
+
+export type UpdateMyProfileData = ApiResponseUserProfileResponse;
 
 export type UpdateNodePositionData = ApiResponseMapNodeResponse;
 
@@ -650,6 +935,26 @@ export interface UpdateScenarioRequest {
   scheduledAt?: string;
 }
 
+export interface UpdateUserProfileRequest {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  email?: string;
+  /** @pattern ^$|^[0-9-]{9,20}$ */
+  phoneNumber?: string;
+  /**
+   * @minLength 5
+   * @maxLength 20
+   */
+  schoolName?: string;
+  /**
+   * @minLength 2
+   * @maxLength 20
+   */
+  username?: string;
+}
+
 export type UploadData = ApiResponseS3UploadResponse;
 
 export type UploadFloorData = ApiResponseFloorResponse;
@@ -668,4 +973,14 @@ export interface UploadFloorRequest {
 export interface UploadPayload {
   /** @format binary */
   file: File;
+}
+
+export interface UserProfileResponse {
+  email?: string;
+  /** @format uuid */
+  id?: string;
+  phoneNumber?: string;
+  role?: "MANAGER" | "NORMAL";
+  schoolName?: string;
+  username?: string;
 }

@@ -5,7 +5,12 @@ export const API_ENDPOINTS = {
   // 사용자
   AUTH: {
     LOGIN: `${API_V1}/auth/login`,
+    LOGOUT: `${API_V1}/auth/logout`,
     SIGNUP: `${API_V1}/auth/signup`,
+  },
+
+  USERS: {
+    ME: `${API_V1}/users/me`,
   },
 
   // 건물
