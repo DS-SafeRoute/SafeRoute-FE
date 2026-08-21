@@ -20,9 +20,10 @@ interface SidebarProps {
     }>;
   }>;
   onLogout?: () => void;
+  isLoggingOut?: boolean;
 }
 
-const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
+const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -113,7 +114,13 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
       </nav>
 
       <footer className={styles.footer}>
-        <button type="button" onClick={onLogout} className={styles.item()}>
+        <button
+          type="button"
+          onClick={onLogout}
+          className={styles.item()}
+          disabled={isLoggingOut}
+          aria-busy={isLoggingOut}
+        >
           <LogoutIcon className={styles.icon} aria-hidden="true" focusable="false" />
           <span>로그아웃</span>
         </button>
