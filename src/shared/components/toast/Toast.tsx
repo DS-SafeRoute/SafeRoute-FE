@@ -103,6 +103,7 @@ const Toast = ({
         type="button"
         className={styles.closeButton({ variant })}
         aria-label="닫기"
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={() => onClose(id)}
       >
         <XIcon width={14} height={14} />
