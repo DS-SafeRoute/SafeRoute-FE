@@ -52,6 +52,8 @@ const MyPageModal = ({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSaving) return;
+
     await onSave(form);
   };
 

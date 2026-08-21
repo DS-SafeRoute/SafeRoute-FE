@@ -26,6 +26,8 @@ const AppHeader = () => {
   const gnbConfig = getGNBConfig(location);
 
   const handleSaveProfile = async (form: UpdateUserProfileRequest) => {
+    if (!currentUser) return;
+
     try {
       await updateMyProfileMutation.mutateAsync(form);
       show({ title: '회원 정보가 수정되었습니다.', variant: 'success' });
@@ -35,19 +37,30 @@ const AppHeader = () => {
     }
   };
 
+  const handleProfileClick = () => {
+    if (isProfileLoading) return;
+
+    if (!currentUser) {
+      show({ title: '회원 정보를 불러오지 못했습니다.', variant: 'error' });
+      return;
+    }
+
+    setIsMyPageOpen(true);
+  };
+
   return (
     <>
       <GNB
         {...gnbConfig}
         userName={currentUser?.username ?? ''}
         userRole={currentUser?.role ? USER_ROLE_LABEL[currentUser.role] : undefined}
-        onProfileClick={() => setIsMyPageOpen(true)}
+        onProfileClick={handleProfileClick}
       />
 
       <MyPageModal
         open={isMyPageOpen}
         profile={currentUser}
-        isLoading={isProfileLoading}
+        isLoading={isProfileLoading || !currentUser}
         isSaving={updateMyProfileMutation.isPending}
         onClose={() => setIsMyPageOpen(false)}
         onSave={handleSaveProfile}
