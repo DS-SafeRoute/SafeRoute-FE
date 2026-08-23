@@ -1,7 +1,11 @@
 import type {
+  ChangeLightDirectionRequest,
+  ConfigureGuidanceRequest,
   CreateIoTLightRequest,
   IoTLightResponse,
+  LightDirectionResponse,
   UpdateIoTLightRequest,
+  UpdatePiEndpointRequest,
 } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
@@ -20,6 +24,7 @@ export interface IoTLight {
   decisionNodeId: string | null;
   leftEdgeId: string | null;
   rightEdgeId: string | null;
+  piEndpoint: string | null;
 }
 
 const toIoTLight = (response: IoTLightResponse): IoTLight => {
@@ -39,6 +44,7 @@ const toIoTLight = (response: IoTLightResponse): IoTLight => {
     decisionNodeId: response.decisionNodeId ?? null,
     leftEdgeId: response.leftEdgeId ?? null,
     rightEdgeId: response.rightEdgeId ?? null,
+    piEndpoint: response.piEndpoint ?? null,
   };
 };
 
@@ -68,6 +74,68 @@ export async function updateIoTLight(
     method: HTTP_METHOD.PATCH,
     url: API_ENDPOINTS.IOT_LIGHTS.DETAIL(lightId),
     body,
+  });
+  return toIoTLight(light);
+}
+
+export async function enableIoTLight(lightId: string): Promise<IoTLight> {
+  const light = await apiRequest<IoTLightResponse>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.IOT_LIGHTS.ENABLE(lightId),
+  });
+  return toIoTLight(light);
+}
+
+export async function disableIoTLight(lightId: string): Promise<IoTLight> {
+  const light = await apiRequest<IoTLightResponse>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.IOT_LIGHTS.DISABLE(lightId),
+  });
+  return toIoTLight(light);
+}
+
+export interface LightDirection {
+  lightId: string;
+  direction: 'LEFT' | 'RIGHT' | 'OFF';
+  updatedAt: string;
+}
+
+export async function changeLightDirection(
+  lightId: string,
+  direction: 'LEFT' | 'RIGHT' | 'OFF',
+): Promise<LightDirection> {
+  const response = await apiRequest<LightDirectionResponse, ChangeLightDirectionRequest>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.IOT_LIGHTS.DIRECTION(lightId),
+    body: { direction },
+  });
+  const { lightId: id, direction: dir, updatedAt } = response;
+  if (!id || !dir || !updatedAt) {
+    throw new Error('유도등 방향 응답에 필수 필드가 누락되었습니다.');
+  }
+  return { lightId: id, direction: dir, updatedAt };
+}
+
+export async function configureLightGuidance(
+  lightId: string,
+  body: ConfigureGuidanceRequest,
+): Promise<IoTLight> {
+  const light = await apiRequest<IoTLightResponse, ConfigureGuidanceRequest>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.IOT_LIGHTS.GUIDANCE(lightId),
+    body,
+  });
+  return toIoTLight(light);
+}
+
+export async function updateLightPiEndpoint(
+  lightId: string,
+  piEndpoint: string,
+): Promise<IoTLight> {
+  const light = await apiRequest<IoTLightResponse, UpdatePiEndpointRequest>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.IOT_LIGHTS.PI_ENDPOINT(lightId),
+    body: { piEndpoint },
   });
   return toIoTLight(light);
 }

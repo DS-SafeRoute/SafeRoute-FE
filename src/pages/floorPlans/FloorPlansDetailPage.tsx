@@ -18,7 +18,16 @@ import { formatFloor } from '@utils/floor';
 
 import { getFloorCctvs } from './api/cctvApi';
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
-import { createIoTLight, getFloorLights, updateIoTLight } from './api/iotLightsApi';
+import {
+  changeLightDirection,
+  configureLightGuidance,
+  createIoTLight,
+  disableIoTLight,
+  enableIoTLight,
+  getFloorLights,
+  updateIoTLight,
+  updateLightPiEndpoint,
+} from './api/iotLightsApi';
 import {
   createMapEdge,
   createMapNode,
@@ -31,7 +40,9 @@ import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
+import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
 
+import type { IoTLight } from './api/iotLightsApi';
 import type { MapEdge, MapNode } from './api/mapGraphApi';
 import type {
   AiLayer,
@@ -1140,6 +1151,7 @@ const DeviceCard = ({
   onStartEdit,
   onSaveEdit,
   onDelete,
+  onOpenSettings,
 }: {
   item: PanelItem;
   selected: boolean;
@@ -1150,6 +1162,7 @@ const DeviceCard = ({
   onStartEdit: (item: PanelItem) => void;
   onSaveEdit: (item: PanelItem) => void;
   onDelete: (item: PanelItem) => void;
+  onOpenSettings: (item: PanelItem) => void;
 }) => (
   <div
     data-panel-id={item.id}
@@ -1209,6 +1222,18 @@ const DeviceCard = ({
           }}
         >
           수정
+        </button>
+      )}
+      {item.type === 'light' && (
+        <button
+          type="button"
+          className={styles.deviceCardEditBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSettings(item);
+          }}
+        >
+          설정
         </button>
       )}
       <button
@@ -1589,6 +1614,7 @@ const FloorPlansDetailPage = () => {
     getFloorLights(floorId)
       .then((lights) => {
         if (cancelled) return;
+        setIotLights(lights);
         setAddedDevices((prev) => [
           ...prev.filter((d) => d.placeType !== 'light'),
           ...lights.map(
@@ -1711,6 +1737,8 @@ const FloorPlansDetailPage = () => {
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
   const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
+  const [iotLights, setIotLights] = useState<IoTLight[]>([]);
+  const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
@@ -1735,6 +1763,51 @@ const FloorPlansDetailPage = () => {
     const device = addedDevices.find((d) => d.id === id);
     if (device?.placeType !== 'light') return;
     updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
+  };
+
+  const handleOpenLightSettings = (item: PanelItem) => {
+    const light = iotLights.find((l) => l.id === item.id);
+    if (light) setLightSettingsTarget(light);
+  };
+
+  const handleLightToggleEnabled = (enabled: boolean) => {
+    if (!lightSettingsTarget) return;
+    const request = enabled ? enableIoTLight : disableIoTLight;
+    request(lightSettingsTarget.id)
+      .then((updated) => {
+        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setLightSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
+
+  const handleLightDirectionChange = (direction: 'LEFT' | 'RIGHT' | 'OFF') => {
+    if (!lightSettingsTarget) return;
+    changeLightDirection(lightSettingsTarget.id, direction).catch(() => {});
+  };
+
+  const handleLightGuidanceSave = (
+    decisionNodeId: string,
+    leftEdgeId: string,
+    rightEdgeId: string,
+  ) => {
+    if (!lightSettingsTarget) return;
+    configureLightGuidance(lightSettingsTarget.id, { decisionNodeId, leftEdgeId, rightEdgeId })
+      .then((updated) => {
+        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setLightSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
+
+  const handleLightPiEndpointSave = (piEndpoint: string) => {
+    if (!lightSettingsTarget) return;
+    updateLightPiEndpoint(lightSettingsTarget.id, piEndpoint)
+      .then((updated) => {
+        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setLightSettingsTarget(updated);
+      })
+      .catch(() => {});
   };
   const [toastMsg] = useState<string | null>(null);
   const [toastFading] = useState(false);
@@ -2359,6 +2432,16 @@ const FloorPlansDetailPage = () => {
     (n) => !deviceTypeFilter || deviceTypeFilter === n.type,
   );
 
+  // 유도등 설정 모달의 판단 노드/엣지 드롭다운 목록
+  const lightNodeOptions = [
+    ...structureNodes.map((n) => ({ id: n.id, label: STRUCTURE_NODE_LABEL[n.type] })),
+    ...graphNodes.map((n) => ({ id: n.id, label: n.name })),
+  ];
+  const lightEdgeOptions = graphEdges.map((edge) => ({
+    id: edge.id,
+    label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
+  }));
+
   const isPanelItemSelected = (item: PanelItem) =>
     selectedItem?.kind === 'device'
       ? item.kind === 'device' && selectedItem.data.id === item.id
@@ -2869,6 +2952,7 @@ const FloorPlansDetailPage = () => {
                       onStartEdit={handleStartEdit}
                       onSaveEdit={handleSaveEdit}
                       onDelete={handlePanelItemDelete}
+                      onOpenSettings={handleOpenLightSettings}
                     />
                   ))}
 
@@ -2910,6 +2994,20 @@ const FloorPlansDetailPage = () => {
           onClose={() => setDeleteConfirmTarget(null)}
           label={deleteConfirmTarget.label}
           onConfirm={handleDeleteConfirm}
+        />
+      )}
+
+      {lightSettingsTarget && (
+        <IoTLightSettingsModal
+          open
+          onClose={() => setLightSettingsTarget(null)}
+          light={lightSettingsTarget}
+          nodeOptions={lightNodeOptions}
+          edgeOptions={lightEdgeOptions}
+          onToggleEnabled={handleLightToggleEnabled}
+          onDirectionChange={handleLightDirectionChange}
+          onGuidanceSave={handleLightGuidanceSave}
+          onPiEndpointSave={handleLightPiEndpointSave}
         />
       )}
     </>
