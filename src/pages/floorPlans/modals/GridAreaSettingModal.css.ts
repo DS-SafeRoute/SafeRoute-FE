@@ -57,6 +57,11 @@ export const toolbar = style({
   paddingTop: vars.space.s4,
 });
 
+export const dimensionFields = style({
+  display: 'flex',
+  gap: vars.space.s4,
+});
+
 export const areaField = style({
   display: 'flex',
   flexDirection: 'column',

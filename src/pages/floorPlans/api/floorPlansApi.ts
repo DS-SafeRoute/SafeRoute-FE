@@ -56,7 +56,7 @@ export type SegmentationResponse = { status: SegmentationStatus };
 
 export async function segmentFloor(
   floorId: number,
-  params: { area: number; gridScale: number },
+  params: { realWidth: number; realHeight: number; gridScale: number },
 ): Promise<SegmentationResponse> {
   return request<SegmentationResponse>(`${BASE}/floors/${floorId}/segment`, {
     method: 'POST',

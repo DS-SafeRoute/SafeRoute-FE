@@ -9,7 +9,7 @@ interface GridAreaSettingModalProps {
   open: boolean;
   onClose: () => void;
   mapImageUrl: string | null;
-  onConfirm: (params: { area: number; gridScale: number }) => void;
+  onConfirm: (params: { realWidth: number; realHeight: number; gridScale: number }) => void;
 }
 
 const MIN_SCALE = 1;
@@ -21,32 +21,36 @@ const GridAreaSettingModal = ({
   mapImageUrl,
   onConfirm,
 }: GridAreaSettingModalProps) => {
-  const [area, setArea] = useState('');
+  const [realWidth, setRealWidth] = useState('');
+  const [realHeight, setRealHeight] = useState('');
   const [gridScale, setGridScale] = useState(5);
-  const areaInputId = useId();
+  const widthInputId = useId();
+  const heightInputId = useId();
   const scaleSliderId = useId();
 
-  const handleAreaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setArea(raw);
-  };
+  const makeDimensionChangeHandler =
+    (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setter(raw);
+    };
 
   const handleScaleStep = (delta: number) => {
     setGridScale((prev) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta)));
   };
 
   const handleClose = () => {
-    setArea('');
+    setRealWidth('');
+    setRealHeight('');
     setGridScale(5);
     onClose();
   };
 
-  const isAreaValid = Number(area) > 0;
+  const isDimensionsValid = Number(realWidth) > 0 && Number(realHeight) > 0;
 
   const handleSubmit = () => {
-    if (!isAreaValid) return;
+    if (!isDimensionsValid) return;
     // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
-    onConfirm({ area: Number(area), gridScale });
+    onConfirm({ realWidth: Number(realWidth), realHeight: Number(realHeight), gridScale });
   };
 
   const cellSize = 20 + gridScale * 4;
@@ -56,14 +60,18 @@ const GridAreaSettingModal = ({
       open={open}
       onClose={handleClose}
       className={styles.wideModal}
-      title="그리드 배율 · 평수 설정"
-      description="그리드 배율과 평수를 입력하면 다음 단계에서 도면이 자동 분석됩니다"
+      title="그리드 배율 · 실측 크기 설정"
+      description="도면의 실제 가로/세로 길이와 그리드 배율을 입력하면 다음 단계에서 도면이 자동 분석됩니다"
       footer={
         <div className={styles.footer}>
           <Button variant="ghost" className={styles.cancelButton} onClick={handleClose}>
             취소
           </Button>
-          <Button className={styles.confirmButton} disabled={!isAreaValid} onClick={handleSubmit}>
+          <Button
+            className={styles.confirmButton}
+            disabled={!isDimensionsValid}
+            onClick={handleSubmit}
+          >
             입력하기
           </Button>
         </div>
@@ -88,21 +96,41 @@ const GridAreaSettingModal = ({
       </div>
 
       <div className={styles.toolbar}>
-        <div className={styles.areaField}>
-          <label className={styles.fieldLabel} htmlFor={areaInputId}>
-            평수 (㎡)
-          </label>
-          <div className={styles.areaInputShell}>
-            <input
-              id={areaInputId}
-              className={styles.areaInput}
-              type="text"
-              inputMode="decimal"
-              placeholder="450"
-              value={area}
-              onChange={handleAreaChange}
-            />
-            <span className={styles.areaUnit}>㎡</span>
+        <div className={styles.dimensionFields}>
+          <div className={styles.areaField}>
+            <label className={styles.fieldLabel} htmlFor={widthInputId}>
+              가로 (m)
+            </label>
+            <div className={styles.areaInputShell}>
+              <input
+                id={widthInputId}
+                className={styles.areaInput}
+                type="text"
+                inputMode="decimal"
+                placeholder="20"
+                value={realWidth}
+                onChange={makeDimensionChangeHandler(setRealWidth)}
+              />
+              <span className={styles.areaUnit}>m</span>
+            </div>
+          </div>
+
+          <div className={styles.areaField}>
+            <label className={styles.fieldLabel} htmlFor={heightInputId}>
+              세로 (m)
+            </label>
+            <div className={styles.areaInputShell}>
+              <input
+                id={heightInputId}
+                className={styles.areaInput}
+                type="text"
+                inputMode="decimal"
+                placeholder="15"
+                value={realHeight}
+                onChange={makeDimensionChangeHandler(setRealHeight)}
+              />
+              <span className={styles.areaUnit}>m</span>
+            </div>
           </div>
         </div>
 
