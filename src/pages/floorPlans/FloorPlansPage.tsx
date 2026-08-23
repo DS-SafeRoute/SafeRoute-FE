@@ -4,8 +4,6 @@ import { useNavigate } from 'react-router';
 
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
-import PlusIcon from '@assets/icons/ic-plus.svg?react';
-import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
@@ -14,16 +12,8 @@ import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
-import {
-  analyzeFloor,
-  createFloor,
-  deleteFloor,
-  getFloorBuildings,
-  uploadFloor,
-} from './api/floorPlansApi';
+import { analyzeFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
-import FloorAddModal from './modals/FloorAddModal';
-import FloorDeleteConfirmModal from './modals/FloorDeleteConfirmModal';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
@@ -73,7 +63,6 @@ type PendingUpload = {
   file: File;
   previewUrl: string;
 };
-type AddFloorTarget = { buildingId: string; buildingName: string };
 
 interface FloorCardProps {
   floor: FloorSummary;
@@ -81,17 +70,9 @@ interface FloorCardProps {
   buildingName: string;
   onUpload: (target: UploadTarget) => void;
   onReupload: (target: FloorActionTarget) => void;
-  onDelete: (target: FloorActionTarget) => void;
 }
 
-const FloorCard = ({
-  floor,
-  buildingId,
-  buildingName,
-  onUpload,
-  onReupload,
-  onDelete,
-}: FloorCardProps) => {
+const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: FloorCardProps) => {
   const navigate = useNavigate();
   const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
   const isNone = floor.segmentationStatus === 'NONE';
@@ -151,14 +132,6 @@ const FloorCard = ({
             <UploadIcon width={14} height={14} />
             재업로드
           </button>
-          <button
-            type="button"
-            className={styles.deleteButtonCard}
-            onClick={() => onDelete({ buildingId, buildingName, floor })}
-          >
-            <TrashIcon width={14} height={14} />
-            삭제
-          </button>
         </div>
       )}
     </div>
@@ -170,10 +143,8 @@ const FloorPlansPage = () => {
   const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addFloorTarget, setAddFloorTarget] = useState<AddFloorTarget | null>(null);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<FloorActionTarget | null>(null);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
 
   useEffect(() => {
@@ -185,26 +156,6 @@ const FloorPlansPage = () => {
       })
       .finally(() => setLoading(false));
   }, [show]);
-
-  const handleAddFloorConfirm = (floorNum: number) => {
-    if (!addFloorTarget) return;
-    const { buildingId, buildingName } = addFloorTarget;
-    createFloor(buildingId, floorNum)
-      .then((newFloor) => {
-        setBuildings((prev) =>
-          prev.map((b) => (b.id !== buildingId ? b : { ...b, floors: [...b.floors, newFloor] })),
-        );
-        show({
-          title: '층이 추가되었습니다.',
-          description: `${buildingName} · ${formatFloor(floorNum)}이 추가되었습니다.`,
-          variant: 'success',
-        });
-      })
-      .catch(() => {
-        show({ title: '층 추가에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setAddFloorTarget(null));
-  };
 
   const handleOpenFloorUpload = (target: FloorActionTarget) => {
     setUploadTarget({
@@ -218,28 +169,6 @@ const FloorPlansPage = () => {
   const handleReuploadConfirm = () => {
     if (reuploadTarget) handleOpenFloorUpload(reuploadTarget);
     setReuploadTarget(null);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return;
-    const { buildingId, buildingName, floor } = deleteTarget;
-    deleteFloor(buildingId, floor.id)
-      .then(() => {
-        setBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== buildingId ? b : { ...b, floors: b.floors.filter((f) => f.id !== floor.id) },
-          ),
-        );
-        show({
-          title: '층이 삭제되었습니다.',
-          description: `${buildingName} · ${formatFloor(floor.floorNum)}이 삭제되었습니다.`,
-          variant: 'success',
-        });
-      })
-      .catch(() => {
-        show({ title: '삭제에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setDeleteTarget(null));
   };
 
   // 파일 선택 단계 — 실제 업로드는 다음 단계(가로/세로 입력)에서 함께 이뤄짐
@@ -306,15 +235,6 @@ const FloorPlansPage = () => {
                 <div className={styles.buildingDot} aria-hidden="true" />
                 <span className={styles.buildingName}>{building.name}</span>
                 <span className={styles.buildingCount}>{building.floors.length}개 층</span>
-                <button
-                  type="button"
-                  className={styles.addFloorButton}
-                  onClick={() =>
-                    setAddFloorTarget({ buildingId: building.id, buildingName: building.name })
-                  }
-                >
-                  <PlusIcon width={14} height={14} />층 추가
-                </button>
               </div>
 
               <div className={styles.floorGrid}>
@@ -328,22 +248,12 @@ const FloorPlansPage = () => {
                       buildingName={building.name}
                       onUpload={setUploadTarget}
                       onReupload={setReuploadTarget}
-                      onDelete={setDeleteTarget}
                     />
                   ))}
               </div>
             </section>
           ))}
       </div>
-
-      {addFloorTarget && (
-        <FloorAddModal
-          open
-          onClose={() => setAddFloorTarget(null)}
-          buildingName={addFloorTarget.buildingName}
-          onConfirm={handleAddFloorConfirm}
-        />
-      )}
 
       {uploadTarget && (
         <FloorUploadModal
@@ -362,16 +272,6 @@ const FloorPlansPage = () => {
           buildingName={reuploadTarget.buildingName}
           floorNum={reuploadTarget.floor.floorNum}
           onConfirm={handleReuploadConfirm}
-        />
-      )}
-
-      {deleteTarget && (
-        <FloorDeleteConfirmModal
-          open
-          onClose={() => setDeleteTarget(null)}
-          buildingName={deleteTarget.buildingName}
-          floorNum={deleteTarget.floor.floorNum}
-          onConfirm={handleDeleteConfirm}
         />
       )}
 

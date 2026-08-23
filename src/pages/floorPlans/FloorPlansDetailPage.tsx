@@ -143,29 +143,11 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 
 const GRID_SIZE = 20;
 
-/* ── Mock SVG 도면 (3층 예시, Figma 레이아웃 매칭) ── */
-const FLOOR_BOUNDS = { x: 20, y: 20, w: 520, h: 380 };
-
-const FLOOR_WALLS: { x1: number; y1: number; x2: number; y2: number }[] = [
-  { x1: 200, y1: 20, x2: 200, y2: 220 },
-  { x1: 20, y1: 220, x2: 360, y2: 220 },
-  { x1: 360, y1: 20, x2: 360, y2: 400 },
-  { x1: 360, y1: 260, x2: 540, y2: 260 },
-];
-
 const isSameRect = (a: ZoneRect, b: ZoneRect): boolean =>
   a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
-const GRID_LINES_X = Array.from(
-  { length: Math.floor(FLOOR_BOUNDS.w / GRID_SIZE) + 1 },
-  (_, i) => FLOOR_BOUNDS.x + i * GRID_SIZE,
-);
-const GRID_LINES_Y = Array.from(
-  { length: Math.floor(FLOOR_BOUNDS.h / GRID_SIZE) + 1 },
-  (_, i) => FLOOR_BOUNDS.y + i * GRID_SIZE,
-);
-
 const MockFloorMap3F = ({
+  mapImageUrl,
   aiLayers,
   editMode,
   placingActive,
@@ -198,6 +180,7 @@ const MockFloorMap3F = ({
   onPoiClick,
   onBackgroundClick,
 }: {
+  mapImageUrl: string | null;
   aiLayers: Record<string, boolean>;
   editMode: EditMode;
   placingActive: boolean;
@@ -326,63 +309,18 @@ const MockFloorMap3F = ({
       onClick={handleSvgClick}
       onMouseDown={handleSvgMouseDown}
     >
-      {/* 배경 */}
+      {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음 */}
       <rect width="560" height="420" fill="#f8f9fa" />
-
-      {/* 외벽 (wall) */}
-      {aiLayers.wall && (
-        <rect
-          x={FLOOR_BOUNDS.x}
-          y={FLOOR_BOUNDS.y}
-          width={FLOOR_BOUNDS.w}
-          height={FLOOR_BOUNDS.h}
-          fill="white"
-          stroke="#374151"
-          strokeWidth="2.5"
+      {mapImageUrl && (
+        <image
+          href={mapImageUrl}
+          x={0}
+          y={0}
+          width={560}
+          height={420}
+          preserveAspectRatio="xMidYMid meet"
         />
       )}
-
-      {/* 그리드 오버레이 */}
-      {aiLayers.wall && (
-        <g opacity={0.6}>
-          {GRID_LINES_X.map((x) => (
-            <line
-              key={`gx-${x}`}
-              x1={x}
-              y1={FLOOR_BOUNDS.y}
-              x2={x}
-              y2={FLOOR_BOUNDS.y + FLOOR_BOUNDS.h}
-              stroke="#b8bdc7"
-              strokeWidth="1"
-            />
-          ))}
-          {GRID_LINES_Y.map((y) => (
-            <line
-              key={`gy-${y}`}
-              x1={FLOOR_BOUNDS.x}
-              y1={y}
-              x2={FLOOR_BOUNDS.x + FLOOR_BOUNDS.w}
-              y2={y}
-              stroke="#b8bdc7"
-              strokeWidth="1"
-            />
-          ))}
-        </g>
-      )}
-
-      {/* 내벽 (AI 세그멘테이션 결과) */}
-      {aiLayers.room &&
-        FLOOR_WALLS.map((w, i) => (
-          <line
-            key={`wall-${i}`}
-            x1={w.x1}
-            y1={w.y1}
-            x2={w.x2}
-            y2={w.y2}
-            stroke="#374151"
-            strokeWidth="2"
-          />
-        ))}
 
       {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
       {aiLayers.room &&
@@ -1413,9 +1351,9 @@ const FloorCanvas = ({
   onUpload: () => void;
   onBackgroundClick: () => void;
 }) => {
-  const hasMockMap = floor.segmentationStatus === 'DONE';
+  const hasFloorPlan = floor.segmentationStatus === 'DONE';
 
-  if (!hasMockMap) {
+  if (!hasFloorPlan) {
     return (
       <div className={styles.canvasPlaceholder}>
         <span className={styles.canvasPlaceholderTitle}>등록된 도면이 없습니다</span>
@@ -1434,6 +1372,7 @@ const FloorCanvas = ({
   return (
     <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
+        mapImageUrl={floor.mapImageUrl}
         aiLayers={aiLayers}
         editMode={editMode}
         placingActive={placingActive}
