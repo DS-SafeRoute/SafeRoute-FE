@@ -17,6 +17,7 @@ import StatusBadge from '@components/chip/StatusBadge';
 import { formatFloor } from '@utils/floor';
 
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
+import { createIoTLight, getFloorLights, updateIoTLight } from './api/iotLightsApi';
 import {
   createMapNode,
   deleteMapNode,
@@ -704,6 +705,7 @@ const AddedDevicePin = ({
   draggable,
   onClick,
   onDragEnd,
+  onDragMoveEnd,
 }: {
   device: AddedDevice;
   posX: number;
@@ -712,6 +714,7 @@ const AddedDevicePin = ({
   draggable: boolean;
   onClick: () => void;
   onDragEnd: (id: string, x: number, y: number) => void;
+  onDragMoveEnd: (id: string, x: number, y: number) => void;
 }) => {
   const isDragging = useRef(false);
   const didMove = useRef(false);
@@ -726,6 +729,7 @@ const AddedDevicePin = ({
 
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
+    let lastPoint: { x: number; y: number } | null = null;
 
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
@@ -733,12 +737,15 @@ const AddedDevicePin = ({
       const rect = container.getBoundingClientRect();
       const rawX = ((mv.clientX - rect.left) / rect.width) * 100;
       const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
-      onDragEnd(device.id, Math.max(0, Math.min(100, rawX)), Math.max(0, Math.min(100, rawY)));
+      const point = { x: Math.max(0, Math.min(100, rawX)), y: Math.max(0, Math.min(100, rawY)) };
+      lastPoint = point;
+      onDragEnd(device.id, point.x, point.y);
     };
     const onUp = () => {
       isDragging.current = false;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (lastPoint) onDragMoveEnd(device.id, lastPoint.x, lastPoint.y);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1116,6 +1123,7 @@ const FloorCanvas = ({
   onPoiRelocate,
   onPoiPopoverClose,
   onDeviceMoved,
+  onDeviceMoveEnd,
   onUpload,
   onBackgroundClick,
 }: {
@@ -1156,6 +1164,7 @@ const FloorCanvas = ({
   onPoiRelocate: (id: string) => void;
   onPoiPopoverClose: () => void;
   onDeviceMoved: (id: string, x: number, y: number) => void;
+  onDeviceMoveEnd: (id: string, x: number, y: number) => void;
   onUpload: () => void;
   onBackgroundClick: () => void;
 }) => {
@@ -1239,6 +1248,7 @@ const FloorCanvas = ({
             draggable={editingItemId === d.id}
             onClick={() => onSelectDevice(d as unknown as DeviceMarker)}
             onDragEnd={onDeviceMoved}
+            onDragMoveEnd={onDeviceMoveEnd}
           />
         );
       })}
@@ -1416,6 +1426,35 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
+  // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorLights(floorId)
+      .then((lights) => {
+        if (cancelled) return;
+        setAddedDevices((prev) => [
+          ...prev.filter((d) => d.placeType !== 'light'),
+          ...lights.map(
+            (light): AddedDevice => ({
+              id: light.id,
+              type: 'iot',
+              placeType: 'light',
+              label: light.name,
+              x: light.x * 100,
+              y: light.y * 100,
+              status: 'online',
+              zone: '사용자 등록',
+            }),
+          ),
+        ]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
   // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
   useEffect(() => {
     if (!floor) return;
@@ -1500,6 +1539,13 @@ const FloorPlansDetailPage = () => {
 
   const handleDeviceMoved = (id: string, x: number, y: number) => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
+  };
+
+  // 드래그가 끝났을 때만 유도등 위치를 실제로 저장 (CCTV/IoT는 아직 API 연동 전이라 로컬에만 반영)
+  const handleDeviceMoveEnd = (id: string, x: number, y: number) => {
+    const device = addedDevices.find((d) => d.id === id);
+    if (device?.placeType !== 'light') return;
+    updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
   };
   const [toastMsg] = useState<string | null>(null);
   const [toastFading] = useState(false);
@@ -1709,6 +1755,33 @@ const FloorPlansDetailPage = () => {
             setStructureNodes((prev) => [
               ...prev,
               { id: newNode.id, type, x, y, isFinalExit: false },
+            ]);
+          })
+          .catch(() => {});
+      }
+    } else if (type === 'light') {
+      if (currentFloor) {
+        const count = addedDevices.filter((d) => d.placeType === 'light').length + 1;
+        const name = deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`;
+        createIoTLight({
+          floorId: currentFloor.id,
+          name,
+          x: position.x / 100,
+          y: position.y / 100,
+        })
+          .then((newLight) => {
+            setAddedDevices((prev) => [
+              ...prev,
+              {
+                id: newLight.id,
+                type: 'iot',
+                placeType: 'light',
+                label: newLight.name,
+                x: position.x,
+                y: position.y,
+                status: 'online',
+                zone: location || '사용자 등록',
+              },
             ]);
           })
           .catch(() => {});
@@ -2100,6 +2173,14 @@ const FloorPlansDetailPage = () => {
       setAddedDevices((prev) =>
         prev.map((d) => (d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d)),
       );
+      if (item.type === 'light') {
+        const device = addedDevices.find((d) => d.id === item.id);
+        if (device) {
+          updateIoTLight(item.id, { name: newLabel, x: device.x / 100, y: device.y / 100 }).catch(
+            () => {},
+          );
+        }
+      }
     }
     if (item.type === 'cctv' && newLabel !== oldLabel) {
       setZones((prev) =>
@@ -2339,6 +2420,7 @@ const FloorPlansDetailPage = () => {
                 }}
                 devicePositions={devicePositions}
                 onDeviceMoved={handleDeviceMoved}
+                onDeviceMoveEnd={handleDeviceMoveEnd}
                 addedDevices={addedDevices}
                 onUpload={() => setUploadModalOpen(true)}
               />
