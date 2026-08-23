@@ -1760,6 +1760,7 @@ const FloorPlansDetailPage = () => {
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'grid-setup' | 'fov'>('entry');
   const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
   const [showGridOverlay, setShowGridOverlay] = useState(false);
+  const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
@@ -1776,11 +1777,24 @@ const FloorPlansDetailPage = () => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
 
-  // 드래그가 끝났을 때만 유도등 위치를 실제로 저장 (CCTV/IoT는 아직 API 연동 전이라 로컬에만 반영)
+  // 드래그가 끝났을 때만 실제 위치를 저장
   const handleDeviceMoveEnd = (id: string, x: number, y: number) => {
     const device = addedDevices.find((d) => d.id === id);
-    if (device?.placeType !== 'light') return;
-    updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
+    if (device?.placeType === 'light') {
+      updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
+      return;
+    }
+    if (device?.placeType === 'cctv') {
+      const cctv = realCctvs.find((c) => c.id === id);
+      if (!cctv?.customNodeId) return;
+      updateMapNodePosition(cctv.customNodeId, { x: x / 100, y: y / 100 })
+        .then(() => {
+          setRealCctvs((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, x: x / 100, y: y / 100 } : c)),
+          );
+        })
+        .catch(() => {});
+    }
   };
 
   const handleOpenDeviceSettings = (item: PanelItem) => {
@@ -2150,6 +2164,34 @@ const FloorPlansDetailPage = () => {
       .then((cells) => {
         setFloorGridCells(cells);
         setNodeAddStage('fov');
+      })
+      .catch(() => {});
+  };
+
+  // 그리드 표시 토글 — 이 층에 아직 그리드가 없으면 셀 크기를 입력받아 먼저 생성
+  const handleToggleGridOverlay = () => {
+    if (showGridOverlay) {
+      setShowGridOverlay(false);
+      return;
+    }
+    if (floorGridCells.length > 0) {
+      setShowGridOverlay(true);
+      return;
+    }
+    setGridSizeMeterInput('1');
+    setGridSetupPromptOpen(true);
+  };
+
+  const handleGridSetupPromptConfirm = () => {
+    if (!currentFloor) return;
+    const cellSizeMeter = Number(gridSizeMeterInput);
+    if (!(cellSizeMeter > 0)) return;
+    setFloorGrid(currentFloor.id, cellSizeMeter)
+      .then(() => getFloorGridCells(currentFloor.id))
+      .then((cells) => {
+        setFloorGridCells(cells);
+        setShowGridOverlay(true);
+        setGridSetupPromptOpen(false);
       })
       .catch(() => {});
   };
@@ -2738,7 +2780,7 @@ const FloorPlansDetailPage = () => {
                     showGridOverlay && styles.canvasActionButtonActive,
                   )}
                   aria-pressed={showGridOverlay}
-                  onClick={() => setShowGridOverlay((v) => !v)}
+                  onClick={handleToggleGridOverlay}
                 >
                   <LayersIcon width={14} height={14} />
                   그리드 표시
@@ -2784,6 +2826,46 @@ const FloorPlansDetailPage = () => {
                   <PlusIcon width={14} height={14} />
                   엣지 연결
                 </button>
+              </div>
+            )}
+
+            {gridSetupPromptOpen && (
+              <div className={styles.gridSetupPopup} onClick={(e) => e.stopPropagation()}>
+                <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
+                <span className={styles.nodeAddHint}>
+                  이 층에는 아직 그리드가 없어요. 셀 크기(m)를 입력하고 설정해주세요.
+                </span>
+                <div className={styles.nodeAddField}>
+                  <span className={styles.nodeAddLabel}>셀 크기(m)</span>
+                  <input
+                    className={styles.nodeAddInput}
+                    type="text"
+                    inputMode="decimal"
+                    value={gridSizeMeterInput}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setGridSizeMeterInput(raw);
+                    }}
+                    placeholder="1"
+                  />
+                </div>
+                <div className={styles.nodeAddActions}>
+                  <button
+                    type="button"
+                    className={styles.nodeAddCancelBtn}
+                    onClick={() => setGridSetupPromptOpen(false)}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.nodeAddSubmitBtn}
+                    disabled={!(Number(gridSizeMeterInput) > 0)}
+                    onClick={handleGridSetupPromptConfirm}
+                  >
+                    설정
+                  </button>
+                </div>
               </div>
             )}
 

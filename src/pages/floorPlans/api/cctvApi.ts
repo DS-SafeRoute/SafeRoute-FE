@@ -30,6 +30,8 @@ export interface Cctv {
   monitoredGridCellCount: number;
   monitoredAreaM2: number;
   gridCells: CctvGridCell[];
+  /** 위치 수정 시 PATCH /api/v1/nodes/{customNodeId}로 사용 (CCTV 전용 위치 수정 API는 아직 없음) */
+  customNodeId: string | null;
 }
 
 const toCctvGridCell = (response: CctvGridCellResponse): CctvGridCell => {
@@ -62,6 +64,7 @@ const toCctv = (response: CctvResponse): Cctv => {
     monitoredGridCellCount: response.monitoredGridCellCount ?? 0,
     monitoredAreaM2: response.monitoredAreaM2 ?? 0,
     gridCells: (response.gridCells ?? []).map(toCctvGridCell),
+    customNodeId: response.customNodeId ?? null,
   };
 };
 
