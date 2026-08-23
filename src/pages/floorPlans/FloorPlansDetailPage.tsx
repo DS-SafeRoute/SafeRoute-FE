@@ -390,9 +390,13 @@ const MockFloorMap3F = ({
           );
         })}
 
-      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능 */}
+      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
+          ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
+          평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
       {aiLayers.room &&
         graphNodes.map((n) => {
+          const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
+          if (isRoomOrHallway && !edgeAddActive) return null;
           const x = n.x * 560;
           const y = n.y * 420;
           const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
