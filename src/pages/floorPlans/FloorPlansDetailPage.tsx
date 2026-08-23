@@ -16,7 +16,8 @@ import StatusBadge from '@components/chip/StatusBadge';
 
 import { formatFloor } from '@utils/floor';
 
-import { getFloorCctvs } from './api/cctvApi';
+import { createCctv, getFloorCctvs } from './api/cctvApi';
+import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
 import {
   changeLightDirection,
@@ -42,6 +43,8 @@ import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
 
+import type { Cctv } from './api/cctvApi';
+import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
 import type { MapEdge, MapNode } from './api/mapGraphApi';
 import type {
@@ -98,7 +101,7 @@ type AddedDevice = {
   zone: string;
 };
 
-type ZoneType = 'general' | 'camera';
+type ZoneType = 'general';
 
 type ZoneRect = { x: number; y: number; w: number; h: number };
 
@@ -143,27 +146,6 @@ const FLOOR_WALLS: { x1: number; y1: number; x2: number; y2: number }[] = [
   { x1: 360, y1: 260, x2: 540, y2: 260 },
 ];
 
-/* 기존(사전 등록) CCTV 장비에 시야 구역이 없을 경우 위치 기준으로 기본 구역을 만들어줌 */
-const buildDefaultCctvZoneRect = (device: DeviceMarker): ZoneRect => {
-  const size = 100;
-  const cx = (device.x / 100) * 560;
-  const cy = (device.y / 100) * 420;
-  const clampedX = Math.min(
-    Math.max(cx - size / 2, FLOOR_BOUNDS.x),
-    FLOOR_BOUNDS.x + FLOOR_BOUNDS.w - size,
-  );
-  const clampedY = Math.min(
-    Math.max(cy - size / 2, FLOOR_BOUNDS.y),
-    FLOOR_BOUNDS.y + FLOOR_BOUNDS.h - size,
-  );
-  return {
-    x: Math.round(clampedX / GRID_SIZE) * GRID_SIZE,
-    y: Math.round(clampedY / GRID_SIZE) * GRID_SIZE,
-    w: size,
-    h: size,
-  };
-};
-
 const isSameRect = (a: ZoneRect, b: ZoneRect): boolean =>
   a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
@@ -198,8 +180,11 @@ const MockFloorMap3F = ({
   onEdgeDelete,
   selectedZoneRef,
   onZoneRefSelect,
-  selectedCctvZoneId,
-  onCctvZoneClick,
+  cctvGridCellsMode,
+  floorGridCells,
+  selectedGridCellIds,
+  gridCellPxSize,
+  onGridCellToggle,
   poiMarkers,
   relocatingPoiId,
   onMapClick,
@@ -227,8 +212,11 @@ const MockFloorMap3F = ({
   onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  selectedCctvZoneId: string | null;
-  onCctvZoneClick: (zoneId: string) => void;
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing';
+  floorGridCells: FloorGridCell[];
+  selectedGridCellIds: string[];
+  gridCellPxSize: { w: number; h: number };
+  onGridCellToggle: (cellId: string) => void;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   relocatingPoiId: string | null;
   onMapClick: (x: number, y: number) => void;
@@ -566,24 +554,17 @@ const MockFloorMap3F = ({
           );
         })}
 
-      {/* 저장된 구역 — 카메라 시야는 해당 노드/카드를 선택했을 때만 표시 */}
+      {/* 저장된 일반 구역 */}
       {savedZones.map((z) => {
         if (!z.rect) return null;
         const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
-        const isCctvLinked = selectedCctvZoneId === z.id;
-        const highlighted = isSelected || isCctvLinked;
-        if (z.type === 'camera' && !highlighted) return null;
         return (
           <g
             key={z.id}
             onClick={(e) => {
               if (zoneAddActive) return;
               e.stopPropagation();
-              if (z.type === 'camera') {
-                onCctvZoneClick(z.id);
-              } else {
-                onZoneRefSelect({ kind: 'zone', id: z.id });
-              }
+              onZoneRefSelect({ kind: 'zone', id: z.id });
             }}
             style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
           >
@@ -592,27 +573,54 @@ const MockFloorMap3F = ({
               y={z.rect.y}
               width={z.rect.w}
               height={z.rect.h}
-              fill={z.type === 'general' ? 'rgba(107,114,128,0.15)' : 'rgba(139,92,246,0.18)'}
-              stroke={z.type === 'general' ? (isSelected ? '#2563eb' : '#6b7280') : '#8b5cf6'}
-              strokeWidth={z.type === 'general' ? (isSelected ? '3' : '1.5') : '2'}
-              strokeDasharray={z.type === 'camera' ? '4 3' : undefined}
+              fill="rgba(107,114,128,0.15)"
+              stroke={isSelected ? '#2563eb' : '#6b7280'}
+              strokeWidth={isSelected ? '3' : '1.5'}
             />
-            {z.type === 'general' && (
-              <text
-                x={z.rect.x + z.rect.w / 2}
-                y={z.rect.y + z.rect.h / 2 + 3}
-                textAnchor="middle"
-                fill="#374151"
-                fontSize="10"
-                fontFamily="sans-serif"
-                style={{ pointerEvents: 'none' }}
-              >
-                {z.label}
-              </text>
-            )}
+            <text
+              x={z.rect.x + z.rect.w / 2}
+              y={z.rect.y + z.rect.h / 2 + 3}
+              textAnchor="middle"
+              fill="#374151"
+              fontSize="10"
+              fontFamily="sans-serif"
+              style={{ pointerEvents: 'none' }}
+            >
+              {z.label}
+            </text>
           </g>
         );
       })}
+
+      {/* CCTV 그리드 셀 — 신규 등록 중(선택 가능) 또는 선택된 기존 CCTV의 감시 영역(조회 전용) */}
+      {cctvGridCellsMode !== 'hidden' &&
+        floorGridCells.map((cell) => {
+          const cx = cell.centerX * 560;
+          const cy = cell.centerY * 420;
+          const isSelected = selectedGridCellIds.includes(cell.id);
+          if (cctvGridCellsMode === 'viewing' && !isSelected) return null;
+          return (
+            <rect
+              key={cell.id}
+              x={cx - gridCellPxSize.w / 2}
+              y={cy - gridCellPxSize.h / 2}
+              width={gridCellPxSize.w}
+              height={gridCellPxSize.h}
+              fill={isSelected ? 'rgba(139,92,246,0.35)' : 'rgba(139,92,246,0.04)'}
+              stroke="#8b5cf6"
+              strokeWidth={isSelected ? '1.5' : '0.5'}
+              style={{
+                cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
+                pointerEvents: cctvGridCellsMode === 'selecting' ? 'auto' : 'none',
+              }}
+              onClick={(e) => {
+                if (cctvGridCellsMode !== 'selecting') return;
+                e.stopPropagation();
+                onGridCellToggle(cell.id);
+              }}
+            />
+          );
+        })}
 
       {/* 구역 추가 드래그 선택 영역 */}
       {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
@@ -875,7 +883,10 @@ const NodeAddPopup = ({
   onTypeChange,
   stage,
   hasPosition,
-  hasDraftRect,
+  selectedCellCount,
+  gridSizeMeterInput,
+  onGridSizeMeterInputChange,
+  onGridSetup,
   onCancel,
   onBack,
   onSubmitEntry,
@@ -884,9 +895,12 @@ const NodeAddPopup = ({
   containerRef: React.RefObject<HTMLDivElement>;
   type: PlacingDeviceType;
   onTypeChange: (type: PlacingDeviceType) => void;
-  stage: 'entry' | 'fov';
+  stage: 'entry' | 'grid-setup' | 'fov';
   hasPosition: boolean;
-  hasDraftRect: boolean;
+  selectedCellCount: number;
+  gridSizeMeterInput: string;
+  onGridSizeMeterInputChange: (value: string) => void;
+  onGridSetup: () => void;
   onCancel: () => void;
   onBack: () => void;
   onSubmitEntry: (type: PlacingDeviceType, deviceId: string, location: string) => void;
@@ -900,6 +914,46 @@ const NodeAddPopup = ({
   const totalSteps = isCctv ? 2 : 1;
   const stepNumber = stage === 'entry' ? 1 : totalSteps;
 
+  if (stage === 'grid-setup') {
+    return (
+      <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.nodeAddHeader}>
+          <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
+        </div>
+        <span className={styles.nodeAddHint}>
+          이 층에는 아직 그리드가 없어요. 셀 크기(m)를 입력하고 설정해주세요.
+        </span>
+        <div className={styles.nodeAddField}>
+          <span className={styles.nodeAddLabel}>셀 크기(m)</span>
+          <input
+            className={styles.nodeAddInput}
+            type="text"
+            inputMode="decimal"
+            value={gridSizeMeterInput}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) onGridSizeMeterInputChange(raw);
+            }}
+            placeholder="1"
+          />
+        </div>
+        <div className={styles.nodeAddActions}>
+          <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+            취소
+          </button>
+          <button
+            type="button"
+            className={styles.nodeAddSubmitBtn}
+            disabled={!(Number(gridSizeMeterInput) > 0)}
+            onClick={onGridSetup}
+          >
+            설정
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (stage === 'fov') {
     return (
       <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
@@ -912,7 +966,9 @@ const NodeAddPopup = ({
           </span>
         </div>
         <span className={styles.nodeAddHint}>
-          도면을 드래그해서 카메라 시야 구역을 지정해주세요
+          {selectedCellCount > 0
+            ? `${selectedCellCount}칸 선택됨. 도면을 드래그하면 겹치는 칸이 추가되고, 선택된 칸을 클릭하면 해제돼요.`
+            : '도면을 드래그해서 카메라 시야 구역에 해당하는 칸을 선택해주세요'}
         </span>
 
         <div className={styles.nodeAddActions}>
@@ -925,7 +981,7 @@ const NodeAddPopup = ({
           <button
             type="button"
             className={styles.nodeAddSubmitBtn}
-            disabled={!hasDraftRect}
+            disabled={selectedCellCount === 0}
             onClick={() => onFinalize(deviceId, location)}
           >
             추가
@@ -1278,8 +1334,11 @@ const FloorCanvas = ({
   onEdgeDelete,
   selectedZoneRef,
   onZoneRefSelect,
-  selectedCctvZoneId,
-  onCctvZoneClick,
+  cctvGridCellsMode,
+  floorGridCells,
+  selectedGridCellIds,
+  gridCellPxSize,
+  onGridCellToggle,
   stagedCameraPosition,
   poiMarkers,
   editingPoiId,
@@ -1324,8 +1383,11 @@ const FloorCanvas = ({
   onEdgeDelete: (id: string) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  selectedCctvZoneId: string | null;
-  onCctvZoneClick: (zoneId: string) => void;
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing';
+  floorGridCells: FloorGridCell[];
+  selectedGridCellIds: string[];
+  gridCellPxSize: { w: number; h: number };
+  onGridCellToggle: (cellId: string) => void;
   stagedCameraPosition: { x: number; y: number } | null;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   editingPoiId: string | null;
@@ -1386,8 +1448,11 @@ const FloorCanvas = ({
         onEdgeDelete={onEdgeDelete}
         selectedZoneRef={selectedZoneRef}
         onZoneRefSelect={onZoneRefSelect}
-        selectedCctvZoneId={selectedCctvZoneId}
-        onCctvZoneClick={onCctvZoneClick}
+        cctvGridCellsMode={cctvGridCellsMode}
+        floorGridCells={floorGridCells}
+        selectedGridCellIds={selectedGridCellIds}
+        gridCellPxSize={gridCellPxSize}
+        onGridCellToggle={onGridCellToggle}
         poiMarkers={poiMarkers}
         relocatingPoiId={relocatingPoiId}
         onMapClick={onMapClick}
@@ -1637,13 +1702,14 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
-  // CCTV 조회 — 실제 등록된 CCTV를 장비 마커 목록에 채워 넣음. 신규 등록은 그리드 셀 선택 UI가 아직 없어서 다음 단계에서 연동 예정
+  // CCTV 조회 — 실제 등록된 CCTV를 장비 마커 목록에 채워 넣음
   useEffect(() => {
     if (!floorId) return;
     let cancelled = false;
     getFloorCctvs(floorId)
       .then((cctvs) => {
         if (cancelled) return;
+        setRealCctvs(cctvs);
         setAddedDevices((prev) => [
           ...prev.filter((d) => d.type !== 'cctv'),
           ...cctvs.map(
@@ -1666,27 +1732,19 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
-  // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
+  // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용
   useEffect(() => {
-    if (!floor) return;
-    const cctvDevices = floor.devices.filter((d) => d.type === 'cctv');
-    if (cctvDevices.length === 0) return;
-    setZones((prev) => {
-      const missing = cctvDevices.filter(
-        (d) => !prev.some((z) => z.type === 'camera' && z.label === `${d.label} 시야 구역`),
-      );
-      if (missing.length === 0) return prev;
-      return [
-        ...prev,
-        ...missing.map((d) => ({
-          id: `zone-cctv-${d.id}`,
-          type: 'camera' as const,
-          label: `${d.label} 시야 구역`,
-          rect: buildDefaultCctvZoneRect(d),
-        })),
-      ];
-    });
-  }, [floor]);
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorGridCells(floorId)
+      .then((cells) => {
+        if (!cancelled) setFloorGridCells(cells);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
 
   const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
@@ -1742,9 +1800,11 @@ const FloorPlansDetailPage = () => {
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
-  // CCTV 카드 수정 중 해당 카메라의 시야 구역을 다시 드래그할 수 있게 하는 대상 구역 id
-  const [editingCctvZoneId, setEditingCctvZoneId] = useState<string | null>(null);
-  const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
+  const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'grid-setup' | 'fov'>('entry');
+  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  const [gridSizeMeterInput, setGridSizeMeterInput] = useState('');
+  const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
+  const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -1975,34 +2035,10 @@ const FloorPlansDetailPage = () => {
     deviceId: string,
     location: string,
     position: { x: number; y: number },
-    rect?: ZoneRect | null,
   ) => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
-    if (type === 'cctv') {
-      // TODO: 아직 실제 API(POST /cctvs)에 연동 안 됨 — 시야 구역을 그리드 셀 id 목록으로 선택하는
-      // UI가 새로 필요해서 별도로 다뤄야 함(cctvApi.createCctv 참고). 지금은 로컬 상태에만 반영됨
-      if (!rect || rect.w <= 0 || rect.h <= 0) return;
-      const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
-      const label = deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`;
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id: `added-cctv-${Date.now()}`,
-          type: 'cctv',
-          placeType: 'cctv',
-          label,
-          x: position.x,
-          y: position.y,
-          status: 'online',
-          zone: location || '사용자 등록',
-        },
-      ]);
-      setZones((prev) => [
-        ...prev,
-        { id: `zone-${Date.now()}`, type: 'camera', label: `${label} 시야 구역`, rect },
-      ]);
-    } else if (type === 'door' || type === 'stair') {
+    if (type === 'door' || type === 'stair') {
       const x = Math.round(((position.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
       const y = Math.round(((position.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
       if (currentFloor) {
@@ -2074,33 +2110,89 @@ const FloorPlansDetailPage = () => {
     setNodeAddOpen(false);
   };
 
-  // 입력 단계 제출 — CCTV는 시야 구역 지정 단계로, 나머지는 바로 확정
+  // 입력 단계 제출 — CCTV는 그리드 유무에 따라 그리드설정/시야구역 단계로, 나머지는 바로 확정
   const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
-      setNodeAddStage('fov');
+      setNodeAddStage(floorGridCells.length === 0 ? 'grid-setup' : 'fov');
       return;
     }
     finalizeNodePlacement(type, deviceId, location, nodeStagedPosition);
   };
 
-  // 시야 구역 단계에서 뒤로 — 입력 단계로 돌아가되 이미 지정한 위치는 유지
+  // 그리드설정/시야구역 단계에서 뒤로 — 입력 단계로 돌아가되 이미 지정한 위치는 유지
   const handleNodeAddBack = () => {
     setNodeAddStage('entry');
     setZoneDraftRect(null);
+    setCctvDraftCellIds([]);
   };
 
-  const handleFinalizeFov = (deviceId: string, location: string) => {
-    if (!nodeStagedPosition) return;
-    finalizeNodePlacement('cctv', deviceId, location, nodeStagedPosition, zoneDraftRect);
+  const handleGridSetup = () => {
+    if (!currentFloor) return;
+    const cellSizeMeter = Number(gridSizeMeterInput);
+    if (!(cellSizeMeter > 0)) return;
+    setFloorGrid(currentFloor.id, cellSizeMeter)
+      .then(() => getFloorGridCells(currentFloor.id))
+      .then((cells) => {
+        setFloorGridCells(cells);
+        setNodeAddStage('fov');
+      })
+      .catch(() => {});
+  };
+
+  const handleGridCellToggle = (cellId: string) => {
+    setCctvDraftCellIds((prev) =>
+      prev.includes(cellId) ? prev.filter((id) => id !== cellId) : [...prev, cellId],
+    );
+  };
+
+  const handleFinalizeFov = (deviceId: string) => {
+    if (!nodeStagedPosition || !currentFloor || cctvDraftCellIds.length === 0) return;
+    const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
+    const label = deviceId || `CCTV-${String(count).padStart(2, '0')}`;
+    createCctv({
+      floorId: currentFloor.id,
+      name: label,
+      x: nodeStagedPosition.x / 100,
+      y: nodeStagedPosition.y / 100,
+      gridCellIds: cctvDraftCellIds,
+    })
+      .then((newCctv) => {
+        setRealCctvs((prev) => [...prev, newCctv]);
+        setAddedDevices((prev) => [
+          ...prev,
+          {
+            id: newCctv.id,
+            type: 'cctv',
+            placeType: 'cctv',
+            label: newCctv.name,
+            x: nodeStagedPosition.x,
+            y: nodeStagedPosition.y,
+            status: 'online',
+            zone: `모니터링 ${newCctv.monitoredGridCellCount}칸 · ${newCctv.monitoredAreaM2}㎡`,
+          },
+        ]);
+        setNodeAddStage('entry');
+        setNodeStagedPosition(null);
+        setZoneDraftRect(null);
+        setCctvDraftCellIds([]);
+        setNodeAddOpen(false);
+      })
+      .catch(() => {});
   };
 
   const handleZoneDragEnd = () => {
     const rect = zoneDraftRectRef.current;
-    if (editingCctvZoneId) {
+    if (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') {
       if (rect && rect.w > 0 && rect.h > 0) {
-        const zoneId = editingCctvZoneId;
-        setZones((prev) => prev.map((z) => (z.id === zoneId ? { ...z, rect } : z)));
+        const overlapping = floorGridCells.filter((cell) => {
+          const cx = cell.centerX * 560;
+          const cy = cell.centerY * 420;
+          return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
+        });
+        setCctvDraftCellIds((prev) =>
+          Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])),
+        );
       }
       setZoneDraftRect(null);
     }
@@ -2131,20 +2223,6 @@ const FloorPlansDetailPage = () => {
     } else {
       setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
     }
-  };
-
-  // 카메라 시야 구역을 도면에서 클릭하면 카메라 시야는 별도 카드가 없으므로 연결된 CCTV 장비를 선택
-  const handleCctvZoneClick = (zoneId: string) => {
-    const zone = zones.find((z) => z.id === zoneId);
-    if (!zone) return;
-    const cctvLabel = zone.label.replace(/ 시야 구역$/, '');
-    const floorDevice = floor?.devices.find((d) => d.type === 'cctv' && d.label === cctvLabel);
-    const addedDevice = addedDevices.find((d) => d.type === 'cctv' && d.label === cctvLabel);
-    const device = floorDevice ?? (addedDevice as unknown as DeviceMarker | undefined);
-    if (!device) return;
-    setSelectedItem({ kind: 'device', data: device });
-    setSelectedZoneRef(null);
-    setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
   };
 
   // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
@@ -2219,7 +2297,6 @@ const FloorPlansDetailPage = () => {
   const handleStartEditStructure = (id: string) => {
     setNodeAddOpen(false);
     setZoneAddOpen(false);
-    setEditingCctvZoneId(null);
     setEditingStructureId((prev) => (prev === id ? null : id));
   };
 
@@ -2248,17 +2325,10 @@ const FloorPlansDetailPage = () => {
     setZones((prev) => prev.filter((z) => z.id !== id));
   };
 
-  const selectedCctvZoneId =
-    selectedItem?.kind === 'device' && selectedItem.data.type === 'cctv'
-      ? (zones.find(
-          (z) => z.type === 'camera' && z.label === `${selectedItem.data.label} 시야 구역`,
-        )?.id ?? null)
-      : null;
-
   const isNodeSelected = (id: string) =>
     selectedZoneRef?.kind === 'node' && selectedZoneRef.id === id;
   const isZoneSelected = (id: string) =>
-    (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) || selectedCctvZoneId === id;
+    selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id;
 
   const renderStructureCard = (n: StructureNode) => {
     const isStair = n.type === 'stair';
@@ -2442,6 +2512,28 @@ const FloorPlansDetailPage = () => {
     label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
   }));
 
+  // 그리드 셀 하나의 SVG 픽셀 크기 — 셀 중심점 간 간격으로 역산
+  const gridCellPxSize = (() => {
+    if (floorGridCells.length === 0) return { w: 20, h: 20 };
+    const maxCol = Math.max(...floorGridCells.map((c) => c.columnIndex));
+    const maxRow = Math.max(...floorGridCells.map((c) => c.rowIndex));
+    return { w: 560 / (maxCol + 1), h: 420 / (maxRow + 1) };
+  })();
+
+  const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' =
+    nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov'
+      ? 'selecting'
+      : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
+        ? 'viewing'
+        : 'hidden';
+
+  const selectedGridCellIds =
+    cctvGridCellsMode === 'selecting'
+      ? cctvDraftCellIds
+      : cctvGridCellsMode === 'viewing' && selectedItem?.kind === 'device'
+        ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
+        : [];
+
   const isPanelItemSelected = (item: PanelItem) =>
     selectedItem?.kind === 'device'
       ? item.kind === 'device' && selectedItem.data.id === item.id
@@ -2473,16 +2565,9 @@ const FloorPlansDetailPage = () => {
     }
     setEditForm({ label: item.label, zone: item.zone });
     setEditingItemId(item.id);
-    if (item.type === 'cctv') {
-      const zone = zones.find((z) => z.type === 'camera' && z.label === `${item.label} 시야 구역`);
-      setEditingCctvZoneId(zone?.id ?? null);
-    } else {
-      setEditingCctvZoneId(null);
-    }
   };
 
   const handleSaveEdit = (item: PanelItem) => {
-    const oldLabel = item.label;
     const newLabel = editForm.label;
     if (item.source === 'floor') {
       setFloor((prev) =>
@@ -2508,15 +2593,6 @@ const FloorPlansDetailPage = () => {
         }
       }
     }
-    if (item.type === 'cctv' && newLabel !== oldLabel) {
-      setZones((prev) =>
-        prev.map((z) =>
-          z.type === 'camera' && z.label === `${oldLabel} 시야 구역`
-            ? { ...z, label: `${newLabel} 시야 구역` }
-            : z,
-        ),
-      );
-    }
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
       setSelectedItem({
         kind: 'device',
@@ -2524,7 +2600,6 @@ const FloorPlansDetailPage = () => {
       });
     }
     setEditingItemId(null);
-    setEditingCctvZoneId(null);
   };
 
   const handlePanelItemDelete = (item: PanelItem) => {
@@ -2718,7 +2793,10 @@ const FloorPlansDetailPage = () => {
                 onTypeChange={setNodeAddType}
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
-                hasDraftRect={!!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0}
+                selectedCellCount={cctvDraftCellIds.length}
+                gridSizeMeterInput={gridSizeMeterInput}
+                onGridSizeMeterInputChange={setGridSizeMeterInput}
+                onGridSetup={handleGridSetup}
                 onCancel={() => setNodeAddOpen(false)}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
@@ -2752,11 +2830,7 @@ const FloorPlansDetailPage = () => {
                 editMode={editMode}
                 editingItemId={editingItemId}
                 placingActive={nodeAddOpen}
-                zoneAddActive={
-                  zoneAddOpen ||
-                  !!editingCctvZoneId ||
-                  (nodeAddType === 'cctv' && nodeAddStage === 'fov')
-                }
+                zoneAddActive={zoneAddOpen || (nodeAddType === 'cctv' && nodeAddStage === 'fov')}
                 zoneDraftRect={zoneDraftRect}
                 onZoneDraftChange={setZoneDraftRect}
                 onZoneDragEnd={handleZoneDragEnd}
@@ -2774,8 +2848,11 @@ const FloorPlansDetailPage = () => {
                 onEdgeDelete={handleEdgeDelete}
                 selectedZoneRef={selectedZoneRef}
                 onZoneRefSelect={handleZoneRefSelectFromMap}
-                selectedCctvZoneId={selectedCctvZoneId}
-                onCctvZoneClick={handleCctvZoneClick}
+                cctvGridCellsMode={cctvGridCellsMode}
+                floorGridCells={floorGridCells}
+                selectedGridCellIds={selectedGridCellIds}
+                gridCellPxSize={gridCellPxSize}
+                onGridCellToggle={handleGridCellToggle}
                 stagedCameraPosition={nodeStagedPosition}
                 poiMarkers={poiMarkers}
                 editingPoiId={editingPoiId}
