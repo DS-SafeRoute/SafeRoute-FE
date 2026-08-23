@@ -17,7 +17,12 @@ import StatusBadge from '@components/chip/StatusBadge';
 import { formatFloor } from '@utils/floor';
 
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
-import { getFloorGraph } from './api/mapGraphApi';
+import {
+  createMapNode,
+  deleteMapNode,
+  getFloorGraph,
+  updateMapNodePosition,
+} from './api/mapGraphApi';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -168,6 +173,7 @@ const MockFloorMap3F = ({
   structureNodes,
   editingStructureId,
   onStructureNodeMove,
+  onStructureNodeMoveEnd,
   graphNodes,
   graphEdges,
   selectedZoneRef,
@@ -193,6 +199,7 @@ const MockFloorMap3F = ({
   graphEdges: MapEdge[];
   editingStructureId: string | null;
   onStructureNodeMove: (id: string, x: number, y: number) => void;
+  onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
   selectedCctvZoneId: string | null;
@@ -267,15 +274,18 @@ const MockFloorMap3F = ({
     structureDragMovedRef.current = false;
     const svgEl = e.currentTarget.ownerSVGElement;
     if (!svgEl) return;
+    let lastPoint: { x: number; y: number } | null = null;
 
     const onMove = (mv: MouseEvent) => {
       structureDragMovedRef.current = true;
       const point = svgPoint(mv.clientX, mv.clientY, svgEl);
+      lastPoint = point;
       onStructureNodeMove(structureId, point.x, point.y);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (lastPoint) onStructureNodeMoveEnd(structureId, lastPoint.x, lastPoint.y);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1085,6 +1095,7 @@ const FloorCanvas = ({
   structureNodes,
   editingStructureId,
   onStructureNodeMove,
+  onStructureNodeMoveEnd,
   graphNodes,
   graphEdges,
   selectedZoneRef,
@@ -1124,6 +1135,7 @@ const FloorCanvas = ({
   structureNodes: StructureNode[];
   editingStructureId: string | null;
   onStructureNodeMove: (id: string, x: number, y: number) => void;
+  onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
   graphNodes: MapNode[];
   graphEdges: MapEdge[];
   selectedZoneRef: ZoneRefSelection | null;
@@ -1179,6 +1191,7 @@ const FloorCanvas = ({
         structureNodes={structureNodes}
         editingStructureId={editingStructureId}
         onStructureNodeMove={onStructureNodeMove}
+        onStructureNodeMoveEnd={onStructureNodeMoveEnd}
         graphNodes={graphNodes}
         graphEdges={graphEdges}
         selectedZoneRef={selectedZoneRef}
@@ -1681,10 +1694,25 @@ const FloorPlansDetailPage = () => {
     } else if (type === 'door' || type === 'stair') {
       const x = Math.round(((position.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
       const y = Math.round(((position.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
-      setStructureNodes((prev) => [
-        ...prev,
-        { id: `${type}-${Date.now()}`, type, x, y, isFinalExit: false },
-      ]);
+      if (currentFloor) {
+        const apiType = type === 'door' ? 'DOOR' : 'STAIR';
+        const count = structureNodes.filter((n) => n.type === type).length + 1;
+        createMapNode(currentFloor.id, {
+          code: `${apiType}-${Date.now()}`,
+          type: apiType,
+          name: `${cfg.label} ${count}`,
+          x: x / 560,
+          y: y / 420,
+          isExitTarget: false,
+        })
+          .then((newNode) => {
+            setStructureNodes((prev) => [
+              ...prev,
+              { id: newNode.id, type, x, y, isFinalExit: false },
+            ]);
+          })
+          .catch(() => {});
+      }
     } else {
       const count = addedDevices.filter((d) => d.type === 'iot').length + 1;
       setAddedDevices((prev) => [
@@ -1781,13 +1809,22 @@ const FloorPlansDetailPage = () => {
     setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
   };
 
+  // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
   const handleStructureNodeMove = (id: string, x: number, y: number) => {
     setStructureNodes((prev) => prev.map((n) => (n.id === id ? { ...n, x, y } : n)));
   };
 
+  const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
+    updateMapNodePosition(id, { x: x / 560, y: y / 420 }).catch(() => {});
+  };
+
   const handleStructureNodeDelete = (id: string) => {
-    setStructureNodes((prev) => prev.filter((n) => n.id !== id));
-    setEditingStructureId((prev) => (prev === id ? null : prev));
+    deleteMapNode(id)
+      .then(() => {
+        setStructureNodes((prev) => prev.filter((n) => n.id !== id));
+        setEditingStructureId((prev) => (prev === id ? null : prev));
+      })
+      .catch(() => {});
   };
 
   const handleStartEditStructure = (id: string) => {
@@ -2272,6 +2309,7 @@ const FloorPlansDetailPage = () => {
                 structureNodes={structureNodes}
                 editingStructureId={editingStructureId}
                 onStructureNodeMove={handleStructureNodeMove}
+                onStructureNodeMoveEnd={handleStructureNodeMoveEnd}
                 graphNodes={graphNodes}
                 graphEdges={graphEdges}
                 selectedZoneRef={selectedZoneRef}
