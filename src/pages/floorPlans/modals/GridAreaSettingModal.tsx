@@ -20,7 +20,7 @@ const GridAreaSettingModal = ({
 }: GridAreaSettingModalProps) => {
   const [realWidth, setRealWidth] = useState('');
   const [realHeight, setRealHeight] = useState('');
-  const [cellSizeMeter, setCellSizeMeter] = useState('1');
+  const [cellSizeMeter, setCellSizeMeter] = useState(1);
   const widthInputId = useId();
   const heightInputId = useId();
   const cellSizeInputId = useId();
@@ -34,12 +34,11 @@ const GridAreaSettingModal = ({
   const handleClose = () => {
     setRealWidth('');
     setRealHeight('');
-    setCellSizeMeter('1');
+    setCellSizeMeter(1);
     onClose();
   };
 
-  const isDimensionsValid =
-    Number(realWidth) > 0 && Number(realHeight) > 0 && Number(cellSizeMeter) > 0;
+  const isDimensionsValid = Number(realWidth) > 0 && Number(realHeight) > 0 && cellSizeMeter > 0;
 
   const handleSubmit = () => {
     if (!isDimensionsValid) return;
@@ -47,12 +46,12 @@ const GridAreaSettingModal = ({
     onConfirm({
       realWidth: Number(realWidth),
       realHeight: Number(realHeight),
-      cellSizeMeter: Number(cellSizeMeter),
+      cellSizeMeter,
     });
   };
 
   // 실제 축척과 무관한 미리보기 전용 근사치 — 정확한 격자는 업로드 후 실제 캔버스에서 확인 가능
-  const cellSize = Math.max(6, Math.min(120, (Number(cellSizeMeter) || 1) * 20));
+  const cellSize = Math.max(6, Math.min(120, cellSizeMeter * 20));
 
   return (
     <Modal
@@ -135,22 +134,23 @@ const GridAreaSettingModal = ({
 
         <div className={styles.divider} />
 
-        <div className={styles.areaField}>
-          <label className={styles.fieldLabel} htmlFor={cellSizeInputId}>
-            그리드 셀 크기 (m)
-          </label>
-          <div className={styles.areaInputShell}>
-            <input
-              id={cellSizeInputId}
-              className={styles.areaInput}
-              type="text"
-              inputMode="decimal"
-              placeholder="1"
-              value={cellSizeMeter}
-              onChange={makeDimensionChangeHandler(setCellSizeMeter)}
-            />
-            <span className={styles.areaUnit}>m</span>
+        <div className={styles.scaleField}>
+          <div className={styles.scaleLabelRow}>
+            <label className={styles.fieldLabel} htmlFor={cellSizeInputId}>
+              그리드 셀 크기
+            </label>
+            <span className={styles.scaleValue}>{cellSizeMeter.toFixed(1)}m</span>
           </div>
+          <input
+            id={cellSizeInputId}
+            type="range"
+            className={styles.scaleSlider}
+            min={0.1}
+            max={5}
+            step={0.1}
+            value={cellSizeMeter}
+            onChange={(e) => setCellSizeMeter(Number(e.target.value))}
+          />
         </div>
       </div>
     </Modal>

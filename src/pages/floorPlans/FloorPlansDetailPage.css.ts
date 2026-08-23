@@ -123,6 +123,44 @@ export const canvasActionButtonActive = style({
   color: vars.color.primary,
 });
 
+export const gridSizeLabelRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+
+export const gridSizeValue = style({
+  color: vars.color.primary,
+  ...vars.typography.body14Medium,
+});
+
+export const gridSizeSlider = style({
+  appearance: 'none',
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray100,
+  cursor: 'pointer',
+  width: '100%',
+  height: '0.6rem',
+  selectors: {
+    '&::-webkit-slider-thumb': {
+      appearance: 'none',
+      borderRadius: '50%',
+      backgroundColor: vars.color.primary,
+      cursor: 'pointer',
+      width: '1.6rem',
+      height: '1.6rem',
+    },
+    '&::-moz-range-thumb': {
+      border: 'none',
+      borderRadius: '50%',
+      backgroundColor: vars.color.primary,
+      cursor: 'pointer',
+      width: '1.6rem',
+      height: '1.6rem',
+    },
+  },
+});
+
 export const gridSetupPopup = style({
   position: 'absolute',
   zIndex: 15,

@@ -875,20 +875,23 @@ const NodeAddPopup = ({
           <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
         </div>
         <span className={styles.nodeAddHint}>
-          이 층에는 아직 그리드가 없어요. 셀 크기(m)를 입력하고 설정해주세요.
+          이 층에는 아직 그리드가 없어요. 셀 크기를 정하고 설정해주세요.
         </span>
         <div className={styles.nodeAddField}>
-          <span className={styles.nodeAddLabel}>셀 크기(m)</span>
+          <div className={styles.gridSizeLabelRow}>
+            <span className={styles.nodeAddLabel}>셀 크기</span>
+            <span className={styles.gridSizeValue}>
+              {Number(gridSizeMeterInput || 1).toFixed(1)}m
+            </span>
+          </div>
           <input
-            className={styles.nodeAddInput}
-            type="text"
-            inputMode="decimal"
-            value={gridSizeMeterInput}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) onGridSizeMeterInputChange(raw);
-            }}
-            placeholder="1"
+            type="range"
+            className={styles.gridSizeSlider}
+            min={0.1}
+            max={5}
+            step={0.1}
+            value={Number(gridSizeMeterInput || 1)}
+            onChange={(e) => onGridSizeMeterInputChange(e.target.value)}
           />
         </div>
         <div className={styles.nodeAddActions}>
@@ -1761,7 +1764,7 @@ const FloorPlansDetailPage = () => {
   const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
   const [showGridOverlay, setShowGridOverlay] = useState(false);
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
-  const [gridSizeMeterInput, setGridSizeMeterInput] = useState('');
+  const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
@@ -2833,20 +2836,23 @@ const FloorPlansDetailPage = () => {
               <div className={styles.gridSetupPopup} onClick={(e) => e.stopPropagation()}>
                 <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
                 <span className={styles.nodeAddHint}>
-                  이 층에는 아직 그리드가 없어요. 셀 크기(m)를 입력하고 설정해주세요.
+                  이 층에는 아직 그리드가 없어요. 셀 크기를 정하고 설정해주세요.
                 </span>
                 <div className={styles.nodeAddField}>
-                  <span className={styles.nodeAddLabel}>셀 크기(m)</span>
+                  <div className={styles.gridSizeLabelRow}>
+                    <span className={styles.nodeAddLabel}>셀 크기</span>
+                    <span className={styles.gridSizeValue}>
+                      {Number(gridSizeMeterInput || 1).toFixed(1)}m
+                    </span>
+                  </div>
                   <input
-                    className={styles.nodeAddInput}
-                    type="text"
-                    inputMode="decimal"
-                    value={gridSizeMeterInput}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setGridSizeMeterInput(raw);
-                    }}
-                    placeholder="1"
+                    type="range"
+                    className={styles.gridSizeSlider}
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    value={Number(gridSizeMeterInput || 1)}
+                    onChange={(e) => setGridSizeMeterInput(e.target.value)}
                   />
                 </div>
                 <div className={styles.nodeAddActions}>
