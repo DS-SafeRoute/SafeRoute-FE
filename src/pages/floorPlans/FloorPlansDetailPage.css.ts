@@ -310,6 +310,7 @@ export const nodeTypeDot = style({
 });
 
 export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
+export const nodeTypeDotStair = style({ backgroundColor: zoneStairColor });
 export const nodeTypeDotIot = style({ backgroundColor: vars.color.success });
 export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
 
