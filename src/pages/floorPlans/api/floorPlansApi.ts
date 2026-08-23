@@ -1,6 +1,6 @@
 import { getBuildings } from '@pages/buildings/api/buildingsApi';
 
-import type { CreateFloorRequest, FloorResponse } from '@apis/__generated__/data-contracts';
+import type { FloorResponse } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
@@ -66,11 +66,12 @@ export async function getFloorBuildings(): Promise<FloorBuilding[]> {
 }
 
 // 도면 이미지 없이 층 번호만 먼저 등록 — 새 건물처럼 층이 하나도 없을 때 업로드 카드가 뜰 자리를 만들기 위함
+// 이 엔드포인트는 스웨거상 requestBody가 없고 floorNum을 쿼리 파라미터로 받음(JSON body 아님)
 export async function createFloor(buildingId: string, floorNum: number): Promise<Floor> {
-  const floor = await apiRequest<FloorResponse, CreateFloorRequest>({
+  const floor = await apiRequest<FloorResponse>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.FLOORS.ROOT(buildingId),
-    body: { floorNum },
+    query: { floorNum },
   });
   return toFloor(floor, buildingId);
 }

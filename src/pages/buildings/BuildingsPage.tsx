@@ -1,9 +1,13 @@
 import { useState } from 'react';
 
+import { isAxiosError } from 'axios';
+
 import type {
   CreateBuildingRequest,
   UpdateBuildingRequest,
 } from '@apis/__generated__/data-contracts';
+import { ApiError } from '@apis/errors/apiError';
+import type { BaseResponse } from '@apis/types/baseResponse';
 
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
@@ -32,6 +36,18 @@ type ModalState =
   | { type: 'edit'; building: Building }
   | { type: 'delete'; building: Building }
   | null;
+
+// 실패 원인을 토스트에도 보여줘서, 재현했을 때 개발자도구 없이도 바로 원인을 알 수 있게 함
+// (request.ts는 HTTP 에러 상태코드가 오면 실제 서버 메시지 대신 고정 문구로 덮어써서 콘솔에도 안 남으므로,
+// 여기서는 axios 에러의 원본 응답 바디를 직접 읽어서 진짜 서버 메시지를 보여줌)
+const describeError = (error: unknown): string => {
+  if (error instanceof ApiError) return `${error.message} (${error.code})`;
+  if (isAxiosError<BaseResponse<unknown>>(error)) {
+    const serverMessage = error.response?.data?.message;
+    if (serverMessage) return `${serverMessage} (HTTP ${error.response?.status})`;
+  }
+  return '알 수 없는 오류';
+};
 
 interface FloorSyncTarget {
   buildingId: string;
@@ -66,8 +82,13 @@ const BuildingsPage = () => {
           description: `${body.name}이(가) 등록되었습니다.`,
           variant: 'success',
         });
-        createInitialFloors(newBuilding.id, body.totalFloors).catch(() => {
-          show({ title: '층 목록 생성에 실패했습니다.', variant: 'error' });
+        createInitialFloors(newBuilding.id, body.totalFloors).catch((error) => {
+          if (import.meta.env.DEV) console.error('[createInitialFloors]', error);
+          show({
+            title: '층 목록 생성에 실패했습니다.',
+            description: describeError(error),
+            variant: 'error',
+          });
         });
       },
       onError: () => {
@@ -96,8 +117,13 @@ const BuildingsPage = () => {
             description: `${body.name} 정보가 업데이트되었습니다.`,
             variant: 'success',
           });
-          applyFloorSync(plan).catch(() => {
-            show({ title: '층 목록 동기화에 실패했습니다.', variant: 'error' });
+          applyFloorSync(plan).catch((error) => {
+            if (import.meta.env.DEV) console.error('[applyFloorSync]', error);
+            show({
+              title: '층 목록 동기화에 실패했습니다.',
+              description: describeError(error),
+              variant: 'error',
+            });
           });
         },
         onError: () => {

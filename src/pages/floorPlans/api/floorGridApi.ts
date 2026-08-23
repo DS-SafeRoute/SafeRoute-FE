@@ -53,8 +53,8 @@ export async function setFloorGrid(floorId: string, cellSizeMeter: number): Prom
 }
 
 // 편집 화면에서 전체 그리드를 한 번에 보여줘야 해서, 셀이 페이지 크기를 넘는 큰 그리드도
-// 놓치지 않도록 마지막 페이지까지 이어서 가져옴
-const GRID_CELLS_PAGE_SIZE = 5000;
+// 놓치지 않도록 마지막 페이지까지 이어서 가져옴 (스웨거상 size 최대값이 2000이라 그 이하로 설정)
+const GRID_CELLS_PAGE_SIZE = 2000;
 
 export async function getFloorGridCells(floorId: string): Promise<FloorGridCell[]> {
   const cells: FloorGridCell[] = [];
