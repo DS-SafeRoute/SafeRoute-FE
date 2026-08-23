@@ -17,11 +17,13 @@ import StatusBadge from '@components/chip/StatusBadge';
 import { formatFloor } from '@utils/floor';
 
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
+import { getFloorGraph } from './api/mapGraphApi';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 
+import type { MapEdge, MapNode } from './api/mapGraphApi';
 import type {
   AiLayer,
   DeviceMarker,
@@ -99,6 +101,14 @@ const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   stair: '계단',
 };
 
+// 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
+const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> = {
+  ROOM: '#9ca3af',
+  HALLWAY: '#9ca3af',
+  EXIT: '#16a34a',
+  CUSTOM: '#7c3aed',
+};
+
 type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
 const GRID_SIZE = 20;
@@ -137,15 +147,6 @@ const buildDefaultCctvZoneRect = (device: DeviceMarker): ZoneRect => {
 const isSameRect = (a: ZoneRect, b: ZoneRect): boolean =>
   a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
-const INITIAL_STRUCTURE_NODES: StructureNode[] = [
-  { id: 'door-1', type: 'door', x: 110, y: 220, isFinalExit: false },
-  { id: 'door-2', type: 'door', x: 280, y: 220, isFinalExit: false },
-  { id: 'door-3', type: 'door', x: 360, y: 140, isFinalExit: false },
-  { id: 'door-4', type: 'door', x: 450, y: 260, isFinalExit: false },
-  { id: 'door-5', type: 'door', x: 360, y: 400, isFinalExit: false },
-  { id: 'stair-1', type: 'stair', x: 440, y: 340, isFinalExit: false },
-];
-
 const GRID_LINES_X = Array.from(
   { length: Math.floor(FLOOR_BOUNDS.w / GRID_SIZE) + 1 },
   (_, i) => FLOOR_BOUNDS.x + i * GRID_SIZE,
@@ -167,6 +168,8 @@ const MockFloorMap3F = ({
   structureNodes,
   editingStructureId,
   onStructureNodeMove,
+  graphNodes,
+  graphEdges,
   selectedZoneRef,
   onZoneRefSelect,
   selectedCctvZoneId,
@@ -186,6 +189,8 @@ const MockFloorMap3F = ({
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
   structureNodes: StructureNode[];
+  graphNodes: MapNode[];
+  graphEdges: MapEdge[];
   editingStructureId: string | null;
   onStructureNodeMove: (id: string, x: number, y: number) => void;
   selectedZoneRef: ZoneRefSelection | null;
@@ -200,6 +205,11 @@ const MockFloorMap3F = ({
 }) => {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const structureDragMovedRef = useRef(false);
+
+  // 엣지(선) 양 끝 좌표를 찾기 위한 노드 id → SVG 좌표 조회 (구조 노드 + 그 외 그래프 노드 통합)
+  const nodePositionById = new Map<string, { x: number; y: number }>();
+  structureNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x, y: n.y }));
+  graphNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x * 560, y: n.y * 420 }));
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -343,6 +353,53 @@ const MockFloorMap3F = ({
             strokeWidth="2"
           />
         ))}
+
+      {/* 맵그래프 엣지 (조회 전용) */}
+      {aiLayers.room &&
+        graphEdges.map((edge) => {
+          const from = nodePositionById.get(edge.fromNodeId);
+          const to = nodePositionById.get(edge.toNodeId);
+          if (!from || !to) return null;
+          return (
+            <line
+              key={edge.id}
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke="#9ca3af"
+              strokeWidth="1.5"
+              strokeDasharray="3 3"
+              style={{ pointerEvents: 'none' }}
+            />
+          );
+        })}
+
+      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM (조회 전용, 편집은 다음 단계에서) */}
+      {aiLayers.room &&
+        graphNodes.map((n) => {
+          const x = n.x * 560;
+          const y = n.y * 420;
+          const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
+          return (
+            <g key={n.id} style={{ pointerEvents: 'none' }}>
+              <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
+              {n.type === 'EXIT' && (
+                <text
+                  x={x}
+                  y={y - 12}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontWeight="700"
+                  fill={color}
+                  fontFamily="sans-serif"
+                >
+                  {n.name}
+                </text>
+              )}
+            </g>
+          );
+        })}
 
       {/* 구조 노드 — 계단 · 문/출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
       {aiLayers.room &&
@@ -1028,6 +1085,8 @@ const FloorCanvas = ({
   structureNodes,
   editingStructureId,
   onStructureNodeMove,
+  graphNodes,
+  graphEdges,
   selectedZoneRef,
   onZoneRefSelect,
   selectedCctvZoneId,
@@ -1065,6 +1124,8 @@ const FloorCanvas = ({
   structureNodes: StructureNode[];
   editingStructureId: string | null;
   onStructureNodeMove: (id: string, x: number, y: number) => void;
+  graphNodes: MapNode[];
+  graphEdges: MapEdge[];
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
   selectedCctvZoneId: string | null;
@@ -1118,6 +1179,8 @@ const FloorCanvas = ({
         structureNodes={structureNodes}
         editingStructureId={editingStructureId}
         onStructureNodeMove={onStructureNodeMove}
+        graphNodes={graphNodes}
+        graphEdges={graphEdges}
         selectedZoneRef={selectedZoneRef}
         onZoneRefSelect={onZoneRefSelect}
         selectedCctvZoneId={selectedCctvZoneId}
@@ -1314,6 +1377,32 @@ const FloorPlansDetailPage = () => {
     };
   }, [buildingId, floorId]);
 
+  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorGraph(floorId)
+      .then((graph) => {
+        if (cancelled) return;
+        const structureFromGraph: StructureNode[] = graph.nodes
+          .filter((n) => n.type === 'DOOR' || n.type === 'STAIR')
+          .map((n) => ({
+            id: n.id,
+            type: n.type === 'DOOR' ? 'door' : 'stair',
+            x: Math.round(n.x * 560),
+            y: Math.round(n.y * 420),
+            isFinalExit: n.isExitTarget,
+          }));
+        setStructureNodes(structureFromGraph);
+        setGraphNodes(graph.nodes.filter((n) => n.type !== 'DOOR' && n.type !== 'STAIR'));
+        setGraphEdges(graph.edges);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
   // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
   useEffect(() => {
     if (!floor) return;
@@ -1378,7 +1467,9 @@ const FloorPlansDetailPage = () => {
   const [selectedPoiType] = useState<PoiType>('exit');
   const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
-  const [structureNodes, setStructureNodes] = useState<StructureNode[]>(INITIAL_STRUCTURE_NODES);
+  const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
+  const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
+  const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
@@ -2181,6 +2272,8 @@ const FloorPlansDetailPage = () => {
                 structureNodes={structureNodes}
                 editingStructureId={editingStructureId}
                 onStructureNodeMove={handleStructureNodeMove}
+                graphNodes={graphNodes}
+                graphEdges={graphEdges}
                 selectedZoneRef={selectedZoneRef}
                 onZoneRefSelect={handleZoneRefSelectFromMap}
                 selectedCctvZoneId={selectedCctvZoneId}
