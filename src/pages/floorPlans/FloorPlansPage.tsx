@@ -12,6 +12,7 @@ import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
+import { setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
@@ -186,12 +187,15 @@ const FloorPlansPage = () => {
   const handleUploadDimensionsConfirm = (params: {
     realWidth: number;
     realHeight: number;
-    gridScale: number;
+    cellSizeMeter: number;
   }) => {
     if (!pendingUpload) return;
     const { buildingId, buildingName, floorNum, file, previewUrl } = pendingUpload;
     uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
       .then((newFloor) => {
+        setFloorGrid(newFloor.id, params.cellSizeMeter).catch(() => {
+          show({ title: '그리드 설정에 실패했습니다.', variant: 'error' });
+        });
         setBuildings((prev) =>
           prev.map((b) => {
             if (b.id !== buildingId) return b;

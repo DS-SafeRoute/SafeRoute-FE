@@ -7,6 +7,7 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
+import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
@@ -202,7 +203,7 @@ const MockFloorMap3F = ({
   onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing';
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing';
   floorGridCells: FloorGridCell[];
   selectedGridCellIds: string[];
   gridCellPxSize: { w: number; h: number };
@@ -537,13 +538,15 @@ const MockFloorMap3F = ({
         );
       })}
 
-      {/* CCTV 그리드 셀 — 신규 등록 중(선택 가능) 또는 선택된 기존 CCTV의 감시 영역(조회 전용) */}
+      {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능), 선택된 기존 CCTV의 감시 영역(조회 전용),
+          또는 그리드 표시 토글이 켜진 경우(전체 조회 전용) */}
       {cctvGridCellsMode !== 'hidden' &&
         floorGridCells.map((cell) => {
           const cx = cell.centerX * 560;
           const cy = cell.centerY * 420;
           const isSelected = selectedGridCellIds.includes(cell.id);
           if (cctvGridCellsMode === 'viewing' && !isSelected) return null;
+          const isBrowsing = cctvGridCellsMode === 'browsing';
           return (
             <rect
               key={cell.id}
@@ -551,8 +554,14 @@ const MockFloorMap3F = ({
               y={cy - gridCellPxSize.h / 2}
               width={gridCellPxSize.w}
               height={gridCellPxSize.h}
-              fill={isSelected ? 'rgba(139,92,246,0.35)' : 'rgba(139,92,246,0.04)'}
-              stroke="#8b5cf6"
+              fill={
+                isSelected
+                  ? 'rgba(139,92,246,0.35)'
+                  : isBrowsing
+                    ? 'transparent'
+                    : 'rgba(139,92,246,0.04)'
+              }
+              stroke={isBrowsing ? 'rgba(107,114,128,0.35)' : '#8b5cf6'}
               strokeWidth={isSelected ? '1.5' : '0.5'}
               style={{
                 cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
@@ -1328,7 +1337,7 @@ const FloorCanvas = ({
   onEdgeDelete: (id: string) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing';
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing';
   floorGridCells: FloorGridCell[];
   selectedGridCellIds: string[];
   gridCellPxSize: { w: number; h: number };
@@ -1750,6 +1759,7 @@ const FloorPlansDetailPage = () => {
   const [zoneEditLabel, setZoneEditLabel] = useState('');
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'grid-setup' | 'fov'>('entry');
   const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  const [showGridOverlay, setShowGridOverlay] = useState(false);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
@@ -1967,7 +1977,7 @@ const FloorPlansDetailPage = () => {
   const handleUploadDimensionsConfirm = (params: {
     realWidth: number;
     realHeight: number;
-    gridScale: number;
+    cellSizeMeter: number;
   }) => {
     if (!currentFloor || !pendingUpload) return;
     const { file, previewUrl } = pendingUpload;
@@ -1990,6 +2000,10 @@ const FloorPlansDetailPage = () => {
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         analyzeFloor(newFloor.id).catch(() => {});
+        setFloorGrid(newFloor.id, params.cellSizeMeter)
+          .then(() => getFloorGridCells(newFloor.id))
+          .then(setFloorGridCells)
+          .catch(() => {});
       })
       .catch(() => {
         // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
@@ -2522,12 +2536,14 @@ const FloorPlansDetailPage = () => {
     return { w: 560 / (maxCol + 1), h: 420 / (maxRow + 1) };
   })();
 
-  const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' =
+  const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || editingCctvId
       ? 'selecting'
       : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
         ? 'viewing'
-        : 'hidden';
+        : showGridOverlay
+          ? 'browsing'
+          : 'hidden';
 
   const selectedGridCellIds =
     cctvGridCellsMode === 'selecting'
@@ -2715,6 +2731,18 @@ const FloorPlansDetailPage = () => {
             {/* 장비 추가 / 구역 추가 */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <div className={styles.canvasActionFloat}>
+                <button
+                  type="button"
+                  className={clsx(
+                    styles.canvasActionButton,
+                    showGridOverlay && styles.canvasActionButtonActive,
+                  )}
+                  aria-pressed={showGridOverlay}
+                  onClick={() => setShowGridOverlay((v) => !v)}
+                >
+                  <LayersIcon width={14} height={14} />
+                  그리드 표시
+                </button>
                 <button
                   type="button"
                   className={styles.canvasActionButton}

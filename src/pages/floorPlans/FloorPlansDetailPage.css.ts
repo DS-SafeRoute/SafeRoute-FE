@@ -117,6 +117,12 @@ export const canvasActionButton = style({
   },
 });
 
+export const canvasActionButtonActive = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+});
+
 /* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({

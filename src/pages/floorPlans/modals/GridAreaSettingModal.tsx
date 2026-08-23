@@ -9,11 +9,8 @@ interface GridAreaSettingModalProps {
   open: boolean;
   onClose: () => void;
   mapImageUrl: string | null;
-  onConfirm: (params: { realWidth: number; realHeight: number; gridScale: number }) => void;
+  onConfirm: (params: { realWidth: number; realHeight: number; cellSizeMeter: number }) => void;
 }
-
-const MIN_SCALE = 1;
-const MAX_SCALE = 10;
 
 const GridAreaSettingModal = ({
   open,
@@ -23,10 +20,10 @@ const GridAreaSettingModal = ({
 }: GridAreaSettingModalProps) => {
   const [realWidth, setRealWidth] = useState('');
   const [realHeight, setRealHeight] = useState('');
-  const [gridScale, setGridScale] = useState(5);
+  const [cellSizeMeter, setCellSizeMeter] = useState('1');
   const widthInputId = useId();
   const heightInputId = useId();
-  const scaleSliderId = useId();
+  const cellSizeInputId = useId();
 
   const makeDimensionChangeHandler =
     (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,26 +31,28 @@ const GridAreaSettingModal = ({
       if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setter(raw);
     };
 
-  const handleScaleStep = (delta: number) => {
-    setGridScale((prev) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta)));
-  };
-
   const handleClose = () => {
     setRealWidth('');
     setRealHeight('');
-    setGridScale(5);
+    setCellSizeMeter('1');
     onClose();
   };
 
-  const isDimensionsValid = Number(realWidth) > 0 && Number(realHeight) > 0;
+  const isDimensionsValid =
+    Number(realWidth) > 0 && Number(realHeight) > 0 && Number(cellSizeMeter) > 0;
 
   const handleSubmit = () => {
     if (!isDimensionsValid) return;
     // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
-    onConfirm({ realWidth: Number(realWidth), realHeight: Number(realHeight), gridScale });
+    onConfirm({
+      realWidth: Number(realWidth),
+      realHeight: Number(realHeight),
+      cellSizeMeter: Number(cellSizeMeter),
+    });
   };
 
-  const cellSize = 20 + gridScale * 4;
+  // 실제 축척과 무관한 미리보기 전용 근사치 — 정확한 격자는 업로드 후 실제 캔버스에서 확인 가능
+  const cellSize = Math.max(6, Math.min(120, (Number(cellSizeMeter) || 1) * 20));
 
   return (
     <Modal
@@ -136,38 +135,21 @@ const GridAreaSettingModal = ({
 
         <div className={styles.divider} />
 
-        <div className={styles.scaleField}>
-          <label className={styles.fieldLabel} htmlFor={scaleSliderId}>
-            그리드 배율
+        <div className={styles.areaField}>
+          <label className={styles.fieldLabel} htmlFor={cellSizeInputId}>
+            그리드 셀 크기 (m)
           </label>
-          <div className={styles.scaleControls}>
-            <button
-              type="button"
-              className={styles.scaleButton}
-              aria-label="그리드 배율 감소"
-              disabled={gridScale <= MIN_SCALE}
-              onClick={() => handleScaleStep(-1)}
-            >
-              −
-            </button>
+          <div className={styles.areaInputShell}>
             <input
-              id={scaleSliderId}
-              type="range"
-              className={styles.scaleSlider}
-              min={MIN_SCALE}
-              max={MAX_SCALE}
-              value={gridScale}
-              onChange={(e) => setGridScale(Number(e.target.value))}
+              id={cellSizeInputId}
+              className={styles.areaInput}
+              type="text"
+              inputMode="decimal"
+              placeholder="1"
+              value={cellSizeMeter}
+              onChange={makeDimensionChangeHandler(setCellSizeMeter)}
             />
-            <button
-              type="button"
-              className={styles.scaleButton}
-              aria-label="그리드 배율 증가"
-              disabled={gridScale >= MAX_SCALE}
-              onClick={() => handleScaleStep(1)}
-            >
-              +
-            </button>
+            <span className={styles.areaUnit}>m</span>
           </div>
         </div>
       </div>
