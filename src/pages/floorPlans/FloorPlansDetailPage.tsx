@@ -1297,11 +1297,11 @@ const FloorPlansDetailPage = () => {
 
   // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
   useEffect(() => {
-    if (!floorId) return;
+    if (!buildingId || !floorId) return;
     let cancelled = false;
     setFloor(null);
     setLoadingFloor(true);
-    getFloorDetail(floorId)
+    getFloorDetail(buildingId, floorId)
       .then((data) => {
         if (!cancelled) setFloor(data);
       })
@@ -1312,7 +1312,7 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [floorId]);
+  }, [buildingId, floorId]);
 
   // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
   useEffect(() => {
@@ -1511,7 +1511,7 @@ const FloorPlansDetailPage = () => {
   }) => {
     if (!currentFloor) return;
     segmentFloor(currentFloor.id, params)
-      .then(() => getFloorDetail(currentFloor.id))
+      .then(() => getFloorDetail(currentFloor.buildingId, currentFloor.id))
       .then(setFloor)
       .finally(() => {
         if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);

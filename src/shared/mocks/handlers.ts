@@ -5,29 +5,7 @@ import { mockFloorBuildings } from '@pages/floorPlans/mocks/floorPlansData';
 const BASE = '/api/v1';
 
 export const handlers = [
-  /* ── 건물 목록 ── */
-  http.get(`${BASE}/buildings`, () => {
-    const buildings = mockFloorBuildings.map(({ id, name }) => ({ id, name }));
-    return HttpResponse.json({ data: buildings });
-  }),
-
-  /* ── 건물별 도면 목록 ── */
-  http.get(`${BASE}/floors`, ({ request }) => {
-    const buildingId = new URL(request.url).searchParams.get('buildingId');
-    const building = mockFloorBuildings.find((b) => b.id === buildingId);
-    if (!building) return HttpResponse.json({ data: [] });
-    return HttpResponse.json({ data: building.floors });
-  }),
-
-  /* ── 도면 상세 조회 ── */
-  http.get(`${BASE}/floors/:floorId`, ({ params }) => {
-    const floorId = String(params.floorId);
-    for (const building of mockFloorBuildings) {
-      const floor = building.floors.find((f) => f.id === floorId);
-      if (floor) return HttpResponse.json({ data: floor });
-    }
-    return HttpResponse.json({ error: 'not found' }, { status: 404 });
-  }),
+  // 건물 목록/도면 조회는 실제 API로 연동돼서 관련 mock 핸들러 제거함 (건물관리 페이지 실제 API와 충돌 방지)
 
   /* ── 도면 업로드 ── */
   http.post(`${BASE}/floors`, async ({ request }) => {
