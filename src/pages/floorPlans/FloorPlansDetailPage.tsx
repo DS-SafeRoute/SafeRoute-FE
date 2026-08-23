@@ -558,11 +558,11 @@ const MockFloorMap3F = ({
                 isSelected
                   ? 'rgba(139,92,246,0.35)'
                   : isBrowsing
-                    ? 'transparent'
+                    ? 'rgba(107,114,128,0.05)'
                     : 'rgba(139,92,246,0.04)'
               }
-              stroke={isBrowsing ? 'rgba(107,114,128,0.35)' : '#8b5cf6'}
-              strokeWidth={isSelected ? '1.5' : '0.5'}
+              stroke={isBrowsing ? 'rgba(75,85,99,0.6)' : '#8b5cf6'}
+              strokeWidth={isSelected ? '1.5' : isBrowsing ? '1' : '0.5'}
               style={{
                 cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
                 pointerEvents: cctvGridCellsMode === 'selecting' ? 'auto' : 'none',
@@ -2171,7 +2171,8 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   };
 
-  // 그리드 표시 토글 — 이 층에 아직 그리드가 없으면 셀 크기를 입력받아 먼저 생성
+  // 그리드 표시 토글 — 업로드 시점에 이미 그리드가 만들어졌을 수 있어 로컬 state만 믿지 않고
+  // 서버에서 다시 한번 확인한 뒤에만 "그리드 없음" 설정 팝업을 띄움
   const handleToggleGridOverlay = () => {
     if (showGridOverlay) {
       setShowGridOverlay(false);
@@ -2181,8 +2182,21 @@ const FloorPlansDetailPage = () => {
       setShowGridOverlay(true);
       return;
     }
-    setGridSizeMeterInput('1');
-    setGridSetupPromptOpen(true);
+    if (!currentFloor) return;
+    getFloorGridCells(currentFloor.id)
+      .then((cells) => {
+        if (cells.length > 0) {
+          setFloorGridCells(cells);
+          setShowGridOverlay(true);
+          return;
+        }
+        setGridSizeMeterInput('1');
+        setGridSetupPromptOpen(true);
+      })
+      .catch(() => {
+        setGridSizeMeterInput('1');
+        setGridSetupPromptOpen(true);
+      });
   };
 
   const handleGridSetupPromptConfirm = () => {
