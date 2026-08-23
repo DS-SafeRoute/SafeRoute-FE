@@ -1,4 +1,5 @@
 import type {
+  CreateMapEdgeRequest,
   CreateMapNodeRequest,
   FloorGraphResponse,
   MapEdgeResponse,
@@ -87,5 +88,21 @@ export async function deleteMapNode(nodeId: string): Promise<void> {
   await apiRequest<void>({
     method: HTTP_METHOD.DELETE,
     url: API_ENDPOINTS.MAP_GRAPH.NODE(nodeId),
+  });
+}
+
+export async function createMapEdge(body: CreateMapEdgeRequest): Promise<MapEdge> {
+  const edge = await apiRequest<MapEdgeResponse, CreateMapEdgeRequest>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.MAP_GRAPH.CREATE_EDGE,
+    body,
+  });
+  return toMapEdge(edge);
+}
+
+export async function deleteMapEdge(edgeId: string): Promise<void> {
+  await apiRequest<void>({
+    method: HTTP_METHOD.DELETE,
+    url: API_ENDPOINTS.MAP_GRAPH.EDGE(edgeId),
   });
 }

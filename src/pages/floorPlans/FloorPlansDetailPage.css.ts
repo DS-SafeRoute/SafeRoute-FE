@@ -173,6 +173,15 @@ export const nodeAddLabel = style({
   ...vars.typography.caption,
 });
 
+export const edgeBidirectionalField = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+  cursor: 'pointer',
+  color: vars.color.textMid,
+  ...vars.typography.body14,
+});
+
 export const deviceTypeChips = style({
   display: 'flex',
   flexWrap: 'wrap',

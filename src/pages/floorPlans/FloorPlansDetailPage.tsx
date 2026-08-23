@@ -20,7 +20,9 @@ import { getFloorCctvs } from './api/cctvApi';
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
 import { createIoTLight, getFloorLights, updateIoTLight } from './api/iotLightsApi';
 import {
+  createMapEdge,
   createMapNode,
+  deleteMapEdge,
   deleteMapNode,
   getFloorGraph,
   updateMapNodePosition,
@@ -178,6 +180,11 @@ const MockFloorMap3F = ({
   onStructureNodeMoveEnd,
   graphNodes,
   graphEdges,
+  edgeAddActive,
+  onNodeClickForEdge,
+  selectedEdgeId,
+  onEdgeSelect,
+  onEdgeDelete,
   selectedZoneRef,
   onZoneRefSelect,
   selectedCctvZoneId,
@@ -199,6 +206,11 @@ const MockFloorMap3F = ({
   structureNodes: StructureNode[];
   graphNodes: MapNode[];
   graphEdges: MapEdge[];
+  edgeAddActive: boolean;
+  onNodeClickForEdge: (id: string) => void;
+  selectedEdgeId: string | null;
+  onEdgeSelect: (id: string) => void;
+  onEdgeDelete: (id: string) => void;
   editingStructureId: string | null;
   onStructureNodeMove: (id: string, x: number, y: number) => void;
   onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
@@ -294,7 +306,7 @@ const MockFloorMap3F = ({
   };
 
   const svgCursor =
-    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive
+    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive || edgeAddActive
       ? 'crosshair'
       : 'default';
 
@@ -366,35 +378,88 @@ const MockFloorMap3F = ({
           />
         ))}
 
-      {/* 맵그래프 엣지 (조회 전용) */}
+      {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
       {aiLayers.room &&
         graphEdges.map((edge) => {
           const from = nodePositionById.get(edge.fromNodeId);
           const to = nodePositionById.get(edge.toNodeId);
           if (!from || !to) return null;
+          const isSelected = selectedEdgeId === edge.id;
+          const canSelect = !edgeAddActive && !placingActive && !zoneAddActive;
+          const midX = (from.x + to.x) / 2;
+          const midY = (from.y + to.y) / 2;
           return (
-            <line
-              key={edge.id}
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
-              stroke="#9ca3af"
-              strokeWidth="1.5"
-              strokeDasharray="3 3"
-              style={{ pointerEvents: 'none' }}
-            />
+            <g key={edge.id}>
+              <line
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke="transparent"
+                strokeWidth="10"
+                style={{
+                  cursor: canSelect ? 'pointer' : 'default',
+                  pointerEvents: canSelect ? 'stroke' : 'none',
+                }}
+                onClick={(e) => {
+                  if (!canSelect) return;
+                  e.stopPropagation();
+                  onEdgeSelect(edge.id);
+                }}
+              />
+              <line
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke={isSelected ? '#2563eb' : '#9ca3af'}
+                strokeWidth={isSelected ? '2.5' : '1.5'}
+                strokeDasharray="3 3"
+                style={{ pointerEvents: 'none' }}
+              />
+              {isSelected && (
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdgeDelete(edge.id);
+                  }}
+                >
+                  <circle cx={midX} cy={midY} r="8" fill="#ef4444" />
+                  <text
+                    x={midX}
+                    y={midY + 3}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fontWeight="700"
+                    fill="white"
+                    fontFamily="sans-serif"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    ×
+                  </text>
+                </g>
+              )}
+            </g>
           );
         })}
 
-      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM (조회 전용, 편집은 다음 단계에서) */}
+      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능 */}
       {aiLayers.room &&
         graphNodes.map((n) => {
           const x = n.x * 560;
           const y = n.y * 420;
           const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
           return (
-            <g key={n.id} style={{ pointerEvents: 'none' }}>
+            <g
+              key={n.id}
+              style={{ pointerEvents: edgeAddActive ? 'auto' : 'none', cursor: 'pointer' }}
+              onClick={(e) => {
+                if (!edgeAddActive) return;
+                e.stopPropagation();
+                onNodeClickForEdge(n.id);
+              }}
+            >
               <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
               {n.type === 'EXIT' && (
                 <text
@@ -426,6 +491,10 @@ const MockFloorMap3F = ({
               onMouseDown={(e) => handleStructureMouseDown(e, n.id)}
               onClick={(e) => {
                 e.stopPropagation();
+                if (edgeAddActive) {
+                  onNodeClickForEdge(n.id);
+                  return;
+                }
                 if (structureDragMovedRef.current) {
                   structureDragMovedRef.current = false;
                   return;
@@ -989,6 +1058,77 @@ const ZoneAddPopup = ({
   );
 };
 
+/* ── 엣지 연결 팝업 — 두 노드를 클릭해서 고른 뒤 거리·양방향 여부를 입력 ── */
+const EdgeAddPopup = ({
+  containerRef,
+  fromLabel,
+  toLabel,
+  onCancel,
+  onSave,
+}: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  fromLabel: string;
+  toLabel: string;
+  onCancel: () => void;
+  onSave: (distance: number, bidirectional: boolean) => void;
+}) => {
+  const [distance, setDistance] = useState('');
+  const [bidirectional, setBidirectional] = useState(true);
+
+  const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setDistance(raw);
+  };
+
+  const isValid = Number(distance) > 0;
+
+  return (
+    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.nodeAddHeader}>
+        <span className={styles.nodeAddTitle}>엣지 연결</span>
+      </div>
+      <span className={styles.nodeAddHint}>
+        {fromLabel} → {toLabel}
+      </span>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>거리(m)</span>
+        <input
+          className={styles.nodeAddInput}
+          type="text"
+          inputMode="decimal"
+          value={distance}
+          onChange={handleDistanceChange}
+          placeholder="3.5"
+        />
+      </div>
+
+      <label className={styles.edgeBidirectionalField}>
+        <input
+          type="checkbox"
+          checked={bidirectional}
+          onChange={(e) => setBidirectional(e.target.checked)}
+        />
+        양방향 통행 가능
+      </label>
+
+      <div className={styles.nodeAddActions}>
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={styles.nodeAddSubmitBtn}
+          disabled={!isValid}
+          onClick={() => onSave(Number(distance), bidirectional)}
+        >
+          추가
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /* ── 장비 카드 ── */
 const DeviceCard = ({
   item,
@@ -1106,6 +1246,11 @@ const FloorCanvas = ({
   onStructureNodeMoveEnd,
   graphNodes,
   graphEdges,
+  edgeAddActive,
+  onNodeClickForEdge,
+  selectedEdgeId,
+  onEdgeSelect,
+  onEdgeDelete,
   selectedZoneRef,
   onZoneRefSelect,
   selectedCctvZoneId,
@@ -1147,6 +1292,11 @@ const FloorCanvas = ({
   onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
   graphNodes: MapNode[];
   graphEdges: MapEdge[];
+  edgeAddActive: boolean;
+  onNodeClickForEdge: (id: string) => void;
+  selectedEdgeId: string | null;
+  onEdgeSelect: (id: string) => void;
+  onEdgeDelete: (id: string) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
   selectedCctvZoneId: string | null;
@@ -1204,6 +1354,11 @@ const FloorCanvas = ({
         onStructureNodeMoveEnd={onStructureNodeMoveEnd}
         graphNodes={graphNodes}
         graphEdges={graphEdges}
+        edgeAddActive={edgeAddActive}
+        onNodeClickForEdge={onNodeClickForEdge}
+        selectedEdgeId={selectedEdgeId}
+        onEdgeSelect={onEdgeSelect}
+        onEdgeDelete={onEdgeDelete}
         selectedZoneRef={selectedZoneRef}
         onZoneRefSelect={onZoneRefSelect}
         selectedCctvZoneId={selectedCctvZoneId}
@@ -1527,6 +1682,10 @@ const FloorPlansDetailPage = () => {
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
+  const [edgeAddOpen, setEdgeAddOpen] = useState(false);
+  const [edgeDraftFromId, setEdgeDraftFromId] = useState<string | null>(null);
+  const [edgeDraftToId, setEdgeDraftToId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   const [zoneDraftRect, setZoneDraftRectState] = useState<ZoneRect | null>(null);
   const zoneDraftRectRef = useRef<ZoneRect | null>(null);
@@ -1583,6 +1742,7 @@ const FloorPlansDetailPage = () => {
   const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodePopupRef = useRef<HTMLDivElement>(null);
   const zonePopupRef = useRef<HTMLDivElement>(null);
+  const edgePopupRef = useRef<HTMLDivElement>(null);
   const mapWrapRef = useRef<HTMLDivElement>(null);
   const devicePanelRef = useRef<HTMLDivElement>(null);
 
@@ -1928,6 +2088,57 @@ const FloorPlansDetailPage = () => {
       .then(() => {
         setStructureNodes((prev) => prev.filter((n) => n.id !== id));
         setEditingStructureId((prev) => (prev === id ? null : prev));
+      })
+      .catch(() => {});
+  };
+
+  // 노드 id로 표시용 라벨 조회 (구조 노드 + 그 외 그래프 노드 통합)
+  const getGraphNodeLabel = (id: string): string => {
+    const structureNode = structureNodes.find((n) => n.id === id);
+    if (structureNode) return STRUCTURE_NODE_LABEL[structureNode.type];
+    const graphNode = graphNodes.find((n) => n.id === id);
+    return graphNode?.name ?? id;
+  };
+
+  const handleEdgeNodeClick = (nodeId: string) => {
+    if (!edgeDraftFromId) {
+      setEdgeDraftFromId(nodeId);
+      return;
+    }
+    if (nodeId === edgeDraftFromId) return;
+    setEdgeDraftToId(nodeId);
+  };
+
+  const handleCancelEdgeDraft = () => {
+    setEdgeDraftFromId(null);
+    setEdgeDraftToId(null);
+    setEdgeAddOpen(false);
+  };
+
+  const handleCreateEdge = (distance: number, bidirectional: boolean) => {
+    if (!edgeDraftFromId || !edgeDraftToId) return;
+    createMapEdge({
+      fromNodeId: edgeDraftFromId,
+      toNodeId: edgeDraftToId,
+      distance,
+      bidirectional,
+    })
+      .then((newEdge) => {
+        setGraphEdges((prev) => [...prev, newEdge]);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setEdgeDraftFromId(null);
+        setEdgeDraftToId(null);
+        setEdgeAddOpen(false);
+      });
+  };
+
+  const handleEdgeDelete = (edgeId: string) => {
+    deleteMapEdge(edgeId)
+      .then(() => {
+        setGraphEdges((prev) => prev.filter((e) => e.id !== edgeId));
+        setSelectedEdgeId((prev) => (prev === edgeId ? null : prev));
       })
       .catch(() => {});
   };
@@ -2366,7 +2577,55 @@ const FloorPlansDetailPage = () => {
                   <PlusIcon width={14} height={14} />
                   구역 추가
                 </button>
+                <button
+                  type="button"
+                  className={styles.canvasActionButton}
+                  onClick={() => {
+                    setNodeAddOpen(false);
+                    setZoneAddOpen(false);
+                    setSelectedEdgeId(null);
+                    setEdgeAddOpen((v) => {
+                      if (v) {
+                        setEdgeDraftFromId(null);
+                        setEdgeDraftToId(null);
+                      }
+                      return !v;
+                    });
+                  }}
+                >
+                  <PlusIcon width={14} height={14} />
+                  엣지 연결
+                </button>
               </div>
+            )}
+
+            {edgeAddOpen && edgeDraftFromId && !edgeDraftToId && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '0.8rem',
+                  left: '0.8rem',
+                  zIndex: 5,
+                  background: 'white',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.6rem',
+                  padding: '0.6rem 1rem',
+                  fontSize: '1.2rem',
+                  color: '#374151',
+                }}
+              >
+                연결할 두 번째 노드를 클릭해주세요
+              </div>
+            )}
+
+            {edgeAddOpen && edgeDraftFromId && edgeDraftToId && (
+              <EdgeAddPopup
+                containerRef={edgePopupRef}
+                fromLabel={getGraphNodeLabel(edgeDraftFromId)}
+                toLabel={getGraphNodeLabel(edgeDraftToId)}
+                onCancel={handleCancelEdgeDraft}
+                onSave={handleCreateEdge}
+              />
             )}
 
             {nodeAddOpen && (
@@ -2425,6 +2684,11 @@ const FloorPlansDetailPage = () => {
                 onStructureNodeMoveEnd={handleStructureNodeMoveEnd}
                 graphNodes={graphNodes}
                 graphEdges={graphEdges}
+                edgeAddActive={edgeAddOpen}
+                onNodeClickForEdge={handleEdgeNodeClick}
+                selectedEdgeId={selectedEdgeId}
+                onEdgeSelect={setSelectedEdgeId}
+                onEdgeDelete={handleEdgeDelete}
                 selectedZoneRef={selectedZoneRef}
                 onZoneRefSelect={handleZoneRefSelectFromMap}
                 selectedCctvZoneId={selectedCctvZoneId}
