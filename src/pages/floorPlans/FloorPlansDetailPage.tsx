@@ -16,7 +16,13 @@ import StatusBadge from '@components/chip/StatusBadge';
 
 import { formatFloor } from '@utils/floor';
 
-import { createCctv, getFloorCctvs } from './api/cctvApi';
+import {
+  configureCctvGridCells,
+  createCctv,
+  disableCctv,
+  enableCctv,
+  getFloorCctvs,
+} from './api/cctvApi';
 import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
 import {
@@ -38,6 +44,7 @@ import {
   updateMapNodePosition,
 } from './api/mapGraphApi';
 import * as styles from './FloorPlansDetailPage.css';
+import CctvSettingsModal from './modals/CctvSettingsModal';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
@@ -1280,7 +1287,7 @@ const DeviceCard = ({
           수정
         </button>
       )}
-      {item.type === 'light' && (
+      {(item.type === 'light' || item.type === 'cctv') && (
         <button
           type="button"
           className={styles.deviceCardEditBtn}
@@ -1797,6 +1804,8 @@ const FloorPlansDetailPage = () => {
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
   const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
+  const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
+  const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
@@ -1825,9 +1834,61 @@ const FloorPlansDetailPage = () => {
     updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
   };
 
-  const handleOpenLightSettings = (item: PanelItem) => {
-    const light = iotLights.find((l) => l.id === item.id);
-    if (light) setLightSettingsTarget(light);
+  const handleOpenDeviceSettings = (item: PanelItem) => {
+    if (item.type === 'light') {
+      const light = iotLights.find((l) => l.id === item.id);
+      if (light) setLightSettingsTarget(light);
+    } else if (item.type === 'cctv') {
+      const cctv = realCctvs.find((c) => c.id === item.id);
+      if (cctv) setCctvSettingsTarget(cctv);
+    }
+  };
+
+  const handleCctvToggleEnabled = (enabled: boolean) => {
+    if (!cctvSettingsTarget) return;
+    const request = enabled ? enableCctv : disableCctv;
+    request(cctvSettingsTarget.id)
+      .then((updated) => {
+        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setCctvSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
+
+  const handleStartEditCctvCells = () => {
+    if (!cctvSettingsTarget) return;
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEdgeAddOpen(false);
+    setEditingCctvId(cctvSettingsTarget.id);
+    setCctvDraftCellIds(cctvSettingsTarget.gridCells.map((c) => c.id));
+    setCctvSettingsTarget(null);
+  };
+
+  const handleCancelEditCctvCells = () => {
+    setEditingCctvId(null);
+    setCctvDraftCellIds([]);
+  };
+
+  const handleSaveEditCctvCells = () => {
+    if (!editingCctvId || cctvDraftCellIds.length === 0) return;
+    configureCctvGridCells(editingCctvId, cctvDraftCellIds)
+      .then((updated) => {
+        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setAddedDevices((prev) =>
+          prev.map((d) =>
+            d.id === updated.id
+              ? {
+                  ...d,
+                  zone: `모니터링 ${updated.monitoredGridCellCount}칸 · ${updated.monitoredAreaM2}㎡`,
+                }
+              : d,
+          ),
+        );
+        setEditingCctvId(null);
+        setCctvDraftCellIds([]);
+      })
+      .catch(() => {});
   };
 
   const handleLightToggleEnabled = (enabled: boolean) => {
@@ -2183,7 +2244,9 @@ const FloorPlansDetailPage = () => {
 
   const handleZoneDragEnd = () => {
     const rect = zoneDraftRectRef.current;
-    if (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') {
+    const cctvCellSelecting =
+      (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || !!editingCctvId;
+    if (cctvCellSelecting) {
       if (rect && rect.w > 0 && rect.h > 0) {
         const overlapping = floorGridCells.filter((cell) => {
           const cx = cell.centerX * 560;
@@ -2521,7 +2584,7 @@ const FloorPlansDetailPage = () => {
   })();
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' =
-    nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov'
+    (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || editingCctvId
       ? 'selecting'
       : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
         ? 'viewing'
@@ -2786,6 +2849,43 @@ const FloorPlansDetailPage = () => {
               />
             )}
 
+            {editingCctvId && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '0.8rem',
+                  left: '0.8rem',
+                  zIndex: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  background: 'white',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.6rem',
+                  padding: '0.6rem 1rem',
+                  fontSize: '1.2rem',
+                  color: '#374151',
+                }}
+              >
+                <span>감시 영역 편집 중 · {cctvDraftCellIds.length}칸 선택됨</span>
+                <button
+                  type="button"
+                  className={styles.nodeAddCancelBtn}
+                  onClick={handleCancelEditCctvCells}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className={styles.nodeAddSubmitBtn}
+                  disabled={cctvDraftCellIds.length === 0}
+                  onClick={handleSaveEditCctvCells}
+                >
+                  저장
+                </button>
+              </div>
+            )}
+
             {nodeAddOpen && (
               <NodeAddPopup
                 containerRef={nodePopupRef}
@@ -2830,7 +2930,11 @@ const FloorPlansDetailPage = () => {
                 editMode={editMode}
                 editingItemId={editingItemId}
                 placingActive={nodeAddOpen}
-                zoneAddActive={zoneAddOpen || (nodeAddType === 'cctv' && nodeAddStage === 'fov')}
+                zoneAddActive={
+                  zoneAddOpen ||
+                  (nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
+                  !!editingCctvId
+                }
                 zoneDraftRect={zoneDraftRect}
                 onZoneDraftChange={setZoneDraftRect}
                 onZoneDragEnd={handleZoneDragEnd}
@@ -3029,7 +3133,7 @@ const FloorPlansDetailPage = () => {
                       onStartEdit={handleStartEdit}
                       onSaveEdit={handleSaveEdit}
                       onDelete={handlePanelItemDelete}
-                      onOpenSettings={handleOpenLightSettings}
+                      onOpenSettings={handleOpenDeviceSettings}
                     />
                   ))}
 
@@ -3085,6 +3189,16 @@ const FloorPlansDetailPage = () => {
           onDirectionChange={handleLightDirectionChange}
           onGuidanceSave={handleLightGuidanceSave}
           onPiEndpointSave={handleLightPiEndpointSave}
+        />
+      )}
+
+      {cctvSettingsTarget && (
+        <CctvSettingsModal
+          open
+          onClose={() => setCctvSettingsTarget(null)}
+          cctv={cctvSettingsTarget}
+          onToggleEnabled={handleCctvToggleEnabled}
+          onEditCells={handleStartEditCctvCells}
         />
       )}
     </>

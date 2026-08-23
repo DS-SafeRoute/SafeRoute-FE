@@ -94,3 +94,19 @@ export async function configureCctvGridCells(cctvId: string, gridCellIds: string
   });
   return toCctv(cctv);
 }
+
+export async function enableCctv(cctvId: string): Promise<Cctv> {
+  const cctv = await apiRequest<CctvResponse>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.CCTV.ENABLE(cctvId),
+  });
+  return toCctv(cctv);
+}
+
+export async function disableCctv(cctvId: string): Promise<Cctv> {
+  const cctv = await apiRequest<CctvResponse>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.CCTV.DISABLE(cctvId),
+  });
+  return toCctv(cctv);
+}
