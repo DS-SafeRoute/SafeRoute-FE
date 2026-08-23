@@ -1,8 +1,9 @@
 import { createFloor, deleteFloor, getBuildingFloors } from '@pages/floorPlans/api/floorPlansApi';
 import type { Floor } from '@pages/floorPlans/types/floorPlans';
 
-// TODO: 지상/지하 층수가 백엔드에 별도 필드로 추가되면, 지금은 1층~totalFloors를 전부 지상층으로
-// 취급하는 이 로직을 지상/지하 구간을 나눠서 층 번호를 매기는 방식으로 고쳐야 함
+// 알려진 제약: 지상/지하 구분 필드가 아직 백엔드에 없어서, 지금은 1층~totalFloors를 전부 지상층으로
+// 취급함. 백엔드에 필드 추가 요청해둔 상태(scratchpad/backend_questions.md #7) — 필드가 생기면
+// 지상/지하 구간을 나눠서 층 번호를 매기는 방식으로 이 로직 전체를 다시 설계해야 함
 export interface FloorSyncPlan {
   buildingId: string;
   toCreateFloorNums: number[];

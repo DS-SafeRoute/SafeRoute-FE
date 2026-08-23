@@ -10,6 +10,7 @@ interface GridAreaSettingModalProps {
   onClose: () => void;
   mapImageUrl: string | null;
   onConfirm: (params: { realWidth: number; realHeight: number; cellSizeMeter: number }) => void;
+  isSubmitting?: boolean;
 }
 
 const GridAreaSettingModal = ({
@@ -17,6 +18,7 @@ const GridAreaSettingModal = ({
   onClose,
   mapImageUrl,
   onConfirm,
+  isSubmitting = false,
 }: GridAreaSettingModalProps) => {
   const [realWidth, setRealWidth] = useState('');
   const [realHeight, setRealHeight] = useState('');
@@ -28,7 +30,8 @@ const GridAreaSettingModal = ({
   const makeDimensionChangeHandler =
     (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setter(raw);
+      // 중간 입력 상태("20.", ".5")도 허용해서 타이핑이 막히지 않게 함
+      if (raw === '' || /^\d*(\.\d*)?$/.test(raw)) setter(raw);
     };
 
   const handleClose = () => {
@@ -41,7 +44,7 @@ const GridAreaSettingModal = ({
   const isDimensionsValid = Number(realWidth) > 0 && Number(realHeight) > 0 && cellSizeMeter > 0;
 
   const handleSubmit = () => {
-    if (!isDimensionsValid) return;
+    if (!isDimensionsValid || isSubmitting) return;
     // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
     onConfirm({
       realWidth: Number(realWidth),
@@ -62,12 +65,18 @@ const GridAreaSettingModal = ({
       description="도면의 실제 가로/세로 길이와 그리드 배율을 입력하면 다음 단계에서 도면이 자동 분석됩니다"
       footer={
         <div className={styles.footer}>
-          <Button variant="ghost" className={styles.cancelButton} onClick={handleClose}>
+          <Button
+            variant="ghost"
+            className={styles.cancelButton}
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
             취소
           </Button>
           <Button
             className={styles.confirmButton}
-            disabled={!isDimensionsValid}
+            disabled={!isDimensionsValid || isSubmitting}
+            isLoading={isSubmitting}
             onClick={handleSubmit}
           >
             입력하기

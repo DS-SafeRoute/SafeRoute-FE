@@ -14,6 +14,7 @@ import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
@@ -1573,6 +1574,7 @@ const FloorCanvas = ({
 const FloorPlansDetailPage = () => {
   const navigate = useNavigate();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
+  const { show } = useToast();
 
   const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
   const [floor, setFloor] = useState<Floor | null>(null);
@@ -1721,6 +1723,14 @@ const FloorPlansDetailPage = () => {
   const [pendingUpload, setPendingUpload] = useState<{ file: File; previewUrl: string } | null>(
     null,
   );
+  const [isReuploading, setIsReuploading] = useState(false);
+
+  // 미리보기 objectURL이 명시적으로 취소/제출되지 않고 화면을 벗어나는 경우를 대비한 안전망
+  useEffect(() => {
+    return () => {
+      if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    };
+  }, [pendingUpload]);
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
@@ -1996,8 +2006,9 @@ const FloorPlansDetailPage = () => {
     realHeight: number;
     cellSizeMeter: number;
   }) => {
-    if (!currentFloor || !pendingUpload) return;
+    if (!currentFloor || !pendingUpload || isReuploading) return;
     const { file, previewUrl } = pendingUpload;
+    setIsReuploading(true);
     uploadFloor(
       selectedBuildingId,
       currentFloor.floorNum,
@@ -2005,7 +2016,16 @@ const FloorPlansDetailPage = () => {
       params.realWidth,
       params.realHeight,
     )
-      .then((newFloor) => {
+      .then(async (newFloor) => {
+        try {
+          await setFloorGrid(newFloor.id, params.cellSizeMeter);
+          setFloorGridCells(await getFloorGridCells(newFloor.id));
+        } catch {
+          show({
+            title: '그리드 설정에 실패했습니다. "그리드 표시" 토글에서 다시 설정해주세요.',
+            variant: 'error',
+          });
+        }
         setFloorBuildings((prev) =>
           prev.map((b) =>
             b.id !== selectedBuildingId
@@ -2016,14 +2036,15 @@ const FloorPlansDetailPage = () => {
         setFloor(newFloor);
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
-        analyzeFloor(newFloor.id).catch(() => {});
-        setFloorGrid(newFloor.id, params.cellSizeMeter)
-          .then(() => getFloorGridCells(newFloor.id))
-          .then(setFloorGridCells)
-          .catch(() => {});
+        setIsReuploading(false);
+        analyzeFloor(newFloor.id).catch(() => {
+          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        });
       })
       .catch(() => {
         // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        setIsReuploading(false);
+        show({ title: '업로드에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
       });
   };
 
@@ -3235,6 +3256,7 @@ const FloorPlansDetailPage = () => {
           onClose={handleCloseUploadDimensionsModal}
           mapImageUrl={pendingUpload.previewUrl}
           onConfirm={handleUploadDimensionsConfirm}
+          isSubmitting={isReuploading}
         />
       )}
 

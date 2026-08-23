@@ -54,16 +54,25 @@ interface FloorSummary {
   processedAt: string | null;
 }
 
-type UploadTarget = { buildingId: string; buildingName: string; floorId: string; floorNum: number };
-type FloorActionTarget = { buildingId: string; buildingName: string; floor: FloorSummary };
-type PendingUpload = {
+interface UploadTarget {
+  buildingId: string;
+  buildingName: string;
+  floorId: string;
+  floorNum: number;
+}
+interface FloorActionTarget {
+  buildingId: string;
+  buildingName: string;
+  floor: FloorSummary;
+}
+interface PendingUpload {
   buildingId: string;
   buildingName: string;
   floorId: string;
   floorNum: number;
   file: File;
   previewUrl: string;
-};
+}
 
 interface FloorCardProps {
   floor: FloorSummary;
@@ -147,6 +156,14 @@ const FloorPlansPage = () => {
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // 미리보기 objectURL이 명시적으로 취소/제출되지 않고 화면을 벗어나는 경우(뒤로가기 등)를 대비한 안전망
+  useEffect(() => {
+    return () => {
+      if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    };
+  }, [pendingUpload]);
 
   useEffect(() => {
     setLoading(true);
@@ -189,13 +206,21 @@ const FloorPlansPage = () => {
     realHeight: number;
     cellSizeMeter: number;
   }) => {
-    if (!pendingUpload) return;
+    if (!pendingUpload || isUploading) return;
     const { buildingId, buildingName, floorNum, file, previewUrl } = pendingUpload;
+    setIsUploading(true);
     uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
-      .then((newFloor) => {
-        setFloorGrid(newFloor.id, params.cellSizeMeter).catch(() => {
-          show({ title: '그리드 설정에 실패했습니다.', variant: 'error' });
-        });
+      .then(async (newFloor) => {
+        // 그리드 생성을 기다리지 않고 바로 상세 화면으로 넘어가면, 상세 화면의 1회성 그리드 조회가
+        // 그리드가 채 만들어지기 전에 실행돼 빈 결과를 캐싱해버릴 수 있음 — 성공/실패와 무관하게 완료까지 대기
+        try {
+          await setFloorGrid(newFloor.id, params.cellSizeMeter);
+        } catch {
+          show({
+            title: '그리드 설정에 실패했습니다. 상세 화면에서 다시 설정해주세요.',
+            variant: 'error',
+          });
+        }
         setBuildings((prev) =>
           prev.map((b) => {
             if (b.id !== buildingId) return b;
@@ -215,11 +240,15 @@ const FloorPlansPage = () => {
         });
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
+        setIsUploading(false);
         void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
-        analyzeFloor(newFloor.id).catch(() => {});
+        analyzeFloor(newFloor.id).catch(() => {
+          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        });
       })
       .catch(() => {
         // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        setIsUploading(false);
         show({ title: '업로드에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
       });
   };
@@ -285,6 +314,7 @@ const FloorPlansPage = () => {
           onClose={handleCloseUploadDimensionsModal}
           mapImageUrl={pendingUpload.previewUrl}
           onConfirm={handleUploadDimensionsConfirm}
+          isSubmitting={isUploading}
         />
       )}
     </>

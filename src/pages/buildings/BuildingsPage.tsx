@@ -33,12 +33,12 @@ type ModalState =
   | { type: 'delete'; building: Building }
   | null;
 
-type FloorSyncTarget = {
+interface FloorSyncTarget {
   buildingId: string;
   buildingName: string;
   body: UpdateBuildingRequest;
   plan: FloorSyncPlan;
-};
+}
 
 const BuildingsPage = () => {
   const { data, isLoading, isError } = useGetBuildingsQuery();
@@ -76,6 +76,9 @@ const BuildingsPage = () => {
     });
   };
 
+  // 건물 수정 + 층 동기화가 하나의 서버 트랜잭션이 아니라 별개 요청 두 개라, applyFloorSync 도중
+  // 일부만 실패하면 totalFloors와 실제 floors 목록이 어긋날 수 있음 — 백엔드에 트랜잭션 처리 요청해둔 상태
+  // (scratchpad/backend_questions.md #8), 서버 쪽 cascade가 나오면 이 워크어라운드는 제거 예정
   const runBuildingUpdate = (
     buildingId: string,
     body: UpdateBuildingRequest,
