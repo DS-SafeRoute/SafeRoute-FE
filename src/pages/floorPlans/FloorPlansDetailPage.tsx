@@ -16,6 +16,7 @@ import StatusBadge from '@components/chip/StatusBadge';
 
 import { formatFloor } from '@utils/floor';
 
+import { getFloorCctvs } from './api/cctvApi';
 import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
 import { createIoTLight, getFloorLights, updateIoTLight } from './api/iotLightsApi';
 import {
@@ -1455,6 +1456,35 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
+  // CCTV 조회 — 실제 등록된 CCTV를 장비 마커 목록에 채워 넣음. 신규 등록은 그리드 셀 선택 UI가 아직 없어서 다음 단계에서 연동 예정
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorCctvs(floorId)
+      .then((cctvs) => {
+        if (cancelled) return;
+        setAddedDevices((prev) => [
+          ...prev.filter((d) => d.type !== 'cctv'),
+          ...cctvs.map(
+            (cctv): AddedDevice => ({
+              id: cctv.id,
+              type: 'cctv',
+              placeType: 'cctv',
+              label: cctv.name,
+              x: cctv.x * 100,
+              y: cctv.y * 100,
+              status: 'online',
+              zone: `모니터링 ${cctv.monitoredGridCellCount}칸 · ${cctv.monitoredAreaM2}㎡`,
+            }),
+          ),
+        ]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
   // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
   useEffect(() => {
     if (!floor) return;
@@ -1717,6 +1747,8 @@ const FloorPlansDetailPage = () => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
     if (type === 'cctv') {
+      // TODO: 아직 실제 API(POST /cctvs)에 연동 안 됨 — 시야 구역을 그리드 셀 id 목록으로 선택하는
+      // UI가 새로 필요해서 별도로 다뤄야 함(cctvApi.createCctv 참고). 지금은 로컬 상태에만 반영됨
       if (!rect || rect.w <= 0 || rect.h <= 0) return;
       const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
       const label = deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`;

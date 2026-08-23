@@ -71,6 +71,22 @@ export const API_ENDPOINTS = {
     DIRECTION: (lightId: string) => `${API_V1}/lights/${lightId}/direction`,
   },
 
+  // CCTV
+  CCTV: {
+    ROOT: `${API_V1}/cctvs`,
+    DETAIL: (cctvId: string) => `${API_V1}/cctvs/${cctvId}`,
+    GRID_CELLS: (cctvId: string) => `${API_V1}/cctvs/${cctvId}/grid-cells`,
+    DEVICE_TOKEN: (cctvId: string) => `${API_V1}/cctvs/${cctvId}/device-token`,
+    ENABLE: (cctvId: string) => `${API_V1}/cctvs/${cctvId}/enable`,
+    DISABLE: (cctvId: string) => `${API_V1}/cctvs/${cctvId}/disable`,
+  },
+
+  // 층 그리드 (CCTV 시야 구역 등에서 참조하는 셀 단위)
+  FLOOR_GRID: {
+    ROOT: (floorId: string) => `${API_V1}/floors/${floorId}/grid`,
+    CELLS: (floorId: string) => `${API_V1}/floors/${floorId}/grid/cells`,
+  },
+
   // 맵 그래프, 맵 그래프 편집
   MAP_GRAPH: {
     DETAIL: (floorId: string) => `${API_V1}/floors/${floorId}/graph`,
