@@ -123,6 +123,22 @@ export const canvasActionButtonActive = style({
   color: vars.color.primary,
 });
 
+export const gridSetupPopup = style({
+  position: 'absolute',
+  zIndex: 15,
+  top: '5.6rem',
+  right: vars.space.s6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s4,
+  width: '25rem',
+});
+
 /* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({

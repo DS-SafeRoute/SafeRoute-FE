@@ -6,8 +6,8 @@ import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
 import type { Floor, FloorBuilding } from '../types/floorPlans';
 
-// mapImageKey(S3 key) → 브라우저에서 바로 쓸 수 있는 URL로 변환하는 규칙이 아직 팀 확인 전이라
-// 우선 key를 그대로 반환함. 실제 이미지가 안 뜰 수 있음 — 규칙 확정되면 여기만 고치면 됨
+// 백엔드에서 도면별 presigned GET URL 발급 API를 추가 예정(2026-08-24 확인, 일정 미정) — 그 전까지는
+// key를 그대로 반환함. 실제 이미지가 안 뜰 수 있음. API 나오면 이 함수를 그 호출로 바꾸면 됨(비동기 전환 필요)
 const resolveFloorImageUrl = (mapImageKey?: string): string | null => {
   if (!mapImageKey) return null;
   if (import.meta.env.DEV) {
