@@ -40,6 +40,26 @@ export const buildingCount = style({
   ...vars.typography.caption,
 });
 
+export const addFloorButton = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s1,
+  marginLeft: 'auto',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s1} ${vars.space.s3}`,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': {
+      borderColor: vars.color.primary,
+      color: vars.color.primary,
+    },
+  },
+});
+
 export const floorGrid = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(4, 1fr)',

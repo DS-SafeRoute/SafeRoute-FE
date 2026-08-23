@@ -16,7 +16,7 @@ import StatusBadge from '@components/chip/StatusBadge';
 
 import { formatFloor } from '@utils/floor';
 
-import { getFloorBuildings, getFloorDetail, segmentFloor, uploadFloor } from './api/floorPlansApi';
+import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -1350,7 +1350,9 @@ const FloorPlansDetailPage = () => {
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [segmentTarget, setSegmentTarget] = useState<{ previewUrl: string } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<{ file: File; previewUrl: string } | null>(
+    null,
+  );
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
@@ -1478,44 +1480,46 @@ const FloorPlansDetailPage = () => {
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
   };
 
-  const handleUploadConfirm = (file: File) => {
-    if (!currentFloor) return;
-    uploadFloor(selectedBuildingId, currentFloor.floorNum, file)
+  // 파일 선택 단계 — 실제 업로드는 다음 단계(가로/세로 입력)에서 함께 이뤄짐
+  const handleFileSelected = (file: File) => {
+    setPendingUpload({ file, previewUrl: URL.createObjectURL(file) });
+    setUploadModalOpen(false);
+  };
+
+  const handleCloseUploadDimensionsModal = () => {
+    if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    setPendingUpload(null);
+  };
+
+  const handleUploadDimensionsConfirm = (params: {
+    realWidth: number;
+    realHeight: number;
+    gridScale: number;
+  }) => {
+    if (!currentFloor || !pendingUpload) return;
+    const { file, previewUrl } = pendingUpload;
+    uploadFloor(
+      selectedBuildingId,
+      currentFloor.floorNum,
+      file,
+      params.realWidth,
+      params.realHeight,
+    )
       .then((newFloor) => {
         setFloorBuildings((prev) =>
           prev.map((b) =>
             b.id !== selectedBuildingId
               ? b
-              : {
-                  ...b,
-                  floors: b.floors.map((f) =>
-                    f.id !== currentFloor.id ? f : { ...f, ...newFloor },
-                  ),
-                },
+              : { ...b, floors: b.floors.map((f) => (f.id !== currentFloor.id ? f : newFloor)) },
           ),
         );
-        setSegmentTarget({ previewUrl: URL.createObjectURL(file) });
+        setFloor(newFloor);
+        URL.revokeObjectURL(previewUrl);
+        setPendingUpload(null);
+        analyzeFloor(newFloor.id).catch(() => {});
       })
-      .finally(() => setUploadModalOpen(false));
-  };
-
-  const handleCloseSegmentModal = () => {
-    if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);
-    setSegmentTarget(null);
-  };
-
-  const handleSegmentConfirm = (params: {
-    realWidth: number;
-    realHeight: number;
-    gridScale: number;
-  }) => {
-    if (!currentFloor) return;
-    segmentFloor(currentFloor.id, params)
-      .then(() => getFloorDetail(currentFloor.buildingId, currentFloor.id))
-      .then(setFloor)
-      .finally(() => {
-        if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);
-        setSegmentTarget(null);
+      .catch(() => {
+        // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
       });
   };
 
@@ -2379,15 +2383,15 @@ const FloorPlansDetailPage = () => {
         onClose={() => setUploadModalOpen(false)}
         buildingName={currentBuilding?.name ?? ''}
         floorNum={currentFloor?.floorNum ?? 0}
-        onConfirm={handleUploadConfirm}
+        onConfirm={handleFileSelected}
       />
 
-      {segmentTarget && (
+      {pendingUpload && (
         <GridAreaSettingModal
           open
-          onClose={handleCloseSegmentModal}
-          mapImageUrl={segmentTarget.previewUrl}
-          onConfirm={handleSegmentConfirm}
+          onClose={handleCloseUploadDimensionsModal}
+          mapImageUrl={pendingUpload.previewUrl}
+          onConfirm={handleUploadDimensionsConfirm}
         />
       )}
 

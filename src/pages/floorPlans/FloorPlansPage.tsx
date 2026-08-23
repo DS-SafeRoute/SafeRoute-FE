@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
+import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
@@ -13,8 +14,15 @@ import useToast from '@components/toast/useToast';
 
 import { formatFloor } from '@utils/floor';
 
-import { deleteFloor, getFloorBuildings, segmentFloor, uploadFloor } from './api/floorPlansApi';
+import {
+  analyzeFloor,
+  createFloor,
+  deleteFloor,
+  getFloorBuildings,
+  uploadFloor,
+} from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
+import FloorAddModal from './modals/FloorAddModal';
 import FloorDeleteConfirmModal from './modals/FloorDeleteConfirmModal';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -57,7 +65,15 @@ interface FloorSummary {
 
 type UploadTarget = { buildingId: string; buildingName: string; floorId: string; floorNum: number };
 type FloorActionTarget = { buildingId: string; buildingName: string; floor: FloorSummary };
-type SegmentTarget = { buildingId: string; floorId: string; previewUrl: string | null };
+type PendingUpload = {
+  buildingId: string;
+  buildingName: string;
+  floorId: string;
+  floorNum: number;
+  file: File;
+  previewUrl: string;
+};
+type AddFloorTarget = { buildingId: string; buildingName: string };
 
 interface FloorCardProps {
   floor: FloorSummary;
@@ -154,10 +170,11 @@ const FloorPlansPage = () => {
   const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addFloorTarget, setAddFloorTarget] = useState<AddFloorTarget | null>(null);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FloorActionTarget | null>(null);
-  const [segmentTarget, setSegmentTarget] = useState<SegmentTarget | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -168,6 +185,26 @@ const FloorPlansPage = () => {
       })
       .finally(() => setLoading(false));
   }, [show]);
+
+  const handleAddFloorConfirm = (floorNum: number) => {
+    if (!addFloorTarget) return;
+    const { buildingId, buildingName } = addFloorTarget;
+    createFloor(buildingId, floorNum)
+      .then((newFloor) => {
+        setBuildings((prev) =>
+          prev.map((b) => (b.id !== buildingId ? b : { ...b, floors: [...b.floors, newFloor] })),
+        );
+        show({
+          title: '층이 추가되었습니다.',
+          description: `${buildingName} · ${formatFloor(floorNum)}이 추가되었습니다.`,
+          variant: 'success',
+        });
+      })
+      .catch(() => {
+        show({ title: '층 추가에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => setAddFloorTarget(null));
+  };
 
   const handleOpenFloorUpload = (target: FloorActionTarget) => {
     setUploadTarget({
@@ -186,25 +223,16 @@ const FloorPlansPage = () => {
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return;
     const { buildingId, buildingName, floor } = deleteTarget;
-    deleteFloor(floor.id)
+    deleteFloor(buildingId, floor.id)
       .then(() => {
         setBuildings((prev) =>
           prev.map((b) =>
-            b.id !== buildingId
-              ? b
-              : {
-                  ...b,
-                  floors: b.floors.map((f) =>
-                    f.id !== floor.id
-                      ? f
-                      : { ...f, segmentationStatus: 'NONE', mapImageUrl: null, processedAt: null },
-                  ),
-                },
+            b.id !== buildingId ? b : { ...b, floors: b.floors.filter((f) => f.id !== floor.id) },
           ),
         );
         show({
-          title: '층 도면이 삭제되었습니다.',
-          description: `${buildingName} · ${formatFloor(floor.floorNum)} 도면이 삭제되었습니다.`,
+          title: '층이 삭제되었습니다.',
+          description: `${buildingName} · ${formatFloor(floor.floorNum)}이 삭제되었습니다.`,
           variant: 'success',
         });
       })
@@ -214,60 +242,52 @@ const FloorPlansPage = () => {
       .finally(() => setDeleteTarget(null));
   };
 
-  const handleUploadConfirm = (file: File) => {
+  // 파일 선택 단계 — 실제 업로드는 다음 단계(가로/세로 입력)에서 함께 이뤄짐
+  const handleFileSelected = (file: File) => {
     if (!uploadTarget) return;
-    uploadFloor(uploadTarget.buildingId, uploadTarget.floorNum, file)
-      .then((newFloor) => {
-        setBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== uploadTarget.buildingId
-              ? b
-              : {
-                  ...b,
-                  floors: b.floors.map((f) =>
-                    f.id !== uploadTarget.floorId ? f : { ...f, ...newFloor },
-                  ),
-                },
-          ),
-        );
-        show({
-          title: '도면이 업로드되었습니다.',
-          description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
-          variant: 'success',
-        });
-        setSegmentTarget({
-          buildingId: uploadTarget.buildingId,
-          floorId: uploadTarget.floorId,
-          previewUrl: URL.createObjectURL(file),
-        });
-      })
-      .catch(() => {
-        show({ title: '업로드에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setUploadTarget(null));
+    setPendingUpload({ ...uploadTarget, file, previewUrl: URL.createObjectURL(file) });
+    setUploadTarget(null);
   };
 
-  const handleCloseSegmentModal = () => {
-    if (segmentTarget?.previewUrl) URL.revokeObjectURL(segmentTarget.previewUrl);
-    setSegmentTarget(null);
+  const handleCloseUploadDimensionsModal = () => {
+    if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    setPendingUpload(null);
   };
 
-  const handleSegmentConfirm = (params: {
+  const handleUploadDimensionsConfirm = (params: {
     realWidth: number;
     realHeight: number;
     gridScale: number;
   }) => {
-    if (!segmentTarget) return;
-    const { buildingId, floorId, previewUrl } = segmentTarget;
-    segmentFloor(floorId, params)
-      .then(() => {
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setSegmentTarget(null);
-        void navigate(`/floorPlans/${buildingId}/${floorId}`);
+    if (!pendingUpload) return;
+    const { buildingId, buildingName, floorNum, file, previewUrl } = pendingUpload;
+    uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
+      .then((newFloor) => {
+        setBuildings((prev) =>
+          prev.map((b) => {
+            if (b.id !== buildingId) return b;
+            const exists = b.floors.some((f) => f.floorNum === floorNum);
+            return {
+              ...b,
+              floors: exists
+                ? b.floors.map((f) => (f.floorNum === floorNum ? newFloor : f))
+                : [...b.floors, newFloor],
+            };
+          }),
+        );
+        show({
+          title: '도면이 업로드되었습니다.',
+          description: `${buildingName} · ${formatFloor(floorNum)} 도면이 등록되었습니다.`,
+          variant: 'success',
+        });
+        URL.revokeObjectURL(previewUrl);
+        setPendingUpload(null);
+        void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
+        analyzeFloor(newFloor.id).catch(() => {});
       })
       .catch(() => {
-        // 설정값과 미리보기를 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
-        show({ title: 'AI 분석 요청에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+        // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        show({ title: '업로드에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
       });
   };
 
@@ -286,6 +306,15 @@ const FloorPlansPage = () => {
                 <div className={styles.buildingDot} aria-hidden="true" />
                 <span className={styles.buildingName}>{building.name}</span>
                 <span className={styles.buildingCount}>{building.floors.length}개 층</span>
+                <button
+                  type="button"
+                  className={styles.addFloorButton}
+                  onClick={() =>
+                    setAddFloorTarget({ buildingId: building.id, buildingName: building.name })
+                  }
+                >
+                  <PlusIcon width={14} height={14} />층 추가
+                </button>
               </div>
 
               <div className={styles.floorGrid}>
@@ -307,13 +336,22 @@ const FloorPlansPage = () => {
           ))}
       </div>
 
+      {addFloorTarget && (
+        <FloorAddModal
+          open
+          onClose={() => setAddFloorTarget(null)}
+          buildingName={addFloorTarget.buildingName}
+          onConfirm={handleAddFloorConfirm}
+        />
+      )}
+
       {uploadTarget && (
         <FloorUploadModal
           open
           onClose={() => setUploadTarget(null)}
           buildingName={uploadTarget.buildingName}
           floorNum={uploadTarget.floorNum}
-          onConfirm={handleUploadConfirm}
+          onConfirm={handleFileSelected}
         />
       )}
 
@@ -337,12 +375,12 @@ const FloorPlansPage = () => {
         />
       )}
 
-      {segmentTarget && (
+      {pendingUpload && (
         <GridAreaSettingModal
           open
-          onClose={handleCloseSegmentModal}
-          mapImageUrl={segmentTarget.previewUrl}
-          onConfirm={handleSegmentConfirm}
+          onClose={handleCloseUploadDimensionsModal}
+          mapImageUrl={pendingUpload.previewUrl}
+          onConfirm={handleUploadDimensionsConfirm}
         />
       )}
     </>

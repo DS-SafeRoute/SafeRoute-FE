@@ -1,19 +1,10 @@
 import { getBuildings } from '@pages/buildings/api/buildingsApi';
 
-import type { FloorResponse } from '@apis/__generated__/data-contracts';
+import type { CreateFloorRequest, FloorResponse } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-import type { Floor, FloorBuilding, SegmentationStatus } from '../types/floorPlans';
-
-const BASE = '/api/v1';
-
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
-  if (!res.ok) throw new Error(`API error ${res.status}: ${url}`);
-  const json = (await res.json()) as { data: T };
-  return json.data;
-}
+import type { Floor, FloorBuilding } from '../types/floorPlans';
 
 // mapImageKey(S3 key) → 브라우저에서 바로 쓸 수 있는 URL로 변환하는 규칙이 아직 팀 확인 전이라
 // 우선 key를 그대로 반환함. 실제 이미지가 안 뜰 수 있음 — 규칙 확정되면 여기만 고치면 됨
@@ -74,32 +65,47 @@ export async function getFloorBuildings(): Promise<FloorBuilding[]> {
   return results;
 }
 
+// 도면 이미지 없이 층 번호만 먼저 등록 — 새 건물처럼 층이 하나도 없을 때 업로드 카드가 뜰 자리를 만들기 위함
+export async function createFloor(buildingId: string, floorNum: number): Promise<Floor> {
+  const floor = await apiRequest<FloorResponse, CreateFloorRequest>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.FLOORS.ROOT(buildingId),
+    body: { floorNum },
+  });
+  return toFloor(floor, buildingId);
+}
+
 export async function uploadFloor(
   buildingId: string,
   floorNum: number,
   file: File,
+  realWidth: number,
+  realHeight: number,
 ): Promise<Floor> {
   const form = new FormData();
-  form.append('buildingId', buildingId);
   form.append('floorNum', String(floorNum));
-  form.append('mapImage', file);
-  return request<Floor>(`${BASE}/floors`, { method: 'POST', body: form });
+  form.append('realWidth', String(realWidth));
+  form.append('realHeight', String(realHeight));
+  form.append('file', file);
+  const floor = await apiRequest<FloorResponse, FormData>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.FLOORS.UPLOAD(buildingId),
+    body: form,
+  });
+  return toFloor(floor, buildingId);
 }
 
-export async function deleteFloor(floorId: string): Promise<void> {
-  const res = await fetch(`${BASE}/floors/${floorId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`API error ${res.status}: DELETE /floors/${floorId}`);
+export async function deleteFloor(buildingId: string, floorId: string): Promise<void> {
+  await apiRequest<void>({
+    method: HTTP_METHOD.DELETE,
+    url: API_ENDPOINTS.FLOORS.DETAIL(buildingId, floorId),
+  });
 }
 
-export type SegmentationResponse = { status: SegmentationStatus };
-
-export async function segmentFloor(
-  floorId: string,
-  params: { realWidth: number; realHeight: number; gridScale: number },
-): Promise<SegmentationResponse> {
-  return request<SegmentationResponse>(`${BASE}/floors/${floorId}/segment`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+// 세그멘테이션 요청 자체는 비동기로 처리되고 결과는 별도 폴링/조회로 반영되는 구조라 응답 바디를 쓰지 않음
+export async function analyzeFloor(floorId: string): Promise<void> {
+  await apiRequest<unknown>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.FLOORS.ANALYZE(floorId),
   });
 }
