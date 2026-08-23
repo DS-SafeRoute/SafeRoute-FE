@@ -48,20 +48,20 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
 };
 
 interface FloorSummary {
-  id: number;
+  id: string;
   floorNum: number;
   mapImageUrl: string | null;
   segmentationStatus: SegmentationStatus;
   processedAt: string | null;
 }
 
-type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
-type FloorActionTarget = { buildingId: number; buildingName: string; floor: FloorSummary };
-type SegmentTarget = { buildingId: number; floorId: number; previewUrl: string | null };
+type UploadTarget = { buildingId: string; buildingName: string; floorId: string; floorNum: number };
+type FloorActionTarget = { buildingId: string; buildingName: string; floor: FloorSummary };
+type SegmentTarget = { buildingId: string; floorId: string; previewUrl: string | null };
 
 interface FloorCardProps {
   floor: FloorSummary;
-  buildingId: number;
+  buildingId: string;
   buildingName: string;
   onUpload: (target: UploadTarget) => void;
   onReupload: (target: FloorActionTarget) => void;
@@ -252,7 +252,11 @@ const FloorPlansPage = () => {
     setSegmentTarget(null);
   };
 
-  const handleSegmentConfirm = (params: { area: number; gridScale: number }) => {
+  const handleSegmentConfirm = (params: {
+    realWidth: number;
+    realHeight: number;
+    gridScale: number;
+  }) => {
     if (!segmentTarget) return;
     const { buildingId, floorId, previewUrl } = segmentTarget;
     segmentFloor(floorId, params)

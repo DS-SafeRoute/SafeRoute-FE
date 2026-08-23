@@ -13,7 +13,7 @@ export const handlers = [
 
   /* ── 건물별 도면 목록 ── */
   http.get(`${BASE}/floors`, ({ request }) => {
-    const buildingId = Number(new URL(request.url).searchParams.get('buildingId'));
+    const buildingId = new URL(request.url).searchParams.get('buildingId');
     const building = mockFloorBuildings.find((b) => b.id === buildingId);
     if (!building) return HttpResponse.json({ data: [] });
     return HttpResponse.json({ data: building.floors });
@@ -21,7 +21,7 @@ export const handlers = [
 
   /* ── 도면 상세 조회 ── */
   http.get(`${BASE}/floors/:floorId`, ({ params }) => {
-    const floorId = Number(params.floorId);
+    const floorId = String(params.floorId);
     for (const building of mockFloorBuildings) {
       const floor = building.floors.find((f) => f.id === floorId);
       if (floor) return HttpResponse.json({ data: floor });
@@ -32,7 +32,7 @@ export const handlers = [
   /* ── 도면 업로드 ── */
   http.post(`${BASE}/floors`, async ({ request }) => {
     const form = await request.formData();
-    const buildingId = Number(form.get('buildingId'));
+    const buildingId = String(form.get('buildingId'));
     const floorNum = Number(form.get('floorNum'));
     const building = mockFloorBuildings.find((b) => b.id === buildingId);
     const floor = building?.floors.find((f) => f.floorNum === floorNum);

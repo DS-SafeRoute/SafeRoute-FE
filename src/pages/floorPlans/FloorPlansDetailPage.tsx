@@ -1301,7 +1301,7 @@ const FloorPlansDetailPage = () => {
     let cancelled = false;
     setFloor(null);
     setLoadingFloor(true);
-    getFloorDetail(Number(floorId))
+    getFloorDetail(floorId)
       .then((data) => {
         if (!cancelled) setFloor(data);
       })
@@ -1467,9 +1467,8 @@ const FloorPlansDetailPage = () => {
     if (!zoneAddOpen) setZoneDraftRect(null);
   }, [zoneAddOpen]);
 
-  const currentBuilding = floorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
-  const currentFloor =
-    currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
+  const currentBuilding = floorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
+  const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
 
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
@@ -1481,11 +1480,11 @@ const FloorPlansDetailPage = () => {
 
   const handleUploadConfirm = (file: File) => {
     if (!currentFloor) return;
-    uploadFloor(Number(selectedBuildingId), currentFloor.floorNum, file)
+    uploadFloor(selectedBuildingId, currentFloor.floorNum, file)
       .then((newFloor) => {
         setFloorBuildings((prev) =>
           prev.map((b) =>
-            String(b.id) !== selectedBuildingId
+            b.id !== selectedBuildingId
               ? b
               : {
                   ...b,
@@ -2047,7 +2046,7 @@ const FloorPlansDetailPage = () => {
                 {[...(currentBuilding?.floors ?? [])]
                   .sort((a, b) => b.floorNum - a.floorNum)
                   .map((f) => {
-                    const isCurrent = String(f.id) === selectedFloorId;
+                    const isCurrent = f.id === selectedFloorId;
                     const isNone = f.segmentationStatus === 'NONE';
                     return (
                       <button
@@ -2057,7 +2056,7 @@ const FloorPlansDetailPage = () => {
                           styles.floorNavItem,
                           isCurrent && styles.floorNavItemActive,
                         )}
-                        onClick={() => handleFloorChange(String(f.id))}
+                        onClick={() => handleFloorChange(f.id)}
                       >
                         <span>{formatFloor(f.floorNum)}</span>
                         {isNone && <StatusBadge label="미등록" color="neutral" />}

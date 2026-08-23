@@ -29,8 +29,8 @@ export interface PoiMarker {
 }
 
 export interface Floor {
-  id: number;
-  buildingId: number;
+  id: string;
+  buildingId: string;
   floorNum: number;
   mapImageUrl: string | null;
   segmentationStatus: SegmentationStatus;
@@ -40,7 +40,7 @@ export interface Floor {
 }
 
 export interface FloorBuilding {
-  id: number;
+  id: string;
   name: string;
   floors: Floor[];
 }

@@ -9,17 +9,17 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return json.data;
 }
 
-export type BuildingSummary = { id: number; name: string };
+export type BuildingSummary = { id: string; name: string };
 
 export async function getBuildings(): Promise<BuildingSummary[]> {
   return request<BuildingSummary[]>(`${BASE}/buildings`);
 }
 
-export async function getBuildingFloors(buildingId: number): Promise<Floor[]> {
+export async function getBuildingFloors(buildingId: string): Promise<Floor[]> {
   return request<Floor[]>(`${BASE}/floors?buildingId=${buildingId}`);
 }
 
-export async function getFloorDetail(floorId: number): Promise<Floor> {
+export async function getFloorDetail(floorId: string): Promise<Floor> {
   return request<Floor>(`${BASE}/floors/${floorId}`);
 }
 
@@ -36,18 +36,18 @@ export async function getFloorBuildings(): Promise<FloorBuilding[]> {
 }
 
 export async function uploadFloor(
-  buildingId: number,
+  buildingId: string,
   floorNum: number,
   file: File,
 ): Promise<Floor> {
   const form = new FormData();
-  form.append('buildingId', String(buildingId));
+  form.append('buildingId', buildingId);
   form.append('floorNum', String(floorNum));
   form.append('mapImage', file);
   return request<Floor>(`${BASE}/floors`, { method: 'POST', body: form });
 }
 
-export async function deleteFloor(floorId: number): Promise<void> {
+export async function deleteFloor(floorId: string): Promise<void> {
   const res = await fetch(`${BASE}/floors/${floorId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`API error ${res.status}: DELETE /floors/${floorId}`);
 }
@@ -55,7 +55,7 @@ export async function deleteFloor(floorId: number): Promise<void> {
 export type SegmentationResponse = { status: SegmentationStatus };
 
 export async function segmentFloor(
-  floorId: number,
+  floorId: string,
   params: { realWidth: number; realHeight: number; gridScale: number },
 ): Promise<SegmentationResponse> {
   return request<SegmentationResponse>(`${BASE}/floors/${floorId}/segment`, {

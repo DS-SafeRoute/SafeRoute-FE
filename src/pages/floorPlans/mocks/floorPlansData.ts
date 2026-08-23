@@ -2,12 +2,12 @@ import type { FloorBuilding } from '../types/floorPlans';
 
 export const mockFloorBuildings: FloorBuilding[] = [
   {
-    id: 1,
+    id: '1',
     name: 'A동 - 본관',
     floors: [
       {
-        id: 11,
-        buildingId: 1,
+        id: '11',
+        buildingId: '1',
         floorNum: 5,
         mapImageUrl: null,
         segmentationStatus: 'NONE',
@@ -16,8 +16,8 @@ export const mockFloorBuildings: FloorBuilding[] = [
         pois: [],
       },
       {
-        id: 12,
-        buildingId: 1,
+        id: '12',
+        buildingId: '1',
         floorNum: 4,
         mapImageUrl: null,
         segmentationStatus: 'NONE',
@@ -26,8 +26,8 @@ export const mockFloorBuildings: FloorBuilding[] = [
         pois: [],
       },
       {
-        id: 13,
-        buildingId: 1,
+        id: '13',
+        buildingId: '1',
         floorNum: 3,
         mapImageUrl: '/mock/floor-3.svg',
         segmentationStatus: 'DONE',
@@ -103,8 +103,8 @@ export const mockFloorBuildings: FloorBuilding[] = [
         ],
       },
       {
-        id: 14,
-        buildingId: 1,
+        id: '14',
+        buildingId: '1',
         floorNum: 2,
         mapImageUrl: '/mock/floor-2.svg',
         segmentationStatus: 'DONE',
@@ -128,8 +128,8 @@ export const mockFloorBuildings: FloorBuilding[] = [
         ],
       },
       {
-        id: 15,
-        buildingId: 1,
+        id: '15',
+        buildingId: '1',
         floorNum: 1,
         mapImageUrl: '/mock/floor-1.svg',
         segmentationStatus: 'DONE',
@@ -143,12 +143,12 @@ export const mockFloorBuildings: FloorBuilding[] = [
     ],
   },
   {
-    id: 2,
+    id: '2',
     name: 'B동 - 별관',
     floors: [
       {
-        id: 21,
-        buildingId: 2,
+        id: '21',
+        buildingId: '2',
         floorNum: 3,
         mapImageUrl: null,
         segmentationStatus: 'NONE',
@@ -157,8 +157,8 @@ export const mockFloorBuildings: FloorBuilding[] = [
         pois: [],
       },
       {
-        id: 22,
-        buildingId: 2,
+        id: '22',
+        buildingId: '2',
         floorNum: 2,
         mapImageUrl: null,
         segmentationStatus: 'PENDING',
@@ -167,8 +167,8 @@ export const mockFloorBuildings: FloorBuilding[] = [
         pois: [],
       },
       {
-        id: 23,
-        buildingId: 2,
+        id: '23',
+        buildingId: '2',
         floorNum: 1,
         mapImageUrl: '/mock/floor-b1.svg',
         segmentationStatus: 'DONE',
