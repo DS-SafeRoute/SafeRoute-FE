@@ -25,20 +25,24 @@ export async function planFloorSync(
   }
 
   const toDeleteFloors = floors.filter((f) => f.floorNum > targetTotalFloors);
-  const hasDataLoss = toDeleteFloors.some((f) => f.segmentationStatus !== 'NONE');
+  // segmentationStatus는 백엔드에 'NONE'이 없어서 항상 무언가 값이 채워져 있음 — 실제로 도면이
+  // 업로드됐는지는 mapImageUrl 유무로만 판단해야 함(이걸 안 쓰면 빈 층도 전부 데이터 있음으로 오판)
+  const hasDataLoss = toDeleteFloors.some((f) => !!f.mapImageUrl);
 
   return { buildingId, toCreateFloorNums, toDeleteFloors, hasDataLoss };
 }
 
 export async function applyFloorSync(plan: FloorSyncPlan): Promise<void> {
-  await Promise.all(
-    plan.toCreateFloorNums.map((floorNum) => createFloor(plan.buildingId, floorNum)),
-  );
+  // 층을 동시에 병렬 생성하면 서버 쪽에서 순서를 보장 못 해 실패할 수 있어 순차로 생성
+  for (const floorNum of plan.toCreateFloorNums) {
+    await createFloor(plan.buildingId, floorNum);
+  }
   await Promise.all(plan.toDeleteFloors.map((floor) => deleteFloor(plan.buildingId, floor.id)));
 }
 
-// 새 건물 등록 시 1층~totalFloors 전부 빈 층으로 생성
+// 새 건물 등록 시 1층~totalFloors 전부 빈 층으로 순차 생성 (병렬 생성 시 서버 쪽 순서 충돌 가능성 있음)
 export async function createInitialFloors(buildingId: string, totalFloors: number): Promise<void> {
-  const floorNums = Array.from({ length: totalFloors }, (_, i) => i + 1);
-  await Promise.all(floorNums.map((floorNum) => createFloor(buildingId, floorNum)));
+  for (let floorNum = 1; floorNum <= totalFloors; floorNum += 1) {
+    await createFloor(buildingId, floorNum);
+  }
 }

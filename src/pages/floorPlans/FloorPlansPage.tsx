@@ -21,8 +21,12 @@ import GridAreaSettingModal from './modals/GridAreaSettingModal';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
+const NONE_STATUS_BADGE: { label: string; color: StatusBadgeColor } = {
+  label: '미등록',
+  color: 'neutral',
+};
+
 const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBadgeColor }> = {
-  NONE: { label: '미등록', color: 'neutral' },
   PENDING: { label: '대기중', color: 'yellow' },
   PROCESSING: { label: '처리중', color: 'blue' },
   DONE: { label: '완료', color: 'green' },
@@ -38,7 +42,7 @@ const formatDate = (iso: string | null) => {
   return `${year}-${month}-${day}`;
 };
 
-const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
+const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
   if (status === 'DONE') return <span className={styles.metaValueDone}>완료</span>;
   if (status === 'PENDING') return <span className={styles.metaValuePending}>대기중</span>;
   if (status === 'PROCESSING') return <span className={styles.metaValuePending}>처리중</span>;
@@ -84,8 +88,10 @@ interface FloorCardProps {
 
 const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: FloorCardProps) => {
   const navigate = useNavigate();
-  const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
-  const isNone = floor.segmentationStatus === 'NONE';
+  // 도면 업로드 여부는 mapImageUrl 유무로 판단 — segmentationStatus는 AI 분석 진행도일 뿐, 백엔드에
+  // "미업로드" 상태값이 따로 없어서 업로드 전 빈 층도 PENDING 등 다른 값을 갖고 있을 수 있음
+  const isNone = !floor.mapImageUrl;
+  const { label, color } = isNone ? NONE_STATUS_BADGE : STATUS_CONFIG[floor.segmentationStatus];
   const isDone = floor.segmentationStatus === 'DONE';
 
   return (
@@ -108,7 +114,7 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
         </div>
         <div className={styles.metaRow}>
           <span className={styles.metaKey}>AI 분석</span>
-          <AiStatusText status={floor.segmentationStatus} />
+          <AiStatusText status={isNone ? null : floor.segmentationStatus} />
         </div>
       </div>
 

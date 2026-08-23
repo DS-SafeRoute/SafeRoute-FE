@@ -1,4 +1,5 @@
-export type SegmentationStatus = 'NONE' | 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
+// 백엔드 enum에는 'NONE'이 없음 — 도면 미업로드 여부는 mapImageUrl 유무로 판단해야 함
+export type SegmentationStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
 
 export type DeviceType = 'cctv' | 'iot' | 'fire';
 

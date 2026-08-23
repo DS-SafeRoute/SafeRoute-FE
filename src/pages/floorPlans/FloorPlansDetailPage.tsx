@@ -839,9 +839,6 @@ const NodeAddPopup = ({
   stage,
   hasPosition,
   selectedCellCount,
-  gridSizeMeterInput,
-  onGridSizeMeterInputChange,
-  onGridSetup,
   onCancel,
   onBack,
   onSubmitEntry,
@@ -850,12 +847,9 @@ const NodeAddPopup = ({
   containerRef: React.RefObject<HTMLDivElement>;
   type: PlacingDeviceType;
   onTypeChange: (type: PlacingDeviceType) => void;
-  stage: 'entry' | 'grid-setup' | 'fov';
+  stage: 'entry' | 'fov';
   hasPosition: boolean;
   selectedCellCount: number;
-  gridSizeMeterInput: string;
-  onGridSizeMeterInputChange: (value: string) => void;
-  onGridSetup: () => void;
   onCancel: () => void;
   onBack: () => void;
   onSubmitEntry: (type: PlacingDeviceType, deviceId: string, location: string) => void;
@@ -868,49 +862,6 @@ const NodeAddPopup = ({
   const isCctv = type === 'cctv';
   const totalSteps = isCctv ? 2 : 1;
   const stepNumber = stage === 'entry' ? 1 : totalSteps;
-
-  if (stage === 'grid-setup') {
-    return (
-      <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.nodeAddHeader}>
-          <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
-        </div>
-        <span className={styles.nodeAddHint}>
-          이 층에는 아직 그리드가 없어요. 셀 크기를 정하고 설정해주세요.
-        </span>
-        <div className={styles.nodeAddField}>
-          <div className={styles.gridSizeLabelRow}>
-            <span className={styles.nodeAddLabel}>셀 크기</span>
-            <span className={styles.gridSizeValue}>
-              {Number(gridSizeMeterInput || 1).toFixed(1)}m
-            </span>
-          </div>
-          <input
-            type="range"
-            className={styles.gridSizeSlider}
-            min={0.1}
-            max={5}
-            step={0.1}
-            value={Number(gridSizeMeterInput || 1)}
-            onChange={(e) => onGridSizeMeterInputChange(e.target.value)}
-          />
-        </div>
-        <div className={styles.nodeAddActions}>
-          <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
-            취소
-          </button>
-          <button
-            type="button"
-            className={styles.nodeAddSubmitBtn}
-            disabled={!(Number(gridSizeMeterInput) > 0)}
-            onClick={onGridSetup}
-          >
-            설정
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (stage === 'fov') {
     return (
@@ -1770,10 +1721,13 @@ const FloorPlansDetailPage = () => {
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
-  const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'grid-setup' | 'fov'>('entry');
+  const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
   const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
   const [showGridOverlay, setShowGridOverlay] = useState(false);
+  // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
+  // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
+  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | null>(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
@@ -2162,11 +2116,33 @@ const FloorPlansDetailPage = () => {
     setNodeAddOpen(false);
   };
 
+  // 그리드가 필요한 두 진입점(CCTV 등록, 그리드 표시 토글)이 공유하는 확인 로직 —
+  // 로컬 state가 비어있어도 실제로 없는 게 맞는지 서버에서 한 번 더 확인한 뒤에만 설정 팝업을 띄움
+  const ensureFloorGridCells = (): Promise<FloorGridCell[]> => {
+    if (floorGridCells.length > 0) return Promise.resolve(floorGridCells);
+    if (!currentFloor) return Promise.resolve([]);
+    return getFloorGridCells(currentFloor.id)
+      .then((cells) => {
+        setFloorGridCells(cells);
+        return cells;
+      })
+      .catch(() => []);
+  };
+
+  const openGridSetupPrompt = (intent: 'toggle' | 'cctv') => {
+    setGridSetupIntent(intent);
+    setGridSizeMeterInput('1');
+    setGridSetupPromptOpen(true);
+  };
+
   // 입력 단계 제출 — CCTV는 그리드 유무에 따라 그리드설정/시야구역 단계로, 나머지는 바로 확정
   const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
-      setNodeAddStage(floorGridCells.length === 0 ? 'grid-setup' : 'fov');
+      ensureFloorGridCells().then((cells) => {
+        setNodeAddStage(cells.length > 0 ? 'fov' : 'entry');
+        if (cells.length === 0) openGridSetupPrompt('cctv');
+      });
       return;
     }
     finalizeNodePlacement(type, deviceId, location, nodeStagedPosition);
@@ -2179,45 +2155,25 @@ const FloorPlansDetailPage = () => {
     setCctvDraftCellIds([]);
   };
 
-  const handleGridSetup = () => {
-    if (!currentFloor) return;
-    const cellSizeMeter = Number(gridSizeMeterInput);
-    if (!(cellSizeMeter > 0)) return;
-    setFloorGrid(currentFloor.id, cellSizeMeter)
-      .then(() => getFloorGridCells(currentFloor.id))
-      .then((cells) => {
-        setFloorGridCells(cells);
-        setNodeAddStage('fov');
-      })
-      .catch(() => {});
-  };
-
-  // 그리드 표시 토글 — 업로드 시점에 이미 그리드가 만들어졌을 수 있어 로컬 state만 믿지 않고
-  // 서버에서 다시 한번 확인한 뒤에만 "그리드 없음" 설정 팝업을 띄움
+  // 그리드 표시 토글
   const handleToggleGridOverlay = () => {
     if (showGridOverlay) {
       setShowGridOverlay(false);
       return;
     }
-    if (floorGridCells.length > 0) {
-      setShowGridOverlay(true);
-      return;
-    }
-    if (!currentFloor) return;
-    getFloorGridCells(currentFloor.id)
-      .then((cells) => {
-        if (cells.length > 0) {
-          setFloorGridCells(cells);
-          setShowGridOverlay(true);
-          return;
-        }
-        setGridSizeMeterInput('1');
-        setGridSetupPromptOpen(true);
-      })
-      .catch(() => {
-        setGridSizeMeterInput('1');
-        setGridSetupPromptOpen(true);
-      });
+    ensureFloorGridCells().then((cells) => {
+      if (cells.length > 0) {
+        setShowGridOverlay(true);
+        return;
+      }
+      openGridSetupPrompt('toggle');
+    });
+  };
+
+  const handleGridSetupPromptCancel = () => {
+    setGridSetupPromptOpen(false);
+    if (gridSetupIntent === 'cctv') handleNodeAddBack();
+    setGridSetupIntent(null);
   };
 
   const handleGridSetupPromptConfirm = () => {
@@ -2228,8 +2184,13 @@ const FloorPlansDetailPage = () => {
       .then(() => getFloorGridCells(currentFloor.id))
       .then((cells) => {
         setFloorGridCells(cells);
-        setShowGridOverlay(true);
         setGridSetupPromptOpen(false);
+        if (gridSetupIntent === 'cctv') {
+          setNodeAddStage('fov');
+        } else {
+          setShowGridOverlay(true);
+        }
+        setGridSetupIntent(null);
       })
       .catch(() => {});
   };
@@ -2759,7 +2720,7 @@ const FloorPlansDetailPage = () => {
                   .sort((a, b) => b.floorNum - a.floorNum)
                   .map((f) => {
                     const isCurrent = f.id === selectedFloorId;
-                    const isNone = f.segmentationStatus === 'NONE';
+                    const isNone = !f.mapImageUrl;
                     return (
                       <button
                         key={f.id}
@@ -2894,7 +2855,7 @@ const FloorPlansDetailPage = () => {
                   <button
                     type="button"
                     className={styles.nodeAddCancelBtn}
-                    onClick={() => setGridSetupPromptOpen(false)}
+                    onClick={handleGridSetupPromptCancel}
                   >
                     취소
                   </button>
@@ -2976,7 +2937,7 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {nodeAddOpen && (
+            {nodeAddOpen && !gridSetupPromptOpen && (
               <NodeAddPopup
                 containerRef={nodePopupRef}
                 type={nodeAddType}
@@ -2984,9 +2945,6 @@ const FloorPlansDetailPage = () => {
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
                 selectedCellCount={cctvDraftCellIds.length}
-                gridSizeMeterInput={gridSizeMeterInput}
-                onGridSizeMeterInputChange={setGridSizeMeterInput}
-                onGridSetup={handleGridSetup}
                 onCancel={() => setNodeAddOpen(false)}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}

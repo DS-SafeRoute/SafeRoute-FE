@@ -24,7 +24,8 @@ const FloorSyncWarningModal = ({
 }: FloorSyncWarningModalProps) => {
   const sortedFloorsToDelete = [...floorsToDelete].sort((a, b) => b.floorNum - a.floorNum);
   const floorLabels = sortedFloorsToDelete.map((f) => formatFloor(f.floorNum)).join(', ');
-  const floorsWithData = sortedFloorsToDelete.filter((f) => f.segmentationStatus !== 'NONE');
+  // segmentationStatus는 백엔드에 'NONE'이 없어 항상 값이 채워져 있음 — 실제 업로드 여부는 mapImageUrl로 판단
+  const floorsWithData = sortedFloorsToDelete.filter((f) => !!f.mapImageUrl);
   const dataFloorLabels = floorsWithData.map((f) => formatFloor(f.floorNum)).join(', ');
 
   const description =
