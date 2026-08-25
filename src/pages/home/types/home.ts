@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
 
-import type { StatusBadgeColor } from '@components/chip/StatusBadge';
-
 import type { HOME_GRADE_BADGE_COLOR, HOME_TRAINING_STATUS } from '../constants/home';
 
 export type MetricIconTone = 'blue' | 'yellow' | 'green' | 'purple';
@@ -36,14 +34,4 @@ export type ScheduledTraining = {
   time: string;
   participants: string;
   status: TrainingStatus;
-};
-
-export type SystemStatusItem = {
-  id: string;
-  label: string;
-  value?: string;
-  tone: StatusBadgeColor;
-  dot?: boolean;
-  iconKey?: 'success';
-  icon?: ReactNode;
 };
