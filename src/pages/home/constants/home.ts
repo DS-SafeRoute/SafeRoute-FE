@@ -9,6 +9,8 @@ export const HOME_GRADE_BADGE_COLOR = {
   'B+': 'blue',
   B: 'blue',
   C: 'yellow',
+  D: 'red',
+  F: 'red',
 } as const;
 
 export const HOME_RECENT_TRAINING_TABLE_HEADERS = [
