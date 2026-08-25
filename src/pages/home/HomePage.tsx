@@ -1,6 +1,9 @@
 import { useState } from 'react';
 
-import type { DashboardStatsResponse } from '@apis/__generated__/data-contracts';
+import type {
+  DashboardStatsResponse,
+  RecentTrainingReportResponse,
+} from '@apis/__generated__/data-contracts';
 
 import ActivityIcon from '@assets/icons/ic-activity.svg?react';
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
@@ -21,7 +24,6 @@ import { HOME_TRAINING_STATUS } from './constants/home';
 import * as styles from './HomePage.css';
 import { initialTraining } from './mocks/homeData';
 
-import type { DashboardTrainingResponse } from './api/dashboardApi';
 import type { HomeMetric, TrainingRecord } from './types/home';
 
 const metricIcons: Record<HomeMetric['iconKey'], JSX.Element> = {
@@ -72,7 +74,10 @@ const toHomeMetrics = (stats: DashboardStatsResponse): HomeMetric[] => [
   },
 ];
 
-const toTrainingRecord = (training: DashboardTrainingResponse, index: number): TrainingRecord => ({
+const toTrainingRecord = (
+  training: RecentTrainingReportResponse,
+  index: number,
+): TrainingRecord => ({
   id: index,
   name: training.scenarioName ?? '-',
   date: formatDate(training.startedAt),
@@ -99,7 +104,7 @@ const HomePage = () => {
     <div className={styles.container}>
       <div className={styles.sectionContainer}>
         <HomeSummarySection
-          metrics={(stats ? toHomeMetrics(stats) : []).map((metric) => ({
+          metrics={toHomeMetrics(stats ?? {}).map((metric) => ({
             ...metric,
             icon: metricIcons[metric.iconKey],
           }))}

@@ -1,15 +1,9 @@
-import type { DashboardStatsResponse } from '@apis/__generated__/data-contracts';
+import type {
+  DashboardStatsResponse,
+  RecentTrainingReportResponse,
+} from '@apis/__generated__/data-contracts';
 import axiosInstance from '@apis/config/axiosInstance';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
-
-export interface DashboardTrainingResponse {
-  scenarioName?: string;
-  startedAt?: string;
-  participantCount?: number;
-  avgEvacuationSec?: number;
-  survivalRate?: number;
-  grade?: 'A' | 'B' | 'C' | 'D' | 'F';
-}
 
 export const getDashboardStats = async () => {
   const { data } = await axiosInstance.get<DashboardStatsResponse>(API_ENDPOINTS.DASHBOARD.STATS);
@@ -18,7 +12,7 @@ export const getDashboardStats = async () => {
 };
 
 export const getDashboardTrainings = async () => {
-  const { data } = await axiosInstance.get<DashboardTrainingResponse[]>(
+  const { data } = await axiosInstance.get<RecentTrainingReportResponse[]>(
     API_ENDPOINTS.DASHBOARD.RECENT_TRAININGS,
   );
 
