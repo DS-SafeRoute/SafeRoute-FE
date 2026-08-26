@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
 
+import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
+
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import EmptyState from '@components/empty';
 
 import * as styles from './RecentTrainingSection.css';
 import { HOME_GRADE_BADGE_COLOR, HOME_RECENT_TRAINING_TABLE_HEADERS } from '../../constants/home';
@@ -29,34 +32,43 @@ const RecentTrainingSection = ({ records, actionIcon }: RecentTrainingSectionPro
       </Button>
     </div>
 
-    <table className={styles.recordsTable}>
-      <thead>
-        <tr>
-          {HOME_RECENT_TRAINING_TABLE_HEADERS.map((header) => (
-            <th key={header} className={styles.tableHeadCell}>
-              {header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {records.map((record) => (
-          <tr key={record.id}>
-            <td className={styles.tableCell({ tone: 'emphasis' })}>{record.name}</td>
-            <td className={styles.tableCell({ tone: 'date' })}>{record.date}</td>
-            <td className={styles.tableCell()}>{record.participants}</td>
-            <td className={styles.tableCell({ tone: 'emphasis' })}>{record.evacuationTime}</td>
-            <td className={styles.tableCell()}>{record.survivalRate}</td>
-            <td className={styles.tableCell()}>
-              <StatusBadge
-                label={record.grade}
-                color={HOME_GRADE_BADGE_COLOR[record.grade] ?? 'neutral'}
-              />
-            </td>
+    {records.length > 0 ? (
+      <table className={styles.recordsTable}>
+        <thead>
+          <tr>
+            {HOME_RECENT_TRAINING_TABLE_HEADERS.map((header) => (
+              <th key={header} className={styles.tableHeadCell}>
+                {header}
+              </th>
+            ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.id}>
+              <td className={styles.tableCell({ tone: 'emphasis' })}>{record.name}</td>
+              <td className={styles.tableCell({ tone: 'date' })}>{record.date}</td>
+              <td className={styles.tableCell()}>{record.participants}</td>
+              <td className={styles.tableCell({ tone: 'emphasis' })}>{record.evacuationTime}</td>
+              <td className={styles.tableCell()}>{record.survivalRate}</td>
+              <td className={styles.tableCell()}>
+                <StatusBadge
+                  label={record.grade}
+                  color={HOME_GRADE_BADGE_COLOR[record.grade] ?? 'neutral'}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      <EmptyState
+        className={styles.emptyState}
+        icon={<FileTextIcon />}
+        title="아직 훈련 기록이 없습니다."
+        description="훈련을 완료하면 결과가 이곳에 표시됩니다."
+      />
+    )}
   </section>
 );
 

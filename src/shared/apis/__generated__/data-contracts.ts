@@ -33,6 +33,20 @@ export interface ApiResponseCctvResponse {
   result?: CctvResponse;
 }
 
+export interface ApiResponseCongestionImageUrlResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: CongestionImageUrlResponse;
+}
+
+export interface ApiResponseDashboardStatsResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: DashboardStatsResponse;
+}
+
 export interface ApiResponseDeviceTokenIssueResponse {
   code?: string;
   isSuccess?: boolean;
@@ -66,6 +80,13 @@ export interface ApiResponseFloorGridResponse {
   isSuccess?: boolean;
   message?: string;
   result?: FloorGridResponse;
+}
+
+export interface ApiResponseFloorImageUrlResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: FloorImageUrlResponse;
 }
 
 export interface ApiResponseFloorResponse {
@@ -117,6 +138,20 @@ export interface ApiResponseListIoTLightResponse {
   result?: IoTLightResponse[];
 }
 
+export interface ApiResponseListRecentTrainingReportResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: RecentTrainingReportResponse[];
+}
+
+export interface ApiResponseListRouteRecalculationSummaryResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: RouteRecalculationSummaryResponse[];
+}
+
 export interface ApiResponseLoginResponse {
   code?: string;
   isSuccess?: boolean;
@@ -136,6 +171,20 @@ export interface ApiResponseMapNodeResponse {
   isSuccess?: boolean;
   message?: string;
   result?: MapNodeResponse;
+}
+
+export interface ApiResponseRouteDeviationResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: RouteDeviationResponse;
+}
+
+export interface ApiResponseRouteRecalculationDetailResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: RouteRecalculationDetailResponse;
 }
 
 export interface ApiResponseRouteRecalculationResponse {
@@ -166,6 +215,13 @@ export interface ApiResponseTrainingSessionResponse {
   result?: TrainingSessionResponse;
 }
 
+export interface ApiResponseTrainingStatusResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: TrainingStatusResponse;
+}
+
 export interface ApiResponseUserProfileResponse {
   code?: string;
   isSuccess?: boolean;
@@ -184,15 +240,20 @@ export type ApproveData = ApiResponseRouteRecalculationResponse;
 
 export interface BuildingResponse {
   address?: string;
+  /** @format int32 */
+  basementFloorCount?: number;
   buildingType?: "CLASSROOM" | "CAFETERIA" | "LIBRARY" | "DORMITORY" | "GYM";
   /** @format date-time */
   createdAt?: string;
+  /** @format int32 */
+  groundFloorCount?: number;
   /** @format uuid */
   id?: string;
   isActive?: boolean;
   /** @format date-time */
   lastTrainedAt?: string;
   name?: string;
+  schoolName?: string;
   /** @format int32 */
   totalFloors?: number;
   /** @format date-time */
@@ -265,6 +326,59 @@ export interface ConfigureGuidanceRequest {
   rightEdgeId: string;
 }
 
+export interface CongestionConfigQueryResponse {
+  /** @format double */
+  monitoredAreaM2?: number;
+  cctvCode?: string;
+  /** @format int64 */
+  configVersion?: number;
+  congestionThresholds?: CongestionThresholdsResponse;
+  eventDetection?: EventDetectionResponse;
+  /** @format int32 */
+  snapshotIntervalSec?: number;
+  /** @format int32 */
+  targetInferenceFps?: number;
+  trainingActive?: boolean;
+  trainingSessionId?: string;
+}
+
+export interface CongestionEventResponse {
+  cctvCode?: string;
+  /** @format int64 */
+  configVersion?: number;
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  density?: number;
+  /** @format int64 */
+  detectedAt?: number;
+  eventId?: string;
+  eventImageKey?: string;
+  eventStatus?: "RECEIVED" | "PROCESSING" | "PROCESSED" | "FAILED";
+  eventType?: "CONGESTION_STARTED" | "CONGESTION_LEVEL_UP" | "CONGESTION_ENDED";
+  /** @format int32 */
+  headcount?: number;
+  imageUploadStatus?: "PENDING" | "COMPLETED" | "FAILED" | "UPLOADED";
+  localCongestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  localDensity?: number;
+  trainingSessionId?: string;
+}
+
+export interface CongestionImageUrlResponse {
+  /** @format date-time */
+  expiresAt?: string;
+  imageUrl?: string;
+}
+
+export interface CongestionThresholdsResponse {
+  /** @format double */
+  CAUTION_FROM?: number;
+  /** @format double */
+  CROWDED_FROM?: number;
+  /** @format double */
+  VERY_CROWDED_FROM?: number;
+}
+
 export type ConnectEventImageData = any;
 
 export interface ConnectEventImageRequest {
@@ -288,8 +402,6 @@ export interface CreateBuildingRequest {
    * @maxLength 20
    */
   name: string;
-  /** @format int32 */
-  totalFloors: number;
 }
 
 export type CreateCctvData = ApiResponseCctvRegistrationResponse;
@@ -468,6 +580,8 @@ export type DeleteEdgeData = ApiResponseVoid;
 
 export type DeleteFloorData = ApiResponseVoid;
 
+export type DeleteLightData = ApiResponseVoid;
+
 export type DeleteNodeData = ApiResponseVoid;
 
 export type DeleteScenarioData = any;
@@ -490,6 +604,15 @@ export interface EvacuationRouteResponse {
   path?: MapNodeResponse[];
   /** @format double */
   totalWeight?: number;
+}
+
+export interface EventDetectionResponse {
+  /** @format int32 */
+  cooldownSec?: number;
+  /** @format int32 */
+  recoveryConsecutiveFrames?: number;
+  /** @format int32 */
+  requiredConsecutiveFrames?: number;
 }
 
 export interface FloorGraphResponse {
@@ -537,6 +660,12 @@ export interface FloorGridResponse {
   rows?: number;
 }
 
+export interface FloorImageUrlResponse {
+  /** @format date-time */
+  expiresAt?: string;
+  imageUrl?: string;
+}
+
 export interface FloorResponse {
   /** @format date-time */
   createdAt?: string;
@@ -562,7 +691,15 @@ export type GetCctvData = ApiResponseCctvResponse;
 
 export type GetCctvsData = ApiResponseListCctvResponse;
 
+export type GetConfigData = CongestionConfigQueryResponse;
+
+export type GetDeviationRateData = ApiResponseRouteDeviationResponse;
+
+export type GetEventImageUrlData = ApiResponseCongestionImageUrlResponse;
+
 export type GetFloorData = ApiResponseFloorResponse;
+
+export type GetFloorImageUrlData = ApiResponseFloorImageUrlResponse;
 
 export type GetFloorsData = ApiResponseListFloorResponse;
 
@@ -578,7 +715,17 @@ export type GetLightsData = ApiResponseListIoTLightResponse;
 
 export type GetMyProfileData = ApiResponseUserProfileResponse;
 
-export type GetRecentReportsData = RecentTrainingReportResponse[];
+export type GetObservationImageUrlData = ApiResponseCongestionImageUrlResponse;
+
+export type GetRecalculationDetailData =
+  ApiResponseRouteRecalculationDetailResponse;
+
+export type GetRecalculationsData =
+  ApiResponseListRouteRecalculationSummaryResponse;
+
+export type GetRecentReportsData = ApiResponseListRecentTrainingReportResponse;
+
+export type GetReportData = ReportResponse;
 
 export type GetScenarioData = ScenarioResponse;
 
@@ -586,9 +733,9 @@ export type GetScenariosData = ScenarioResponse[];
 
 export type GetShortestRouteData = ApiResponseEvacuationRouteResponse;
 
-export type GetStatsData = DashboardStatsResponse;
+export type GetStatsData = ApiResponseDashboardStatsResponse;
 
-export type GetTrainingStatusData = TrainingStatusResponse;
+export type GetTrainingStatusData = ApiResponseTrainingStatusResponse;
 
 export interface IoTLightResponse {
   code?: string;
@@ -719,22 +866,43 @@ export interface RecentTrainingReportResponse {
 
 export type RejectData = ApiResponseRouteRecalculationResponse;
 
-export type ReportCongestionData = ObservationResponse;
+export interface RejectRouteRecalculationRequest {
+  reason?: string;
+}
 
-export interface ReportCongestionRequest {
-  /** @format double */
-  avgHeadcount: number;
-  /** @format int64 */
-  capturedAt: number;
+export type ReportCongestionEventData = CongestionEventResponse;
+
+export interface ReportCongestionEventRequest {
   /** @minLength 1 */
   cctvCode: string;
   /** @format int64 */
   configVersion: number;
-  congestionLevel: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
-  /** @format double */
-  density: number;
+  /** @format int64 */
+  detectedAt: number;
   /** @format uuid */
-  edgeId: string;
+  eventId: string;
+  eventType: "CONGESTION_STARTED" | "CONGESTION_LEVEL_UP" | "CONGESTION_ENDED";
+  /** @format int32 */
+  headcount: number;
+  localCongestionLevel: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  localDensity: number;
+  /** @format uuid */
+  trainingSessionId: string;
+}
+
+export type ReportObservationData = ObservationResponse;
+
+export interface ReportObservationRequest {
+  /** @format double */
+  avgHeadcount: number;
+  /** @format int64 */
+  capturedAt: number;
+  capturedAtValid?: boolean;
+  /** @minLength 1 */
+  cctvCode: string;
+  /** @format int64 */
+  configVersion: number;
   /** @format uuid */
   eventId: string;
   headcountValid?: boolean;
@@ -760,9 +928,47 @@ export interface ReportResponse {
   /** @format int32 */
   participantCount?: number;
   pdfUrl?: string;
+  reportId?: string;
   /** @format double */
   riskIndex?: number;
   survivalRate?: number;
+}
+
+export interface RouteDeviationResponse {
+  /** @format int64 */
+  deviatedWindows?: number;
+  /** @format double */
+  deviationRate?: number;
+  /** @format uuid */
+  lightId?: string;
+  /** @format int64 */
+  totalObservedWindows?: number;
+  /** @format uuid */
+  trainingSessionId?: string;
+}
+
+export interface RouteRecalculationDetailResponse {
+  cancelReason?: string;
+  candidateRoute?: RouteSegment;
+  cctvCode?: string;
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  density?: number;
+  previousRoute?: RouteSegment;
+  /** @format uuid */
+  recalculationId?: string;
+  rejectReason?: string;
+  /** @format date-time */
+  requestedAt?: string;
+  /** @format date-time */
+  resolvedAt?: string;
+  resolvedBy?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  /** @format uuid */
+  trainingSessionId?: string;
+  /** @format uuid */
+  triggerEdgeId?: string;
+  triggerType?: "STARTED" | "LEVEL_UP" | "ENDED";
 }
 
 export interface RouteRecalculationResponse {
@@ -770,17 +976,42 @@ export interface RouteRecalculationResponse {
   /** @format uuid */
   id?: string;
   recalculatedNodeIds?: string[];
+  rejectReason?: string;
   /** @format date-time */
   requestedAt?: string;
   /** @format date-time */
   resolvedAt?: string;
-  status?: "PENDING" | "APPROVED" | "REJECTED";
+  resolvedBy?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
   /** @format double */
   totalWeight?: number;
   /** @format uuid */
   trainingSessionId?: string;
   /** @format uuid */
   triggerEdgeId?: string;
+}
+
+export interface RouteRecalculationSummaryResponse {
+  cctvCode?: string;
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /** @format double */
+  density?: number;
+  /** @format uuid */
+  recalculationId?: string;
+  /** @format date-time */
+  requestedAt?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  /** @format uuid */
+  trainingSessionId?: string;
+  /** @format uuid */
+  triggerEdgeId?: string;
+  triggerType?: "STARTED" | "LEVEL_UP" | "ENDED";
+}
+
+export interface RouteSegment {
+  nodeIds?: string[];
+  /** @format double */
+  totalWeight?: number;
 }
 
 export interface S3UploadResponse {
@@ -799,6 +1030,7 @@ export interface ScenarioResponse {
   buildingId?: string;
   /** @format date-time */
   createdAt?: string;
+  deletable?: boolean;
   /** @format int32 */
   expectedParticipants?: number;
   fireSpreadSpeed?: "SLOW" | "MEDIUM" | "FAST";
@@ -806,8 +1038,10 @@ export interface ScenarioResponse {
   id?: string;
   isTemplate?: boolean;
   name?: string;
+  reportId?: string;
   /** @format date-time */
   scheduledAt?: string;
+  status?: "DRAFT" | "READY" | "IN_PROGRESS" | "COMPLETED" | "ERROR";
   /** @format date-time */
   updatedAt?: string;
 }
@@ -883,8 +1117,28 @@ export interface UpdateBuildingRequest {
    * @maxLength 20
    */
   name: string;
-  /** @format int32 */
-  totalFloors: number;
+}
+
+export type UpdateCctvData = ApiResponseCctvResponse;
+
+export interface UpdateCctvRequest {
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  name: string;
+  /**
+   * @format double
+   * @min 0
+   * @max 1
+   */
+  x: number;
+  /**
+   * @format double
+   * @min 0
+   * @max 1
+   */
+  y: number;
 }
 
 export type UpdateFloorData = ApiResponseFloorResponse;
@@ -906,6 +1160,7 @@ export interface UpdateIoTLightRequest {
 export type UpdateLightData = ApiResponseIoTLightResponse;
 
 export interface UpdateMapNodePositionRequest {
+  isExitTarget?: boolean;
   /** @format double */
   x: number;
   /** @format double */

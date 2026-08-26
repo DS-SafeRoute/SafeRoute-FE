@@ -8,6 +8,8 @@ import { sectionCardBase } from '../../HomePage.css';
 export const recordsSection = style([
   sectionCardBase,
   {
+    display: 'flex',
+    flexDirection: 'column',
     borderRadius: '2rem',
     padding: 0,
     minWidth: 0,
@@ -94,4 +96,10 @@ export const tableCell = recipe({
   defaultVariants: {
     tone: 'default',
   },
+});
+
+export const emptyState = style({
+  flex: 1,
+  borderTop: `1px solid ${vars.color.gray100}`,
+  padding: vars.space.s6,
 });
