@@ -40,6 +40,13 @@ export interface ApiResponseCongestionImageUrlResponse {
   result?: CongestionImageUrlResponse;
 }
 
+export interface ApiResponseDashboardStatsResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: DashboardStatsResponse;
+}
+
 export interface ApiResponseDeviceTokenIssueResponse {
   code?: string;
   isSuccess?: boolean;
@@ -73,6 +80,13 @@ export interface ApiResponseFloorGridResponse {
   isSuccess?: boolean;
   message?: string;
   result?: FloorGridResponse;
+}
+
+export interface ApiResponseFloorImageUrlResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: FloorImageUrlResponse;
 }
 
 export interface ApiResponseFloorResponse {
@@ -124,6 +138,13 @@ export interface ApiResponseListIoTLightResponse {
   result?: IoTLightResponse[];
 }
 
+export interface ApiResponseListRecentTrainingReportResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: RecentTrainingReportResponse[];
+}
+
 export interface ApiResponseListRouteRecalculationSummaryResponse {
   code?: string;
   isSuccess?: boolean;
@@ -150,6 +171,13 @@ export interface ApiResponseMapNodeResponse {
   isSuccess?: boolean;
   message?: string;
   result?: MapNodeResponse;
+}
+
+export interface ApiResponseRouteDeviationResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: RouteDeviationResponse;
 }
 
 export interface ApiResponseRouteRecalculationDetailResponse {
@@ -187,6 +215,13 @@ export interface ApiResponseTrainingSessionResponse {
   result?: TrainingSessionResponse;
 }
 
+export interface ApiResponseTrainingStatusResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: TrainingStatusResponse;
+}
+
 export interface ApiResponseUserProfileResponse {
   code?: string;
   isSuccess?: boolean;
@@ -205,15 +240,20 @@ export type ApproveData = ApiResponseRouteRecalculationResponse;
 
 export interface BuildingResponse {
   address?: string;
+  /** @format int32 */
+  basementFloorCount?: number;
   buildingType?: "CLASSROOM" | "CAFETERIA" | "LIBRARY" | "DORMITORY" | "GYM";
   /** @format date-time */
   createdAt?: string;
+  /** @format int32 */
+  groundFloorCount?: number;
   /** @format uuid */
   id?: string;
   isActive?: boolean;
   /** @format date-time */
   lastTrainedAt?: string;
   name?: string;
+  schoolName?: string;
   /** @format int32 */
   totalFloors?: number;
   /** @format date-time */
@@ -362,8 +402,6 @@ export interface CreateBuildingRequest {
    * @maxLength 20
    */
   name: string;
-  /** @format int32 */
-  totalFloors: number;
 }
 
 export type CreateCctvData = ApiResponseCctvRegistrationResponse;
@@ -542,6 +580,8 @@ export type DeleteEdgeData = ApiResponseVoid;
 
 export type DeleteFloorData = ApiResponseVoid;
 
+export type DeleteLightData = ApiResponseVoid;
+
 export type DeleteNodeData = ApiResponseVoid;
 
 export type DeleteScenarioData = any;
@@ -620,6 +660,12 @@ export interface FloorGridResponse {
   rows?: number;
 }
 
+export interface FloorImageUrlResponse {
+  /** @format date-time */
+  expiresAt?: string;
+  imageUrl?: string;
+}
+
 export interface FloorResponse {
   /** @format date-time */
   createdAt?: string;
@@ -647,9 +693,13 @@ export type GetCctvsData = ApiResponseListCctvResponse;
 
 export type GetConfigData = CongestionConfigQueryResponse;
 
+export type GetDeviationRateData = ApiResponseRouteDeviationResponse;
+
 export type GetEventImageUrlData = ApiResponseCongestionImageUrlResponse;
 
 export type GetFloorData = ApiResponseFloorResponse;
+
+export type GetFloorImageUrlData = ApiResponseFloorImageUrlResponse;
 
 export type GetFloorsData = ApiResponseListFloorResponse;
 
@@ -673,7 +723,9 @@ export type GetRecalculationDetailData =
 export type GetRecalculationsData =
   ApiResponseListRouteRecalculationSummaryResponse;
 
-export type GetRecentReportsData = RecentTrainingReportResponse[];
+export type GetRecentReportsData = ApiResponseListRecentTrainingReportResponse;
+
+export type GetReportData = ReportResponse;
 
 export type GetScenarioData = ScenarioResponse;
 
@@ -681,9 +733,9 @@ export type GetScenariosData = ScenarioResponse[];
 
 export type GetShortestRouteData = ApiResponseEvacuationRouteResponse;
 
-export type GetStatsData = DashboardStatsResponse;
+export type GetStatsData = ApiResponseDashboardStatsResponse;
 
-export type GetTrainingStatusData = TrainingStatusResponse;
+export type GetTrainingStatusData = ApiResponseTrainingStatusResponse;
 
 export interface IoTLightResponse {
   code?: string;
@@ -876,9 +928,23 @@ export interface ReportResponse {
   /** @format int32 */
   participantCount?: number;
   pdfUrl?: string;
+  reportId?: string;
   /** @format double */
   riskIndex?: number;
   survivalRate?: number;
+}
+
+export interface RouteDeviationResponse {
+  /** @format int64 */
+  deviatedWindows?: number;
+  /** @format double */
+  deviationRate?: number;
+  /** @format uuid */
+  lightId?: string;
+  /** @format int64 */
+  totalObservedWindows?: number;
+  /** @format uuid */
+  trainingSessionId?: string;
 }
 
 export interface RouteRecalculationDetailResponse {
@@ -972,6 +1038,7 @@ export interface ScenarioResponse {
   id?: string;
   isTemplate?: boolean;
   name?: string;
+  reportId?: string;
   /** @format date-time */
   scheduledAt?: string;
   status?: "DRAFT" | "READY" | "IN_PROGRESS" | "COMPLETED" | "ERROR";
@@ -1050,8 +1117,28 @@ export interface UpdateBuildingRequest {
    * @maxLength 20
    */
   name: string;
-  /** @format int32 */
-  totalFloors: number;
+}
+
+export type UpdateCctvData = ApiResponseCctvResponse;
+
+export interface UpdateCctvRequest {
+  /**
+   * @minLength 0
+   * @maxLength 100
+   */
+  name: string;
+  /**
+   * @format double
+   * @min 0
+   * @max 1
+   */
+  x: number;
+  /**
+   * @format double
+   * @min 0
+   * @max 1
+   */
+  y: number;
 }
 
 export type UpdateFloorData = ApiResponseFloorResponse;
@@ -1073,6 +1160,7 @@ export interface UpdateIoTLightRequest {
 export type UpdateLightData = ApiResponseIoTLightResponse;
 
 export interface UpdateMapNodePositionRequest {
+  isExitTarget?: boolean;
   /** @format double */
   x: number;
   /** @format double */
