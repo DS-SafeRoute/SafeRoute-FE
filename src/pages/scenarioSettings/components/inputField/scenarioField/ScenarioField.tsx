@@ -4,13 +4,19 @@ import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 
 import * as styles from './ScenarioField.css';
 
+export interface ScenarioFieldOption {
+  label: string;
+  value: string;
+}
+
 interface ScenarioFieldProps {
   label: string;
   value: string;
-  options: readonly string[];
+  options: readonly (string | ScenarioFieldOption)[];
   leadingIcon?: ReactNode;
   disabled?: boolean;
   readOnly?: boolean;
+  onChange?: (value: string) => void;
 }
 
 const ScenarioField = ({
@@ -20,6 +26,7 @@ const ScenarioField = ({
   leadingIcon,
   disabled = false,
   readOnly = false,
+  onChange,
 }: ScenarioFieldProps) => {
   const isInactive = disabled || readOnly;
 
@@ -30,15 +37,21 @@ const ScenarioField = ({
         {leadingIcon ? <span className={styles.withLeadingIcon}>{leadingIcon}</span> : null}
         <select
           className={styles.select({ disabled, readOnly })}
-          defaultValue={value}
+          value={onChange ? value : undefined}
+          defaultValue={onChange ? undefined : value}
           aria-label={label}
           disabled={isInactive}
+          onChange={(event) => onChange?.(event.target.value)}
         >
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
+          {options.map((option) => {
+            const item = typeof option === 'string' ? { label: option, value: option } : option;
+
+            return (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            );
+          })}
         </select>
         {!isInactive ? (
           <span className={styles.trailingIcon}>

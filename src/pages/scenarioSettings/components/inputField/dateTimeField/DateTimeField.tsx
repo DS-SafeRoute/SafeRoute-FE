@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 
 import CalendarIcon from '@assets/icons/ic-calendar.svg?react';
 
@@ -6,33 +6,43 @@ import * as styles from './DateTimeField.css';
 
 interface DateTimeFieldProps {
   label: string;
-  defaultValue: string;
+  value: string;
   disabled?: boolean;
   readOnly?: boolean;
+  onChange: (value: string) => void;
 }
 
 const formatDateTime = (value: string) => {
   if (!value) return '';
 
-  const [datePart] = value.split('T');
-  const isDateFormat = /^\d{4}-\d{2}-\d{2}$/.test(datePart);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
 
-  if (!isDateFormat) return '';
+  const pad = (number: number) => String(number).padStart(2, '0');
 
-  const [year, month, day] = datePart.split('-');
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+};
 
-  return `${year}.${month}.${day}`;
+const toInputValue = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
 };
 
 const DateTimeField = ({
   label,
-  defaultValue,
+  value,
   disabled = false,
   readOnly = false,
+  onChange,
 }: DateTimeFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState(defaultValue);
   const isInactive = disabled || readOnly;
+  const inputValue = toInputValue(value);
 
   return (
     <label className={styles.root}>
@@ -53,12 +63,12 @@ const DateTimeField = ({
       </button>
       <input
         ref={inputRef}
-        type="date"
+        type="datetime-local"
         disabled={isInactive}
-        value={value}
+        value={inputValue}
         className={styles.hiddenInput}
         onChange={(event) => {
-          setValue(event.target.value);
+          onChange(event.target.value);
         }}
       />
     </label>
