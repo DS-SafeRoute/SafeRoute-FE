@@ -7,7 +7,7 @@ export interface BasicInfo {
   expectedParticipants: string;
 }
 
-export type FireConditionKey = 'origin' | 'spread' | 'smoke' | 'guideLight';
+export type FireConditionKey = 'origin' | 'spread';
 
 export interface FireConditionField {
   key: FireConditionKey;
@@ -18,13 +18,6 @@ export interface FireConditionField {
 export interface FireConditionOptions {
   origin: readonly string[];
   spread: readonly string[];
-  smoke: readonly string[];
-  guideLight: readonly string[];
-}
-
-export interface ScenarioDetail {
-  basicInfo: BasicInfo;
-  fireConditions: readonly FireConditionField[];
 }
 
 export interface PreviewMetric {

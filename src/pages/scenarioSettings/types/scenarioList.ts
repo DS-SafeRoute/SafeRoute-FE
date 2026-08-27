@@ -5,6 +5,7 @@ export const SCENARIO_STATUS = {
   READY: 'READY',
   IN_PROGRESS: 'IN_PROGRESS',
   COMPLETED: 'COMPLETED',
+  ERROR: 'ERROR',
 } as const;
 
 export type ScenarioStatus = (typeof SCENARIO_STATUS)[keyof typeof SCENARIO_STATUS];
@@ -12,11 +13,16 @@ export type ScenarioStatus = (typeof SCENARIO_STATUS)[keyof typeof SCENARIO_STAT
 export interface ScenarioSummary {
   id: string;
   name: string;
-  location: string;
+  buildingId: string;
   scheduledAt: string;
   expectedParticipants: number;
   status: ScenarioStatus;
   deletable: boolean;
+  reportId: string | null;
+}
+
+export interface Scenario extends ScenarioSummary {
+  fireSpreadSpeed: 'SLOW' | 'MEDIUM' | 'FAST';
 }
 
 export const SCENARIO_STATUS_VIEW: Record<
@@ -27,4 +33,5 @@ export const SCENARIO_STATUS_VIEW: Record<
   READY: { label: '준비완료', color: 'green' },
   IN_PROGRESS: { label: '진행중', color: 'yellow' },
   COMPLETED: { label: '완료', color: 'neutral' },
+  ERROR: { label: '오류', color: 'red' },
 };
