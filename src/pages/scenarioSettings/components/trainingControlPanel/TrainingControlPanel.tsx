@@ -18,6 +18,7 @@ interface TrainingControlPanelProps {
   routeProposal: string | null;
   liveStatus: PreviewStatus;
   liveMetrics: PreviewMetric[];
+  isEnding: boolean;
   onEnd: () => void;
   onRejectRouteProposal: () => void;
   onApplyRouteProposal: () => void;
@@ -29,6 +30,7 @@ const TrainingControlPanel = ({
   routeProposal,
   liveStatus,
   liveMetrics,
+  isEnding,
   onEnd,
   onRejectRouteProposal,
   onApplyRouteProposal,
@@ -44,6 +46,7 @@ const TrainingControlPanel = ({
         fullWidth
         leftIcon={<PauseIcon />}
         onClick={onEnd}
+        isLoading={isEnding}
       >
         종료
       </Button>

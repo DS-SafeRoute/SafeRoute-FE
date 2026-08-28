@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import type {
   DashboardStatsResponse,
   RecentTrainingReportResponse,
+  TrainingSessionSummaryResponse,
 } from '@apis/__generated__/data-contracts';
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionsApi';
+import { useStartTrainingSessionMutation } from '@apis/trainingSessions/useTrainingSessionMutations';
+import { useTrainingSessionSocket } from '@apis/trainingSessions/useTrainingSessionSocket';
+import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
 
 import ActivityIcon from '@assets/icons/ic-activity.svg?react';
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
@@ -12,6 +17,10 @@ import ClockIcon from '@assets/icons/ic-clock.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import PlayIcon from '@assets/icons/ic-play.svg?react';
 import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
+
+import useToast from '@components/toast/useToast';
+
+import { ROUTES } from '@constants/path';
 
 import { formatDate, formatDuration } from '@utils/format';
 
@@ -22,9 +31,8 @@ import RecentTrainingSection from './components/recentTrainingSection/RecentTrai
 import ScheduledTrainingSection from './components/scheduledTrainingSection/ScheduledTrainingSection';
 import { HOME_TRAINING_STATUS } from './constants/home';
 import * as styles from './HomePage.css';
-import { initialTraining } from './mocks/homeData';
 
-import type { HomeMetric, TrainingRecord } from './types/home';
+import type { HomeMetric, ScheduledTraining, TrainingRecord } from './types/home';
 
 const metricIcons: Record<HomeMetric['iconKey'], JSX.Element> = {
   activity: <ActivityIcon />,
@@ -87,17 +95,65 @@ const toTrainingRecord = (
   grade: training.grade ?? 'C',
 });
 
+const formatTime = (iso?: string) => {
+  if (!iso) return '-';
+
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+};
+
+const toScheduledTraining = (
+  session?: TrainingSessionSummaryResponse,
+): ScheduledTraining | null => {
+  if (!session?.sessionId) return null;
+
+  return {
+    id: session.sessionId,
+    name: session.scenarioName ?? '-',
+    building: session.buildingName ?? '-',
+    date: formatDate(session.startedAt),
+    time: formatTime(session.startedAt),
+    status:
+      session.status === TRAINING_SESSION_STATUS.RUNNING
+        ? HOME_TRAINING_STATUS.IN_PROGRESS
+        : HOME_TRAINING_STATUS.SCHEDULED,
+  };
+};
+
 const HomePage = () => {
-  const [training, setTraining] = useState(initialTraining);
+  const navigate = useNavigate();
+  const { show } = useToast();
   const { data: stats } = useGetDashboardStatsQuery();
   const { data: trainings = [] } = useGetDashboardTrainingsQuery();
+  const { data: runningSessions = [] } = useTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING);
+  const { data: scheduledSessions = [] } = useTrainingSessionsQuery(
+    TRAINING_SESSION_STATUS.SCHEDULED,
+  );
+  const startTrainingSessionMutation = useStartTrainingSessionMutation();
+  const training =
+    toScheduledTraining(runningSessions[0]) ?? toScheduledTraining(scheduledSessions[0]);
+  useTrainingSessionSocket({ sessionId: training?.id });
 
-  const handleTrainingStart = () => {
-    setTraining((current) =>
-      current.status === HOME_TRAINING_STATUS.IN_PROGRESS
-        ? current
-        : { ...current, status: HOME_TRAINING_STATUS.IN_PROGRESS },
-    );
+  const handleTrainingAction = async () => {
+    if (!training) return;
+
+    if (training.status === HOME_TRAINING_STATUS.IN_PROGRESS) {
+      void navigate(ROUTES.TRAINING_MONITORING);
+      return;
+    }
+
+    try {
+      await startTrainingSessionMutation.mutateAsync(training.id);
+      show({ title: '훈련이 시작되었습니다.', variant: 'success' });
+    } catch {
+      show({ title: '훈련 시작에 실패했습니다.', variant: 'error' });
+    }
   };
 
   return (
@@ -119,7 +175,8 @@ const HomePage = () => {
           <div className={styles.sideColumn}>
             <ScheduledTrainingSection
               training={training}
-              onStart={handleTrainingStart}
+              onAction={() => void handleTrainingAction()}
+              isLoading={startTrainingSessionMutation.isPending}
               sectionIcon={sectionIcons.calendar}
               actionIcon={sectionIcons.play}
             />

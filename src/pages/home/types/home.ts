@@ -28,10 +28,10 @@ export type TrainingRecord = {
 export type TrainingStatus = (typeof HOME_TRAINING_STATUS)[keyof typeof HOME_TRAINING_STATUS];
 
 export type ScheduledTraining = {
+  id: string;
+  name: string;
   building: string;
-  floor: string;
   date: string;
   time: string;
-  participants: string;
   status: TrainingStatus;
 };

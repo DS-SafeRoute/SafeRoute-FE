@@ -4,6 +4,14 @@ import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionsApi';
+import {
+  useCreateTrainingSessionMutation,
+  useEndTrainingSessionMutation,
+  useStartTrainingSessionMutation,
+} from '@apis/trainingSessions/useTrainingSessionMutations';
+import { useTrainingSessionSocket } from '@apis/trainingSessions/useTrainingSessionSocket';
+import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import PlayIcon from '@assets/icons/ic-play.svg?react';
@@ -77,21 +85,43 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const { data: currentUser } = useMyProfileQuery();
   const createScenarioMutation = useCreateScenarioMutation();
   const updateScenarioMutation = useUpdateScenarioMutation();
+  const createTrainingSessionMutation = useCreateTrainingSessionMutation();
+  const startTrainingSessionMutation = useStartTrainingSessionMutation();
+  const endTrainingSessionMutation = useEndTrainingSessionMutation();
+  const { data: runningSessions = [] } = useTrainingSessionsQuery(
+    TRAINING_SESSION_STATUS.RUNNING,
+    Boolean(scenario),
+  );
+  const { data: scheduledSessions = [] } = useTrainingSessionsQuery(
+    TRAINING_SESSION_STATUS.SCHEDULED,
+    Boolean(scenario),
+  );
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
   const [isEditing, setIsEditing] = useState(false);
   const isEditable = isCreatePage || isDraft || isEditing;
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
-  const [startedAt, setStartedAt] = useState<number | null>(() =>
-    scenario?.status === SCENARIO_STATUS.IN_PROGRESS ? Date.now() - 8 * 60 * 1000 : null,
-  );
+  const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
+  const [createdSessionStartedAt, setCreatedSessionStartedAt] = useState<string | null>(null);
   const [currentRoute, setCurrentRoute] = useState(CURRENT_ROUTE_TEXT);
   const [routeProposal, setRouteProposal] = useState<string | null>(ROUTE_PROPOSAL_TEXT);
   const [basicInfo, setBasicInfo] = useState<BasicInfo>(() => getInitialBasicInfo(scenario));
   const [fireSpreadLabel, setFireSpreadLabel] = useState<FireSpreadLabel>(
     scenario ? FIRE_SPREAD_LABEL[scenario.fireSpreadSpeed] : FIRE_SPREAD_LABEL.MEDIUM,
   );
-  const isRunning = startedAt !== null;
+  const runningSession = runningSessions.find(
+    (session) =>
+      session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
+  );
+  const scheduledSession = scheduledSessions.find(
+    (session) =>
+      session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
+  );
+  const activeSessionId = createdSessionId ?? runningSession?.sessionId ?? null;
+  const activeStartedAt = createdSessionStartedAt ?? runningSession?.startedAt ?? null;
+  const startedAt = activeStartedAt ? Date.parse(activeStartedAt) : null;
+  const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
+  useTrainingSessionSocket({ sessionId: activeSessionId ?? scheduledSession?.sessionId });
   const selectedBuildingId = basicInfo.targetBuilding || buildings[0]?.id || '';
   const displayedBasicInfo = { ...basicInfo, targetBuilding: selectedBuildingId };
   const fireConditions = DEFAULT_FIRE_CONDITIONS.map((condition) =>
@@ -102,8 +132,55 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     value: building.id,
   }));
 
-  const startTraining = () => {
-    setStartedAt(Date.now());
+  const handleStartTraining = async () => {
+    if (!scenario || !currentUser?.id) {
+      show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
+      return;
+    }
+
+    try {
+      let sessionId = scheduledSession?.sessionId;
+
+      if (!sessionId) {
+        const registeredSession = await createTrainingSessionMutation.mutateAsync({
+          scenarioId: scenario.id,
+          body: {
+            adminId: currentUser.id,
+            status: TRAINING_SESSION_STATUS.SCHEDULED,
+            startedAt: scenario.scheduledAt,
+          },
+        });
+
+        sessionId = registeredSession.id;
+      }
+
+      if (!sessionId) {
+        throw new Error('시작할 훈련 세션 ID가 없습니다.');
+      }
+
+      const session = await startTrainingSessionMutation.mutateAsync(sessionId);
+
+      if (!session.id || !session.startedAt) {
+        throw new Error('시작된 훈련 세션 정보가 없습니다.');
+      }
+
+      setCreatedSessionId(session.id);
+      setCreatedSessionStartedAt(session.startedAt);
+      show({ title: '훈련이 시작되었습니다.', variant: 'success' });
+    } catch {
+      show({ title: '훈련 시작에 실패했습니다.', variant: 'error' });
+    }
+  };
+
+  const handleEndTraining = async () => {
+    if (!activeSessionId) return;
+
+    try {
+      await endTrainingSessionMutation.mutateAsync(activeSessionId);
+      setIsEndModalOpen(true);
+    } catch {
+      show({ title: '훈련 종료에 실패했습니다.', variant: 'error' });
+    }
   };
 
   const handleBasicInfoChange = (key: keyof BasicInfo, value: string) => {
@@ -168,6 +245,25 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         buildingId: selectedBuildingId,
         adminId: currentUser.id,
       });
+
+      try {
+        await createTrainingSessionMutation.mutateAsync({
+          scenarioId: createdScenario.id,
+          body: {
+            adminId: currentUser.id,
+            status: TRAINING_SESSION_STATUS.SCHEDULED,
+            startedAt: payload.scheduledAt,
+          },
+        });
+      } catch {
+        show({
+          title: '시나리오는 등록됐지만 훈련 일정 등록에 실패했습니다.',
+          variant: 'error',
+        });
+        void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
+        return;
+      }
+
       show({ title: '시나리오가 등록되었습니다.', variant: 'success' });
       void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
     } catch {
@@ -199,14 +295,15 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           onFireSpreadChange={handleFireSpreadChange}
         />
 
-        {startedAt !== null ? (
+        {isRunning && startedAt !== null ? (
           <TrainingControlPanel
             startedAt={startedAt}
             currentRoute={currentRoute}
             routeProposal={routeProposal}
             liveStatus={LIVE_STATUS}
             liveMetrics={LIVE_METRICS}
-            onEnd={() => setIsEndModalOpen(true)}
+            isEnding={endTrainingSessionMutation.isPending}
+            onEnd={() => void handleEndTraining()}
             onRejectRouteProposal={handleRejectRouteProposal}
             onApplyRouteProposal={handleApplyRouteProposal}
           />
@@ -218,7 +315,9 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                 size="lg"
                 fullWidth
                 onClick={() => void handleCreate()}
-                isLoading={createScenarioMutation.isPending}
+                isLoading={
+                  createScenarioMutation.isPending || createTrainingSessionMutation.isPending
+                }
               >
                 작성 완료
               </Button>
@@ -241,7 +340,11 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   size="lg"
                   fullWidth
                   leftIcon={<PlayIcon />}
-                  onClick={startTraining}
+                  onClick={() => void handleStartTraining()}
+                  isLoading={
+                    createTrainingSessionMutation.isPending ||
+                    startTrainingSessionMutation.isPending
+                  }
                 >
                   시나리오 시작
                 </Button>
