@@ -81,3 +81,19 @@ export const draftButton = style({
     },
   },
 });
+
+export const pageState = style({
+  display: 'flex',
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: vars.space.s6,
+});
+
+export const stateMessage = style([
+  pageState,
+  {
+    color: vars.color.textLow,
+    ...vars.typography.body14,
+  },
+]);

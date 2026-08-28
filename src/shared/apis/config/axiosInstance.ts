@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+import { queryClient } from '@apis/config/queryClient';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
 import { ROUTES } from '@constants/path';
@@ -51,6 +52,7 @@ axiosInstance.interceptors.response.use(
       isCurrentSessionRequest
     ) {
       clearAccessToken();
+      queryClient.clear();
 
       if (window.location.pathname !== ROUTES.LOGIN) {
         window.location.replace(ROUTES.LOGIN);

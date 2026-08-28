@@ -10,7 +10,18 @@
  * ---------------------------------------------------------------
  */
 
+export interface AllUserZoneResponse {
+  userzones?: UserZoneResponse[];
+}
+
 export type AnalyzeData = any;
+
+export interface ApiResponseAllUserZoneResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: AllUserZoneResponse;
+}
 
 export interface ApiResponseBuildingResponse {
   code?: string;
@@ -229,6 +240,20 @@ export interface ApiResponseUserProfileResponse {
   result?: UserProfileResponse;
 }
 
+export interface ApiResponseUserZoneCellsResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: UserZoneCellsResponse;
+}
+
+export interface ApiResponseUserZoneResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: UserZoneResponse;
+}
+
 export interface ApiResponseVoid {
   code?: string;
   isSuccess?: boolean;
@@ -300,6 +325,15 @@ export interface CctvResponse {
   x?: number;
   /** @format double */
   y?: number;
+}
+
+export interface CellResponse {
+  /** @format uuid */
+  cellId?: string;
+  /** @format int32 */
+  columnIndex?: number;
+  /** @format int32 */
+  rowIndex?: number;
 }
 
 export type ChangeDirectionData = ApiResponseLightDirectionResponse;
@@ -561,6 +595,8 @@ export interface CreateSessionRequest {
 
 export type CreateTrainingSessionData = TrainingSessionResponse;
 
+export type CreateUserZoneData = ApiResponseUserZoneResponse;
+
 export interface DashboardStatsResponse {
   /** @format double */
   avgEvacuationSec?: number;
@@ -585,6 +621,8 @@ export type DeleteLightData = ApiResponseVoid;
 export type DeleteNodeData = ApiResponseVoid;
 
 export type DeleteScenarioData = any;
+
+export type DeleteUserZoneData = any;
 
 export interface DeviceTokenIssueResponse {
   deviceToken?: string;
@@ -614,6 +652,10 @@ export interface EventDetectionResponse {
   /** @format int32 */
   requiredConsecutiveFrames?: number;
 }
+
+export type FindAllUserZoneData = ApiResponseAllUserZoneResponse;
+
+export type FindUserZoneData = ApiResponseUserZoneCellsResponse;
 
 export interface FloorGraphResponse {
   edges?: MapEdgeResponse[];
@@ -687,6 +729,8 @@ export type GetBuildingData = ApiResponseBuildingResponse;
 
 export type GetBuildingsData = ApiResponseListBuildingResponse;
 
+export type GetCamerasData = MonitoringCameraListApiResponse;
+
 export type GetCctvData = ApiResponseCctvResponse;
 
 export type GetCctvsData = ApiResponseListCctvResponse;
@@ -702,6 +746,8 @@ export type GetFloorData = ApiResponseFloorResponse;
 export type GetFloorImageUrlData = ApiResponseFloorImageUrlResponse;
 
 export type GetFloorsData = ApiResponseListFloorResponse;
+
+export type GetFramesData = MonitoringFrameListApiResponse;
 
 export type GetGraphData = ApiResponseFloorGraphResponse;
 
@@ -730,6 +776,8 @@ export type GetReportData = ReportResponse;
 export type GetScenarioData = ScenarioResponse;
 
 export type GetScenariosData = ScenarioResponse[];
+
+export type GetSessionsData = TrainingSessionListApiResponse;
 
 export type GetShortestRouteData = ApiResponseEvacuationRouteResponse;
 
@@ -817,6 +865,181 @@ export interface MapNodeResponse {
   x?: number;
   /** @format double */
   y?: number;
+}
+
+/** 카메라별 최신 캡처 목록의 공통 API 응답 스키마 */
+export interface MonitoringCameraListApiResponse {
+  /**
+   * 응답 코드
+   * @example "TRAINING_SUCCESS_006"
+   */
+  code?: string;
+  /**
+   * 요청 성공 여부
+   * @example true
+   */
+  isSuccess?: boolean;
+  /**
+   * 응답 메시지
+   * @example "모니터링 카메라 목록 조회에 성공했습니다."
+   */
+  message?: string;
+  /** 카메라별 최신 캡처 목록 */
+  result?: MonitoringCameraListResponse;
+}
+
+/** 훈련 세션의 모니터링 카메라 목록 */
+export interface MonitoringCameraListResponse {
+  cameras?: MonitoringCameraResponse[];
+  /**
+   * 조회한 훈련 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
+  sessionId?: string;
+}
+
+/** 훈련 모니터링 화면의 카메라 카드 */
+export interface MonitoringCameraResponse {
+  /**
+   * CCTV가 설치된 건물명
+   * @example "A동"
+   */
+  buildingName?: string;
+  /**
+   * 최신 프레임 캡처 시각(Unix epoch milliseconds). 캡처가 없으면 null
+   * @format int64
+   * @example 1787722095000
+   */
+  capturedAt?: number;
+  /**
+   * CCTV ID
+   * @format uuid
+   * @example "67b86e33-7874-494c-855f-e591e7847c09"
+   */
+  cctvId?: string;
+  /**
+   * CCTV 고유 코드
+   * @example "CCTV_001"
+   */
+  code?: string;
+  /**
+   * 화면 표시용 층 이름
+   * @example "3층"
+   */
+  floorName?: string;
+  /**
+   * 건물명과 층 이름을 조합한 표시 위치
+   * @example "A동 3층"
+   */
+  location?: string;
+  /**
+   * 관리자가 지정한 CCTV 이름
+   * @example "CAM-1"
+   */
+  name?: string;
+  /**
+   * 최신 캡처 이미지의 S3 presigned GET URL. 캡처가 없으면 null
+   * @example "https://example-bucket.s3.amazonaws.com/training/session/monitoring/CCTV_001/frame.jpg"
+   */
+  thumbnailUrl?: string;
+  /**
+   * thumbnailUrl 만료 시각(Unix epoch milliseconds). 캡처가 없으면 null
+   * @format int64
+   * @example 1787725695000
+   */
+  urlExpiresAt?: number;
+}
+
+/** 카메라별 프레임 목록의 공통 API 응답 스키마 */
+export interface MonitoringFrameListApiResponse {
+  /**
+   * 응답 코드
+   * @example "TRAINING_SUCCESS_007"
+   */
+  code?: string;
+  /**
+   * 요청 성공 여부
+   * @example true
+   */
+  isSuccess?: boolean;
+  /**
+   * 응답 메시지
+   * @example "카메라별 프레임 목록 조회에 성공했습니다."
+   */
+  message?: string;
+  /** 카메라별 프레임 목록 */
+  result?: MonitoringFrameListResponse;
+}
+
+/** 카메라별 프레임 목록 (최신순 커서 페이지네이션) */
+export interface MonitoringFrameListResponse {
+  /**
+   * 조회한 CCTV ID
+   * @format uuid
+   * @example "67b86e33-7874-494c-855f-e591e7847c09"
+   */
+  cctvId?: string;
+  frames?: MonitoringFrameResponse[];
+  /**
+   * 다음 페이지 존재 여부
+   * @example true
+   */
+  hasNext?: boolean;
+  /**
+   * 다음 페이지 조회에 사용할 커서. 다음 페이지가 없으면 null
+   * @example "MTc4NzcyMjA5NTAwMA"
+   */
+  nextCursor?: string;
+  /**
+   * 조회한 훈련 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
+  sessionId?: string;
+}
+
+/** 상세 모니터링 화면의 프레임 한 장 */
+export interface MonitoringFrameResponse {
+  /**
+   * 프레임 캡처 시각(Unix epoch milliseconds)
+   * @format int64
+   * @example 1787722095000
+   */
+  capturedAt?: number;
+  /**
+   * 프레임 시점의 혼잡 단계
+   * @example "CROWDED"
+   */
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /**
+   * 프레임 시점의 밀집도
+   * @format double
+   * @example 0.42
+   */
+  density?: number;
+  /**
+   * 프레임(Observation) ID
+   * @example "3c9f7e2a-3b39-4f0a-9f0a-6a2b6b1f5a11"
+   */
+  frameId?: string;
+  /**
+   * 프레임 시점의 최대 인원수
+   * @format int32
+   * @example 12
+   */
+  headcount?: number;
+  /**
+   * 프레임 이미지의 S3 presigned GET URL. 이미지 업로드가 아직 끝나지 않았으면 null
+   * @example "https://example-bucket.s3.amazonaws.com/training/session/monitoring/CCTV_001/frame.jpg"
+   */
+  imageUrl?: string;
+  /**
+   * imageUrl 만료 시각(Unix epoch milliseconds). imageUrl이 없으면 null
+   * @format int64
+   * @example 1787725695000
+   */
+  urlExpiresAt?: number;
 }
 
 export interface ObservationResponse {
@@ -1085,6 +1308,32 @@ export interface SignupResponse {
 
 export type StartTrainingSessionData = ApiResponseTrainingSessionResponse;
 
+/** 훈련 세션 목록의 공통 API 응답 스키마 */
+export interface TrainingSessionListApiResponse {
+  /**
+   * 응답 코드
+   * @example "TRAINING_SUCCESS_008"
+   */
+  code?: string;
+  /**
+   * 요청 성공 여부
+   * @example true
+   */
+  isSuccess?: boolean;
+  /**
+   * 응답 메시지
+   * @example "훈련 세션 목록 조회에 성공했습니다."
+   */
+  message?: string;
+  /** 훈련 세션 목록 */
+  result?: TrainingSessionListResponse;
+}
+
+/** 조건에 맞는 훈련 세션 목록 */
+export interface TrainingSessionListResponse {
+  sessions?: TrainingSessionSummaryResponse[];
+}
+
 export interface TrainingSessionResponse {
   adminName?: string;
   /** @format uuid */
@@ -1092,6 +1341,49 @@ export interface TrainingSessionResponse {
   scenarioName?: string;
   /** @format date-time */
   startedAt?: string;
+  status?:
+    | "RUNNING"
+    | "STOPPED"
+    | "SCHEDULED"
+    | "COMPLETED"
+    | "FAILED"
+    | "CANCELLED";
+}
+
+/** 훈련 세션 목록의 항목 하나 */
+export interface TrainingSessionSummaryResponse {
+  /**
+   * 훈련이 진행되는 건물 ID
+   * @format uuid
+   * @example "b5a6e5b0-1e3a-4b8a-9b8a-6a2b6b1f5a11"
+   */
+  buildingId?: string;
+  /**
+   * 훈련이 진행되는 건물명
+   * @example "A동"
+   */
+  buildingName?: string;
+  /**
+   * 훈련 시나리오 이름
+   * @example "3학년 A동 화재 대피 훈련"
+   */
+  scenarioName?: string;
+  /**
+   * 훈련 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
+  sessionId?: string;
+  /**
+   * 훈련 시작 시각
+   * @format date-time
+   * @example "2026-08-26T05:26:00Z"
+   */
+  startedAt?: string;
+  /**
+   * 훈련 세션 상태
+   * @example "RUNNING"
+   */
   status?:
     | "RUNNING"
     | "STOPPED"
@@ -1238,4 +1530,24 @@ export interface UserProfileResponse {
   role?: "MANAGER" | "NORMAL";
   schoolName?: string;
   username?: string;
+}
+
+export interface UserZoneCellsResponse {
+  cells?: CellResponse[];
+  response?: UserZoneResponse;
+}
+
+export interface UserZoneCreateRequest {
+  /** @minItems 1 */
+  cellIds: string[];
+  /** @minLength 1 */
+  name: string;
+}
+
+export interface UserZoneResponse {
+  /** @format int32 */
+  floorNum?: number;
+  /** @format uuid */
+  userZoneId?: string;
+  userZoneName?: string;
 }

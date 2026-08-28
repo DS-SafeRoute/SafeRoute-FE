@@ -69,6 +69,10 @@ export const deleteButton = style({
   backgroundColor: vars.color.dangerSurface,
 });
 
+export const reportButton = style({
+  backgroundColor: vars.color.primaryLight,
+});
+
 export const disabledDeleteButton = style({
   borderColor: vars.color.gray100,
   backgroundColor: vars.color.gray50,
