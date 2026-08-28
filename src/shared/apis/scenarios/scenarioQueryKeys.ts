@@ -3,5 +3,5 @@ export const scenarioQueryKeys = {
   // 시나리오 전체 쿼리의 루트 키
   all: ['scenarios'] as const,
   // 시나리오 상세 쿼리키
-  detail: (scenarioId: string) => [...scenarioQueryKeys.all, scenarioId] as const,
+  detail: (scenarioId?: string) => [...scenarioQueryKeys.all, scenarioId] as const,
 };

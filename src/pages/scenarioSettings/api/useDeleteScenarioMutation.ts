@@ -9,8 +9,15 @@ export const useDeleteScenarioMutation = () => {
 
   return useMutation({
     mutationFn: deleteScenario,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all });
+    onSuccess: (_, scenarioId) => {
+      queryClient.removeQueries({
+        queryKey: scenarioQueryKeys.detail(scenarioId),
+        exact: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: scenarioQueryKeys.all,
+        exact: true,
+      });
     },
   });
 };
