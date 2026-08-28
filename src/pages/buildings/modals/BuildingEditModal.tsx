@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 
-import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
-
 import type { UpdateBuildingRequest } from '@apis/__generated__/data-contracts';
 
 import { Button } from '@components/Button';
@@ -9,8 +7,6 @@ import FilterChip from '@components/chip/FilterChip';
 import RequiredFieldText from '@components/inputField/RequiredFieldText';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
-
-import { isPositiveInt } from '@shared/utils/validation';
 
 import * as styles from './buildingForm.css';
 import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
@@ -29,14 +25,12 @@ interface FormState {
   name: string;
   address: string;
   buildingType: BuildingType;
-  totalFloors: string;
 }
 
 const toFormState = (building: Building): FormState => ({
   name: building.name,
   address: building.address,
   buildingType: building.buildingType,
-  totalFloors: String(building.totalFloors),
 });
 
 const BuildingEditModal = ({
@@ -65,11 +59,6 @@ const BuildingEditModal = ({
     setForm((prev) => ({ ...prev, buildingType: value }));
   };
 
-  const handleFloorChange = (field: 'totalFloors') => (value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: '' }));
-  };
-
   const validate = () => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
@@ -78,8 +67,6 @@ const BuildingEditModal = ({
     if (!form.address.trim()) next.address = '주소를 입력해 주세요';
     else if (form.address.trim().length < 8 || form.address.trim().length > 100)
       next.address = '주소는 8~100자로 입력해 주세요';
-    if (!form.totalFloors.trim()) next.totalFloors = '층수를 입력해 주세요';
-    else if (!isPositiveInt(form.totalFloors)) next.totalFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -90,7 +77,6 @@ const BuildingEditModal = ({
       name: form.name.trim(),
       address: form.address.trim(),
       buildingType: form.buildingType,
-      totalFloors: Number(form.totalFloors),
     });
   };
 
@@ -140,15 +126,6 @@ const BuildingEditModal = ({
               />
             ))}
           </div>
-        </div>
-        <div className={styles.floorRow}>
-          <FloorStepperField
-            label="층수 *"
-            value={form.totalFloors}
-            onChange={handleFloorChange('totalFloors')}
-            min={1}
-            errorMessage={errors.totalFloors}
-          />
         </div>
       </div>
     </Modal>
