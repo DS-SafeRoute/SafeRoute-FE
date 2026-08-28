@@ -27,11 +27,33 @@ export type TrainingRecord = {
 
 export type TrainingStatus = (typeof HOME_TRAINING_STATUS)[keyof typeof HOME_TRAINING_STATUS];
 
+// 예정된 훈련의 홈 상태 상세 응답
+export interface ScheduledTrainingStatusResponse {
+  buildingName: string;
+  totalFloors: number;
+  scheduledAt: string;
+  expectedParticipants: number;
+}
+
+// 진행 중인 훈련의 홈 상태 상세 응답
+export interface RunningTrainingStatusResponse {
+  buildingName: string;
+  elapsedSeconds: number;
+  actualParticipants: number;
+  currentSurvivalRate: number;
+}
+
+export type HomeTrainingStatusResponse =
+  | ScheduledTrainingStatusResponse
+  | RunningTrainingStatusResponse;
+
 export type ScheduledTraining = {
   id: string;
   name: string;
   building: string;
   date: string;
   time: string;
+  participants: string;
+  elapsedTime?: string;
   status: TrainingStatus;
 };

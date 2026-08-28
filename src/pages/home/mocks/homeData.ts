@@ -8,5 +8,6 @@ export const initialTraining: ScheduledTraining = {
   building: 'B동',
   date: '2026-04-15',
   time: '10:00',
+  participants: '52명',
   status: HOME_TRAINING_STATUS.SCHEDULED,
 };

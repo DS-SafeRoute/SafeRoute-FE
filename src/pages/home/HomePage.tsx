@@ -26,13 +26,21 @@ import { formatDate, formatDuration } from '@utils/format';
 
 import { useGetDashboardStatsQuery } from './api/useDashboardStatsQuery';
 import { useGetDashboardTrainingsQuery } from './api/useDashboardTrainingsQuery';
+import { useGetTrainingStatusQuery } from './api/useTrainingStatusQuery';
 import HomeSummarySection from './components/homeSummarySection/HomeSummarySection';
 import RecentTrainingSection from './components/recentTrainingSection/RecentTrainingSection';
 import ScheduledTrainingSection from './components/scheduledTrainingSection/ScheduledTrainingSection';
 import { HOME_TRAINING_STATUS } from './constants/home';
 import * as styles from './HomePage.css';
 
-import type { HomeMetric, ScheduledTraining, TrainingRecord } from './types/home';
+import type {
+  HomeMetric,
+  HomeTrainingStatusResponse,
+  RunningTrainingStatusResponse,
+  ScheduledTraining,
+  ScheduledTrainingStatusResponse,
+  TrainingRecord,
+} from './types/home';
 
 const metricIcons: Record<HomeMetric['iconKey'], JSX.Element> = {
   activity: <ActivityIcon />,
@@ -108,21 +116,39 @@ const formatTime = (iso?: string) => {
   }).format(date);
 };
 
+const isRunningTrainingStatus = (
+  status?: HomeTrainingStatusResponse,
+): status is RunningTrainingStatusResponse => Boolean(status && 'elapsedSeconds' in status);
+
+const isScheduledTrainingStatus = (
+  status?: HomeTrainingStatusResponse,
+): status is ScheduledTrainingStatusResponse => Boolean(status && 'scheduledAt' in status);
+
+const formatParticipants = (count?: number) =>
+  count === undefined ? '-' : `${count.toLocaleString()}명`;
+
 const toScheduledTraining = (
   session?: TrainingSessionSummaryResponse,
+  trainingStatus?: HomeTrainingStatusResponse,
 ): ScheduledTraining | null => {
   if (!session?.sessionId) return null;
+
+  const isRunning = session.status === TRAINING_SESSION_STATUS.RUNNING;
+  const runningStatus = isRunningTrainingStatus(trainingStatus) ? trainingStatus : undefined;
+  const scheduledStatus = isScheduledTrainingStatus(trainingStatus) ? trainingStatus : undefined;
+  const scheduledAt = scheduledStatus?.scheduledAt ?? session.startedAt;
 
   return {
     id: session.sessionId,
     name: session.scenarioName ?? '-',
-    building: session.buildingName ?? '-',
-    date: formatDate(session.startedAt),
-    time: formatTime(session.startedAt),
-    status:
-      session.status === TRAINING_SESSION_STATUS.RUNNING
-        ? HOME_TRAINING_STATUS.IN_PROGRESS
-        : HOME_TRAINING_STATUS.SCHEDULED,
+    building: trainingStatus?.buildingName ?? session.buildingName ?? '-',
+    date: formatDate(scheduledAt),
+    time: formatTime(scheduledAt),
+    participants: formatParticipants(
+      isRunning ? runningStatus?.actualParticipants : scheduledStatus?.expectedParticipants,
+    ),
+    elapsedTime: runningStatus ? formatDuration(runningStatus.elapsedSeconds) : undefined,
+    status: isRunning ? HOME_TRAINING_STATUS.IN_PROGRESS : HOME_TRAINING_STATUS.SCHEDULED,
   };
 };
 
@@ -136,9 +162,10 @@ const HomePage = () => {
     TRAINING_SESSION_STATUS.SCHEDULED,
   );
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
-  const training =
-    toScheduledTraining(runningSessions[0]) ?? toScheduledTraining(scheduledSessions[0]);
-  useTrainingSessionSocket({ sessionId: training?.id });
+  const selectedSession = runningSessions[0] ?? scheduledSessions[0];
+  const { data: trainingStatus } = useGetTrainingStatusQuery(selectedSession?.sessionId);
+  const training = toScheduledTraining(selectedSession, trainingStatus);
+  useTrainingSessionSocket({ sessionId: selectedSession?.sessionId });
 
   const handleTrainingAction = async () => {
     if (!training) return;
