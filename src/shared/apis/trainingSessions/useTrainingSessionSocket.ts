@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
+
 import { getAccessToken } from '@shared/auth/tokenStorage';
 
 import { TRAINING_EVENT_TYPE } from './trainingSessionEvents';
@@ -54,11 +56,19 @@ export const useTrainingSessionSocket = ({
 
             if (event.sessionId !== sessionId) return;
 
-            // 상태 변경 시 REST 목록을 다시 조회해 서버 상태와 동기화
+            // 상태 변경 시 세션·홈 상태·시나리오를 다시 조회해 서버 상태와 동기화
             if (event.eventType === TRAINING_EVENT_TYPE.STATUS_UPDATED) {
-              void queryClient.invalidateQueries({
-                queryKey: trainingSessionQueryKeys.lists(),
-              });
+              void Promise.all([
+                queryClient.invalidateQueries({
+                  queryKey: trainingSessionQueryKeys.lists(),
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: trainingSessionQueryKeys.status(sessionId),
+                }),
+                queryClient.invalidateQueries({
+                  queryKey: scenarioQueryKeys.all,
+                }),
+              ]);
             }
 
             onEventRef.current?.(event);

@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
+
 import { trainingSessionQueryKeys } from './trainingSessionQueryKeys';
 import {
   createTrainingSession,
@@ -8,52 +10,60 @@ import {
   startTrainingSession,
 } from './trainingSessionsApi';
 
-// 세션 상태 변경 후 상태별 목록 캐시 갱신
-const useInvalidateTrainingSessionLists = () => {
+// 세션 상태 변경 후 세션·홈 상태·시나리오 캐시 갱신
+const useInvalidateTrainingSessionQueries = () => {
   const queryClient = useQueryClient();
 
   return () =>
-    queryClient.invalidateQueries({
-      queryKey: trainingSessionQueryKeys.lists(),
-    });
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: trainingSessionQueryKeys.lists(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: trainingSessionQueryKeys.statuses(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: scenarioQueryKeys.all,
+      }),
+    ]);
 };
 
 // 훈련 세션 등록 Mutation
 export const useCreateTrainingSessionMutation = () => {
-  const invalidateLists = useInvalidateTrainingSessionLists();
+  const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
     mutationFn: createTrainingSession,
-    onSuccess: invalidateLists,
+    onSuccess: invalidateQueries,
   });
 };
 
 // 훈련 세션 시작 Mutation
 export const useStartTrainingSessionMutation = () => {
-  const invalidateLists = useInvalidateTrainingSessionLists();
+  const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
     mutationFn: startTrainingSession,
-    onSuccess: invalidateLists,
+    onSuccess: invalidateQueries,
   });
 };
 
 // 훈련 세션 정상 종료 Mutation
 export const useEndTrainingSessionMutation = () => {
-  const invalidateLists = useInvalidateTrainingSessionLists();
+  const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
     mutationFn: endTrainingSession,
-    onSuccess: invalidateLists,
+    onSuccess: invalidateQueries,
   });
 };
 
 // 훈련 세션 강제 종료 Mutation
 export const useForceEndTrainingSessionMutation = () => {
-  const invalidateLists = useInvalidateTrainingSessionLists();
+  const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
     mutationFn: forceEndTrainingSession,
-    onSuccess: invalidateLists,
+    onSuccess: invalidateQueries,
   });
 };

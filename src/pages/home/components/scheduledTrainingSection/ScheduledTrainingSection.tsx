@@ -24,6 +24,10 @@ const ScheduledTrainingSection = ({
 }: ScheduledTrainingSectionProps) => {
   const isInProgress = training?.status === HOME_TRAINING_STATUS.IN_PROGRESS;
   const sectionTitle = isInProgress ? '훈련 진행 중' : '예정된 훈련';
+  const timeLabel = isInProgress ? '진행 시간' : '일시';
+  const timeValue = isInProgress
+    ? (training?.elapsedTime ?? '-')
+    : `${training?.date ?? '-'} ${training?.time ?? '-'}`;
 
   return (
     <section className={styles.scheduledCard}>
@@ -46,12 +50,12 @@ const ScheduledTrainingSection = ({
                 <span className={styles.metaValue}>{training.building}</span>
               </div>
               <div className={styles.scheduleMetaItem}>
-                <span className={styles.metaLabel}>날짜</span>
-                <span className={styles.metaValue}>{training.date}</span>
+                <span className={styles.metaLabel}>{timeLabel}</span>
+                <span className={styles.metaValue}>{timeValue}</span>
               </div>
               <div className={styles.scheduleMetaItem}>
-                <span className={styles.metaLabel}>시간</span>
-                <span className={styles.metaValue}>{training.time}</span>
+                <span className={styles.metaLabel}>참가</span>
+                <span className={styles.metaValue}>{training.participants}</span>
               </div>
             </div>
           </>

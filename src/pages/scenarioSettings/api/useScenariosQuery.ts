@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
+
 import { getScenario, getScenarios } from './scenariosApi';
 
-export const SCENARIOS_QUERY_KEY = ['scenarios'] as const;
-export const getScenarioQueryKey = (scenarioId: string) =>
-  [...SCENARIOS_QUERY_KEY, scenarioId] as const;
+export const SCENARIOS_QUERY_KEY = scenarioQueryKeys.all;
+export const getScenarioQueryKey = scenarioQueryKeys.detail;
 
 // 전체 시나리오 목록 조회
 export const useGetScenariosQuery = () =>
