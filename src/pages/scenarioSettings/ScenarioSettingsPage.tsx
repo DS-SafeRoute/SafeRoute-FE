@@ -10,8 +10,8 @@ import {
   useEndTrainingSessionMutation,
   useStartTrainingSessionMutation,
 } from '@apis/trainingSessions/useTrainingSessionMutations';
-import { useTrainingSessionSocket } from '@apis/trainingSessions/useTrainingSessionSocket';
 import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
+import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import PlayIcon from '@assets/icons/ic-play.svg?react';

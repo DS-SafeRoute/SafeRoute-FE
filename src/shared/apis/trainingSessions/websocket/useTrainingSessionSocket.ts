@@ -3,12 +3,13 @@ import { useEffect, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { dashboardQueryKeys } from '@apis/dashboard/dashboardQueryKeys';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 
 import { getAccessToken } from '@shared/auth/tokenStorage';
 
+import { trainingSessionQueryKeys } from '../trainingSessionQueryKeys';
 import { TRAINING_EVENT_TYPE } from './trainingSessionEvents';
-import { trainingSessionQueryKeys } from './trainingSessionQueryKeys';
 
 import type { TrainingSessionEvent } from './trainingSessionEvents';
 
@@ -63,7 +64,7 @@ export const useTrainingSessionSocket = ({
                   queryKey: trainingSessionQueryKeys.lists(),
                 }),
                 queryClient.invalidateQueries({
-                  queryKey: trainingSessionQueryKeys.status(sessionId),
+                  queryKey: dashboardQueryKeys.trainingStatus(sessionId),
                 }),
                 queryClient.invalidateQueries({
                   queryKey: scenarioQueryKeys.all,

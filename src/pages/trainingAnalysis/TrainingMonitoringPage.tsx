@@ -3,8 +3,8 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
-import { useTrainingSessionSocket } from '@apis/trainingSessions/useTrainingSessionSocket';
 import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
+import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';

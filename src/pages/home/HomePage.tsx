@@ -2,8 +2,8 @@ import { useNavigate } from 'react-router';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 import { useStartTrainingSessionMutation } from '@apis/trainingSessions/useTrainingSessionMutations';
-import { useTrainingSessionSocket } from '@apis/trainingSessions/useTrainingSessionSocket';
 import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
+import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 
 import ActivityIcon from '@assets/icons/ic-activity.svg?react';
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
