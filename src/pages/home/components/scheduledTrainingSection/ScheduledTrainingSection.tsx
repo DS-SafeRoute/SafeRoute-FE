@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+
 import { Button } from '@components/Button';
 
+import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
+
 import * as styles from './ScheduledTrainingSection.css';
-import { HOME_TRAINING_STATUS } from '../../constants/home';
 
 import type { ScheduledTraining } from '../../types/home';
 
@@ -22,11 +25,15 @@ const ScheduledTrainingSection = ({
   sectionIcon,
   actionIcon,
 }: ScheduledTrainingSectionProps) => {
-  const isInProgress = training?.status === HOME_TRAINING_STATUS.IN_PROGRESS;
+  const isInProgress = training?.status === TRAINING_SESSION_STATUS.RUNNING;
+  const startedAt = isInProgress && training?.startedAt ? Date.parse(training.startedAt) : null;
+  const elapsedTime = useElapsedTrainingTime(
+    startedAt !== null && !Number.isNaN(startedAt) ? startedAt : null,
+  );
   const sectionTitle = isInProgress ? '훈련 진행 중' : '예정된 훈련';
   const timeLabel = isInProgress ? '진행 시간' : '일시';
   const timeValue = isInProgress
-    ? (training?.elapsedTime ?? '-')
+    ? elapsedTime
     : `${training?.date ?? '-'} ${training?.time ?? '-'}`;
 
   return (
