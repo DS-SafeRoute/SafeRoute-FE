@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import { dashboardQueryKeys } from '@apis/dashboard/dashboardQueryKeys';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 
 import { trainingSessionQueryKeys } from './trainingSessionQueryKeys';
@@ -20,7 +21,7 @@ const useInvalidateTrainingSessionQueries = () => {
         queryKey: trainingSessionQueryKeys.lists(),
       }),
       queryClient.invalidateQueries({
-        queryKey: trainingSessionQueryKeys.statuses(),
+        queryKey: dashboardQueryKeys.trainingStatuses(),
       }),
       queryClient.invalidateQueries({
         queryKey: scenarioQueryKeys.all,
