@@ -1,4 +1,4 @@
-import type { TrainingSessionStatus } from './trainingSessionsApi';
+import type { TrainingSessionStatus } from './trainingSessionConstants';
 
 // 훈련 세션 WebSocket에서 수신하는 이벤트 종류
 export const TRAINING_EVENT_TYPE = {

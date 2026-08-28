@@ -6,18 +6,7 @@ import type {
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-// 훈련 세션 상태
-export const TRAINING_SESSION_STATUS = {
-  RUNNING: 'RUNNING',
-  STOPPED: 'STOPPED',
-  SCHEDULED: 'SCHEDULED',
-  COMPLETED: 'COMPLETED',
-  FAILED: 'FAILED',
-  CANCELLED: 'CANCELLED',
-} as const;
-
-export type TrainingSessionStatus =
-  (typeof TRAINING_SESSION_STATUS)[keyof typeof TRAINING_SESSION_STATUS];
+import type { TrainingSessionStatus } from './trainingSessionConstants';
 
 // 훈련 세션 등록 요청에 필요한 값
 export interface CreateTrainingSessionVariables {

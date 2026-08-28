@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { trainingSessionQueryKeys } from './trainingSessionQueryKeys';
 import { getTrainingSessions } from './trainingSessionsApi';
 
-import type { TrainingSessionStatus } from './trainingSessionsApi';
+import type { TrainingSessionStatus } from './trainingSessionConstants';
 
 // WebSocket 연결 전 세션 탐색과 연결 실패 대비용 조회 주기
 const SESSION_REFETCH_INTERVAL_MS = 10_000;

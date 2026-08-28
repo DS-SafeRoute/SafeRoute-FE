@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import clsx from 'clsx';
 
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionsApi';
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/useTrainingSessionSocket';
 import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
 

@@ -1,4 +1,4 @@
-import type { TrainingSessionStatus } from './trainingSessionsApi';
+import type { TrainingSessionStatus } from './trainingSessionConstants';
 
 // 훈련 세션 관련 조회 캐시를 관리하는 쿼리키 팩토리
 export const trainingSessionQueryKeys = {
