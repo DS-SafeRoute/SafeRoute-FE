@@ -22,6 +22,20 @@ export const FIRE_ORIGIN_OPTIONS = [
 
 export const FIRE_SPREAD_OPTIONS = ['느림', '중간', '빠름'] as const;
 
+export const FIRE_SPREAD_LABEL = {
+  SLOW: '느림',
+  MEDIUM: '중간',
+  FAST: '빠름',
+} as const;
+
+export const FIRE_SPREAD_VALUE = {
+  느림: 'SLOW',
+  중간: 'MEDIUM',
+  빠름: 'FAST',
+} as const;
+
+export type FireSpreadLabel = keyof typeof FIRE_SPREAD_VALUE;
+
 export const DEFAULT_FIRE_CONDITIONS = [
   { key: 'origin', label: '발화 위치', value: FIRE_ORIGIN_OPTIONS[0] },
   { key: 'spread', label: '확산 속도', value: FIRE_SPREAD_OPTIONS[1] },

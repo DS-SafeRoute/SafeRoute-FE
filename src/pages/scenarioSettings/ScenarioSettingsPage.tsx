@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionsApi';
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 import {
   useCreateTrainingSessionMutation,
   useEndTrainingSessionMutation,
@@ -31,7 +31,12 @@ import TrainingPreviewCard from './components/cards/trainingPreviewCard/Training
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
-import { DEFAULT_FIRE_CONDITIONS, FIRE_CONDITION_OPTIONS } from './constants/scenarioSettings';
+import {
+  DEFAULT_FIRE_CONDITIONS,
+  FIRE_CONDITION_OPTIONS,
+  FIRE_SPREAD_LABEL,
+  FIRE_SPREAD_VALUE,
+} from './constants/scenarioSettings';
 import {
   CURRENT_ROUTE_TEXT,
   LIVE_METRICS,
@@ -44,39 +49,15 @@ import {
 } from './mocks/trainingData';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
+import { getInitialBasicInfo, toScheduledAt } from './utils/scenarioSettings';
 
+import type { FireSpreadLabel } from './constants/scenarioSettings';
 import type { Scenario } from './types/scenarioList';
 import type { BasicInfo } from './types/scenarioSettings';
 
 interface ScenarioSettingsContentProps {
   scenario?: Scenario;
 }
-
-const FIRE_SPREAD_LABEL = {
-  SLOW: '느림',
-  MEDIUM: '중간',
-  FAST: '빠름',
-} as const;
-
-const FIRE_SPREAD_VALUE = {
-  느림: 'SLOW',
-  중간: 'MEDIUM',
-  빠름: 'FAST',
-} as const;
-
-type FireSpreadLabel = keyof typeof FIRE_SPREAD_VALUE;
-
-const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({
-  scenarioName: scenario?.name ?? '',
-  targetBuilding: scenario?.buildingId ?? '',
-  scheduledAt: scenario?.scheduledAt ?? '',
-  expectedParticipants: scenario ? String(scenario.expectedParticipants) : '',
-});
-
-const toScheduledAt = (value: string) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-};
 
 const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
