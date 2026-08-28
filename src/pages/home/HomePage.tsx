@@ -22,6 +22,8 @@ import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
 
+import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
+
 import { formatDate, formatDuration } from '@utils/format';
 
 import { useGetDashboardStatsQuery } from './api/useDashboardStatsQuery';
@@ -130,6 +132,7 @@ const formatParticipants = (count?: number) =>
 const toScheduledTraining = (
   session?: TrainingSessionSummaryResponse,
   trainingStatus?: HomeTrainingStatusResponse,
+  elapsedTime?: string,
 ): ScheduledTraining | null => {
   if (!session?.sessionId) return null;
 
@@ -147,7 +150,7 @@ const toScheduledTraining = (
     participants: formatParticipants(
       isRunning ? runningStatus?.actualParticipants : scheduledStatus?.expectedParticipants,
     ),
-    elapsedTime: runningStatus ? formatDuration(runningStatus.elapsedSeconds) : undefined,
+    elapsedTime: isRunning ? elapsedTime : undefined,
     status: isRunning ? HOME_TRAINING_STATUS.IN_PROGRESS : HOME_TRAINING_STATUS.SCHEDULED,
   };
 };
@@ -164,7 +167,14 @@ const HomePage = () => {
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
   const selectedSession = runningSessions[0] ?? scheduledSessions[0];
   const { data: trainingStatus } = useGetTrainingStatusQuery(selectedSession?.sessionId);
-  const training = toScheduledTraining(selectedSession, trainingStatus);
+  const runningStartedAt =
+    selectedSession?.status === TRAINING_SESSION_STATUS.RUNNING && selectedSession.startedAt
+      ? Date.parse(selectedSession.startedAt)
+      : null;
+  const elapsedTime = useElapsedTrainingTime(
+    runningStartedAt !== null && !Number.isNaN(runningStartedAt) ? runningStartedAt : null,
+  );
+  const training = toScheduledTraining(selectedSession, trainingStatus, elapsedTime);
   useTrainingSessionSocket({ sessionId: selectedSession?.sessionId });
 
   const handleTrainingAction = async () => {

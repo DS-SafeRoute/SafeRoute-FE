@@ -5,8 +5,9 @@ import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
 import { Button } from '@components/Button';
 
+import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
+
 import * as styles from './TrainingControlPanel.css';
-import useElapsedTrainingTime from '../../hooks/useElapsedTrainingTime';
 import RecommendationCard from '../cards/recommendationCard/RecommendationCard';
 import TrainingPreviewCard from '../cards/trainingPreviewCard/TrainingPreviewCard';
 
