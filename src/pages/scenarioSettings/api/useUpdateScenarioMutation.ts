@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { UpdateScenarioRequest } from '@apis/__generated__/data-contracts';
+import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 
 import { patchScenario } from './scenariosApi';
-import { getScenarioQueryKey, SCENARIOS_QUERY_KEY } from './useScenariosQuery';
 
 export const useUpdateScenarioMutation = () => {
   const queryClient = useQueryClient();
@@ -12,8 +12,8 @@ export const useUpdateScenarioMutation = () => {
     mutationFn: ({ scenarioId, body }: { scenarioId: string; body: UpdateScenarioRequest }) =>
       patchScenario(scenarioId, body),
     onSuccess: (scenario) => {
-      queryClient.setQueryData(getScenarioQueryKey(scenario.id), scenario);
-      void queryClient.invalidateQueries({ queryKey: SCENARIOS_QUERY_KEY, exact: true });
+      queryClient.setQueryData(scenarioQueryKeys.detail(scenario.id), scenario);
+      void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all, exact: true });
     },
   });
 };

@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
+
 import { postScenario } from './scenariosApi';
-import { getScenarioQueryKey, SCENARIOS_QUERY_KEY } from './useScenariosQuery';
 
 export const useCreateScenarioMutation = () => {
   const queryClient = useQueryClient();
@@ -9,8 +10,8 @@ export const useCreateScenarioMutation = () => {
   return useMutation({
     mutationFn: postScenario,
     onSuccess: (scenario) => {
-      queryClient.setQueryData(getScenarioQueryKey(scenario.id), scenario);
-      void queryClient.invalidateQueries({ queryKey: SCENARIOS_QUERY_KEY, exact: true });
+      queryClient.setQueryData(scenarioQueryKeys.detail(scenario.id), scenario);
+      void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all, exact: true });
     },
   });
 };
