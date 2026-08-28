@@ -8,6 +8,11 @@ export const form = style({
   gap: vars.space.s4,
 });
 
+export const floorRow = style({
+  display: 'flex',
+  gap: vars.space.s4,
+});
+
 export const field = style({
   display: 'flex',
   flexDirection: 'column',
