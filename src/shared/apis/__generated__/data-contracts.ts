@@ -184,6 +184,13 @@ export interface ApiResponseMapNodeResponse {
   result?: MapNodeResponse;
 }
 
+export interface ApiResponseReissueResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: ReissueResponse;
+}
+
 export interface ApiResponseRouteDeviationResponse {
   code?: string;
   isSuccess?: boolean;
@@ -863,6 +870,7 @@ export interface LoginResponse {
   /** @format uuid */
   id?: string;
   phoneNumber?: string;
+  refreshToken?: string;
   role?: "MANAGER" | "NORMAL";
   schoolName?: string;
   tokenType?: string;
@@ -1187,6 +1195,21 @@ export interface RecentTrainingReportResponse {
   /** @format date-time */
   startedAt?: string;
   survivalRate?: number;
+}
+
+export type ReissueData = ApiResponseReissueResponse;
+
+export interface ReissueRequest {
+  /** @minLength 1 */
+  refreshToken: string;
+}
+
+export interface ReissueResponse {
+  accessToken?: string;
+  /** @format int64 */
+  expiresIn?: number;
+  refreshToken?: string;
+  tokenType?: string;
 }
 
 export type RejectData = ApiResponseRouteRecalculationResponse;
