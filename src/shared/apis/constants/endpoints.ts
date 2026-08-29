@@ -116,8 +116,10 @@ export const API_ENDPOINTS = {
     ROOT: `${API_V1}/congestion-events`,
   },
 
-  // 재탐색 승인
+  // 재탐색
   ROUTE_RECALCULATIONS: {
+    ROOT: `${API_V1}/route-recalculations`,
+    DETAIL: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}`,
     APPROVE: (recalculationId: string) =>
       `${API_V1}/route-recalculations/${recalculationId}/approve`,
     REJECT: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}/reject`,
