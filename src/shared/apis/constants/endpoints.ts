@@ -98,6 +98,13 @@ export const API_ENDPOINTS = {
     EDGE: (edgeId: string) => `${API_V1}/edges/${edgeId}`,
   },
 
+  // 사용자 지정 영역 (그리드 셀 집합)
+  USER_ZONES: {
+    ROOT: (floorId: string) => `${API_V1}/floors/${floorId}/user-zones`,
+    DETAIL: (floorId: string, userZoneId: string) =>
+      `${API_V1}/floors/${floorId}/user-zones/${userZoneId}`,
+  },
+
   // 대피 경로
   EVACUATION_ROUTES: {
     SHORTEST: (floorId: string) => `${API_V1}/floors/${floorId}/routes`,

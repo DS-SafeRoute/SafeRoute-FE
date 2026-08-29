@@ -53,6 +53,12 @@ import {
   getFloorGraph,
   updateMapNodePosition,
 } from './api/mapGraphApi';
+import {
+  createUserZone,
+  deleteUserZone,
+  getFloorUserZones,
+  getUserZoneDetail,
+} from './api/userZoneApi';
 import * as styles from './FloorPlansDetailPage.css';
 import CctvSettingsModal from './modals/CctvSettingsModal';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
@@ -122,7 +128,8 @@ type ZoneType = 'general';
 
 type ZoneRect = { x: number; y: number; w: number; h: number };
 
-type ZoneEntry = { id: string; type: ZoneType; label: string; rect?: ZoneRect };
+// cellIds가 실제 저장 단위(백엔드 UserZone은 그리드 셀 집합) — rect는 드래그 중 임시 표시에만 씀
+type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
    isFinalExit은 문에서만 의미 있음(계단은 항상 false) */
@@ -152,9 +159,6 @@ const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> =
 type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
 const GRID_SIZE = 20;
-
-const isSameRect = (a: ZoneRect, b: ZoneRect): boolean =>
-  a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
 const MockFloorMap3F = ({
   mapImageUrl,
@@ -513,10 +517,17 @@ const MockFloorMap3F = ({
           );
         })}
 
-      {/* 저장된 일반 구역 */}
+      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시 */}
       {savedZones.map((z) => {
-        if (!z.rect) return null;
+        const cells = z.cellIds
+          .map((id) => floorGridCells.find((c) => c.id === id))
+          .filter((c): c is FloorGridCell => !!c);
+        if (cells.length === 0) return null;
         const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
+        const xs = cells.map((c) => c.centerX * 560);
+        const ys = cells.map((c) => c.centerY * 420);
+        const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
         return (
           <g
             key={z.id}
@@ -527,18 +538,21 @@ const MockFloorMap3F = ({
             }}
             style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
           >
-            <rect
-              x={z.rect.x}
-              y={z.rect.y}
-              width={z.rect.w}
-              height={z.rect.h}
-              fill="rgba(107,114,128,0.15)"
-              stroke={isSelected ? '#2563eb' : '#6b7280'}
-              strokeWidth={isSelected ? '3' : '1.5'}
-            />
+            {cells.map((cell) => (
+              <rect
+                key={cell.id}
+                x={cell.centerX * 560 - gridCellPxSize.w / 2}
+                y={cell.centerY * 420 - gridCellPxSize.h / 2}
+                width={gridCellPxSize.w}
+                height={gridCellPxSize.h}
+                fill="rgba(107,114,128,0.15)"
+                stroke={isSelected ? '#2563eb' : '#6b7280'}
+                strokeWidth={isSelected ? '2' : '1'}
+              />
+            ))}
             <text
-              x={z.rect.x + z.rect.w / 2}
-              y={z.rect.y + z.rect.h / 2 + 3}
+              x={labelX}
+              y={labelY + 3}
               textAnchor="middle"
               fill="#374151"
               fontSize="10"
@@ -574,7 +588,7 @@ const MockFloorMap3F = ({
                     ? 'rgba(107,114,128,0.05)'
                     : 'rgba(139,92,246,0.04)'
               }
-              stroke={isBrowsing ? 'rgba(75,85,99,0.6)' : '#8b5cf6'}
+              stroke={isBrowsing ? 'rgba(107,114,128,0.35)' : '#8b5cf6'}
               strokeWidth={isSelected ? '1.5' : isBrowsing ? '1' : '0.5'}
               style={{
                 cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
@@ -985,21 +999,20 @@ const NodeAddPopup = ({
   );
 };
 
-/* ── 구역 설정 팝업 ── */
+/* ── 구역 설정 팝업 — 백엔드 저장 단위가 그리드 셀 집합이라 드래그는 겹치는 셀을 고르는 용도로 씀 ── */
 const ZoneAddPopup = ({
   containerRef,
-  hasDraftRect,
-  isDuplicateRect,
+  selectedCellCount,
   onCancel,
   onSave,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
-  hasDraftRect: boolean;
-  isDuplicateRect: boolean;
+  selectedCellCount: number;
   onCancel: () => void;
   onSave: (label: string) => void;
 }) => {
   const [zoneName, setZoneName] = useState('');
+  const hasSelectedCells = selectedCellCount > 0;
 
   const handleSave = () => {
     onSave(zoneName.trim());
@@ -1009,14 +1022,12 @@ const ZoneAddPopup = ({
     <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <div className={styles.nodeAddHeader}>
         <span className={styles.nodeAddTitle}>구역 설정</span>
-        <span className={styles.nodeAddStepBadge}>{hasDraftRect ? '2/2' : '1/2'}</span>
+        <span className={styles.nodeAddStepBadge}>{hasSelectedCells ? '2/2' : '1/2'}</span>
       </div>
       <span className={styles.nodeAddHint}>
-        {hasDraftRect && isDuplicateRect
-          ? '이미 같은 위치와 크기의 구역이 있어요. 도면을 다시 드래그해서 다른 영역을 지정해주세요.'
-          : hasDraftRect
-            ? '영역 지정을 마쳤어요. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.'
-            : '이름을 입력하거나 도면을 드래그해서 영역을 지정해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
+        {hasSelectedCells
+          ? `${selectedCellCount}칸 선택됨. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
+          : '이름을 입력하거나 도면을 드래그해서 영역에 해당하는 칸을 선택해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
       </span>
 
       <div className={styles.nodeAddField}>
@@ -1036,7 +1047,7 @@ const ZoneAddPopup = ({
         <button
           type="button"
           className={styles.nodeAddSubmitBtn}
-          disabled={!zoneName.trim() || !hasDraftRect || isDuplicateRect}
+          disabled={!zoneName.trim() || !hasSelectedCells}
           onClick={handleSave}
         >
           추가
@@ -1673,6 +1684,29 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
+  // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로 조회
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorUserZones(floorId)
+      .then((zoneList) => Promise.all(zoneList.map((zone) => getUserZoneDetail(floorId, zone.id))))
+      .then((details) => {
+        if (cancelled) return;
+        setZones(
+          details.map((d) => ({
+            id: d.id,
+            type: 'general',
+            label: d.name,
+            cellIds: d.cells.map((c) => c.cellId),
+          })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
   // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용
   useEffect(() => {
     if (!floorId) return;
@@ -1758,10 +1792,11 @@ const FloorPlansDetailPage = () => {
   // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
-  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | null>(null);
+  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | 'zone' | null>(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
+  const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -1941,10 +1976,9 @@ const FloorPlansDetailPage = () => {
   }, [nodeAddOpen]);
 
   // 구역 설정 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 드래그는 구역 선택으로 처리)
-  // 영역을 이미 그린 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
   useEffect(() => {
-    const hasDraft = !!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0;
-    if (!zoneAddOpen || hasDraft) return;
+    if (!zoneAddOpen || zoneDraftCellIds.length > 0) return;
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (zonePopupRef.current?.contains(target)) return;
@@ -1953,11 +1987,14 @@ const FloorPlansDetailPage = () => {
     };
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
-  }, [zoneAddOpen, zoneDraftRect]);
+  }, [zoneAddOpen, zoneDraftCellIds]);
 
-  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역도 초기화
+  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역/셀도 초기화
   useEffect(() => {
-    if (!zoneAddOpen) setZoneDraftRect(null);
+    if (!zoneAddOpen) {
+      setZoneDraftRect(null);
+      setZoneDraftCellIds([]);
+    }
   }, [zoneAddOpen]);
 
   const currentBuilding = floorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
@@ -2156,7 +2193,7 @@ const FloorPlansDetailPage = () => {
       .catch(() => []);
   };
 
-  const openGridSetupPrompt = (intent: 'toggle' | 'cctv') => {
+  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
     setGridSetupIntent(intent);
     setGridSizeMeterInput('1');
     setGridSetupPromptOpen(true);
@@ -2214,6 +2251,8 @@ const FloorPlansDetailPage = () => {
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
           setNodeAddStage('fov');
+        } else if (gridSetupIntent === 'zone') {
+          setZoneAddOpen(true);
         } else {
           setShowGridOverlay(true);
         }
@@ -2223,7 +2262,8 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleGridCellToggle = (cellId: string) => {
-    setCctvDraftCellIds((prev) =>
+    const setter = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
+    setter((prev) =>
       prev.includes(cellId) ? prev.filter((id) => id !== cellId) : [...prev, cellId],
     );
   };
@@ -2267,16 +2307,15 @@ const FloorPlansDetailPage = () => {
     const rect = zoneDraftRectRef.current;
     const cctvCellSelecting =
       (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || !!editingCctvId;
-    if (cctvCellSelecting) {
+    if (cctvCellSelecting || zoneAddOpen) {
       if (rect && rect.w > 0 && rect.h > 0) {
         const overlapping = floorGridCells.filter((cell) => {
           const cx = cell.centerX * 560;
           const cy = cell.centerY * 420;
           return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
         });
-        setCctvDraftCellIds((prev) =>
-          Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])),
-        );
+        const setter = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
+        setter((prev) => Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])));
       }
       setZoneDraftRect(null);
     }
@@ -2402,6 +2441,7 @@ const FloorPlansDetailPage = () => {
     setZoneEditLabel(zone.label);
   };
 
+  // 이름 수정 API가 아직 없어서 로컬에만 반영됨 — 새로고침하면 원래 이름으로 돌아감
   const handleSaveZoneLabel = (id: string) => {
     const trimmed = zoneEditLabel.trim();
     if (trimmed) {
@@ -2411,15 +2451,46 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleAddZone = (label: string) => {
-    const rect = zoneDraftRect;
-    if (!rect || rect.w <= 0 || rect.h <= 0) return;
-    if (zones.some((z) => z.rect && isSameRect(z.rect, rect))) return;
-    setZones((prev) => [...prev, { id: `zone-${Date.now()}`, type: 'general', label, rect }]);
-    setZoneAddOpen(false);
+    if (!currentFloor || zoneDraftCellIds.length === 0) return;
+    createUserZone(currentFloor.id, { name: label, cellIds: zoneDraftCellIds })
+      .then((zone) => {
+        setZones((prev) => [
+          ...prev,
+          { id: zone.id, type: 'general', label: zone.name, cellIds: zoneDraftCellIds },
+        ]);
+        setZoneAddOpen(false);
+        setZoneDraftCellIds([]);
+      })
+      .catch(() => {
+        show({ title: '구역 저장에 실패했습니다.', variant: 'error' });
+      });
+  };
+
+  // 구역 추가 버튼 — 그리드가 있어야 셀을 선택할 수 있어서, 없으면 설정 팝업부터 띄움
+  const handleToggleZoneAdd = () => {
+    setNodeAddOpen(false);
+    if (zoneAddOpen) {
+      setZoneAddOpen(false);
+      return;
+    }
+    ensureFloorGridCells().then((cells) => {
+      if (cells.length > 0) {
+        setZoneAddOpen(true);
+        return;
+      }
+      openGridSetupPrompt('zone');
+    });
   };
 
   const handleZoneDelete = (id: string) => {
-    setZones((prev) => prev.filter((z) => z.id !== id));
+    if (!currentFloor) return;
+    deleteUserZone(currentFloor.id, id)
+      .then(() => {
+        setZones((prev) => prev.filter((z) => z.id !== id));
+      })
+      .catch(() => {
+        show({ title: '구역 삭제에 실패했습니다.', variant: 'error' });
+      });
   };
 
   const isNodeSelected = (id: string) =>
@@ -2609,16 +2680,21 @@ const FloorPlansDetailPage = () => {
     label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
   }));
 
-  // 그리드 셀 하나의 SVG 픽셀 크기 — 셀 중심점 간 간격으로 역산
+  // 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
+  // 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
+  // 두 값 중 더 작은 쪽으로 통일해서 항상 정사각형으로 보이게 함
   const gridCellPxSize = (() => {
     if (floorGridCells.length === 0) return { w: 20, h: 20 };
     const maxCol = Math.max(...floorGridCells.map((c) => c.columnIndex));
     const maxRow = Math.max(...floorGridCells.map((c) => c.rowIndex));
-    return { w: 560 / (maxCol + 1), h: 420 / (maxRow + 1) };
+    const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
+    return { w: size, h: size };
   })();
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
-    (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || editingCctvId
+    (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
+    editingCctvId ||
+    zoneAddOpen
       ? 'selecting'
       : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
         ? 'viewing'
@@ -2628,7 +2704,9 @@ const FloorPlansDetailPage = () => {
 
   const selectedGridCellIds =
     cctvGridCellsMode === 'selecting'
-      ? cctvDraftCellIds
+      ? zoneAddOpen
+        ? zoneDraftCellIds
+        : cctvDraftCellIds
       : cctvGridCellsMode === 'viewing' && selectedItem?.kind === 'device'
         ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
         : [];
@@ -2862,10 +2940,7 @@ const FloorPlansDetailPage = () => {
                 <button
                   type="button"
                   className={styles.canvasActionButton}
-                  onClick={() => {
-                    setNodeAddOpen(false);
-                    setZoneAddOpen((v) => !v);
-                  }}
+                  onClick={handleToggleZoneAdd}
                 >
                   <PlusIcon width={14} height={14} />
                   구역 추가
@@ -3019,10 +3094,7 @@ const FloorPlansDetailPage = () => {
             {zoneAddOpen && (
               <ZoneAddPopup
                 containerRef={zonePopupRef}
-                hasDraftRect={!!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0}
-                isDuplicateRect={
-                  !!zoneDraftRect && zones.some((z) => z.rect && isSameRect(z.rect, zoneDraftRect))
-                }
+                selectedCellCount={zoneDraftCellIds.length}
                 onCancel={() => setZoneAddOpen(false)}
                 onSave={handleAddZone}
               />
