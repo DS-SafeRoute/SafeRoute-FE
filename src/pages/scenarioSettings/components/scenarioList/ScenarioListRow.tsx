@@ -1,3 +1,8 @@
+import ScenarioListTooltip from '@pages/scenarioSettings/components/tooltip/ScenarioListTooltip';
+import { SCENARIO_STATUS_VIEW } from '@pages/scenarioSettings/types/scenarioList';
+import type { ScenarioSummary } from '@pages/scenarioSettings/types/scenarioList';
+import { formatScenarioScheduledAt } from '@pages/scenarioSettings/utils/scenarioSettings';
+
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 
@@ -5,10 +10,6 @@ import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 
 import * as styles from './ScenarioListRow.css';
-import { SCENARIO_STATUS_VIEW } from '../../types/scenarioList';
-import ScenarioListTooltip from '../tooltip/ScenarioListTooltip';
-
-import type { ScenarioSummary } from '../../types/scenarioList';
 
 interface ScenarioListRowProps {
   scenario: ScenarioSummary;
@@ -18,18 +19,6 @@ interface ScenarioListRowProps {
 }
 
 const DELETE_DISABLED_MESSAGE = '훈련 이력이 있어 삭제할 수 없습니다';
-
-const formatScheduledAt = (scheduledAt: string) => {
-  const date = new Date(scheduledAt);
-
-  if (Number.isNaN(date.getTime())) return scheduledAt;
-
-  const pad = (value: number) => String(value).padStart(2, '0');
-
-  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
-};
 
 const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioListRowProps) => {
   const statusView = SCENARIO_STATUS_VIEW[scenario.status];
@@ -59,8 +48,8 @@ const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioL
           <StatusBadge label={statusView.label} color={statusView.color} dot />
         </span>
         <span className={styles.detail}>
-          {buildingName ?? '건물 정보 없음'} · {formatScheduledAt(scenario.scheduledAt)} · 예상{' '}
-          {scenario.expectedParticipants}명
+          {buildingName ?? '건물 정보 없음'} · {formatScenarioScheduledAt(scenario.scheduledAt)} ·
+          예상 {scenario.expectedParticipants}명
         </span>
       </button>
 

@@ -2,6 +2,10 @@ import { useMemo, useState } from 'react';
 
 import clsx from 'clsx';
 
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
+import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
+
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 
@@ -22,6 +26,11 @@ const FILTERS: CameraFilter[] = ['전체', '실시간', '객체감지'];
 const TrainingMonitoringPage = () => {
   const [filter, setFilter] = useState<CameraFilter>('전체');
   const [selectedCamera, setSelectedCamera] = useState<StreamCamera | null>(null);
+  const { data: runningSessions = [] } = useGetTrainingSessionsQuery(
+    TRAINING_SESSION_STATUS.RUNNING,
+  );
+  const sessionId = runningSessions[0]?.sessionId;
+  useTrainingSessionSocket({ sessionId });
 
   const filteredCameras = useMemo(() => {
     if (filter === '실시간') return mockStreamCameras.filter((c) => c.status === 'online');

@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getDashboardStats } from './dashboardApi';
+import { dashboardQueryKeys } from '@apis/dashboard/dashboardQueryKeys';
 
-export const DASHBOARD_STATS_QUERY_KEY = ['dashboard-stats'] as const;
+import { getDashboardStats } from './dashboardApi';
 
 export const useGetDashboardStatsQuery = () => {
   return useQuery({
-    queryKey: DASHBOARD_STATS_QUERY_KEY,
+    queryKey: dashboardQueryKeys.stats(),
     queryFn: getDashboardStats,
   });
 };
