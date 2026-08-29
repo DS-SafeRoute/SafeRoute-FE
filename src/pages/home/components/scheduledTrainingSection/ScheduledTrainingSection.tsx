@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import type { ScheduledTraining } from '@pages/home/types/home';
+
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 
 import { Button } from '@components/Button';
@@ -8,15 +10,13 @@ import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
 
 import * as styles from './ScheduledTrainingSection.css';
 
-import type { ScheduledTraining } from '../../types/home';
-
-type ScheduledTrainingSectionProps = {
+interface ScheduledTrainingSectionProps {
   training: ScheduledTraining | null;
   onAction: () => void;
   isLoading?: boolean;
   sectionIcon?: ReactNode;
   actionIcon: ReactNode;
-};
+}
 
 const ScheduledTrainingSection = ({
   training,

@@ -1,4 +1,13 @@
 import type {
+  HomeMetric,
+  HomeTrainingStatusResponse,
+  RunningTrainingStatusResponse,
+  ScheduledTraining,
+  ScheduledTrainingStatusResponse,
+  TrainingRecord,
+} from '@pages/home/types/home';
+
+import type {
   DashboardStatsResponse,
   RecentTrainingReportResponse,
   TrainingSessionSummaryResponse,
@@ -6,15 +15,6 @@ import type {
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 
 import { formatDate, formatDuration } from '@utils/format';
-
-import type {
-  HomeMetric,
-  HomeTrainingStatusResponse,
-  RunningTrainingStatusResponse,
-  ScheduledTraining,
-  ScheduledTrainingStatusResponse,
-  TrainingRecord,
-} from '../types/home';
 
 const formatRate = (rate = 0) => (rate * 100).toFixed(1);
 

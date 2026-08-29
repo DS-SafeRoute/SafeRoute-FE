@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
-import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
+import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
@@ -26,7 +26,9 @@ const FILTERS: CameraFilter[] = ['전체', '실시간', '객체감지'];
 const TrainingMonitoringPage = () => {
   const [filter, setFilter] = useState<CameraFilter>('전체');
   const [selectedCamera, setSelectedCamera] = useState<StreamCamera | null>(null);
-  const { data: runningSessions = [] } = useTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING);
+  const { data: runningSessions = [] } = useGetTrainingSessionsQuery(
+    TRAINING_SESSION_STATUS.RUNNING,
+  );
   const sessionId = runningSessions[0]?.sessionId;
   useTrainingSessionSocket({ sessionId });
 

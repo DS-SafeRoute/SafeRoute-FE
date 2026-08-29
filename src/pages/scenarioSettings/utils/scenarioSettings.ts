@@ -1,5 +1,5 @@
-import type { Scenario } from '../types/scenarioList';
-import type { BasicInfo } from '../types/scenarioSettings';
+import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
+import type { BasicInfo } from '@pages/scenarioSettings/types/scenarioSettings';
 
 export const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({
   scenarioName: scenario?.name ?? '',

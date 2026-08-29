@@ -15,18 +15,19 @@ export interface CreateTrainingSessionVariables {
 }
 
 // 상태별 훈련 세션 목록 조회
-export const getTrainingSessions = async (status: TrainingSessionStatus) => {
+export const getTrainingSessions = async (status: TrainingSessionStatus, signal?: AbortSignal) => {
   const result = await request<{ sessions?: TrainingSessionSummaryResponse[] }>({
     method: HTTP_METHOD.GET,
     url: API_ENDPOINTS.TRAINING_SESSIONS.ROOT,
     query: { status },
+    signal,
   });
 
   return result.sessions ?? [];
 };
 
 // 훈련 세션 등록
-export const createTrainingSession = ({ scenarioId, body }: CreateTrainingSessionVariables) =>
+export const postTrainingSession = ({ scenarioId, body }: CreateTrainingSessionVariables) =>
   request<TrainingSessionResponse, CreateSessionRequest>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.TRAINING_SESSIONS.CREATE(scenarioId),
@@ -35,21 +36,21 @@ export const createTrainingSession = ({ scenarioId, body }: CreateTrainingSessio
   });
 
 // 훈련 세션 시작
-export const startTrainingSession = (sessionId: string) =>
+export const postStartTrainingSession = (sessionId: string) =>
   request<TrainingSessionResponse>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.TRAINING_SESSIONS.START(sessionId),
   });
 
 // 훈련 세션 정상 종료
-export const endTrainingSession = (sessionId: string) =>
+export const postEndTrainingSession = (sessionId: string) =>
   request<TrainingSessionResponse>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.TRAINING_SESSIONS.END(sessionId),
   });
 
 // 훈련 세션 강제 종료
-export const forceEndTrainingSession = (sessionId: string) =>
+export const postForceEndTrainingSession = (sessionId: string) =>
   request<TrainingSessionResponse>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.TRAINING_SESSIONS.FORCE_END(sessionId),

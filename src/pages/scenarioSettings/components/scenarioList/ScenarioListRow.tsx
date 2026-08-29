@@ -1,3 +1,8 @@
+import ScenarioListTooltip from '@pages/scenarioSettings/components/tooltip/ScenarioListTooltip';
+import { SCENARIO_STATUS_VIEW } from '@pages/scenarioSettings/types/scenarioList';
+import type { ScenarioSummary } from '@pages/scenarioSettings/types/scenarioList';
+import { formatScenarioScheduledAt } from '@pages/scenarioSettings/utils/scenarioSettings';
+
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 
@@ -5,11 +10,6 @@ import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 
 import * as styles from './ScenarioListRow.css';
-import { SCENARIO_STATUS_VIEW } from '../../types/scenarioList';
-import { formatScenarioScheduledAt } from '../../utils/scenarioSettings';
-import ScenarioListTooltip from '../tooltip/ScenarioListTooltip';
-
-import type { ScenarioSummary } from '../../types/scenarioList';
 
 interface ScenarioListRowProps {
   scenario: ScenarioSummary;

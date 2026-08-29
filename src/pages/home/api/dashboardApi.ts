@@ -1,11 +1,11 @@
+import type { HomeTrainingStatusResponse } from '@pages/home/types/home';
+
 import type {
   DashboardStatsResponse,
   RecentTrainingReportResponse,
 } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
-
-import type { HomeTrainingStatusResponse } from '../types/home';
 
 // 대시보드 요약 통계 조회
 export const getDashboardStats = () =>

@@ -5,10 +5,10 @@ import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 
 import { trainingSessionQueryKeys } from './trainingSessionQueryKeys';
 import {
-  createTrainingSession,
-  endTrainingSession,
-  forceEndTrainingSession,
-  startTrainingSession,
+  postEndTrainingSession,
+  postForceEndTrainingSession,
+  postStartTrainingSession,
+  postTrainingSession,
 } from './trainingSessionsApi';
 
 // 세션 상태 변경 후 세션·홈 상태·시나리오 캐시 갱신
@@ -34,7 +34,7 @@ export const useCreateTrainingSessionMutation = () => {
   const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
-    mutationFn: createTrainingSession,
+    mutationFn: postTrainingSession,
     onSuccess: invalidateQueries,
   });
 };
@@ -44,7 +44,7 @@ export const useStartTrainingSessionMutation = () => {
   const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
-    mutationFn: startTrainingSession,
+    mutationFn: postStartTrainingSession,
     onSuccess: invalidateQueries,
   });
 };
@@ -54,7 +54,7 @@ export const useEndTrainingSessionMutation = () => {
   const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
-    mutationFn: endTrainingSession,
+    mutationFn: postEndTrainingSession,
     onSuccess: invalidateQueries,
   });
 };
@@ -64,7 +64,7 @@ export const useForceEndTrainingSessionMutation = () => {
   const invalidateQueries = useInvalidateTrainingSessionQueries();
 
   return useMutation({
-    mutationFn: forceEndTrainingSession,
+    mutationFn: postForceEndTrainingSession,
     onSuccess: invalidateQueries,
   });
 };

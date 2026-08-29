@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import { useStartTrainingSessionMutation } from '@apis/trainingSessions/useTrainingSessionMutations';
-import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 
 import ActivityIcon from '@assets/icons/ic-activity.svg?react';
@@ -46,8 +46,10 @@ const HomePage = () => {
   const { show } = useToast();
   const { data: stats } = useGetDashboardStatsQuery();
   const { data: trainings = [] } = useGetDashboardTrainingsQuery();
-  const { data: runningSessions = [] } = useTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING);
-  const { data: scheduledSessions = [] } = useTrainingSessionsQuery(
+  const { data: runningSessions = [] } = useGetTrainingSessionsQuery(
+    TRAINING_SESSION_STATUS.RUNNING,
+  );
+  const { data: scheduledSessions = [] } = useGetTrainingSessionsQuery(
     TRAINING_SESSION_STATUS.SCHEDULED,
   );
   const startTrainingSessionMutation = useStartTrainingSessionMutation();

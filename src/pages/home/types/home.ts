@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 
-import type { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import type { HOME_GRADE_BADGE_COLOR } from '@pages/home/constants/home';
 
-import type { HOME_GRADE_BADGE_COLOR } from '../constants/home';
+import type { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 
 export type MetricIconTone = 'blue' | 'yellow' | 'green' | 'purple';
 export type MetricIconKey = 'activity' | 'clock' | 'trend' | 'user';
 
-export type HomeMetric = {
+export interface HomeMetric {
   id: string;
   title: string;
   value: string;
@@ -15,9 +15,9 @@ export type HomeMetric = {
   iconTone: MetricIconTone;
   iconKey: MetricIconKey;
   icon?: ReactNode;
-};
+}
 
-export type TrainingRecord = {
+export interface TrainingRecord {
   id: number;
   name: string;
   date: string;
@@ -25,7 +25,7 @@ export type TrainingRecord = {
   evacuationTime: string;
   survivalRate: string;
   grade: keyof typeof HOME_GRADE_BADGE_COLOR;
-};
+}
 
 // 예정된 훈련의 홈 상태 상세 응답
 export interface ScheduledTrainingStatusResponse {
@@ -47,7 +47,7 @@ export type HomeTrainingStatusResponse =
   | ScheduledTrainingStatusResponse
   | RunningTrainingStatusResponse;
 
-export type ScheduledTraining = {
+export interface ScheduledTraining {
   id: string;
   name: string;
   building: string;
@@ -56,4 +56,4 @@ export type ScheduledTraining = {
   participants: string;
   startedAt?: string;
   status: typeof TRAINING_SESSION_STATUS.RUNNING | typeof TRAINING_SESSION_STATUS.SCHEDULED;
-};
+}

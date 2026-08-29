@@ -5,10 +5,10 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { dashboardQueryKeys } from '@apis/dashboard/dashboardQueryKeys';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
+import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 
 import { getAccessToken } from '@shared/auth/tokenStorage';
 
-import { trainingSessionQueryKeys } from '../trainingSessionQueryKeys';
 import { TRAINING_EVENT_TYPE } from './trainingSessionEvents';
 
 import type { TrainingSessionEvent } from './trainingSessionEvents';

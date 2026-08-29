@@ -5,12 +5,12 @@ import { useNavigate, useParams } from 'react-router';
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import {
   useCreateTrainingSessionMutation,
   useEndTrainingSessionMutation,
   useStartTrainingSessionMutation,
 } from '@apis/trainingSessions/useTrainingSessionMutations';
-import { useTrainingSessionsQuery } from '@apis/trainingSessions/useTrainingSessionsQuery';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
@@ -69,14 +69,11 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const createTrainingSessionMutation = useCreateTrainingSessionMutation();
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
   const endTrainingSessionMutation = useEndTrainingSessionMutation();
-  const { data: runningSessions = [] } = useTrainingSessionsQuery(
-    TRAINING_SESSION_STATUS.RUNNING,
-    Boolean(scenario),
-  );
-  const { data: scheduledSessions = [] } = useTrainingSessionsQuery(
-    TRAINING_SESSION_STATUS.SCHEDULED,
-    Boolean(scenario),
-  );
+  const { data: runningSessions = [], isPending: isRunningSessionsPending } =
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, Boolean(scenario));
+  const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, Boolean(scenario));
+  const areTrainingSessionsPending = isRunningSessionsPending || isScheduledSessionsPending;
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
   const [isEditing, setIsEditing] = useState(false);
@@ -114,6 +111,8 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   }));
 
   const handleStartTraining = async () => {
+    if (areTrainingSessionsPending) return;
+
     if (!scenario || !currentUser?.id) {
       show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
       return;
@@ -322,6 +321,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   fullWidth
                   leftIcon={<PlayIcon />}
                   onClick={() => void handleStartTraining()}
+                  disabled={areTrainingSessionsPending}
                   isLoading={
                     createTrainingSessionMutation.isPending ||
                     startTrainingSessionMutation.isPending

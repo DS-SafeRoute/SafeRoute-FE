@@ -9,10 +9,10 @@ import type { TrainingSessionStatus } from './trainingSessionConstants';
 const SESSION_REFETCH_INTERVAL_MS = 10_000;
 
 // 특정 상태의 훈련 세션 목록 조회 Query
-export const useTrainingSessionsQuery = (status: TrainingSessionStatus, enabled = true) =>
+export const useGetTrainingSessionsQuery = (status: TrainingSessionStatus, enabled = true) =>
   useQuery({
     queryKey: trainingSessionQueryKeys.list(status),
-    queryFn: () => getTrainingSessions(status),
+    queryFn: ({ signal }) => getTrainingSessions(status, signal),
     enabled,
     refetchInterval: SESSION_REFETCH_INTERVAL_MS,
   });
