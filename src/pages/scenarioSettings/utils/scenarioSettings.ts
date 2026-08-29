@@ -6,6 +6,7 @@ export const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({
   targetBuilding: scenario?.buildingId ?? '',
   scheduledAt: scenario?.scheduledAt ?? '',
   expectedParticipants: scenario ? String(scenario.expectedParticipants) : '',
+  startNodeId: scenario?.startNodeId ?? '',
 });
 
 export const toScheduledAt = (value: string) => {

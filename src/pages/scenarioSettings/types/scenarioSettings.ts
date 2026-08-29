@@ -5,6 +5,7 @@ export interface BasicInfo {
   targetBuilding: string;
   scheduledAt: string;
   expectedParticipants: string;
+  startNodeId: string;
 }
 
 export type FireConditionKey = 'origin' | 'spread';

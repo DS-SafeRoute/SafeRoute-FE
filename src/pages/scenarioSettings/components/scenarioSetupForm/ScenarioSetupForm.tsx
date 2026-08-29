@@ -82,6 +82,14 @@ const ScenarioSetupForm = ({
           disabled={isRunning}
           onChange={(event) => onBasicInfoChange('expectedParticipants', event.target.value)}
         />
+        <TextField
+          label="대피 시작 노드 ID"
+          value={basicInfo.startNodeId}
+          placeholder="도면에서 선택한 노드 ID를 입력하세요"
+          readOnly={readOnly}
+          disabled={isRunning}
+          onChange={(event) => onBasicInfoChange('startNodeId', event.target.value)}
+        />
       </div>
     </section>
 

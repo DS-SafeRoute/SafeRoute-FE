@@ -181,10 +181,12 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     const expectedParticipants = Number(basicInfo.expectedParticipants);
     const scheduledAt = toScheduledAt(basicInfo.scheduledAt);
     const fireSpreadSpeed = FIRE_SPREAD_VALUE[fireSpreadLabel];
+    const startNodeId = basicInfo.startNodeId.trim();
 
     if (
       !name ||
       !selectedBuildingId ||
+      !startNodeId ||
       !Number.isInteger(expectedParticipants) ||
       expectedParticipants < 1 ||
       !scheduledAt
@@ -193,7 +195,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
       return null;
     }
 
-    return { name, expectedParticipants, scheduledAt, fireSpreadSpeed };
+    return { name, expectedParticipants, scheduledAt, fireSpreadSpeed, startNodeId };
   };
 
   const handleSaveDraft = async () => {

@@ -23,6 +23,7 @@ export interface ScenarioSummary {
 
 export interface Scenario extends ScenarioSummary {
   fireSpreadSpeed: 'SLOW' | 'MEDIUM' | 'FAST';
+  startNodeId: string | null;
 }
 
 export const SCENARIO_STATUS_VIEW: Record<
