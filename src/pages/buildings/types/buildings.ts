@@ -1,11 +1,5 @@
 export type BuildingType = 'CLASSROOM' | 'CAFETERIA' | 'LIBRARY' | 'DORMITORY' | 'GYM';
 
-export interface Organization {
-  id: number;
-  name: string;
-  address: string;
-}
-
 export interface Building {
   id: string;
   name: string;

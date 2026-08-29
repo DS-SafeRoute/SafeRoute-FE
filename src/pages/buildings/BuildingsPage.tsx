@@ -8,6 +8,7 @@ import type {
 } from '@apis/__generated__/data-contracts';
 import { ApiError } from '@apis/errors/apiError';
 import type { BaseResponse } from '@apis/types/baseResponse';
+import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
@@ -21,7 +22,6 @@ import { useUpdateBuildingMutation } from './api/useUpdateBuildingMutation';
 import * as styles from './BuildingsPage.css';
 import BuildingCard from './components/BuildingCard/BuildingCard';
 import OrganizationCard from './components/OrganizationCard/OrganizationCard';
-import { mockOrganization } from './mocks/buildingsData';
 import BuildingAddModal from './modals/BuildingAddModal';
 import BuildingDeleteModal from './modals/BuildingDeleteModal';
 import BuildingEditModal from './modals/BuildingEditModal';
@@ -58,6 +58,7 @@ interface FloorSyncTarget {
 
 const BuildingsPage = () => {
   const { data, isLoading, isError } = useGetBuildingsQuery();
+  const { data: myProfile } = useMyProfileQuery();
   const createBuildingMutation = useCreateBuildingMutation();
   const updateBuildingMutation = useUpdateBuildingMutation();
   const deleteBuildingMutation = useDeleteBuildingMutation();
@@ -184,7 +185,10 @@ const BuildingsPage = () => {
   return (
     <>
       <div className={styles.container}>
-        <OrganizationCard organization={mockOrganization} buildingCount={buildings.length} />
+        <OrganizationCard
+          schoolName={myProfile?.schoolName ?? ''}
+          buildingCount={buildings.length}
+        />
 
         <div className={styles.listHeader}>
           <span className={styles.listCount}>총 {buildings.length}개 건물</span>
