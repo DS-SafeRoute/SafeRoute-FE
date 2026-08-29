@@ -1797,6 +1797,8 @@ const FloorPlansDetailPage = () => {
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
   const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
+  const [zoneDeleteTarget, setZoneDeleteTarget] = useState<ZoneEntry | null>(null);
+  const [isDeletingZone, setIsDeletingZone] = useState(false);
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -2482,15 +2484,26 @@ const FloorPlansDetailPage = () => {
     });
   };
 
-  const handleZoneDelete = (id: string) => {
-    if (!currentFloor) return;
+  // 다른 삭제(장비/POI)는 전부 확인 모달을 거치는데 구역만 클릭 즉시 삭제되고 있어서 맞춤
+  const handleZoneDeleteRequest = (zone: ZoneEntry) => setZoneDeleteTarget(zone);
+  const handleZoneDeleteCancel = () => setZoneDeleteTarget(null);
+
+  const handleZoneDeleteConfirm = () => {
+    if (!currentFloor || !zoneDeleteTarget || isDeletingZone) return;
+    const id = zoneDeleteTarget.id;
+    setIsDeletingZone(true);
     deleteUserZone(currentFloor.id, id)
       .then(() => {
         setZones((prev) => prev.filter((z) => z.id !== id));
+        if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) {
+          setSelectedZoneRef(null);
+        }
+        setZoneDeleteTarget(null);
       })
       .catch(() => {
         show({ title: '구역 삭제에 실패했습니다.', variant: 'error' });
-      });
+      })
+      .finally(() => setIsDeletingZone(false));
   };
 
   const isNodeSelected = (id: string) =>
@@ -2617,7 +2630,7 @@ const FloorPlansDetailPage = () => {
               className={styles.zoneCardIconBtnDelete}
               onClick={(e) => {
                 e.stopPropagation();
-                handleZoneDelete(z.id);
+                handleZoneDeleteRequest(z);
               }}
             >
               <TrashIcon width={14} height={14} />
@@ -2758,25 +2771,33 @@ const FloorPlansDetailPage = () => {
           : prev,
       );
     } else if (item.source === 'added') {
+      const prevDevice = addedDevices.find((d) => d.id === item.id);
       setAddedDevices((prev) =>
         prev.map((d) => (d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d)),
       );
-      if (item.type === 'light') {
-        const device = addedDevices.find((d) => d.id === item.id);
-        if (device) {
-          updateIoTLight(item.id, { name: newLabel, x: device.x / 100, y: device.y / 100 }).catch(
-            () => {},
-          );
-        }
-      } else if (item.type === 'cctv') {
-        const device = addedDevices.find((d) => d.id === item.id);
-        if (device) {
-          updateCctv(item.id, { name: newLabel, x: device.x / 100, y: device.y / 100 })
-            .then((updated) => {
-              setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-            })
-            .catch(() => {});
-        }
+      // 실패하면 방금 낙관적으로 바꾼 이름/구역을 원래대로 되돌림 — 안 그러면 저장 안 됐는데 화면엔 새 이름이 남음
+      const rollback = () => {
+        if (prevDevice)
+          setAddedDevices((prev) => prev.map((d) => (d.id === item.id ? prevDevice : d)));
+      };
+      if (item.type === 'light' && prevDevice) {
+        updateIoTLight(item.id, {
+          name: newLabel,
+          x: prevDevice.x / 100,
+          y: prevDevice.y / 100,
+        }).catch(() => {
+          rollback();
+          show({ title: '유도등 정보 수정에 실패했습니다.', variant: 'error' });
+        });
+      } else if (item.type === 'cctv' && prevDevice) {
+        updateCctv(item.id, { name: newLabel, x: prevDevice.x / 100, y: prevDevice.y / 100 })
+          .then((updated) => {
+            setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          })
+          .catch(() => {
+            rollback();
+            show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
+          });
       }
     }
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
@@ -3362,6 +3383,16 @@ const FloorPlansDetailPage = () => {
           label={deleteConfirmTarget.label}
           onConfirm={handleDeleteConfirm}
           isSubmitting={isDeletingItem}
+        />
+      )}
+
+      {zoneDeleteTarget && (
+        <EquipmentDeleteConfirmModal
+          open
+          onClose={handleZoneDeleteCancel}
+          label={zoneDeleteTarget.label}
+          onConfirm={handleZoneDeleteConfirm}
+          isSubmitting={isDeletingZone}
         />
       )}
 
