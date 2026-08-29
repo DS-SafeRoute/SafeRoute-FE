@@ -4,6 +4,7 @@ import type {
   CctvResponse,
   ConfigureCctvGridCellsRequest,
   CreateCctvRequest,
+  UpdateCctvRequest,
 } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
@@ -30,8 +31,6 @@ export interface Cctv {
   monitoredGridCellCount: number;
   monitoredAreaM2: number;
   gridCells: CctvGridCell[];
-  /** 위치 수정 시 PATCH /api/v1/nodes/{customNodeId}로 사용 (CCTV 전용 위치 수정 API는 아직 없음) */
-  customNodeId: string | null;
 }
 
 const toCctvGridCell = (response: CctvGridCellResponse): CctvGridCell => {
@@ -64,7 +63,6 @@ const toCctv = (response: CctvResponse): Cctv => {
     monitoredGridCellCount: response.monitoredGridCellCount ?? 0,
     monitoredAreaM2: response.monitoredAreaM2 ?? 0,
     gridCells: (response.gridCells ?? []).map(toCctvGridCell),
-    customNodeId: response.customNodeId ?? null,
   };
 };
 
@@ -94,6 +92,15 @@ export async function configureCctvGridCells(cctvId: string, gridCellIds: string
     method: HTTP_METHOD.PUT,
     url: API_ENDPOINTS.CCTV.GRID_CELLS(cctvId),
     body: { gridCellIds },
+  });
+  return toCctv(cctv);
+}
+
+export async function updateCctv(cctvId: string, body: UpdateCctvRequest): Promise<Cctv> {
+  const cctv = await apiRequest<CctvResponse, UpdateCctvRequest>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.CCTV.DETAIL(cctvId),
+    body,
   });
   return toCctv(cctv);
 }
