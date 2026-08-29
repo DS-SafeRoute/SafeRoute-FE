@@ -29,7 +29,7 @@ import FloorSyncWarningModal from './modals/FloorSyncWarningModal';
 import { applyFloorSync, createInitialFloors, planFloorSync } from './utils/floorSync';
 
 import type { Building } from './types/buildings';
-import type { FloorSyncPlan } from './utils/floorSync';
+import type { FloorCounts, FloorSyncPlan } from './utils/floorSync';
 
 type ModalState =
   | { type: 'add' }
@@ -73,8 +73,9 @@ const BuildingsPage = () => {
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
   const handleDelete = (building: Building) => setModal({ type: 'delete', building });
 
-  // 건물 층수 = 도면관리 실제 층 개수가 항상 일치해야 해서, 등록 시 1층~totalFloors를 바로 생성
-  const handleConfirmAdd = (body: CreateBuildingRequest) => {
+  // 건물 층수는 서버가 groundFloorCount+basementFloorCount로 계산하는 읽기 전용 값이라
+  // 등록 요청에는 안 실려있음 — 등록 직후 지상/지하 층을 도면관리 쪽에 직접 생성해서 반영함
+  const handleConfirmAdd = (body: CreateBuildingRequest, floorCounts: FloorCounts) => {
     createBuildingMutation.mutate(body, {
       onSuccess: (newBuilding) => {
         setModal(null);
@@ -83,7 +84,7 @@ const BuildingsPage = () => {
           description: `${body.name}이(가) 등록되었습니다.`,
           variant: 'success',
         });
-        createInitialFloors(newBuilding.id, body.totalFloors).catch((error) => {
+        createInitialFloors(newBuilding.id, floorCounts).catch((error) => {
           if (import.meta.env.DEV) console.error('[createInitialFloors]', error);
           show({
             title: '층 목록 생성에 실패했습니다.',
@@ -136,11 +137,11 @@ const BuildingsPage = () => {
   };
 
   // 층수를 줄이는 경우 기존 층에 도면 데이터가 있으면 먼저 경고 모달을 띄움
-  const handleConfirmEdit = (body: UpdateBuildingRequest) => {
+  const handleConfirmEdit = (body: UpdateBuildingRequest, floorCounts: FloorCounts) => {
     if (modal?.type !== 'edit') return;
     const { building } = modal;
     setIsPlanningFloorSync(true);
-    planFloorSync(building.id, body.totalFloors)
+    planFloorSync(building.id, floorCounts)
       .then((plan) => {
         setIsPlanningFloorSync(false);
         if (plan.hasDataLoss) {

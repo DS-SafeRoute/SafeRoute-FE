@@ -16,11 +16,12 @@ import * as styles from './buildingForm.css';
 import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
 
 import type { BuildingType } from '../types/buildings';
+import type { FloorCounts } from '../utils/floorSync';
 
 interface BuildingAddModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (body: CreateBuildingRequest) => void;
+  onConfirm: (body: CreateBuildingRequest, floorCounts: FloorCounts) => void;
   isSubmitting?: boolean;
 }
 
@@ -81,14 +82,17 @@ const BuildingAddModal = ({
 
   const handleConfirm = () => {
     if (!validate()) return;
-    const totalFloors =
-      Number(form.aboveFloors) + (form.belowFloors.trim() ? Number(form.belowFloors) : 0);
-    onConfirm({
-      name: form.name.trim(),
-      address: form.address.trim(),
-      buildingType: form.buildingType,
-      totalFloors,
-    });
+    onConfirm(
+      {
+        name: form.name.trim(),
+        address: form.address.trim(),
+        buildingType: form.buildingType,
+      },
+      {
+        aboveFloors: Number(form.aboveFloors),
+        belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
+      },
+    );
     // 성공 시 부모가 모달을 닫아 이 컴포넌트가 언마운트되며 폼이 자연히 초기화됨.
     // 실패 시에는 입력값을 잃지 않도록 여기서 리셋하지 않음.
   };

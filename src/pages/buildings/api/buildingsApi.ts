@@ -10,12 +10,24 @@ import type { Building } from '../types/buildings';
 
 // 필수 필드가 비어 있으면 상세 조회/수정/삭제 요청에 잘못된 id가 쓰이는 등 오류가 조용히 전파되므로, 기본값으로 채우지 않고 즉시 에러를 던짐
 export const toBuilding = (response: BuildingResponse): Building => {
-  const { id, name, address, buildingType, totalFloors, isActive, lastTrainedAt } = response;
+  const {
+    id,
+    name,
+    address,
+    buildingType,
+    groundFloorCount,
+    basementFloorCount,
+    totalFloors,
+    isActive,
+    lastTrainedAt,
+  } = response;
   if (
     !id ||
     !name ||
     !address ||
     !buildingType ||
+    groundFloorCount === undefined ||
+    basementFloorCount === undefined ||
     totalFloors === undefined ||
     isActive === undefined
   ) {
@@ -26,6 +38,8 @@ export const toBuilding = (response: BuildingResponse): Building => {
     name,
     address,
     buildingType,
+    groundFloorCount,
+    basementFloorCount,
     totalFloors,
     isActive,
     lastTrainedAt: lastTrainedAt ?? null,
