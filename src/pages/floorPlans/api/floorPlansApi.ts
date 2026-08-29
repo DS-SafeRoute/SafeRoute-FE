@@ -1,22 +1,16 @@
 import { getBuildings } from '@pages/buildings/api/buildingsApi';
 
-import type { FloorResponse } from '@apis/__generated__/data-contracts';
+import type { FloorImageUrlResponse, FloorResponse } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
 import type { Floor, FloorBuilding } from '../types/floorPlans';
 
-// 백엔드에서 도면별 presigned GET URL 발급 API를 추가 예정(2026-08-24 확인, 일정 미정) — 그 전까지는
-// key를 그대로 반환함. 실제 이미지가 안 뜰 수 있음. API 나오면 이 함수를 그 호출로 바꾸면 됨(비동기 전환 필요)
+// 목록/사이드바 등에서는 "도면이 등록됐는지"만 boolean으로 판단하면 되고 실제 이미지를 그리지는
+// 않아서, 여기서는 mapImageKey 존재 여부만 truthy 값으로 반환함(도면 개수만큼 presigned URL을
+// 미리 다 발급받는 낭비를 피하기 위함). 실제 화면에 그릴 이미지 URL은 getFloorImageUrl로 따로 조회
 const resolveFloorImageUrl = (mapImageKey?: string): string | null => {
-  if (!mapImageKey) return null;
-  if (import.meta.env.DEV) {
-    console.warn(
-      '[floorPlansApi] mapImageKey → URL 변환 규칙이 미확정 상태라 key를 그대로 사용 중:',
-      mapImageKey,
-    );
-  }
-  return mapImageKey;
+  return mapImageKey ?? null;
 };
 
 // devices/pois는 CCTV·IoT·맵그래프 API 연동 전까지 빈 배열로 둠 (다음 단위에서 채울 예정)
@@ -109,4 +103,26 @@ export async function analyzeFloor(floorId: string): Promise<void> {
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.FLOORS.ANALYZE(floorId),
   });
+}
+
+export interface FloorImageUrl {
+  imageUrl: string;
+  expiresAt: string;
+}
+
+// 실제 캔버스에 그릴 도면 이미지의 presigned URL — 상세페이지에서 조회 중인 층 하나에 대해서만 호출
+// (목록 페이지에서 도면마다 미리 다 발급받으면 낭비라 getBuildingFloors/toFloor에는 안 넣음)
+export async function getFloorImageUrl(
+  buildingId: string,
+  floorId: string,
+): Promise<FloorImageUrl> {
+  const response = await apiRequest<FloorImageUrlResponse>({
+    method: HTTP_METHOD.GET,
+    url: API_ENDPOINTS.FLOORS.IMAGE_URL(buildingId, floorId),
+  });
+  const { imageUrl, expiresAt } = response;
+  if (!imageUrl || !expiresAt) {
+    throw new Error('도면 이미지 URL 응답에 필수 필드가 누락되었습니다.');
+  }
+  return { imageUrl, expiresAt };
 }

@@ -27,6 +27,8 @@ export const API_ENDPOINTS = {
       `${API_V1}/buildings/${buildingId}/floors/${floorId}`,
     UPLOAD: (buildingId: string) => `${API_V1}/buildings/${buildingId}/floors/upload`,
     ANALYZE: (floorId: string) => `${API_V1}/${floorId}/analyse`,
+    IMAGE_URL: (buildingId: string, floorId: string) =>
+      `${API_V1}/buildings/${buildingId}/floors/${floorId}/image-url`,
   },
 
   // S3 파일 업로드
