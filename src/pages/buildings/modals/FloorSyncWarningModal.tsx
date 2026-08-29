@@ -3,7 +3,7 @@ import type { Floor } from '@pages/floorPlans/types/floorPlans';
 import { Button } from '@components/Button';
 import Modal from '@components/modal';
 
-import { formatFloor } from '@utils/floor';
+import { formatFloor, hasFloorPlan } from '@utils/floor';
 
 interface FloorSyncWarningModalProps {
   open: boolean;
@@ -24,8 +24,7 @@ const FloorSyncWarningModal = ({
 }: FloorSyncWarningModalProps) => {
   const sortedFloorsToDelete = [...floorsToDelete].sort((a, b) => b.floorNum - a.floorNum);
   const floorLabels = sortedFloorsToDelete.map((f) => formatFloor(f.floorNum)).join(', ');
-  // segmentationStatus는 백엔드에 'NONE'이 없어 항상 값이 채워져 있음 — 실제 업로드 여부는 mapImageUrl로 판단
-  const floorsWithData = sortedFloorsToDelete.filter((f) => !!f.mapImageUrl);
+  const floorsWithData = sortedFloorsToDelete.filter(hasFloorPlan);
   const dataFloorLabels = floorsWithData.map((f) => formatFloor(f.floorNum)).join(', ');
 
   const description =

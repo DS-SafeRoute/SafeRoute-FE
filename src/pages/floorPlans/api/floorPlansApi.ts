@@ -6,13 +6,6 @@ import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
 import type { Floor, FloorBuilding } from '../types/floorPlans';
 
-// 목록/사이드바 등에서는 "도면이 등록됐는지"만 boolean으로 판단하면 되고 실제 이미지를 그리지는
-// 않아서, 여기서는 mapImageKey 존재 여부만 truthy 값으로 반환함(도면 개수만큼 presigned URL을
-// 미리 다 발급받는 낭비를 피하기 위함). 실제 화면에 그릴 이미지 URL은 getFloorImageUrl로 따로 조회
-const resolveFloorImageUrl = (mapImageKey?: string): string | null => {
-  return mapImageKey ?? null;
-};
-
 // devices/pois는 CCTV·IoT·맵그래프 API 연동 전까지 빈 배열로 둠 (다음 단위에서 채울 예정)
 export const toFloor = (response: FloorResponse, buildingId: string): Floor => {
   const { id, floorNum, segmentationStatus, processedAt, mapImageKey } = response;
@@ -23,7 +16,10 @@ export const toFloor = (response: FloorResponse, buildingId: string): Floor => {
     id,
     buildingId,
     floorNum,
-    mapImageUrl: resolveFloorImageUrl(mapImageKey),
+    // 목록/사이드바 등에서는 "도면이 등록됐는지"만 boolean으로 판단하면 되고 실제 이미지를 그리지는
+    // 않아서, mapImageKey 존재 여부만 truthy 값으로 씀(도면 개수만큼 presigned URL을 미리 다
+    // 발급받는 낭비를 피하기 위함). 실제 화면에 그릴 이미지 URL은 getFloorImageUrl로 따로 조회
+    mapImageUrl: mapImageKey ?? null,
     segmentationStatus,
     processedAt: processedAt ?? null,
     devices: [],

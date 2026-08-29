@@ -69,6 +69,12 @@ const BuildingsPage = () => {
   const [isApplyingFloorSync, setIsApplyingFloorSync] = useState(false);
   const { show } = useToast();
 
+  // 건물 층수 동기화 워크어라운드(createInitialFloors/applyFloorSync) 실패를 콘솔+토스트로 알림
+  const reportFloorSyncFailure = (tag: string, title: string) => (error: unknown) => {
+    if (import.meta.env.DEV) console.error(tag, error);
+    show({ title, description: describeError(error), variant: 'error' });
+  };
+
   const handleAdd = () => setModal({ type: 'add' });
   const handleEdit = (building: Building) => setModal({ type: 'edit', building });
   const handleDelete = (building: Building) => setModal({ type: 'delete', building });
@@ -84,14 +90,9 @@ const BuildingsPage = () => {
           description: `${body.name}이(가) 등록되었습니다.`,
           variant: 'success',
         });
-        createInitialFloors(newBuilding.id, floorCounts).catch((error) => {
-          if (import.meta.env.DEV) console.error('[createInitialFloors]', error);
-          show({
-            title: '층 목록 생성에 실패했습니다.',
-            description: describeError(error),
-            variant: 'error',
-          });
-        });
+        createInitialFloors(newBuilding.id, floorCounts).catch(
+          reportFloorSyncFailure('[createInitialFloors]', '층 목록 생성에 실패했습니다.'),
+        );
       },
       onError: () => {
         show({ title: '건물 추가에 실패했습니다.', variant: 'error' });
@@ -119,14 +120,9 @@ const BuildingsPage = () => {
             description: `${body.name} 정보가 업데이트되었습니다.`,
             variant: 'success',
           });
-          applyFloorSync(plan).catch((error) => {
-            if (import.meta.env.DEV) console.error('[applyFloorSync]', error);
-            show({
-              title: '층 목록 동기화에 실패했습니다.',
-              description: describeError(error),
-              variant: 'error',
-            });
-          });
+          applyFloorSync(plan).catch(
+            reportFloorSyncFailure('[applyFloorSync]', '층 목록 동기화에 실패했습니다.'),
+          );
         },
         onError: () => {
           setIsApplyingFloorSync(false);

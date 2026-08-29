@@ -10,7 +10,7 @@ import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import useToast from '@components/toast/useToast';
 
-import { formatFloor } from '@utils/floor';
+import { formatFloor, hasFloorPlan } from '@utils/floor';
 
 import { setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
@@ -88,9 +88,7 @@ interface FloorCardProps {
 
 const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: FloorCardProps) => {
   const navigate = useNavigate();
-  // 도면 업로드 여부는 mapImageUrl 유무로 판단 — segmentationStatus는 AI 분석 진행도일 뿐, 백엔드에
-  // "미업로드" 상태값이 따로 없어서 업로드 전 빈 층도 PENDING 등 다른 값을 갖고 있을 수 있음
-  const isNone = !floor.mapImageUrl;
+  const isNone = !hasFloorPlan(floor);
   const { label, color } = isNone ? NONE_STATUS_BADGE : STATUS_CONFIG[floor.segmentationStatus];
   const isDone = floor.segmentationStatus === 'DONE';
 

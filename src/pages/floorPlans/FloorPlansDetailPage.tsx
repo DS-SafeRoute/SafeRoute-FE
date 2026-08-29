@@ -16,7 +16,7 @@ import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import useToast from '@components/toast/useToast';
 
-import { formatFloor } from '@utils/floor';
+import { formatFloor, hasFloorPlan } from '@utils/floor';
 
 import {
   configureCctvGridCells,
@@ -159,6 +159,17 @@ const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> =
 type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
 const GRID_SIZE = 20;
+
+// 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
+// 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
+// 두 값 중 더 작은 쪽으로 통일해서 항상 정사각형으로 보이게 함
+const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => {
+  if (cells.length === 0) return { w: 20, h: 20 };
+  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
+  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
+  const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
+  return { w: size, h: size };
+};
 
 const MockFloorMap3F = ({
   mapImageUrl,
@@ -517,53 +528,57 @@ const MockFloorMap3F = ({
           );
         })}
 
-      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시 */}
-      {savedZones.map((z) => {
-        const cells = z.cellIds
-          .map((id) => floorGridCells.find((c) => c.id === id))
-          .filter((c): c is FloorGridCell => !!c);
-        if (cells.length === 0) return null;
-        const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
-        const xs = cells.map((c) => c.centerX * 560);
-        const ys = cells.map((c) => c.centerY * 420);
-        const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
-        const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
-        return (
-          <g
-            key={z.id}
-            onClick={(e) => {
-              if (zoneAddActive) return;
-              e.stopPropagation();
-              onZoneRefSelect({ kind: 'zone', id: z.id });
-            }}
-            style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
-          >
-            {cells.map((cell) => (
-              <rect
-                key={cell.id}
-                x={cell.centerX * 560 - gridCellPxSize.w / 2}
-                y={cell.centerY * 420 - gridCellPxSize.h / 2}
-                width={gridCellPxSize.w}
-                height={gridCellPxSize.h}
-                fill="rgba(107,114,128,0.15)"
-                stroke={isSelected ? '#2563eb' : '#6b7280'}
-                strokeWidth={isSelected ? '2' : '1'}
-              />
-            ))}
-            <text
-              x={labelX}
-              y={labelY + 3}
-              textAnchor="middle"
-              fill="#374151"
-              fontSize="10"
-              fontFamily="sans-serif"
-              style={{ pointerEvents: 'none' }}
+      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시.
+          구역마다 매번 floorGridCells를 선형 탐색하지 않도록 id→셀 매핑을 한 번만 만들어 재사용 */}
+      {(() => {
+        const floorGridCellById = new Map(floorGridCells.map((c) => [c.id, c]));
+        return savedZones.map((z) => {
+          const cells = z.cellIds
+            .map((id) => floorGridCellById.get(id))
+            .filter((c): c is FloorGridCell => !!c);
+          if (cells.length === 0) return null;
+          const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
+          const xs = cells.map((c) => c.centerX * 560);
+          const ys = cells.map((c) => c.centerY * 420);
+          const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
+          const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
+          return (
+            <g
+              key={z.id}
+              onClick={(e) => {
+                if (zoneAddActive) return;
+                e.stopPropagation();
+                onZoneRefSelect({ kind: 'zone', id: z.id });
+              }}
+              style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
             >
-              {z.label}
-            </text>
-          </g>
-        );
-      })}
+              {cells.map((cell) => (
+                <rect
+                  key={cell.id}
+                  x={cell.centerX * 560 - gridCellPxSize.w / 2}
+                  y={cell.centerY * 420 - gridCellPxSize.h / 2}
+                  width={gridCellPxSize.w}
+                  height={gridCellPxSize.h}
+                  fill="rgba(107,114,128,0.15)"
+                  stroke={isSelected ? '#2563eb' : '#6b7280'}
+                  strokeWidth={isSelected ? '2' : '1'}
+                />
+              ))}
+              <text
+                x={labelX}
+                y={labelY + 3}
+                textAnchor="middle"
+                fill="#374151"
+                fontSize="10"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                {z.label}
+              </text>
+            </g>
+          );
+        });
+      })()}
 
       {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능), 선택된 기존 CCTV의 감시 영역(조회 전용),
           또는 그리드 표시 토글이 켜진 경우(전체 조회 전용) */}
@@ -2263,9 +2278,14 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   };
 
+  // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
+  // 그중 CCTV/구역 두 플로우는 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에
+  // 담아두고 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀
+  const activeDraftCellIds = zoneAddOpen ? zoneDraftCellIds : cctvDraftCellIds;
+  const setActiveDraftCellIds = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
+
   const handleGridCellToggle = (cellId: string) => {
-    const setter = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
-    setter((prev) =>
+    setActiveDraftCellIds((prev) =>
       prev.includes(cellId) ? prev.filter((id) => id !== cellId) : [...prev, cellId],
     );
   };
@@ -2316,8 +2336,9 @@ const FloorPlansDetailPage = () => {
           const cy = cell.centerY * 420;
           return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
         });
-        const setter = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
-        setter((prev) => Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])));
+        setActiveDraftCellIds((prev) =>
+          Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])),
+        );
       }
       setZoneDraftRect(null);
     }
@@ -2693,16 +2714,7 @@ const FloorPlansDetailPage = () => {
     label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
   }));
 
-  // 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
-  // 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
-  // 두 값 중 더 작은 쪽으로 통일해서 항상 정사각형으로 보이게 함
-  const gridCellPxSize = (() => {
-    if (floorGridCells.length === 0) return { w: 20, h: 20 };
-    const maxCol = Math.max(...floorGridCells.map((c) => c.columnIndex));
-    const maxRow = Math.max(...floorGridCells.map((c) => c.rowIndex));
-    const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
-    return { w: size, h: size };
-  })();
+  const gridCellPxSize = getGridCellPxSize(floorGridCells);
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
@@ -2717,9 +2729,7 @@ const FloorPlansDetailPage = () => {
 
   const selectedGridCellIds =
     cctvGridCellsMode === 'selecting'
-      ? zoneAddOpen
-        ? zoneDraftCellIds
-        : cctvDraftCellIds
+      ? activeDraftCellIds
       : cctvGridCellsMode === 'viewing' && selectedItem?.kind === 'device'
         ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
         : [];
@@ -2883,7 +2893,7 @@ const FloorPlansDetailPage = () => {
                   .sort((a, b) => b.floorNum - a.floorNum)
                   .map((f) => {
                     const isCurrent = f.id === selectedFloorId;
-                    const isNone = !f.mapImageUrl;
+                    const isNone = !hasFloorPlan(f);
                     return (
                       <button
                         key={f.id}

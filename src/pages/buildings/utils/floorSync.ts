@@ -1,6 +1,8 @@
 import { createFloor, deleteFloor, getBuildingFloors } from '@pages/floorPlans/api/floorPlansApi';
 import type { Floor } from '@pages/floorPlans/types/floorPlans';
 
+import { hasFloorPlan } from '@utils/floor';
+
 // 지상층은 1, 2, 3...(양수), 지하층은 -1, -2, -3...(음수)로 번호를 매김 — 도면관리의
 // formatFloor(src/shared/utils/floor.ts)가 이미 이 규칙을 전제로 "3층"/"B1층"을 표시하고 있음
 export interface FloorCounts {
@@ -34,9 +36,7 @@ export async function planFloorSync(
 
   const toCreateFloorNums = targetFloorNums.filter((n) => !existingFloorNums.has(n));
   const toDeleteFloors = floors.filter((f) => !targetFloorNumSet.has(f.floorNum));
-  // segmentationStatus는 백엔드에 'NONE'이 없어서 항상 무언가 값이 채워져 있음 — 실제로 도면이
-  // 업로드됐는지는 mapImageUrl 유무로만 판단해야 함(이걸 안 쓰면 빈 층도 전부 데이터 있음으로 오판)
-  const hasDataLoss = toDeleteFloors.some((f) => !!f.mapImageUrl);
+  const hasDataLoss = toDeleteFloors.some(hasFloorPlan);
 
   return { buildingId, toCreateFloorNums, toDeleteFloors, hasDataLoss };
 }
