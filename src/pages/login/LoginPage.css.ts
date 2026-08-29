@@ -140,11 +140,6 @@ export const checkbox = style({
   accentColor: vars.color.primary,
 });
 
-export const textButton = style({
-  color: vars.color.primary,
-  ...vars.typography.captionBold,
-});
-
 export const divider = style({
   display: 'grid',
   gridTemplateColumns: '1fr auto 1fr',

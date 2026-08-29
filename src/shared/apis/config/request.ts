@@ -25,15 +25,16 @@ export interface RequestConfig<TBody = unknown> {
   query?: Record<string, QueryValue>;
   body?: TBody;
   signal?: AbortSignal;
+  responseMode?: 'wrapped' | 'raw';
 }
 
 export const request = async <TResponse, TBody = unknown>(
   config: RequestConfig<TBody>,
 ): Promise<TResponse> => {
-  const { method, url, query, body, signal } = config;
+  const { method, url, query, body, signal, responseMode = 'wrapped' } = config;
 
   try {
-    const response = await axiosInstance.request<BaseResponse<TResponse>>({
+    const response = await axiosInstance.request<BaseResponse<TResponse> | TResponse>({
       method,
       url,
       params: query,
@@ -41,11 +42,17 @@ export const request = async <TResponse, TBody = unknown>(
       signal,
     });
 
-    if (!response.data.isSuccess) {
-      throw new ApiError(response.data.code, response.data.message);
+    if (responseMode === 'raw') {
+      return response.data as TResponse;
     }
 
-    return response.data.result;
+    const wrappedResponse = response.data as BaseResponse<TResponse>;
+
+    if (!wrappedResponse.isSuccess) {
+      throw new ApiError(wrappedResponse.code, wrappedResponse.message);
+    }
+
+    return wrappedResponse.result;
   } catch (error: unknown) {
     if (isCancel(error)) {
       throw error;

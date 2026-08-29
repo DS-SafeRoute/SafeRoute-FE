@@ -6,7 +6,6 @@ import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import TextField from '@components/inputField/TextField';
 
 import * as styles from './ScenarioSetupForm.css';
-import { SCENARIO_BUILDING_OPTIONS } from '../../constants/scenarioSettings';
 import DateTimeField from '../inputField/dateTimeField/DateTimeField';
 import ScenarioField from '../inputField/scenarioField/ScenarioField';
 
@@ -15,6 +14,7 @@ import type {
   FireConditionField,
   FireConditionOptions,
 } from '../../types/scenarioSettings';
+import type { ScenarioFieldOption } from '../inputField/scenarioField/ScenarioField';
 
 interface ScenarioSetupFormProps {
   basicInfo: BasicInfo;
@@ -22,6 +22,10 @@ interface ScenarioSetupFormProps {
   options: FireConditionOptions;
   isRunning?: boolean;
   readOnly?: boolean;
+  buildingOptions: readonly ScenarioFieldOption[];
+  buildingReadOnly: boolean;
+  onBasicInfoChange: (key: keyof BasicInfo, value: string) => void;
+  onFireSpreadChange: (value: string) => void;
 }
 
 const TRAINING_LOCK_MESSAGE = '🔒 잠금 · 훈련 중 수정 불가';
@@ -32,6 +36,10 @@ const ScenarioSetupForm = ({
   options,
   isRunning = false,
   readOnly = false,
+  buildingOptions,
+  buildingReadOnly,
+  onBasicInfoChange,
+  onFireSpreadChange,
 }: ScenarioSetupFormProps) => (
   <div className={styles.container}>
     <section className={pageStyles.mainSectionCard}>
@@ -43,32 +51,36 @@ const ScenarioSetupForm = ({
       <div className={pageStyles.fieldGrid}>
         <TextField
           label="시나리오명"
-          defaultValue={basicInfo.scenarioName}
+          value={basicInfo.scenarioName}
           placeholder="시나리오명을 입력하세요"
           readOnly={readOnly}
           disabled={isRunning}
+          onChange={(event) => onBasicInfoChange('scenarioName', event.target.value)}
         />
         <ScenarioField
           label="대상 건물"
           value={basicInfo.targetBuilding}
-          options={SCENARIO_BUILDING_OPTIONS}
+          options={buildingOptions}
           disabled={isRunning}
-          readOnly={readOnly}
+          readOnly={readOnly || buildingReadOnly}
+          onChange={(value) => onBasicInfoChange('targetBuilding', value)}
         />
         <DateTimeField
           label="실시 일시"
-          defaultValue={basicInfo.scheduledAt}
+          value={basicInfo.scheduledAt}
           disabled={isRunning}
           readOnly={readOnly}
+          onChange={(value) => onBasicInfoChange('scheduledAt', value)}
         />
         <TextField
           label="예상 참가 인원"
           type="number"
-          defaultValue={basicInfo.expectedParticipants}
+          value={basicInfo.expectedParticipants}
           placeholder="예상 참가 인원을 입력하세요"
           leftIcon={<UsersIcon />}
           readOnly={readOnly}
           disabled={isRunning}
+          onChange={(event) => onBasicInfoChange('expectedParticipants', event.target.value)}
         />
       </div>
     </section>
@@ -80,19 +92,18 @@ const ScenarioSetupForm = ({
       </div>
 
       <div className={pageStyles.fieldGrid}>
-        {conditions
-          .filter((condition) => !isRunning || ['origin', 'spread'].includes(condition.key))
-          .map((condition) => (
-            <ScenarioField
-              key={condition.key}
-              label={condition.label}
-              value={condition.value}
-              options={options[condition.key]}
-              leadingIcon={condition.key === 'origin' ? <AlertIcon /> : undefined}
-              disabled={isRunning}
-              readOnly={readOnly}
-            />
-          ))}
+        {conditions.map((condition) => (
+          <ScenarioField
+            key={condition.key}
+            label={condition.label}
+            value={condition.value}
+            options={options[condition.key]}
+            leadingIcon={condition.key === 'origin' ? <AlertIcon /> : undefined}
+            disabled={isRunning}
+            readOnly={readOnly || condition.key !== 'spread'}
+            onChange={condition.key === 'spread' ? onFireSpreadChange : undefined}
+          />
+        ))}
       </div>
 
       <div className={styles.previewPanel}>

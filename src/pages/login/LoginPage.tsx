@@ -122,9 +122,6 @@ const LoginPage = () => {
               />
               자동 로그인
             </label>
-            <button className={styles.textButton} type="button">
-              비밀번호 찾기
-            </button>
           </div>
 
           <Button

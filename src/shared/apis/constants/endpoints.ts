@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
 
   // 훈련 세션
   TRAINING_SESSIONS: {
+    ROOT: `${API_V1}/sessions`,
     CREATE: (scenarioId: string) => `${API_V1}/sessions/${scenarioId}`,
     START: (sessionId: string) => `${API_V1}/sessions/${sessionId}/start`,
     END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/end`,
