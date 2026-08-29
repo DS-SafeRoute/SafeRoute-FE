@@ -104,11 +104,8 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     label: building.name,
     value: building.id,
   }));
-  const fireOrigin = fireConditions.find((condition) => condition.key === 'origin')?.value ?? '';
   const trainingRouteData = useTrainingRouteData({
-    buildingId: scenario?.buildingId,
     sessionId: activeSessionId,
-    fireOrigin,
     enabled: isRunning,
   });
   useTrainingSessionSocket({
@@ -283,10 +280,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           buildingOptions={buildingOptions}
           buildingReadOnly={!isCreatePage}
           isRunning={isRunning}
-          floorGraph={trainingRouteData.floorGraph}
-          evacuationRoute={trainingRouteData.evacuationRoute}
-          isFloorPlanLoading={trainingRouteData.isFloorPlanLoading}
-          floorPlanMessage={trainingRouteData.floorPlanMessage}
           readOnly={!isEditable && !isRunning}
           onBasicInfoChange={handleBasicInfoChange}
           onFireSpreadChange={handleFireSpreadChange}

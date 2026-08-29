@@ -1,39 +1,12 @@
 import type {
   EvacuationRouteResponse,
-  FloorResponse,
   MapNodeResponse,
   RouteRecalculationDetailResponse,
   RouteRecalculationSummaryResponse,
   RouteSegment,
 } from '@apis/__generated__/data-contracts';
 
-const ROOM_NUMBER_PATTERN = /(\d{3,4})\s*호?/;
-
-const getRoomNumber = (value: string) => value.match(ROOM_NUMBER_PATTERN)?.[1];
-
 const getNodeLabel = (node?: MapNodeResponse) => node?.name || node?.code || '이름 없는 지점';
-
-export const selectTrainingFloor = (floors: FloorResponse[], fireOrigin: string) => {
-  const roomNumber = getRoomNumber(fireOrigin);
-  const floorNumber = roomNumber ? Number(roomNumber.slice(0, -2)) : undefined;
-
-  if (floorNumber !== undefined) {
-    const matchingFloor = floors.find((floor) => floor.floorNum === floorNumber);
-    if (matchingFloor) return matchingFloor;
-  }
-
-  return floors.length === 1 ? floors[0] : undefined;
-};
-
-export const findRouteStartNode = (nodes: MapNodeResponse[], fireOrigin: string) => {
-  const roomNumber = getRoomNumber(fireOrigin);
-  if (!roomNumber) return undefined;
-
-  return nodes.find((node) => {
-    const nodeRoomNumber = getRoomNumber(`${node.code ?? ''} ${node.name ?? ''}`);
-    return nodeRoomNumber === roomNumber && Boolean(node.id);
-  });
-};
 
 export const formatEvacuationRoute = (route?: EvacuationRouteResponse) => {
   const labels = route?.path?.map((node) => getNodeLabel(node)).filter(Boolean) ?? [];
@@ -41,24 +14,23 @@ export const formatEvacuationRoute = (route?: EvacuationRouteResponse) => {
   return labels.join(' → ');
 };
 
-const formatRouteSegment = (segment: RouteSegment | undefined, nodes: MapNodeResponse[]) => {
-  const nodeById = new Map(nodes.flatMap((node) => (node.id ? [[node.id, node]] : [])));
-  const labels = segment?.nodeIds?.map((nodeId) => getNodeLabel(nodeById.get(nodeId))) ?? [];
-  return labels.length > 0 ? labels.join(' → ') : '경로 상세 정보 없음';
+export const formatRouteSegment = (segment?: RouteSegment) => {
+  const nodeCount = segment?.nodeIds?.length ?? 0;
+  if (nodeCount === 0) return '현재 대피 경로 정보가 없습니다.';
+
+  const weight = segment?.totalWeight;
+  return weight === undefined ? `${nodeCount}개 지점` : `${nodeCount}개 지점 · 가중치 ${weight}`;
 };
 
-export const formatRouteProposal = (
-  detail: RouteRecalculationDetailResponse | undefined,
-  nodes: MapNodeResponse[],
-) => {
+export const formatRouteProposal = (detail: RouteRecalculationDetailResponse | undefined) => {
   if (!detail) return null;
 
   const density =
     detail.density === undefined ? null : `${Math.round(detail.density * 100)}% 밀집도 감지`;
   const source = detail.cctvCode ?? null;
   const reason = [source, density].filter(Boolean).join(' · ');
-  const previousRoute = formatRouteSegment(detail.previousRoute, nodes);
-  const candidateRoute = formatRouteSegment(detail.candidateRoute, nodes);
+  const previousRoute = formatRouteSegment(detail.previousRoute);
+  const candidateRoute = formatRouteSegment(detail.candidateRoute);
 
   return {
     message: reason || '혼잡 감지로 새 대피 경로가 제안되었습니다.',

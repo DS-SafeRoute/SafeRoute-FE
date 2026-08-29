@@ -5,11 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
 import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trainingSessionEvents';
 
-import {
-  evacuationRouteQueryKeys,
-  useEvacuationRouteQuery,
-} from '../api/evacuationRoutes/evacuationRouteQueries';
-import { useBuildingFloorsQuery, useFloorGraphQuery } from '../api/mapGraph/mapGraphQueries';
+import { evacuationRouteQueryKeys } from '../api/evacuationRoutes/evacuationRouteQueries';
 import {
   routeRecalculationQueryKeys,
   useApproveRouteRecalculationMutation,
@@ -18,42 +14,22 @@ import {
   useRouteRecalculationsQuery,
 } from '../api/routeRecalculations/routeRecalculationQueries';
 import {
-  findRouteStartNode,
-  formatEvacuationRoute,
   formatRecalculationTime,
+  formatRouteSegment,
   formatRouteProposal,
   getLatestRecalculation,
-  selectTrainingFloor,
 } from '../utils/trainingRoutes';
 
 import type { PreviewMetric } from '../types/scenarioSettings';
 
 interface UseTrainingRouteDataParams {
-  buildingId?: string;
   sessionId?: string | null;
-  fireOrigin: string;
   enabled: boolean;
 }
 
-export const useTrainingRouteData = ({
-  buildingId,
-  sessionId,
-  fireOrigin,
-  enabled,
-}: UseTrainingRouteDataParams) => {
+export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
-  const shouldFetch = enabled && Boolean(buildingId && sessionId);
-  const floorsQuery = useBuildingFloorsQuery(buildingId, shouldFetch);
-  const trainingFloor = selectTrainingFloor(floorsQuery.data ?? [], fireOrigin);
-  const graphQuery = useFloorGraphQuery(trainingFloor?.id, shouldFetch);
-  const graphNodes = graphQuery.data?.nodes ?? [];
-  const startNode = findRouteStartNode(graphNodes, fireOrigin);
-  const routeQuery = useEvacuationRouteQuery(
-    trainingFloor?.id && startNode?.id
-      ? { floorId: trainingFloor.id, startNodeId: startNode.id }
-      : undefined,
-    shouldFetch,
-  );
+  const shouldFetch = enabled && Boolean(sessionId);
   const recalculationsQuery = useRouteRecalculationsQuery(
     sessionId ? { trainingSessionId: sessionId } : undefined,
     shouldFetch,
@@ -69,12 +45,7 @@ export const useTrainingRouteData = ({
   );
   const approveMutation = useApproveRouteRecalculationMutation();
   const rejectMutation = useRejectRouteRecalculationMutation();
-  const routeProposal = formatRouteProposal(detailQuery.data, graphNodes);
-  const isRouteLoading =
-    shouldFetch &&
-    (floorsQuery.isPending ||
-      (Boolean(trainingFloor?.id) && graphQuery.isPending) ||
-      (Boolean(startNode?.id) && routeQuery.isPending));
+  const routeProposal = formatRouteProposal(detailQuery.data);
   const liveMetrics: PreviewMetric[] = [
     {
       id: 'route-recalculation',
@@ -118,25 +89,10 @@ export const useTrainingRouteData = ({
     [queryClient],
   );
 
-  const hasFloorPlanError = floorsQuery.isError || graphQuery.isError || routeQuery.isError;
-  const floorPlanMessage = hasFloorPlanError
-    ? '도면 또는 대피 경로 정보를 불러오지 못했습니다.'
-    : trainingFloor
-      ? startNode
-        ? undefined
-        : '발화 위치에 해당하는 시작 노드를 찾을 수 없습니다.'
-      : '발화 위치에 해당하는 층 정보를 찾을 수 없습니다.';
-
   return {
-    floorGraph: graphQuery.data,
-    evacuationRoute: routeQuery.data,
-    currentRoute: isRouteLoading
-      ? '현재 대피 경로를 불러오는 중...'
-      : formatEvacuationRoute(routeQuery.data),
+    currentRoute: formatRouteSegment(detailQuery.data?.previousRoute),
     routeProposal,
     liveMetrics,
-    isFloorPlanLoading: isRouteLoading,
-    floorPlanMessage: shouldFetch ? floorPlanMessage : undefined,
     isRouteDecisionPending: approveMutation.isPending || rejectMutation.isPending,
     approveRouteProposal: () => {
       if (!pendingRecalculation?.recalculationId) return Promise.resolve(undefined);
