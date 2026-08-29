@@ -96,13 +96,13 @@ export async function disableIoTLight(lightId: string): Promise<IoTLight> {
 
 export interface LightDirection {
   lightId: string;
-  direction: 'LEFT' | 'RIGHT' | 'OFF';
+  direction: 'LEFT' | 'RIGHT' | 'OFF' | 'BOTH';
   updatedAt: string;
 }
 
 export async function changeLightDirection(
   lightId: string,
-  direction: 'LEFT' | 'RIGHT' | 'OFF',
+  direction: 'LEFT' | 'RIGHT' | 'OFF' | 'BOTH',
 ): Promise<LightDirection> {
   const response = await apiRequest<LightDirectionResponse, ChangeLightDirectionRequest>({
     method: HTTP_METHOD.PATCH,
