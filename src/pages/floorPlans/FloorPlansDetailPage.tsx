@@ -24,9 +24,16 @@ import {
   disableCctv,
   enableCctv,
   getFloorCctvs,
+  updateCctv,
 } from './api/cctvApi';
 import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
-import { analyzeFloor, getFloorBuildings, getFloorDetail, uploadFloor } from './api/floorPlansApi';
+import {
+  analyzeFloor,
+  getFloorBuildings,
+  getFloorDetail,
+  getFloorImageUrl,
+  uploadFloor,
+} from './api/floorPlansApi';
 import {
   changeLightDirection,
   configureLightGuidance,
@@ -1224,6 +1231,7 @@ const DeviceCard = ({
 const FloorCanvas = ({
   mapWrapRef,
   floor,
+  resolvedImageUrl,
   selected,
   aiLayers,
   zoom,
@@ -1273,6 +1281,7 @@ const FloorCanvas = ({
 }: {
   mapWrapRef: React.RefObject<HTMLDivElement>;
   floor: Floor;
+  resolvedImageUrl: string | null;
   selected: SelectedItem | null;
   aiLayers: Record<string, boolean>;
   zoom: number;
@@ -1341,7 +1350,7 @@ const FloorCanvas = ({
   return (
     <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
-        mapImageUrl={floor.mapImageUrl}
+        mapImageUrl={resolvedImageUrl}
         aiLayers={aiLayers}
         editMode={editMode}
         placingActive={placingActive}
@@ -1535,6 +1544,7 @@ const FloorPlansDetailPage = () => {
   const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
+  const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
 
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {
@@ -1561,6 +1571,21 @@ const FloorPlansDetailPage = () => {
       cancelled = true;
     };
   }, [buildingId, floorId]);
+
+  // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
+  useEffect(() => {
+    setResolvedMapImageUrl(null);
+    if (!buildingId || !floorId || !floor?.mapImageUrl) return;
+    let cancelled = false;
+    getFloorImageUrl(buildingId, floorId)
+      .then(({ imageUrl }) => {
+        if (!cancelled) setResolvedMapImageUrl(imageUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [buildingId, floorId, floor?.mapImageUrl]);
 
   // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관
   useEffect(() => {
@@ -1758,13 +1783,9 @@ const FloorPlansDetailPage = () => {
       return;
     }
     if (device?.placeType === 'cctv') {
-      const cctv = realCctvs.find((c) => c.id === id);
-      if (!cctv?.customNodeId) return;
-      updateMapNodePosition(cctv.customNodeId, { x: x / 100, y: y / 100 })
-        .then(() => {
-          setRealCctvs((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, x: x / 100, y: y / 100 } : c)),
-          );
+      updateCctv(id, { name: device.label, x: x / 100, y: y / 100 })
+        .then((updated) => {
+          setRealCctvs((prev) => prev.map((c) => (c.id === id ? updated : c)));
         })
         .catch(() => {});
     }
@@ -2261,11 +2282,24 @@ const FloorPlansDetailPage = () => {
     }
   };
 
-  // 최종 탈출구 지정은 문에서만 의미 있음
+  // 최종 탈출구 지정은 문에서만 의미 있음 — 서버에도 저장(실패 시 롤백)
   const handleToggleFinalExit = (id: string) => {
+    const node = structureNodes.find((n) => n.id === id);
+    if (!node) return;
+    const nextIsFinalExit = !node.isFinalExit;
     setStructureNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isFinalExit: !n.isFinalExit } : n)),
+      prev.map((n) => (n.id === id ? { ...n, isFinalExit: nextIsFinalExit } : n)),
     );
+    updateMapNodePosition(id, {
+      x: node.x / 560,
+      y: node.y / 420,
+      isExitTarget: nextIsFinalExit,
+    }).catch(() => {
+      setStructureNodes((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
+      );
+      show({ title: '최종 탈출구 지정에 실패했습니다.', variant: 'error' });
+    });
   };
 
   const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean =>
@@ -2656,6 +2690,15 @@ const FloorPlansDetailPage = () => {
             () => {},
           );
         }
+      } else if (item.type === 'cctv') {
+        const device = addedDevices.find((d) => d.id === item.id);
+        if (device) {
+          updateCctv(item.id, { name: newLabel, x: device.x / 100, y: device.y / 100 })
+            .then((updated) => {
+              setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+            })
+            .catch(() => {});
+        }
       }
     }
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
@@ -2993,6 +3036,7 @@ const FloorPlansDetailPage = () => {
               <FloorCanvas
                 mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
+                resolvedImageUrl={resolvedMapImageUrl}
                 selected={selectedItem}
                 aiLayers={aiLayers}
                 zoom={zoom}
