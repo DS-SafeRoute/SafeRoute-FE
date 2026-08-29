@@ -31,6 +31,7 @@ import {
   changeLightDirection,
   configureLightGuidance,
   createIoTLight,
+  deleteIoTLight,
   disableIoTLight,
   enableIoTLight,
   getFloorLights,
@@ -1687,6 +1688,7 @@ const FloorPlansDetailPage = () => {
     };
   }, [pendingUpload]);
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
   const [edgeAddOpen, setEdgeAddOpen] = useState(false);
@@ -2671,7 +2673,7 @@ const FloorPlansDetailPage = () => {
 
   const handleDeleteConfirm = () => {
     const item = deleteConfirmTarget;
-    if (!item) return;
+    if (!item || isDeletingItem) return;
     if (editingItemId === item.id) setEditingItemId(null);
     if (item.kind === 'poi') {
       handlePoiDelete(item.id);
@@ -2679,6 +2681,21 @@ const FloorPlansDetailPage = () => {
       return;
     }
     if (item.source === 'added') {
+      if (item.type === 'light') {
+        // 서버에서 이 유도등이 붙어있던 노드·엣지까지 cascade로 함께 삭제됨
+        setIsDeletingItem(true);
+        deleteIoTLight(item.id)
+          .then(() => {
+            handleAddedDeviceDelete(item.id);
+            setIotLights((prev) => prev.filter((l) => l.id !== item.id));
+            setDeleteConfirmTarget(null);
+          })
+          .catch(() => {
+            show({ title: '유도등 삭제에 실패했습니다.', variant: 'error' });
+          })
+          .finally(() => setIsDeletingItem(false));
+        return;
+      }
       handleAddedDeviceDelete(item.id);
       setDeleteConfirmTarget(null);
       return;
@@ -3228,6 +3245,7 @@ const FloorPlansDetailPage = () => {
           onClose={() => setDeleteConfirmTarget(null)}
           label={deleteConfirmTarget.label}
           onConfirm={handleDeleteConfirm}
+          isSubmitting={isDeletingItem}
         />
       )}
 

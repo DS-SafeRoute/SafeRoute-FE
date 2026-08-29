@@ -86,6 +86,14 @@ export async function enableIoTLight(lightId: string): Promise<IoTLight> {
   return toIoTLight(light);
 }
 
+// 삭제 시 이 유도등이 붙어있던 노드와 연결 엣지까지 서버에서 cascade로 함께 삭제됨(백엔드 확인, 2026-08-27)
+export async function deleteIoTLight(lightId: string): Promise<void> {
+  await apiRequest<void>({
+    method: HTTP_METHOD.DELETE,
+    url: API_ENDPOINTS.IOT_LIGHTS.DETAIL(lightId),
+  });
+}
+
 export async function disableIoTLight(lightId: string): Promise<IoTLight> {
   const light = await apiRequest<IoTLightResponse>({
     method: HTTP_METHOD.PATCH,
