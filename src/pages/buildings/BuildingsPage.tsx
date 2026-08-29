@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 
 import type {
@@ -15,7 +16,7 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import { Button } from '@components/Button';
 import useToast from '@components/toast/useToast';
 
-import { useGetBuildingsQuery } from './api/useBuildingsQuery';
+import { BUILDINGS_QUERY_KEY, useGetBuildingsQuery } from './api/useBuildingsQuery';
 import { useCreateBuildingMutation } from './api/useCreateBuildingMutation';
 import { useDeleteBuildingMutation } from './api/useDeleteBuildingMutation';
 import { useUpdateBuildingMutation } from './api/useUpdateBuildingMutation';
@@ -57,6 +58,7 @@ interface FloorSyncTarget {
 }
 
 const BuildingsPage = () => {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useGetBuildingsQuery();
   const { data: myProfile } = useMyProfileQuery();
   const createBuildingMutation = useCreateBuildingMutation();
@@ -90,9 +92,11 @@ const BuildingsPage = () => {
           description: `${body.name}이(가) 등록되었습니다.`,
           variant: 'success',
         });
-        createInitialFloors(newBuilding.id, floorCounts).catch(
-          reportFloorSyncFailure('[createInitialFloors]', '층 목록 생성에 실패했습니다.'),
-        );
+        createInitialFloors(newBuilding.id, floorCounts)
+          // totalFloors는 서버가 floors 개수로 계산하는 값이라, 층 생성이 끝난 뒤에야
+          // 목록 쿼리를 다시 불러와야 최신 층수가 카드에 반영됨
+          .then(() => queryClient.invalidateQueries({ queryKey: BUILDINGS_QUERY_KEY }))
+          .catch(reportFloorSyncFailure('[createInitialFloors]', '층 목록 생성에 실패했습니다.'));
       },
       onError: () => {
         show({ title: '건물 추가에 실패했습니다.', variant: 'error' });
@@ -120,9 +124,9 @@ const BuildingsPage = () => {
             description: `${body.name} 정보가 업데이트되었습니다.`,
             variant: 'success',
           });
-          applyFloorSync(plan).catch(
-            reportFloorSyncFailure('[applyFloorSync]', '층 목록 동기화에 실패했습니다.'),
-          );
+          applyFloorSync(plan)
+            .then(() => queryClient.invalidateQueries({ queryKey: BUILDINGS_QUERY_KEY }))
+            .catch(reportFloorSyncFailure('[applyFloorSync]', '층 목록 동기화에 실패했습니다.'));
         },
         onError: () => {
           setIsApplyingFloorSync(false);
