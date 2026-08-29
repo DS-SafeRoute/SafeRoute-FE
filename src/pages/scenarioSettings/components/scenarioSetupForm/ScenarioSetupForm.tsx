@@ -1,5 +1,10 @@
 import * as pageStyles from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 
+import type {
+  EvacuationRouteResponse,
+  FloorGraphResponse,
+} from '@apis/__generated__/data-contracts';
+
 import AlertIcon from '@assets/icons/ic-alert.svg?react';
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 
@@ -8,6 +13,7 @@ import TextField from '@components/inputField/TextField';
 import * as styles from './ScenarioSetupForm.css';
 import DateTimeField from '../inputField/dateTimeField/DateTimeField';
 import ScenarioField from '../inputField/scenarioField/ScenarioField';
+import TrainingFloorPlan from '../trainingFloorPlan/TrainingFloorPlan';
 
 import type {
   BasicInfo,
@@ -24,6 +30,10 @@ interface ScenarioSetupFormProps {
   readOnly?: boolean;
   buildingOptions: readonly ScenarioFieldOption[];
   buildingReadOnly: boolean;
+  floorGraph?: FloorGraphResponse;
+  evacuationRoute?: EvacuationRouteResponse;
+  isFloorPlanLoading?: boolean;
+  floorPlanMessage?: string;
   onBasicInfoChange: (key: keyof BasicInfo, value: string) => void;
   onFireSpreadChange: (value: string) => void;
 }
@@ -38,6 +48,10 @@ const ScenarioSetupForm = ({
   readOnly = false,
   buildingOptions,
   buildingReadOnly,
+  floorGraph,
+  evacuationRoute,
+  isFloorPlanLoading = false,
+  floorPlanMessage,
   onBasicInfoChange,
   onFireSpreadChange,
 }: ScenarioSetupFormProps) => (
@@ -107,24 +121,33 @@ const ScenarioSetupForm = ({
       </div>
 
       <div className={styles.previewPanel}>
-        <div className={styles.floorPlan}>
-          <div className={styles.room} />
-          <div className={`${styles.divider} ${styles.firstDivider}`} />
-          <div className={`${styles.divider} ${styles.secondDivider}`} />
+        {isRunning ? (
+          <TrainingFloorPlan
+            graph={floorGraph}
+            route={evacuationRoute}
+            isLoading={isFloorPlanLoading}
+            emptyMessage={floorPlanMessage}
+          />
+        ) : (
+          <div className={styles.floorPlan}>
+            <div className={styles.room} />
+            <div className={`${styles.divider} ${styles.firstDivider}`} />
+            <div className={`${styles.divider} ${styles.secondDivider}`} />
 
-          <span className={`${styles.roomLabel} ${styles.roomLabel301}`}>301호</span>
-          <span className={`${styles.roomLabel} ${styles.roomLabel302}`}>302호</span>
-          <span className={`${styles.roomLabel} ${styles.roomLabel305}`}>305호</span>
+            <span className={`${styles.roomLabel} ${styles.roomLabel301}`}>301호</span>
+            <span className={`${styles.roomLabel} ${styles.roomLabel302}`}>302호</span>
+            <span className={`${styles.roomLabel} ${styles.roomLabel305}`}>305호</span>
 
-          <div className={styles.routeLine} />
-          <div className={styles.routeRise} />
-          <div className={styles.routeTop} />
-          <div className={styles.routeArrow} />
-          <div className={styles.fireHalo} />
-          <div className={styles.firePin}>
-            <AlertIcon />
+            <div className={styles.routeLine} />
+            <div className={styles.routeRise} />
+            <div className={styles.routeTop} />
+            <div className={styles.routeArrow} />
+            <div className={styles.fireHalo} />
+            <div className={styles.firePin}>
+              <AlertIcon />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   </div>

@@ -13,13 +13,20 @@ import TrainingPreviewCard from '../cards/trainingPreviewCard/TrainingPreviewCar
 
 import type { PreviewMetric, PreviewStatus } from '../../types/scenarioSettings';
 
+interface RouteProposal {
+  message: string;
+  previousRoute: string;
+  candidateRoute: string;
+}
+
 interface TrainingControlPanelProps {
   startedAt: number;
   currentRoute: string;
-  routeProposal: string | null;
+  routeProposal: RouteProposal | null;
   liveStatus: PreviewStatus;
   liveMetrics: PreviewMetric[];
   isEnding: boolean;
+  isRouteDecisionPending: boolean;
   onEnd: () => void;
   onRejectRouteProposal: () => void;
   onApplyRouteProposal: () => void;
@@ -32,6 +39,7 @@ const TrainingControlPanel = ({
   liveStatus,
   liveMetrics,
   isEnding,
+  isRouteDecisionPending,
   onEnd,
   onRejectRouteProposal,
   onApplyRouteProposal,
@@ -71,12 +79,33 @@ const TrainingControlPanel = ({
             </h2>
             <span className={styles.aiBadge}>AI 판단</span>
           </div>
-          <p className={styles.proposalMessage}>{routeProposal}</p>
+          <p className={styles.proposalMessage}>{routeProposal.message}</p>
+          <dl className={styles.routeComparison}>
+            <div>
+              <dt>기존</dt>
+              <dd>{routeProposal.previousRoute}</dd>
+            </div>
+            <div>
+              <dt>제안</dt>
+              <dd>{routeProposal.candidateRoute}</dd>
+            </div>
+          </dl>
           <div className={styles.proposalActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={onRejectRouteProposal}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onRejectRouteProposal}
+              disabled={isRouteDecisionPending}
+            >
               거부
             </Button>
-            <Button type="button" size="sm" onClick={onApplyRouteProposal}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={onApplyRouteProposal}
+              isLoading={isRouteDecisionPending}
+            >
               승인 · 경로 적용
             </Button>
           </div>

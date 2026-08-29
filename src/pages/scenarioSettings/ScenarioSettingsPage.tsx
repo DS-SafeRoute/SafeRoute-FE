@@ -37,15 +37,12 @@ import {
   FIRE_SPREAD_LABEL,
   FIRE_SPREAD_VALUE,
 } from './constants/scenarioSettings';
+import { useTrainingRouteData } from './hooks/useTrainingRouteData';
 import {
-  CURRENT_ROUTE_TEXT,
-  LIVE_METRICS,
   LIVE_STATUS,
   PREVIEW_METRICS,
   PREVIEW_STATUS,
-  PROPOSED_ROUTE_TEXT,
   RECOMMENDATION_TEXT,
-  ROUTE_PROPOSAL_TEXT,
 } from './mocks/trainingData';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
@@ -81,8 +78,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
   const [createdSessionStartedAt, setCreatedSessionStartedAt] = useState<string | null>(null);
-  const [currentRoute, setCurrentRoute] = useState(CURRENT_ROUTE_TEXT);
-  const [routeProposal, setRouteProposal] = useState<string | null>(ROUTE_PROPOSAL_TEXT);
   const [basicInfo, setBasicInfo] = useState<BasicInfo>(() => getInitialBasicInfo(scenario));
   const [fireSpreadLabel, setFireSpreadLabel] = useState<FireSpreadLabel>(
     scenario ? FIRE_SPREAD_LABEL[scenario.fireSpreadSpeed] : FIRE_SPREAD_LABEL.MEDIUM,
@@ -99,7 +94,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const activeStartedAt = createdSessionStartedAt ?? runningSession?.startedAt ?? null;
   const startedAt = activeStartedAt ? Date.parse(activeStartedAt) : null;
   const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
-  useTrainingSessionSocket({ sessionId: activeSessionId ?? scheduledSession?.sessionId });
   const selectedBuildingId = basicInfo.targetBuilding || buildings[0]?.id || '';
   const displayedBasicInfo = { ...basicInfo, targetBuilding: selectedBuildingId };
   const fireConditions = DEFAULT_FIRE_CONDITIONS.map((condition) =>
@@ -109,6 +103,17 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     label: building.name,
     value: building.id,
   }));
+  const fireOrigin = fireConditions.find((condition) => condition.key === 'origin')?.value ?? '';
+  const trainingRouteData = useTrainingRouteData({
+    buildingId: scenario?.buildingId,
+    sessionId: activeSessionId,
+    fireOrigin,
+    enabled: isRunning,
+  });
+  useTrainingSessionSocket({
+    sessionId: activeSessionId ?? scheduledSession?.sessionId,
+    onEvent: trainingRouteData.handleTrainingEvent,
+  });
 
   const handleStartTraining = async () => {
     if (areTrainingSessionsPending) return;
@@ -251,13 +256,20 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  const handleRejectRouteProposal = () => {
-    setRouteProposal(null);
+  const handleRejectRouteProposal = async () => {
+    try {
+      await trainingRouteData.rejectRouteProposal();
+    } catch {
+      show({ title: '경로 변경 제안 거부에 실패했습니다.', variant: 'error' });
+    }
   };
 
-  const handleApplyRouteProposal = () => {
-    setCurrentRoute(PROPOSED_ROUTE_TEXT);
-    setRouteProposal(null);
+  const handleApplyRouteProposal = async () => {
+    try {
+      await trainingRouteData.approveRouteProposal();
+    } catch {
+      show({ title: '경로 변경 제안 승인에 실패했습니다.', variant: 'error' });
+    }
   };
 
   return (
@@ -270,6 +282,10 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           buildingOptions={buildingOptions}
           buildingReadOnly={!isCreatePage}
           isRunning={isRunning}
+          floorGraph={trainingRouteData.floorGraph}
+          evacuationRoute={trainingRouteData.evacuationRoute}
+          isFloorPlanLoading={trainingRouteData.isFloorPlanLoading}
+          floorPlanMessage={trainingRouteData.floorPlanMessage}
           readOnly={!isEditable && !isRunning}
           onBasicInfoChange={handleBasicInfoChange}
           onFireSpreadChange={handleFireSpreadChange}
@@ -278,14 +294,15 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         {isRunning && startedAt !== null ? (
           <TrainingControlPanel
             startedAt={startedAt}
-            currentRoute={currentRoute}
-            routeProposal={routeProposal}
+            currentRoute={trainingRouteData.currentRoute}
+            routeProposal={trainingRouteData.routeProposal}
             liveStatus={LIVE_STATUS}
-            liveMetrics={LIVE_METRICS}
+            liveMetrics={trainingRouteData.liveMetrics}
             isEnding={endTrainingSessionMutation.isPending}
+            isRouteDecisionPending={trainingRouteData.isRouteDecisionPending}
             onEnd={() => void handleEndTraining()}
-            onRejectRouteProposal={handleRejectRouteProposal}
-            onApplyRouteProposal={handleApplyRouteProposal}
+            onRejectRouteProposal={() => void handleRejectRouteProposal()}
+            onApplyRouteProposal={() => void handleApplyRouteProposal()}
           />
         ) : (
           <aside className={styles.sideColumn}>

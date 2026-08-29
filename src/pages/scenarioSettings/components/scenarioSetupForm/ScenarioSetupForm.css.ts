@@ -43,13 +43,9 @@ export const divider = style({
   borderLeft: `2px solid  ${vars.color.gray500}`,
 });
 
-export const firstDivider = style({
-  left: '46%',
-});
+export const firstDivider = style({ left: '46%' });
 
-export const secondDivider = style({
-  left: '69%',
-});
+export const secondDivider = style({ left: '69%' });
 
 export const roomLabel = style({
   position: 'absolute',
@@ -57,20 +53,11 @@ export const roomLabel = style({
   ...vars.typography.body14,
 });
 
-export const roomLabel301 = style({
-  top: '58%',
-  left: '25%',
-});
+export const roomLabel301 = style({ top: '58%', left: '25%' });
 
-export const roomLabel302 = style({
-  top: '58%',
-  left: '53%',
-});
+export const roomLabel302 = style({ top: '58%', left: '53%' });
 
-export const roomLabel305 = style({
-  top: '58%',
-  right: '12%',
-});
+export const roomLabel305 = style({ top: '58%', right: '12%' });
 
 export const routeLine = style({
   position: 'absolute',
