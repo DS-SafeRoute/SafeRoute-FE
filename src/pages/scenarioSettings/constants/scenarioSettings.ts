@@ -2,6 +2,8 @@ import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
 import type {
   FireConditionField,
   FireConditionOptions,
+  PreviewMetric,
+  PreviewStatus,
 } from '@pages/scenarioSettings/types/scenarioSettings';
 
 export const SCENARIO_STATUS_FILTER_OPTIONS = [
@@ -45,3 +47,20 @@ export const FIRE_CONDITION_OPTIONS = {
   origin: FIRE_ORIGIN_OPTIONS,
   spread: FIRE_SPREAD_OPTIONS,
 } as const satisfies FireConditionOptions;
+
+export const PREVIEW_STATUS: PreviewStatus = {
+  label: '준비 완료',
+  color: 'green',
+  dot: true,
+};
+
+export const PREVIEW_METRICS: PreviewMetric[] = [
+  { id: 'cctv', label: '감지 CCTV', value: '4대' },
+  { id: 'iot', label: '활성 IoT 유도등', value: '12개' },
+];
+
+export const LIVE_STATUS: PreviewStatus = {
+  label: '진행중',
+  color: 'green',
+  dot: true,
+};

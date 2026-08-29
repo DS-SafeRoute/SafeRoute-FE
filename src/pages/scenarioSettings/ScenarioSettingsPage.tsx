@@ -15,7 +15,6 @@ import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTr
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import PlayIcon from '@assets/icons/ic-play.svg?react';
-import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
 import { Button } from '@components/Button';
 import EmptyState from '@components/empty';
@@ -26,7 +25,6 @@ import { ROUTES, getScenarioDetailPath } from '@constants/path';
 import { useCreateScenarioMutation } from './api/useCreateScenarioMutation';
 import { useGetScenarioQuery } from './api/useScenariosQuery';
 import { useUpdateScenarioMutation } from './api/useUpdateScenarioMutation';
-import RecommendationCard from './components/cards/recommendationCard/RecommendationCard';
 import TrainingPreviewCard from './components/cards/trainingPreviewCard/TrainingPreviewCard';
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
@@ -36,14 +34,11 @@ import {
   FIRE_CONDITION_OPTIONS,
   FIRE_SPREAD_LABEL,
   FIRE_SPREAD_VALUE,
-} from './constants/scenarioSettings';
-import { useTrainingRouteData } from './hooks/useTrainingRouteData';
-import {
   LIVE_STATUS,
   PREVIEW_METRICS,
   PREVIEW_STATUS,
-  RECOMMENDATION_TEXT,
-} from './mocks/trainingData';
+} from './constants/scenarioSettings';
+import { useTrainingRouteData } from './hooks/useTrainingRouteData';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
 import { getInitialBasicInfo, toScheduledAt } from './utils/scenarioSettings';
@@ -66,13 +61,19 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const createTrainingSessionMutation = useCreateTrainingSessionMutation();
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
   const endTrainingSessionMutation = useEndTrainingSessionMutation();
+  const shouldQueryTrainingSessions =
+    scenario?.status === SCENARIO_STATUS.READY || scenario?.status === SCENARIO_STATUS.IN_PROGRESS;
   const { data: runningSessions = [], isPending: isRunningSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, Boolean(scenario));
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, shouldQueryTrainingSessions);
   const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, Boolean(scenario));
-  const areTrainingSessionsPending = isRunningSessionsPending || isScheduledSessionsPending;
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, shouldQueryTrainingSessions);
+  const areTrainingSessionsPending =
+    shouldQueryTrainingSessions && (isRunningSessionsPending || isScheduledSessionsPending);
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
+  const canStartTraining = scenario?.status === SCENARIO_STATUS.READY;
+  const isRestartUnavailable =
+    scenario?.status === SCENARIO_STATUS.COMPLETED || scenario?.status === SCENARIO_STATUS.ERROR;
   const [isEditing, setIsEditing] = useState(false);
   const isEditable = isCreatePage || isDraft || isEditing;
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
@@ -116,7 +117,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   });
 
   const handleStartTraining = async () => {
-    if (areTrainingSessionsPending) return;
+    if (areTrainingSessionsPending || !canStartTraining) return;
 
     if (!scenario || !currentUser?.id) {
       show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
@@ -338,7 +339,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   fullWidth
                   leftIcon={<PlayIcon />}
                   onClick={() => void handleStartTraining()}
-                  disabled={areTrainingSessionsPending}
+                  disabled={areTrainingSessionsPending || !canStartTraining}
                   isLoading={
                     createTrainingSessionMutation.isPending ||
                     startTrainingSessionMutation.isPending
@@ -346,8 +347,15 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                 >
                   시나리오 시작
                 </Button>
-                <RecommendationCard icon={<SparklesIcon />} message={RECOMMENDATION_TEXT} />
-                <TrainingPreviewCard status={PREVIEW_STATUS} metrics={PREVIEW_METRICS} />
+                {isRestartUnavailable ? (
+                  <p className={styles.startRestrictionNotice}>
+                    완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를
+                    생성해 주세요.
+                  </p>
+                ) : null}
+                {canStartTraining ? (
+                  <TrainingPreviewCard status={PREVIEW_STATUS} metrics={PREVIEW_METRICS} />
+                ) : null}
                 {scenario?.status === SCENARIO_STATUS.READY ? (
                   <Button
                     type="button"

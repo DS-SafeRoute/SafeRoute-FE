@@ -82,6 +82,16 @@ export const draftButton = style({
   },
 });
 
+export const startRestrictionNotice = style({
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.gray50,
+  padding: vars.space.s4,
+  textAlign: 'center',
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
 export const pageState = style({
   display: 'flex',
   flex: 1,
