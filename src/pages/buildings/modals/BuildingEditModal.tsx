@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
 
 import type { UpdateBuildingRequest } from '@apis/__generated__/data-contracts';
+import type { Building, BuildingType } from '@apis/buildings/buildingTypes';
 
 import { Button } from '@components/Button';
 import FilterChip from '@components/chip/FilterChip';
@@ -15,7 +16,6 @@ import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
 import * as styles from './buildingForm.css';
 import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
 
-import type { Building, BuildingType } from '../types/buildings';
 import type { FloorCounts } from '../utils/floorSync';
 
 interface BuildingEditModalProps {

@@ -1,7 +1,7 @@
+import type { Building } from '@apis/buildings/buildingTypes';
+
 import { Button } from '@components/Button';
 import Modal from '@components/modal';
-
-import type { Building } from '../types/buildings';
 
 interface BuildingDeleteModalProps {
   open: boolean;

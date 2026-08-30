@@ -1,9 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { UpdateBuildingRequest } from '@apis/__generated__/data-contracts';
-
-import { putBuilding } from './buildingsApi';
-import { BUILDINGS_QUERY_KEY } from './useBuildingsQuery';
+import { buildingQueryKeys } from '@apis/buildings/buildingQueryKeys';
+import { putBuilding } from '@apis/buildings/buildingsApi';
 
 export const useUpdateBuildingMutation = () => {
   const queryClient = useQueryClient();
@@ -12,7 +11,7 @@ export const useUpdateBuildingMutation = () => {
     mutationFn: ({ buildingId, body }: { buildingId: string; body: UpdateBuildingRequest }) =>
       putBuilding(buildingId, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: BUILDINGS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: buildingQueryKeys.lists() });
     },
   });
 };

@@ -1,6 +1,5 @@
-import { getBuildings } from '@pages/buildings/api/buildingsApi';
-
 import type { FloorResponse } from '@apis/__generated__/data-contracts';
+import { getBuildings } from '@apis/buildings/buildingsApi';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 import {

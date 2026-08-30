@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { deleteBuilding } from './buildingsApi';
-import { BUILDINGS_QUERY_KEY } from './useBuildingsQuery';
+import { buildingQueryKeys } from '@apis/buildings/buildingQueryKeys';
+import { deleteBuilding } from '@apis/buildings/buildingsApi';
 
 export const useDeleteBuildingMutation = () => {
   const queryClient = useQueryClient();
@@ -9,7 +9,7 @@ export const useDeleteBuildingMutation = () => {
   return useMutation({
     mutationFn: deleteBuilding,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: BUILDINGS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: buildingQueryKeys.lists() });
     },
   });
 };
