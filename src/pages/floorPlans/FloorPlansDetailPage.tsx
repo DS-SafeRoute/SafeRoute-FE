@@ -87,7 +87,8 @@ type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data
 type PanelItem = {
   id: string;
   kind: 'device' | 'poi';
-  type: 'cctv' | 'iot' | 'light' | 'general';
+  /** 우측 패널 필터 기준 — AddedDevice.placeType과 같은 체계(유도등은 'light') */
+  type: 'cctv' | 'light' | 'general';
   label: string;
   statusText: string;
   statusOnline: boolean;
@@ -105,12 +106,12 @@ const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: str
   firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
 };
 
-type PlacingDeviceType = 'cctv' | 'iot' | 'light' | 'door' | 'stair';
+// 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair';
 type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
-  iot: { label: 'IoT', color: '#16a34a' },
   light: { label: '유도등', color: '#d97706' },
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
@@ -1173,7 +1174,7 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'iot', 'light', 'door', 'stair'] as const).map((t) => (
+          {(['cctv', 'light', 'door', 'stair'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -2138,7 +2139,7 @@ const FloorPlansDetailPage = () => {
   };
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    'cctv' | 'iot' | 'light' | 'door' | 'stair' | null
+    'cctv' | 'light' | 'door' | 'stair' | null
   >(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
@@ -2557,6 +2558,8 @@ const FloorPlansDetailPage = () => {
           y: position.y / 100,
         })
           .then((newLight) => {
+            // 설정 모달·활성화 표시가 iotLights를 참조하므로 여기에도 반영해야 함
+            setIotLights((prev) => [...prev, newLight]);
             setAddedDevices((prev) => [
               ...prev,
               {
@@ -2571,23 +2574,10 @@ const FloorPlansDetailPage = () => {
               },
             ]);
           })
-          .catch(() => {});
+          .catch(() => {
+            show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+          });
       }
-    } else {
-      const count = addedDevices.filter((d) => d.type === 'iot').length + 1;
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id: `added-${type}-${Date.now()}`,
-          type: 'iot',
-          placeType: type,
-          label: deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
-          x: position.x,
-          y: position.y,
-          status: 'online',
-          zone: location || '사용자 등록',
-        },
-      ]);
     }
 
     setNodeAddStage('entry');
@@ -3174,7 +3164,8 @@ const FloorPlansDetailPage = () => {
     ...(floor?.devices ?? []).map((d) => ({
       id: d.id,
       kind: 'device' as const,
-      type: d.type as 'cctv' | 'iot',
+      // DeviceType('cctv'|'iot'|'fire') → 패널 필터 체계(placeType)로 변환
+      type: d.type === 'cctv' ? ('cctv' as const) : ('light' as const),
       label: d.label,
       statusText: d.status === 'online' ? '실시간' : '오프라인',
       statusOnline: d.status === 'online',
@@ -3707,9 +3698,13 @@ const FloorPlansDetailPage = () => {
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
                   setSelectedZoneRef(null);
-                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
+                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동.
+                  // 도면 마커의 type은 DeviceType('cctv'|'iot')이고 패널 필터는 placeType('cctv'|'light')이라
+                  // 그대로 넘기면 유도등('iot')이 어떤 카드와도 안 맞아 전부 숨겨짐 — 여기서 변환해줌
                   setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
-                  setDeviceTypeFilter(d.type === 'cctv' || d.type === 'iot' ? d.type : null);
+                  setDeviceTypeFilter(
+                    d.type === 'cctv' ? 'cctv' : d.type === 'iot' ? 'light' : null,
+                  );
                 }}
                 onMapClick={handleMapClick}
                 onPoiClick={handlePoiClick}
@@ -3837,7 +3832,6 @@ const FloorPlansDetailPage = () => {
                   {(
                     [
                       { key: 'cctv', label: 'CCTV' },
-                      { key: 'iot', label: 'IoT' },
                       { key: 'light', label: '유도등' },
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
