@@ -7,21 +7,69 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
+import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import useToast from '@components/toast/useToast';
 
-import { formatFloor } from '@utils/floor';
+import { formatFloor, hasFloorPlan } from '@utils/floor';
 
-import { getFloorBuildings, getFloorDetail, segmentFloor, uploadFloor } from './api/floorPlansApi';
+import {
+  configureCctvGridCells,
+  createCctv,
+  disableCctv,
+  enableCctv,
+  getFloorCctvs,
+  updateCctv,
+} from './api/cctvApi';
+import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
+import {
+  analyzeFloor,
+  getFloorBuildings,
+  getFloorDetail,
+  getFloorImageUrl,
+  uploadFloor,
+} from './api/floorPlansApi';
+import {
+  changeLightDirection,
+  configureLightGuidance,
+  createIoTLight,
+  deleteIoTLight,
+  disableIoTLight,
+  enableIoTLight,
+  getFloorLights,
+  updateIoTLight,
+  updateLightPiEndpoint,
+} from './api/iotLightsApi';
+import {
+  createMapEdge,
+  createMapNode,
+  deleteMapEdge,
+  deleteMapNode,
+  getFloorGraph,
+  updateMapNodePosition,
+} from './api/mapGraphApi';
+import {
+  createUserZone,
+  deleteUserZone,
+  getFloorUserZones,
+  getUserZoneDetail,
+} from './api/userZoneApi';
 import * as styles from './FloorPlansDetailPage.css';
+import CctvSettingsModal from './modals/CctvSettingsModal';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
+import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
 
+import type { Cctv } from './api/cctvApi';
+import type { FloorGridCell } from './api/floorGridApi';
+import type { IoTLight } from './api/iotLightsApi';
+import type { MapEdge, MapNode } from './api/mapGraphApi';
 import type {
   AiLayer,
   DeviceMarker,
@@ -54,14 +102,15 @@ const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: str
   firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
 };
 
-type PlacingDeviceType = 'cctv' | 'iot' | 'light' | 'door';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door'>;
+type PlacingDeviceType = 'cctv' | 'iot' | 'light' | 'door' | 'stair';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
   iot: { label: 'IoT', color: '#16a34a' },
   light: { label: '유도등', color: '#d97706' },
   door: { label: '문 · 출입구', color: '#2563eb' },
+  stair: { label: '계단', color: '#f97316' },
 };
 
 type AddedDevice = {
@@ -75,75 +124,55 @@ type AddedDevice = {
   zone: string;
 };
 
-type ZoneType = 'general' | 'camera';
+type ZoneType = 'general';
 
 type ZoneRect = { x: number; y: number; w: number; h: number };
 
-type ZoneEntry = { id: string; type: ZoneType; label: string; rect?: ZoneRect };
+// cellIds가 실제 저장 단위(백엔드 UserZone은 그리드 셀 집합) — rect는 드래그 중 임시 표시에만 씀
+type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
-type DoorNode = { id: string; x: number; y: number; isFinalExit: boolean };
+/* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
+   isFinalExit은 문에서만 의미 있음(계단은 항상 false) */
+type StructureNodeType = 'door' | 'stair';
 
-type ZoneRefSelection =
-  | { kind: 'door'; id: string }
-  | { kind: 'stair' }
-  | { kind: 'zone'; id: string };
+type StructureNode = {
+  id: string;
+  type: StructureNodeType;
+  x: number;
+  y: number;
+  isFinalExit: boolean;
+};
+
+const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
+  door: '문 · 출입구',
+  stair: '계단',
+};
+
+// 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
+const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> = {
+  ROOM: '#9ca3af',
+  HALLWAY: '#9ca3af',
+  EXIT: '#16a34a',
+  CUSTOM: '#7c3aed',
+};
+
+type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
 const GRID_SIZE = 20;
 
-/* ── Mock SVG 도면 (3층 예시, Figma 레이아웃 매칭) ── */
-const FLOOR_BOUNDS = { x: 20, y: 20, w: 520, h: 380 };
-
-const FLOOR_WALLS: { x1: number; y1: number; x2: number; y2: number }[] = [
-  { x1: 200, y1: 20, x2: 200, y2: 220 },
-  { x1: 20, y1: 220, x2: 360, y2: 220 },
-  { x1: 360, y1: 20, x2: 360, y2: 400 },
-  { x1: 360, y1: 260, x2: 540, y2: 260 },
-];
-
-const INITIAL_STAIR_AREA: ZoneRect = { x: 380, y: 300, w: 120, h: 80 };
-
-/* 기존(사전 등록) CCTV 장비에 시야 구역이 없을 경우 위치 기준으로 기본 구역을 만들어줌 */
-const buildDefaultCctvZoneRect = (device: DeviceMarker): ZoneRect => {
-  const size = 100;
-  const cx = (device.x / 100) * 560;
-  const cy = (device.y / 100) * 420;
-  const clampedX = Math.min(
-    Math.max(cx - size / 2, FLOOR_BOUNDS.x),
-    FLOOR_BOUNDS.x + FLOOR_BOUNDS.w - size,
-  );
-  const clampedY = Math.min(
-    Math.max(cy - size / 2, FLOOR_BOUNDS.y),
-    FLOOR_BOUNDS.y + FLOOR_BOUNDS.h - size,
-  );
-  return {
-    x: Math.round(clampedX / GRID_SIZE) * GRID_SIZE,
-    y: Math.round(clampedY / GRID_SIZE) * GRID_SIZE,
-    w: size,
-    h: size,
-  };
+// 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
+// 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
+// 두 값 중 더 작은 쪽으로 통일해서 항상 정사각형으로 보이게 함
+const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => {
+  if (cells.length === 0) return { w: 20, h: 20 };
+  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
+  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
+  const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
+  return { w: size, h: size };
 };
 
-const isSameRect = (a: ZoneRect, b: ZoneRect): boolean =>
-  a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
-
-const INITIAL_DOOR_NODES: DoorNode[] = [
-  { id: 'door-1', x: 110, y: 220, isFinalExit: false },
-  { id: 'door-2', x: 280, y: 220, isFinalExit: false },
-  { id: 'door-3', x: 360, y: 140, isFinalExit: false },
-  { id: 'door-4', x: 450, y: 260, isFinalExit: false },
-  { id: 'door-5', x: 360, y: 400, isFinalExit: false },
-];
-
-const GRID_LINES_X = Array.from(
-  { length: Math.floor(FLOOR_BOUNDS.w / GRID_SIZE) + 1 },
-  (_, i) => FLOOR_BOUNDS.x + i * GRID_SIZE,
-);
-const GRID_LINES_Y = Array.from(
-  { length: Math.floor(FLOOR_BOUNDS.h / GRID_SIZE) + 1 },
-  (_, i) => FLOOR_BOUNDS.y + i * GRID_SIZE,
-);
-
 const MockFloorMap3F = ({
+  mapImageUrl,
   aiLayers,
   editMode,
   placingActive,
@@ -152,20 +181,31 @@ const MockFloorMap3F = ({
   onZoneDraftChange,
   onZoneDragEnd,
   savedZones,
-  stairArea,
-  doorNodes,
-  editingDoorId,
-  onDoorNodeMove,
+  structureNodes,
+  editingStructureId,
+  onStructureNodeMove,
+  onStructureNodeMoveEnd,
+  graphNodes,
+  graphEdges,
+  edgeAddActive,
+  onNodeClickForEdge,
+  selectedEdgeId,
+  onEdgeSelect,
+  onEdgeDelete,
   selectedZoneRef,
   onZoneRefSelect,
-  selectedCctvZoneId,
-  onCctvZoneClick,
+  cctvGridCellsMode,
+  floorGridCells,
+  selectedGridCellIds,
+  gridCellPxSize,
+  onGridCellToggle,
   poiMarkers,
   relocatingPoiId,
   onMapClick,
   onPoiClick,
   onBackgroundClick,
 }: {
+  mapImageUrl: string | null;
   aiLayers: Record<string, boolean>;
   editMode: EditMode;
   placingActive: boolean;
@@ -174,14 +214,24 @@ const MockFloorMap3F = ({
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
-  stairArea: ZoneRect | null;
-  doorNodes: DoorNode[];
-  editingDoorId: string | null;
-  onDoorNodeMove: (id: string, x: number, y: number) => void;
+  structureNodes: StructureNode[];
+  graphNodes: MapNode[];
+  graphEdges: MapEdge[];
+  edgeAddActive: boolean;
+  onNodeClickForEdge: (id: string) => void;
+  selectedEdgeId: string | null;
+  onEdgeSelect: (id: string) => void;
+  onEdgeDelete: (id: string) => void;
+  editingStructureId: string | null;
+  onStructureNodeMove: (id: string, x: number, y: number) => void;
+  onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  selectedCctvZoneId: string | null;
-  onCctvZoneClick: (zoneId: string) => void;
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing';
+  floorGridCells: FloorGridCell[];
+  selectedGridCellIds: string[];
+  gridCellPxSize: { w: number; h: number };
+  onGridCellToggle: (cellId: string) => void;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   relocatingPoiId: string | null;
   onMapClick: (x: number, y: number) => void;
@@ -189,7 +239,12 @@ const MockFloorMap3F = ({
   onBackgroundClick: () => void;
 }) => {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
-  const doorDragMovedRef = useRef(false);
+  const structureDragMovedRef = useRef(false);
+
+  // 엣지(선) 양 끝 좌표를 찾기 위한 노드 id → SVG 좌표 조회 (구조 노드 + 그 외 그래프 노드 통합)
+  const nodePositionById = new Map<string, { x: number; y: number }>();
+  structureNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x, y: n.y }));
+  graphNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x * 560, y: n.y * 420 }));
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -240,29 +295,32 @@ const MockFloorMap3F = ({
     document.addEventListener('mouseup', onUp);
   };
 
-  const handleDoorMouseDown = (e: React.MouseEvent<SVGGElement>, doorId: string) => {
-    if (doorId !== editingDoorId) return;
+  const handleStructureMouseDown = (e: React.MouseEvent<SVGGElement>, structureId: string) => {
+    if (structureId !== editingStructureId) return;
     e.stopPropagation();
     e.preventDefault();
-    doorDragMovedRef.current = false;
+    structureDragMovedRef.current = false;
     const svgEl = e.currentTarget.ownerSVGElement;
     if (!svgEl) return;
+    let lastPoint: { x: number; y: number } | null = null;
 
     const onMove = (mv: MouseEvent) => {
-      doorDragMovedRef.current = true;
+      structureDragMovedRef.current = true;
       const point = svgPoint(mv.clientX, mv.clientY, svgEl);
-      onDoorNodeMove(doorId, point.x, point.y);
+      lastPoint = point;
+      onStructureNodeMove(structureId, point.x, point.y);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (lastPoint) onStructureNodeMoveEnd(structureId, lastPoint.x, lastPoint.y);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
 
   const svgCursor =
-    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive
+    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive || edgeAddActive
       ? 'crosshair'
       : 'default';
 
@@ -276,127 +334,154 @@ const MockFloorMap3F = ({
       onClick={handleSvgClick}
       onMouseDown={handleSvgMouseDown}
     >
-      {/* 배경 */}
+      {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음 */}
       <rect width="560" height="420" fill="#f8f9fa" />
-
-      {/* 외벽 (wall) */}
-      {aiLayers.wall && (
-        <rect
-          x={FLOOR_BOUNDS.x}
-          y={FLOOR_BOUNDS.y}
-          width={FLOOR_BOUNDS.w}
-          height={FLOOR_BOUNDS.h}
-          fill="white"
-          stroke="#374151"
-          strokeWidth="2.5"
+      {mapImageUrl && (
+        <image
+          href={mapImageUrl}
+          x={0}
+          y={0}
+          width={560}
+          height={420}
+          preserveAspectRatio="xMidYMid meet"
         />
       )}
 
-      {/* 그리드 오버레이 */}
-      {aiLayers.wall && (
-        <g opacity={0.6}>
-          {GRID_LINES_X.map((x) => (
-            <line
-              key={`gx-${x}`}
-              x1={x}
-              y1={FLOOR_BOUNDS.y}
-              x2={x}
-              y2={FLOOR_BOUNDS.y + FLOOR_BOUNDS.h}
-              stroke="#b8bdc7"
-              strokeWidth="1"
-            />
-          ))}
-          {GRID_LINES_Y.map((y) => (
-            <line
-              key={`gy-${y}`}
-              x1={FLOOR_BOUNDS.x}
-              y1={y}
-              x2={FLOOR_BOUNDS.x + FLOOR_BOUNDS.w}
-              y2={y}
-              stroke="#b8bdc7"
-              strokeWidth="1"
-            />
-          ))}
-        </g>
-      )}
-
-      {/* 내벽 (AI 세그멘테이션 결과) */}
+      {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
       {aiLayers.room &&
-        FLOOR_WALLS.map((w, i) => (
-          <line
-            key={`wall-${i}`}
-            x1={w.x1}
-            y1={w.y1}
-            x2={w.x2}
-            y2={w.y2}
-            stroke="#374151"
-            strokeWidth="2"
-          />
-        ))}
-
-      {/* 계단 (AI 세그멘테이션 결과, 주황색 영역) */}
-      {aiLayers.room &&
-        stairArea &&
-        (() => {
-          const isStairSelected = selectedZoneRef?.kind === 'stair';
+        graphEdges.map((edge) => {
+          const from = nodePositionById.get(edge.fromNodeId);
+          const to = nodePositionById.get(edge.toNodeId);
+          if (!from || !to) return null;
+          const isSelected = selectedEdgeId === edge.id;
+          const canSelect = !edgeAddActive && !placingActive && !zoneAddActive;
+          const midX = (from.x + to.x) / 2;
+          const midY = (from.y + to.y) / 2;
           return (
-            <g
-              onClick={(e) => {
-                if (zoneAddActive) return;
-                e.stopPropagation();
-                onZoneRefSelect({ kind: 'stair' });
-              }}
-              style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
-            >
-              <rect
-                x={stairArea.x}
-                y={stairArea.y}
-                width={stairArea.w}
-                height={stairArea.h}
-                fill="rgba(249,115,22,0.18)"
-                stroke={isStairSelected ? '#2563eb' : '#f97316'}
-                strokeWidth={isStairSelected ? '3' : '1.5'}
+            <g key={edge.id}>
+              <line
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke="transparent"
+                strokeWidth="10"
+                style={{
+                  cursor: canSelect ? 'pointer' : 'default',
+                  pointerEvents: canSelect ? 'stroke' : 'none',
+                }}
+                onClick={(e) => {
+                  if (!canSelect) return;
+                  e.stopPropagation();
+                  onEdgeSelect(edge.id);
+                }}
               />
-              <text
-                x={stairArea.x + stairArea.w / 2}
-                y={stairArea.y + stairArea.h / 2 + 3}
-                textAnchor="middle"
-                fill="#c2410c"
-                fontSize="10"
-                fontFamily="sans-serif"
+              <line
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke={isSelected ? '#2563eb' : '#9ca3af'}
+                strokeWidth={isSelected ? '2.5' : '1.5'}
+                strokeDasharray="3 3"
                 style={{ pointerEvents: 'none' }}
-              >
-                계단
-              </text>
+              />
+              {isSelected && (
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdgeDelete(edge.id);
+                  }}
+                >
+                  <circle cx={midX} cy={midY} r="8" fill="#ef4444" />
+                  <text
+                    x={midX}
+                    y={midY + 3}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fontWeight="700"
+                    fill="white"
+                    fontFamily="sans-serif"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    ×
+                  </text>
+                </g>
+              )}
             </g>
           );
-        })()}
+        })}
 
-      {/* 문 · 출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
+      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
+          ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
+          평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
       {aiLayers.room &&
-        doorNodes.map((d) => {
-          const isEditingThis = d.id === editingDoorId;
-          const isSelected = selectedZoneRef?.kind === 'door' && selectedZoneRef.id === d.id;
+        graphNodes.map((n) => {
+          const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
+          if (isRoomOrHallway && !edgeAddActive) return null;
+          const x = n.x * 560;
+          const y = n.y * 420;
+          const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
           return (
             <g
-              key={d.id}
-              onMouseDown={(e) => handleDoorMouseDown(e, d.id)}
+              key={n.id}
+              style={{ pointerEvents: edgeAddActive ? 'auto' : 'none', cursor: 'pointer' }}
+              onClick={(e) => {
+                if (!edgeAddActive) return;
+                e.stopPropagation();
+                onNodeClickForEdge(n.id);
+              }}
+            >
+              <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
+              {n.type === 'EXIT' && (
+                <text
+                  x={x}
+                  y={y - 12}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fontWeight="700"
+                  fill={color}
+                  fontFamily="sans-serif"
+                >
+                  {n.name}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+      {/* 구조 노드 — 계단 · 문/출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
+      {aiLayers.room &&
+        structureNodes.map((n) => {
+          const isEditingThis = n.id === editingStructureId;
+          const isSelected = selectedZoneRef?.kind === 'node' && selectedZoneRef.id === n.id;
+          const isStair = n.type === 'stair';
+          const baseColor = isStair ? '#f97316' : '#2563eb';
+          return (
+            <g
+              key={n.id}
+              onMouseDown={(e) => handleStructureMouseDown(e, n.id)}
               onClick={(e) => {
                 e.stopPropagation();
-                if (doorDragMovedRef.current) {
-                  doorDragMovedRef.current = false;
+                if (edgeAddActive) {
+                  onNodeClickForEdge(n.id);
                   return;
                 }
-                if (editingDoorId) return;
-                onZoneRefSelect({ kind: 'door', id: d.id });
+                if (structureDragMovedRef.current) {
+                  structureDragMovedRef.current = false;
+                  return;
+                }
+                if (editingStructureId) return;
+                onZoneRefSelect({ kind: 'node', id: n.id });
               }}
               style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
             >
               {isSelected && (
                 <circle
-                  cx={d.x}
-                  cy={d.y}
-                  r={(d.isFinalExit ? 7 : 4) + 5}
+                  cx={n.x}
+                  cy={n.y}
+                  r={(n.isFinalExit ? 7 : isStair ? 6 : 4) + 5}
                   fill="none"
                   stroke="#2563eb"
                   strokeWidth="2"
@@ -404,17 +489,31 @@ const MockFloorMap3F = ({
                 />
               )}
               <circle
-                cx={d.x}
-                cy={d.y}
-                r={d.isFinalExit ? 7 : isEditingThis ? 6 : 4}
-                fill={d.isFinalExit ? '#16a34a' : '#2563eb'}
-                stroke={isEditingThis ? '#f59e0b' : d.isFinalExit ? 'white' : 'none'}
-                strokeWidth={isEditingThis ? 3 : d.isFinalExit ? 2 : 0}
+                cx={n.x}
+                cy={n.y}
+                r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
+                fill={n.isFinalExit ? '#16a34a' : baseColor}
+                stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
+                strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
               />
-              {d.isFinalExit && (
+              {isStair && (
                 <text
-                  x={d.x}
-                  y={d.y - 14}
+                  x={n.x}
+                  y={n.y + 3}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fontWeight="700"
+                  fill="white"
+                  fontFamily="sans-serif"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  ▲
+                </text>
+              )}
+              {n.isFinalExit && (
+                <text
+                  x={n.x}
+                  y={n.y - 14}
                   textAnchor="middle"
                   fontSize="9"
                   fontWeight="700"
@@ -429,41 +528,45 @@ const MockFloorMap3F = ({
           );
         })}
 
-      {/* 저장된 구역 — 카메라 시야는 해당 노드/카드를 선택했을 때만 표시 */}
-      {savedZones.map((z) => {
-        if (!z.rect) return null;
-        const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
-        const isCctvLinked = selectedCctvZoneId === z.id;
-        const highlighted = isSelected || isCctvLinked;
-        if (z.type === 'camera' && !highlighted) return null;
-        return (
-          <g
-            key={z.id}
-            onClick={(e) => {
-              if (zoneAddActive) return;
-              e.stopPropagation();
-              if (z.type === 'camera') {
-                onCctvZoneClick(z.id);
-              } else {
+      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시.
+          구역마다 매번 floorGridCells를 선형 탐색하지 않도록 id→셀 매핑을 한 번만 만들어 재사용 */}
+      {(() => {
+        const floorGridCellById = new Map(floorGridCells.map((c) => [c.id, c]));
+        return savedZones.map((z) => {
+          const cells = z.cellIds
+            .map((id) => floorGridCellById.get(id))
+            .filter((c): c is FloorGridCell => !!c);
+          if (cells.length === 0) return null;
+          const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
+          const xs = cells.map((c) => c.centerX * 560);
+          const ys = cells.map((c) => c.centerY * 420);
+          const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
+          const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
+          return (
+            <g
+              key={z.id}
+              onClick={(e) => {
+                if (zoneAddActive) return;
+                e.stopPropagation();
                 onZoneRefSelect({ kind: 'zone', id: z.id });
-              }
-            }}
-            style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
-          >
-            <rect
-              x={z.rect.x}
-              y={z.rect.y}
-              width={z.rect.w}
-              height={z.rect.h}
-              fill={z.type === 'general' ? 'rgba(107,114,128,0.15)' : 'rgba(139,92,246,0.18)'}
-              stroke={z.type === 'general' ? (isSelected ? '#2563eb' : '#6b7280') : '#8b5cf6'}
-              strokeWidth={z.type === 'general' ? (isSelected ? '3' : '1.5') : '2'}
-              strokeDasharray={z.type === 'camera' ? '4 3' : undefined}
-            />
-            {z.type === 'general' && (
+              }}
+              style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
+            >
+              {cells.map((cell) => (
+                <rect
+                  key={cell.id}
+                  x={cell.centerX * 560 - gridCellPxSize.w / 2}
+                  y={cell.centerY * 420 - gridCellPxSize.h / 2}
+                  width={gridCellPxSize.w}
+                  height={gridCellPxSize.h}
+                  fill="rgba(107,114,128,0.15)"
+                  stroke={isSelected ? '#2563eb' : '#6b7280'}
+                  strokeWidth={isSelected ? '2' : '1'}
+                />
+              ))}
               <text
-                x={z.rect.x + z.rect.w / 2}
-                y={z.rect.y + z.rect.h / 2 + 3}
+                x={labelX}
+                y={labelY + 3}
                 textAnchor="middle"
                 fill="#374151"
                 fontSize="10"
@@ -472,10 +575,48 @@ const MockFloorMap3F = ({
               >
                 {z.label}
               </text>
-            )}
-          </g>
-        );
-      })}
+            </g>
+          );
+        });
+      })()}
+
+      {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능), 선택된 기존 CCTV의 감시 영역(조회 전용),
+          또는 그리드 표시 토글이 켜진 경우(전체 조회 전용) */}
+      {cctvGridCellsMode !== 'hidden' &&
+        floorGridCells.map((cell) => {
+          const cx = cell.centerX * 560;
+          const cy = cell.centerY * 420;
+          const isSelected = selectedGridCellIds.includes(cell.id);
+          if (cctvGridCellsMode === 'viewing' && !isSelected) return null;
+          const isBrowsing = cctvGridCellsMode === 'browsing';
+          return (
+            <rect
+              key={cell.id}
+              x={cx - gridCellPxSize.w / 2}
+              y={cy - gridCellPxSize.h / 2}
+              width={gridCellPxSize.w}
+              height={gridCellPxSize.h}
+              fill={
+                isSelected
+                  ? 'rgba(139,92,246,0.35)'
+                  : isBrowsing
+                    ? 'rgba(107,114,128,0.05)'
+                    : 'rgba(139,92,246,0.04)'
+              }
+              stroke={isBrowsing ? 'rgba(107,114,128,0.35)' : '#8b5cf6'}
+              strokeWidth={isSelected ? '1.5' : isBrowsing ? '1' : '0.5'}
+              style={{
+                cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
+                pointerEvents: cctvGridCellsMode === 'selecting' ? 'auto' : 'none',
+              }}
+              onClick={(e) => {
+                if (cctvGridCellsMode !== 'selecting') return;
+                e.stopPropagation();
+                onGridCellToggle(cell.id);
+              }}
+            />
+          );
+        })}
 
       {/* 구역 추가 드래그 선택 영역 */}
       {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
@@ -649,6 +790,7 @@ const AddedDevicePin = ({
   draggable,
   onClick,
   onDragEnd,
+  onDragMoveEnd,
 }: {
   device: AddedDevice;
   posX: number;
@@ -657,6 +799,7 @@ const AddedDevicePin = ({
   draggable: boolean;
   onClick: () => void;
   onDragEnd: (id: string, x: number, y: number) => void;
+  onDragMoveEnd: (id: string, x: number, y: number) => void;
 }) => {
   const isDragging = useRef(false);
   const didMove = useRef(false);
@@ -671,6 +814,7 @@ const AddedDevicePin = ({
 
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
+    let lastPoint: { x: number; y: number } | null = null;
 
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
@@ -678,12 +822,15 @@ const AddedDevicePin = ({
       const rect = container.getBoundingClientRect();
       const rawX = ((mv.clientX - rect.left) / rect.width) * 100;
       const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
-      onDragEnd(device.id, Math.max(0, Math.min(100, rawX)), Math.max(0, Math.min(100, rawY)));
+      const point = { x: Math.max(0, Math.min(100, rawX)), y: Math.max(0, Math.min(100, rawY)) };
+      lastPoint = point;
+      onDragEnd(device.id, point.x, point.y);
     };
     const onUp = () => {
       isDragging.current = false;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (lastPoint) onDragMoveEnd(device.id, lastPoint.x, lastPoint.y);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -721,7 +868,8 @@ const AddedDevicePin = ({
 };
 
 /* ── 장비 추가 팝업 ──
- * 두 단계(정보 입력 → 위치 지정)로 구성. CCTV는 위치 지정 뒤 시야 범위 지정까지 총 세 단계.
+ * 정보 입력과 위치 지정을 같은 화면(입력 단계)에서 함께 진행 — 도면을 클릭하면 위치가 잡히고,
+ * 다시 클릭하면 위치를 옮길 수 있음. CCTV만 이후 시야 범위 지정 단계가 추가로 붙어 총 2단계.
  * 종료 버튼 규칙: 아직 생성되지 않는 중간 단계는 "다음", 실제로 저장되는 마지막 클릭만 "추가"로 통일
  * (구역추가 팝업과도 동일한 규칙 — 툴바의 "+ 노드 추가"/"+ 구역 추가"와 같은 동사로 시작·종료되게 함).
  */
@@ -730,45 +878,47 @@ const NodeAddPopup = ({
   type,
   onTypeChange,
   stage,
-  hasDraftRect,
+  hasPosition,
+  selectedCellCount,
   onCancel,
   onBack,
-  onAdd,
+  onSubmitEntry,
   onFinalize,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
   type: PlacingDeviceType;
   onTypeChange: (type: PlacingDeviceType) => void;
-  stage: 'form' | 'position' | 'fov' | 'ready';
-  hasDraftRect: boolean;
+  stage: 'entry' | 'fov';
+  hasPosition: boolean;
+  selectedCellCount: number;
   onCancel: () => void;
   onBack: () => void;
-  onAdd: (type: PlacingDeviceType, deviceId: string, location: string) => void;
-  onFinalize: () => void;
+  onSubmitEntry: (type: PlacingDeviceType, deviceId: string, location: string) => void;
+  onFinalize: (deviceId: string, location: string) => void;
 }) => {
   const [deviceId, setDeviceId] = useState('');
   const [location, setLocation] = useState('');
 
-  const isDoor = type === 'door';
+  const isStructureNode = type === 'door' || type === 'stair';
   const isCctv = type === 'cctv';
-  const totalSteps = isCctv ? 3 : 2;
-  const stepNumber = stage === 'form' ? 1 : stage === 'position' ? 2 : totalSteps;
+  const totalSteps = isCctv ? 2 : 1;
+  const stepNumber = stage === 'entry' ? 1 : totalSteps;
 
-  if (stage !== 'form') {
+  if (stage === 'fov') {
     return (
       <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
         <div className={styles.nodeAddHeader}>
-          <span className={styles.nodeAddTitle}>{DEVICE_PLACE_CONFIG[type].label} 위치 지정</span>
+          <span className={styles.nodeAddTitle}>
+            {DEVICE_PLACE_CONFIG[type].label} 시야 범위 지정
+          </span>
           <span className={styles.nodeAddStepBadge}>
             {stepNumber}/{totalSteps}
           </span>
         </div>
         <span className={styles.nodeAddHint}>
-          {stage === 'position'
-            ? '도면을 클릭해서 위치를 지정해주세요'
-            : stage === 'fov'
-              ? '도면을 드래그해서 카메라 시야 구역을 지정해주세요'
-              : '위치 지정을 마쳤어요. 추가 버튼을 누르면 저장됩니다.'}
+          {selectedCellCount > 0
+            ? `${selectedCellCount}칸 선택됨. 도면을 드래그하면 겹치는 칸이 추가되고, 선택된 칸을 클릭하면 해제돼요.`
+            : '도면을 드래그해서 카메라 시야 구역에 해당하는 칸을 선택해주세요'}
         </span>
 
         <div className={styles.nodeAddActions}>
@@ -781,8 +931,8 @@ const NodeAddPopup = ({
           <button
             type="button"
             className={styles.nodeAddSubmitBtn}
-            disabled={stage === 'position' || (stage === 'fov' && !hasDraftRect)}
-            onClick={onFinalize}
+            disabled={selectedCellCount === 0}
+            onClick={() => onFinalize(deviceId, location)}
           >
             추가
           </button>
@@ -791,26 +941,26 @@ const NodeAddPopup = ({
     );
   }
 
+  const canSubmit = hasPosition && (isStructureNode || !!deviceId.trim());
+
   return (
     <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <div className={styles.nodeAddHeader}>
-        <span className={styles.nodeAddTitle}>노드 정보 입력</span>
+        <span className={styles.nodeAddTitle}>노드 추가</span>
         <span className={styles.nodeAddStepBadge}>
           {stepNumber}/{totalSteps}
         </span>
       </div>
       <span className={styles.nodeAddHint}>
-        {isDoor
-          ? '종류를 확인하고 다음을 누르면 위치를 지정할 수 있어요'
-          : isCctv
-            ? '정보를 입력하고 다음을 누르면 위치를 지정한 뒤 시야 범위까지 이어서 지정하게 돼요'
-            : '정보를 입력하고 다음을 누르면 위치를 지정할 수 있어요'}
+        {hasPosition
+          ? '위치가 지정됐어요. 다른 곳을 클릭하면 위치를 옮길 수 있어요.'
+          : '도면을 클릭해서 위치를 지정해주세요'}
       </span>
 
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'iot', 'light', 'door'] as const).map((t) => (
+          {(['cctv', 'iot', 'light', 'door', 'stair'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -823,7 +973,7 @@ const NodeAddPopup = ({
         </div>
       </div>
 
-      {!isDoor && (
+      {!isStructureNode && (
         <>
           <div className={styles.nodeAddField}>
             <span className={styles.nodeAddLabel}>장치 ID</span>
@@ -854,31 +1004,30 @@ const NodeAddPopup = ({
         <button
           type="button"
           className={styles.nodeAddSubmitBtn}
-          disabled={!isDoor && !deviceId.trim()}
-          onClick={() => onAdd(type, deviceId.trim(), location.trim())}
+          disabled={!canSubmit}
+          onClick={() => onSubmitEntry(type, deviceId.trim(), location.trim())}
         >
-          다음
+          {isCctv ? '다음' : '추가'}
         </button>
       </div>
     </div>
   );
 };
 
-/* ── 구역 설정 팝업 ── */
+/* ── 구역 설정 팝업 — 백엔드 저장 단위가 그리드 셀 집합이라 드래그는 겹치는 셀을 고르는 용도로 씀 ── */
 const ZoneAddPopup = ({
   containerRef,
-  hasDraftRect,
-  isDuplicateRect,
+  selectedCellCount,
   onCancel,
   onSave,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
-  hasDraftRect: boolean;
-  isDuplicateRect: boolean;
+  selectedCellCount: number;
   onCancel: () => void;
   onSave: (label: string) => void;
 }) => {
   const [zoneName, setZoneName] = useState('');
+  const hasSelectedCells = selectedCellCount > 0;
 
   const handleSave = () => {
     onSave(zoneName.trim());
@@ -888,14 +1037,12 @@ const ZoneAddPopup = ({
     <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <div className={styles.nodeAddHeader}>
         <span className={styles.nodeAddTitle}>구역 설정</span>
-        <span className={styles.nodeAddStepBadge}>{hasDraftRect ? '2/2' : '1/2'}</span>
+        <span className={styles.nodeAddStepBadge}>{hasSelectedCells ? '2/2' : '1/2'}</span>
       </div>
       <span className={styles.nodeAddHint}>
-        {hasDraftRect && isDuplicateRect
-          ? '이미 같은 위치와 크기의 구역이 있어요. 도면을 다시 드래그해서 다른 영역을 지정해주세요.'
-          : hasDraftRect
-            ? '영역 지정을 마쳤어요. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.'
-            : '이름을 입력하거나 도면을 드래그해서 영역을 지정해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
+        {hasSelectedCells
+          ? `${selectedCellCount}칸 선택됨. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
+          : '이름을 입력하거나 도면을 드래그해서 영역에 해당하는 칸을 선택해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
       </span>
 
       <div className={styles.nodeAddField}>
@@ -915,8 +1062,79 @@ const ZoneAddPopup = ({
         <button
           type="button"
           className={styles.nodeAddSubmitBtn}
-          disabled={!zoneName.trim() || !hasDraftRect || isDuplicateRect}
+          disabled={!zoneName.trim() || !hasSelectedCells}
           onClick={handleSave}
+        >
+          추가
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ── 엣지 연결 팝업 — 두 노드를 클릭해서 고른 뒤 거리·양방향 여부를 입력 ── */
+const EdgeAddPopup = ({
+  containerRef,
+  fromLabel,
+  toLabel,
+  onCancel,
+  onSave,
+}: {
+  containerRef: React.RefObject<HTMLDivElement>;
+  fromLabel: string;
+  toLabel: string;
+  onCancel: () => void;
+  onSave: (distance: number, bidirectional: boolean) => void;
+}) => {
+  const [distance, setDistance] = useState('');
+  const [bidirectional, setBidirectional] = useState(true);
+
+  const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setDistance(raw);
+  };
+
+  const isValid = Number(distance) > 0;
+
+  return (
+    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.nodeAddHeader}>
+        <span className={styles.nodeAddTitle}>엣지 연결</span>
+      </div>
+      <span className={styles.nodeAddHint}>
+        {fromLabel} → {toLabel}
+      </span>
+
+      <div className={styles.nodeAddField}>
+        <span className={styles.nodeAddLabel}>거리(m)</span>
+        <input
+          className={styles.nodeAddInput}
+          type="text"
+          inputMode="decimal"
+          value={distance}
+          onChange={handleDistanceChange}
+          placeholder="3.5"
+        />
+      </div>
+
+      <label className={styles.edgeBidirectionalField}>
+        <input
+          type="checkbox"
+          checked={bidirectional}
+          onChange={(e) => setBidirectional(e.target.checked)}
+        />
+        양방향 통행 가능
+      </label>
+
+      <div className={styles.nodeAddActions}>
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
+          취소
+        </button>
+        <button
+          type="button"
+          className={styles.nodeAddSubmitBtn}
+          disabled={!isValid}
+          onClick={() => onSave(Number(distance), bidirectional)}
         >
           추가
         </button>
@@ -936,6 +1154,7 @@ const DeviceCard = ({
   onStartEdit,
   onSaveEdit,
   onDelete,
+  onOpenSettings,
 }: {
   item: PanelItem;
   selected: boolean;
@@ -946,6 +1165,7 @@ const DeviceCard = ({
   onStartEdit: (item: PanelItem) => void;
   onSaveEdit: (item: PanelItem) => void;
   onDelete: (item: PanelItem) => void;
+  onOpenSettings: (item: PanelItem) => void;
 }) => (
   <div
     data-panel-id={item.id}
@@ -1007,6 +1227,18 @@ const DeviceCard = ({
           수정
         </button>
       )}
+      {(item.type === 'light' || item.type === 'cctv') && (
+        <button
+          type="button"
+          className={styles.deviceCardEditBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSettings(item);
+          }}
+        >
+          설정
+        </button>
+      )}
       <button
         type="button"
         className={styles.deviceCardDeleteBtn}
@@ -1025,6 +1257,7 @@ const DeviceCard = ({
 const FloorCanvas = ({
   mapWrapRef,
   floor,
+  resolvedImageUrl,
   selected,
   aiLayers,
   zoom,
@@ -1036,14 +1269,24 @@ const FloorCanvas = ({
   onZoneDraftChange,
   onZoneDragEnd,
   savedZones,
-  stairArea,
-  doorNodes,
-  editingDoorId,
-  onDoorNodeMove,
+  structureNodes,
+  editingStructureId,
+  onStructureNodeMove,
+  onStructureNodeMoveEnd,
+  graphNodes,
+  graphEdges,
+  edgeAddActive,
+  onNodeClickForEdge,
+  selectedEdgeId,
+  onEdgeSelect,
+  onEdgeDelete,
   selectedZoneRef,
   onZoneRefSelect,
-  selectedCctvZoneId,
-  onCctvZoneClick,
+  cctvGridCellsMode,
+  floorGridCells,
+  selectedGridCellIds,
+  gridCellPxSize,
+  onGridCellToggle,
   stagedCameraPosition,
   poiMarkers,
   editingPoiId,
@@ -1058,11 +1301,13 @@ const FloorCanvas = ({
   onPoiRelocate,
   onPoiPopoverClose,
   onDeviceMoved,
+  onDeviceMoveEnd,
   onUpload,
   onBackgroundClick,
 }: {
   mapWrapRef: React.RefObject<HTMLDivElement>;
   floor: Floor;
+  resolvedImageUrl: string | null;
   selected: SelectedItem | null;
   aiLayers: Record<string, boolean>;
   zoom: number;
@@ -1074,14 +1319,24 @@ const FloorCanvas = ({
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
-  stairArea: ZoneRect | null;
-  doorNodes: DoorNode[];
-  editingDoorId: string | null;
-  onDoorNodeMove: (id: string, x: number, y: number) => void;
+  structureNodes: StructureNode[];
+  editingStructureId: string | null;
+  onStructureNodeMove: (id: string, x: number, y: number) => void;
+  onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
+  graphNodes: MapNode[];
+  graphEdges: MapEdge[];
+  edgeAddActive: boolean;
+  onNodeClickForEdge: (id: string) => void;
+  selectedEdgeId: string | null;
+  onEdgeSelect: (id: string) => void;
+  onEdgeDelete: (id: string) => void;
   selectedZoneRef: ZoneRefSelection | null;
   onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  selectedCctvZoneId: string | null;
-  onCctvZoneClick: (zoneId: string) => void;
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing';
+  floorGridCells: FloorGridCell[];
+  selectedGridCellIds: string[];
+  gridCellPxSize: { w: number; h: number };
+  onGridCellToggle: (cellId: string) => void;
   stagedCameraPosition: { x: number; y: number } | null;
   poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
   editingPoiId: string | null;
@@ -1096,12 +1351,13 @@ const FloorCanvas = ({
   onPoiRelocate: (id: string) => void;
   onPoiPopoverClose: () => void;
   onDeviceMoved: (id: string, x: number, y: number) => void;
+  onDeviceMoveEnd: (id: string, x: number, y: number) => void;
   onUpload: () => void;
   onBackgroundClick: () => void;
 }) => {
-  const hasMockMap = floor.segmentationStatus === 'DONE';
+  const hasFloorPlan = floor.segmentationStatus === 'DONE';
 
-  if (!hasMockMap) {
+  if (!hasFloorPlan) {
     return (
       <div className={styles.canvasPlaceholder}>
         <span className={styles.canvasPlaceholderTitle}>등록된 도면이 없습니다</span>
@@ -1120,6 +1376,7 @@ const FloorCanvas = ({
   return (
     <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
+        mapImageUrl={resolvedImageUrl}
         aiLayers={aiLayers}
         editMode={editMode}
         placingActive={placingActive}
@@ -1128,14 +1385,24 @@ const FloorCanvas = ({
         onZoneDraftChange={onZoneDraftChange}
         onZoneDragEnd={onZoneDragEnd}
         savedZones={savedZones}
-        stairArea={stairArea}
-        doorNodes={doorNodes}
-        editingDoorId={editingDoorId}
-        onDoorNodeMove={onDoorNodeMove}
+        structureNodes={structureNodes}
+        editingStructureId={editingStructureId}
+        onStructureNodeMove={onStructureNodeMove}
+        onStructureNodeMoveEnd={onStructureNodeMoveEnd}
+        graphNodes={graphNodes}
+        graphEdges={graphEdges}
+        edgeAddActive={edgeAddActive}
+        onNodeClickForEdge={onNodeClickForEdge}
+        selectedEdgeId={selectedEdgeId}
+        onEdgeSelect={onEdgeSelect}
+        onEdgeDelete={onEdgeDelete}
         selectedZoneRef={selectedZoneRef}
         onZoneRefSelect={onZoneRefSelect}
-        selectedCctvZoneId={selectedCctvZoneId}
-        onCctvZoneClick={onCctvZoneClick}
+        cctvGridCellsMode={cctvGridCellsMode}
+        floorGridCells={floorGridCells}
+        selectedGridCellIds={selectedGridCellIds}
+        gridCellPxSize={gridCellPxSize}
+        onGridCellToggle={onGridCellToggle}
         poiMarkers={poiMarkers}
         relocatingPoiId={relocatingPoiId}
         onMapClick={onMapClick}
@@ -1177,6 +1444,7 @@ const FloorCanvas = ({
             draggable={editingItemId === d.id}
             onClick={() => onSelectDevice(d as unknown as DeviceMarker)}
             onDragEnd={onDeviceMoved}
+            onDragMoveEnd={onDeviceMoveEnd}
           />
         );
       })}
@@ -1297,10 +1565,12 @@ const FloorCanvas = ({
 const FloorPlansDetailPage = () => {
   const navigate = useNavigate();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
+  const { show } = useToast();
 
   const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
+  const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
 
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {
@@ -1311,11 +1581,11 @@ const FloorPlansDetailPage = () => {
 
   // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
   useEffect(() => {
-    if (!floorId) return;
+    if (!buildingId || !floorId) return;
     let cancelled = false;
     setFloor(null);
     setLoadingFloor(true);
-    getFloorDetail(Number(floorId))
+    getFloorDetail(buildingId, floorId)
       .then((data) => {
         if (!cancelled) setFloor(data);
       })
@@ -1326,29 +1596,145 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
+  }, [buildingId, floorId]);
+
+  // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
+  useEffect(() => {
+    setResolvedMapImageUrl(null);
+    if (!buildingId || !floorId || !floor?.mapImageUrl) return;
+    let cancelled = false;
+    getFloorImageUrl(buildingId, floorId)
+      .then(({ imageUrl }) => {
+        if (!cancelled) setResolvedMapImageUrl(imageUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [buildingId, floorId, floor?.mapImageUrl]);
+
+  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorGraph(floorId)
+      .then((graph) => {
+        if (cancelled) return;
+        const structureFromGraph: StructureNode[] = graph.nodes
+          .filter((n) => n.type === 'DOOR' || n.type === 'STAIR')
+          .map((n) => ({
+            id: n.id,
+            type: n.type === 'DOOR' ? 'door' : 'stair',
+            x: Math.round(n.x * 560),
+            y: Math.round(n.y * 420),
+            isFinalExit: n.isExitTarget,
+          }));
+        setStructureNodes(structureFromGraph);
+        setGraphNodes(graph.nodes.filter((n) => n.type !== 'DOOR' && n.type !== 'STAIR'));
+        setGraphEdges(graph.edges);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [floorId]);
 
-  // 모든 CCTV 노드는 시야 구역이 필수 — 기존 등록 장비 중 누락된 것은 위치 기준으로 기본 구역을 채워 넣음
+  // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
   useEffect(() => {
-    if (!floor) return;
-    const cctvDevices = floor.devices.filter((d) => d.type === 'cctv');
-    if (cctvDevices.length === 0) return;
-    setZones((prev) => {
-      const missing = cctvDevices.filter(
-        (d) => !prev.some((z) => z.type === 'camera' && z.label === `${d.label} 시야 구역`),
-      );
-      if (missing.length === 0) return prev;
-      return [
-        ...prev,
-        ...missing.map((d) => ({
-          id: `zone-cctv-${d.id}`,
-          type: 'camera' as const,
-          label: `${d.label} 시야 구역`,
-          rect: buildDefaultCctvZoneRect(d),
-        })),
-      ];
-    });
-  }, [floor]);
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorLights(floorId)
+      .then((lights) => {
+        if (cancelled) return;
+        setIotLights(lights);
+        setAddedDevices((prev) => [
+          ...prev.filter((d) => d.placeType !== 'light'),
+          ...lights.map(
+            (light): AddedDevice => ({
+              id: light.id,
+              type: 'iot',
+              placeType: 'light',
+              label: light.name,
+              x: light.x * 100,
+              y: light.y * 100,
+              status: 'online',
+              zone: '사용자 등록',
+            }),
+          ),
+        ]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
+  // CCTV 조회 — 실제 등록된 CCTV를 장비 마커 목록에 채워 넣음
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorCctvs(floorId)
+      .then((cctvs) => {
+        if (cancelled) return;
+        setRealCctvs(cctvs);
+        setAddedDevices((prev) => [
+          ...prev.filter((d) => d.type !== 'cctv'),
+          ...cctvs.map(
+            (cctv): AddedDevice => ({
+              id: cctv.id,
+              type: 'cctv',
+              placeType: 'cctv',
+              label: cctv.name,
+              x: cctv.x * 100,
+              y: cctv.y * 100,
+              status: 'online',
+              zone: `모니터링 ${cctv.monitoredGridCellCount}칸 · ${cctv.monitoredAreaM2}㎡`,
+            }),
+          ),
+        ]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
+  // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로 조회
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorUserZones(floorId)
+      .then((zoneList) => Promise.all(zoneList.map((zone) => getUserZoneDetail(floorId, zone.id))))
+      .then((details) => {
+        if (cancelled) return;
+        setZones(
+          details.map((d) => ({
+            id: d.id,
+            type: 'general',
+            label: d.name,
+            cellIds: d.cells.map((c) => c.cellId),
+          })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
+
+  // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용
+  useEffect(() => {
+    if (!floorId) return;
+    let cancelled = false;
+    getFloorGridCells(floorId)
+      .then((cells) => {
+        if (!cancelled) setFloorGridCells(cells);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId]);
 
   const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
@@ -1364,10 +1750,25 @@ const FloorPlansDetailPage = () => {
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [segmentTarget, setSegmentTarget] = useState<{ previewUrl: string } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<{ file: File; previewUrl: string } | null>(
+    null,
+  );
+  const [isReuploading, setIsReuploading] = useState(false);
+
+  // 미리보기 objectURL이 명시적으로 취소/제출되지 않고 화면을 벗어나는 경우를 대비한 안전망
+  useEffect(() => {
+    return () => {
+      if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    };
+  }, [pendingUpload]);
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<PanelItem | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
+  const [edgeAddOpen, setEdgeAddOpen] = useState(false);
+  const [edgeDraftFromId, setEdgeDraftFromId] = useState<string | null>(null);
+  const [edgeDraftToId, setEdgeDraftToId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   const [zoneDraftRect, setZoneDraftRectState] = useState<ZoneRect | null>(null);
   const zoneDraftRectRef = useRef<ZoneRect | null>(null);
@@ -1376,8 +1777,9 @@ const FloorPlansDetailPage = () => {
     setZoneDraftRectState(rect);
   };
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
-  const [deviceTypeFilter, setDeviceTypeFilter] = useState<'cctv' | 'iot' | 'light' | null>(null);
-  const [zoneTypeFilter, setZoneTypeFilter] = useState<'door' | 'stair' | 'general' | null>(null);
+  const [deviceTypeFilter, setDeviceTypeFilter] = useState<
+    'cctv' | 'iot' | 'light' | 'door' | 'stair' | null
+  >(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
     label: '',
@@ -1389,18 +1791,29 @@ const FloorPlansDetailPage = () => {
   const [selectedPoiType] = useState<PoiType>('exit');
   const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
-  const [doorNodes, setDoorNodes] = useState<DoorNode[]>(INITIAL_DOOR_NODES);
-  const [stairArea, setStairArea] = useState<ZoneRect | null>(INITIAL_STAIR_AREA);
-  const [editingDoorId, setEditingDoorId] = useState<string | null>(null);
-  const [editingStair, setEditingStair] = useState(false);
+  const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
+  const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
+  const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
+  const [iotLights, setIotLights] = useState<IoTLight[]>([]);
+  const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
+  const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
+  const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
+  const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
-  // CCTV 카드 수정 중 해당 카메라의 시야 구역을 다시 드래그할 수 있게 하는 대상 구역 id
-  const [editingCctvZoneId, setEditingCctvZoneId] = useState<string | null>(null);
-  const [deviceDraftInfo, setDeviceDraftInfo] = useState<{
-    deviceId: string;
-    location: string;
-  } | null>(null);
+  const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
+  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  const [showGridOverlay, setShowGridOverlay] = useState(false);
+  // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
+  // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
+  const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
+  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | 'zone' | null>(null);
+  const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
+  const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
+  const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
+  const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
+  const [zoneDeleteTarget, setZoneDeleteTarget] = useState<ZoneEntry | null>(null);
+  const [isDeletingZone, setIsDeletingZone] = useState(false);
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -1413,12 +1826,126 @@ const FloorPlansDetailPage = () => {
   const handleDeviceMoved = (id: string, x: number, y: number) => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
+
+  // 드래그가 끝났을 때만 실제 위치를 저장
+  const handleDeviceMoveEnd = (id: string, x: number, y: number) => {
+    const device = addedDevices.find((d) => d.id === id);
+    if (device?.placeType === 'light') {
+      updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
+      return;
+    }
+    if (device?.placeType === 'cctv') {
+      updateCctv(id, { name: device.label, x: x / 100, y: y / 100 })
+        .then((updated) => {
+          setRealCctvs((prev) => prev.map((c) => (c.id === id ? updated : c)));
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleOpenDeviceSettings = (item: PanelItem) => {
+    if (item.type === 'light') {
+      const light = iotLights.find((l) => l.id === item.id);
+      if (light) setLightSettingsTarget(light);
+    } else if (item.type === 'cctv') {
+      const cctv = realCctvs.find((c) => c.id === item.id);
+      if (cctv) setCctvSettingsTarget(cctv);
+    }
+  };
+
+  const handleCctvToggleEnabled = (enabled: boolean) => {
+    if (!cctvSettingsTarget) return;
+    const request = enabled ? enableCctv : disableCctv;
+    request(cctvSettingsTarget.id)
+      .then((updated) => {
+        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setCctvSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
+
+  const handleStartEditCctvCells = () => {
+    if (!cctvSettingsTarget) return;
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEdgeAddOpen(false);
+    setEditingCctvId(cctvSettingsTarget.id);
+    setCctvDraftCellIds(cctvSettingsTarget.gridCells.map((c) => c.id));
+    setCctvSettingsTarget(null);
+  };
+
+  const handleCancelEditCctvCells = () => {
+    setEditingCctvId(null);
+    setCctvDraftCellIds([]);
+  };
+
+  const handleSaveEditCctvCells = () => {
+    if (!editingCctvId || cctvDraftCellIds.length === 0) return;
+    configureCctvGridCells(editingCctvId, cctvDraftCellIds)
+      .then((updated) => {
+        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setAddedDevices((prev) =>
+          prev.map((d) =>
+            d.id === updated.id
+              ? {
+                  ...d,
+                  zone: `모니터링 ${updated.monitoredGridCellCount}칸 · ${updated.monitoredAreaM2}㎡`,
+                }
+              : d,
+          ),
+        );
+        setEditingCctvId(null);
+        setCctvDraftCellIds([]);
+      })
+      .catch(() => {});
+  };
+
+  const handleLightToggleEnabled = (enabled: boolean) => {
+    if (!lightSettingsTarget) return;
+    const request = enabled ? enableIoTLight : disableIoTLight;
+    request(lightSettingsTarget.id)
+      .then((updated) => {
+        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setLightSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
+
+  const handleLightDirectionChange = (direction: 'LEFT' | 'RIGHT' | 'OFF') => {
+    if (!lightSettingsTarget) return;
+    changeLightDirection(lightSettingsTarget.id, direction).catch(() => {});
+  };
+
+  const handleLightGuidanceSave = (
+    decisionNodeId: string,
+    leftEdgeId: string,
+    rightEdgeId: string,
+  ) => {
+    if (!lightSettingsTarget) return;
+    configureLightGuidance(lightSettingsTarget.id, { decisionNodeId, leftEdgeId, rightEdgeId })
+      .then((updated) => {
+        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setLightSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
+
+  const handleLightPiEndpointSave = (piEndpoint: string) => {
+    if (!lightSettingsTarget) return;
+    updateLightPiEndpoint(lightSettingsTarget.id, piEndpoint)
+      .then((updated) => {
+        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setLightSettingsTarget(updated);
+      })
+      .catch(() => {});
+  };
   const [toastMsg] = useState<string | null>(null);
   const [toastFading] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodePopupRef = useRef<HTMLDivElement>(null);
   const zonePopupRef = useRef<HTMLDivElement>(null);
+  const edgePopupRef = useRef<HTMLDivElement>(null);
   const mapWrapRef = useRef<HTMLDivElement>(null);
   const devicePanelRef = useRef<HTMLDivElement>(null);
 
@@ -1434,11 +1961,7 @@ const FloorPlansDetailPage = () => {
   const focusedPanelId =
     selectedItem?.kind === 'device' || selectedItem?.kind === 'poi'
       ? selectedItem.data.id
-      : selectedZoneRef?.kind === 'door' || selectedZoneRef?.kind === 'zone'
-        ? selectedZoneRef.id
-        : selectedZoneRef?.kind === 'stair'
-          ? 'stair'
-          : null;
+      : (selectedZoneRef?.id ?? null);
 
   useEffect(() => {
     if (!focusedPanelId) return;
@@ -1447,9 +1970,9 @@ const FloorPlansDetailPage = () => {
   }, [focusedPanelId]);
 
   // 장비 추가 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 클릭은 배치로 처리)
-  // 정보 입력(1단계) 이후에는 위치·시야 지정 진행 상태가 있으므로 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  // 위치를 한 번이라도 지정한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
   useEffect(() => {
-    if (!nodeAddOpen || deviceDraftInfo) return;
+    if (!nodeAddOpen || nodeStagedPosition) return;
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (nodePopupRef.current?.contains(target)) return;
@@ -1458,22 +1981,21 @@ const FloorPlansDetailPage = () => {
     };
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
-  }, [nodeAddOpen, deviceDraftInfo]);
+  }, [nodeAddOpen, nodeStagedPosition]);
 
   // 장비 추가 팝업이 닫히면 배치 진행 상태 초기화
   useEffect(() => {
     if (!nodeAddOpen) {
-      setDeviceDraftInfo(null);
+      setNodeAddStage('entry');
       setNodeStagedPosition(null);
       setZoneDraftRect(null);
     }
   }, [nodeAddOpen]);
 
   // 구역 설정 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 드래그는 구역 선택으로 처리)
-  // 영역을 이미 그린 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
   useEffect(() => {
-    const hasDraft = !!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0;
-    if (!zoneAddOpen || hasDraft) return;
+    if (!zoneAddOpen || zoneDraftCellIds.length > 0) return;
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (zonePopupRef.current?.contains(target)) return;
@@ -1482,16 +2004,18 @@ const FloorPlansDetailPage = () => {
     };
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
-  }, [zoneAddOpen, zoneDraftRect]);
+  }, [zoneAddOpen, zoneDraftCellIds]);
 
-  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역도 초기화
+  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역/셀도 초기화
   useEffect(() => {
-    if (!zoneAddOpen) setZoneDraftRect(null);
+    if (!zoneAddOpen) {
+      setZoneDraftRect(null);
+      setZoneDraftCellIds([]);
+    }
   }, [zoneAddOpen]);
 
-  const currentBuilding = floorBuildings.find((b) => String(b.id) === selectedBuildingId) ?? null;
-  const currentFloor =
-    currentBuilding?.floors.find((f) => String(f.id) === selectedFloorId) ?? null;
+  const currentBuilding = floorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
+  const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
 
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
@@ -1501,40 +2025,61 @@ const FloorPlansDetailPage = () => {
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
   };
 
-  const handleUploadConfirm = (file: File) => {
-    if (!currentFloor) return;
-    uploadFloor(Number(selectedBuildingId), currentFloor.floorNum, file)
-      .then((newFloor) => {
+  // 파일 선택 단계 — 실제 업로드는 다음 단계(가로/세로 입력)에서 함께 이뤄짐
+  const handleFileSelected = (file: File) => {
+    setPendingUpload({ file, previewUrl: URL.createObjectURL(file) });
+    setUploadModalOpen(false);
+  };
+
+  const handleCloseUploadDimensionsModal = () => {
+    if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    setPendingUpload(null);
+  };
+
+  const handleUploadDimensionsConfirm = (params: {
+    realWidth: number;
+    realHeight: number;
+    cellSizeMeter: number;
+  }) => {
+    if (!currentFloor || !pendingUpload || isReuploading) return;
+    const { file, previewUrl } = pendingUpload;
+    setIsReuploading(true);
+    uploadFloor(
+      selectedBuildingId,
+      currentFloor.floorNum,
+      file,
+      params.realWidth,
+      params.realHeight,
+    )
+      .then(async (newFloor) => {
+        try {
+          await setFloorGrid(newFloor.id, params.cellSizeMeter);
+          setFloorGridCells(await getFloorGridCells(newFloor.id));
+        } catch {
+          show({
+            title: '그리드 설정에 실패했습니다. "그리드 표시" 토글에서 다시 설정해주세요.',
+            variant: 'error',
+          });
+        }
         setFloorBuildings((prev) =>
           prev.map((b) =>
-            String(b.id) !== selectedBuildingId
+            b.id !== selectedBuildingId
               ? b
-              : {
-                  ...b,
-                  floors: b.floors.map((f) =>
-                    f.id !== currentFloor.id ? f : { ...f, ...newFloor },
-                  ),
-                },
+              : { ...b, floors: b.floors.map((f) => (f.id !== currentFloor.id ? f : newFloor)) },
           ),
         );
-        setSegmentTarget({ previewUrl: URL.createObjectURL(file) });
+        setFloor(newFloor);
+        URL.revokeObjectURL(previewUrl);
+        setPendingUpload(null);
+        setIsReuploading(false);
+        analyzeFloor(newFloor.id).catch(() => {
+          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        });
       })
-      .finally(() => setUploadModalOpen(false));
-  };
-
-  const handleCloseSegmentModal = () => {
-    if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);
-    setSegmentTarget(null);
-  };
-
-  const handleSegmentConfirm = (params: { area: number; gridScale: number }) => {
-    if (!currentFloor) return;
-    segmentFloor(currentFloor.id, params)
-      .then(() => getFloorDetail(currentFloor.id))
-      .then(setFloor)
-      .finally(() => {
-        if (segmentTarget) URL.revokeObjectURL(segmentTarget.previewUrl);
-        setSegmentTarget(null);
+      .catch(() => {
+        // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        setIsReuploading(false);
+        show({ title: '업로드에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
       });
   };
 
@@ -1544,13 +2089,12 @@ const FloorPlansDetailPage = () => {
       setRelocatingPoiId(null);
       return;
     }
-    // 장치 배치 모드 (정보 입력 후 추가를 눌러야 위치 지정 단계로 진입)
+    // 장치 배치 모드 — 정보 입력과 같은 단계에서 클릭으로 위치 지정. 다시 클릭하면 위치를 옮길 수 있음
+    // (CCTV 시야 구역 드래그 단계에서는 클릭이 다른 용도이므로 위치를 덮어쓰지 않음)
     if (nodeAddOpen) {
-      // x, y는 SVG 좌표(0-560, 0-420) → % 변환
-      const pctX = (x / 560) * 100;
-      const pctY = (y / 420) * 100;
-      // 위치가 이미 지정된 뒤에는(예: 카메라 시야 구역 드래그 중 발생하는 클릭) 다시 덮어쓰지 않음
-      if (deviceDraftInfo && !nodeStagedPosition) {
+      if (nodeAddStage === 'entry') {
+        const pctX = (x / 560) * 100;
+        const pctY = (y / 420) * 100;
         setNodeStagedPosition({ x: pctX, y: pctY });
       }
       return;
@@ -1572,101 +2116,256 @@ const FloorPlansDetailPage = () => {
     setAddedDevices((prev) => prev.filter((d) => d.id !== id));
   };
 
-  const handleAddDevice = (_type: PlacingDeviceType, deviceId: string, location: string) => {
-    // 모든 장비는 위치를 지정해야 최종 저장됨 — 팝업은 계속 열어둠
-    setDeviceDraftInfo({ deviceId, location });
-  };
+  // 정보 입력 + 위치 지정을 마친 뒤 확정 — CCTV만 시야 구역 지정 단계로 넘어가고, 나머지는 바로 저장
+  const finalizeNodePlacement = (
+    type: PlacingDeviceType,
+    deviceId: string,
+    location: string,
+    position: { x: number; y: number },
+  ) => {
+    const cfg = DEVICE_PLACE_CONFIG[type];
 
-  // 한 단계씩 되돌아가기: 위치(및 시야)가 지정된 상태면 그것만 취소, 아니면 정보 입력 단계로
-  const handleNodeAddBack = () => {
-    if (nodeStagedPosition) {
-      setNodeStagedPosition(null);
-      setZoneDraftRect(null);
-    } else {
-      setDeviceDraftInfo(null);
-    }
-  };
-
-  const handleFinalizePlacement = () => {
-    if (!deviceDraftInfo || !nodeStagedPosition) return;
-    const cfg = DEVICE_PLACE_CONFIG[nodeAddType];
-
-    if (nodeAddType === 'cctv') {
-      const rect = zoneDraftRect;
-      if (!rect || rect.w <= 0 || rect.h <= 0) return;
-      const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
-      const label = deviceDraftInfo.deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`;
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id: `added-cctv-${Date.now()}`,
-          type: 'cctv',
-          placeType: 'cctv',
-          label,
-          x: nodeStagedPosition.x,
-          y: nodeStagedPosition.y,
-          status: 'online',
-          zone: deviceDraftInfo.location || '사용자 등록',
-        },
-      ]);
-      setZones((prev) => [
-        ...prev,
-        { id: `zone-${Date.now()}`, type: 'camera', label: `${label} 시야 구역`, rect },
-      ]);
-    } else if (nodeAddType === 'door') {
-      const x = Math.round(((nodeStagedPosition.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
-      const y = Math.round(((nodeStagedPosition.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
-      setDoorNodes((prev) => [...prev, { id: `door-${Date.now()}`, x, y, isFinalExit: false }]);
+    if (type === 'door' || type === 'stair') {
+      const x = Math.round(((position.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
+      const y = Math.round(((position.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
+      if (currentFloor) {
+        const apiType = type === 'door' ? 'DOOR' : 'STAIR';
+        const count = structureNodes.filter((n) => n.type === type).length + 1;
+        createMapNode(currentFloor.id, {
+          code: `${apiType}-${Date.now()}`,
+          type: apiType,
+          name: `${cfg.label} ${count}`,
+          x: x / 560,
+          y: y / 420,
+          isExitTarget: false,
+        })
+          .then((newNode) => {
+            setStructureNodes((prev) => [
+              ...prev,
+              { id: newNode.id, type, x, y, isFinalExit: false },
+            ]);
+          })
+          .catch(() => {});
+      }
+    } else if (type === 'light') {
+      if (currentFloor) {
+        const count = addedDevices.filter((d) => d.placeType === 'light').length + 1;
+        const name = deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`;
+        createIoTLight({
+          floorId: currentFloor.id,
+          name,
+          x: position.x / 100,
+          y: position.y / 100,
+        })
+          .then((newLight) => {
+            setAddedDevices((prev) => [
+              ...prev,
+              {
+                id: newLight.id,
+                type: 'iot',
+                placeType: 'light',
+                label: newLight.name,
+                x: position.x,
+                y: position.y,
+                status: 'online',
+                zone: location || '사용자 등록',
+              },
+            ]);
+          })
+          .catch(() => {});
+      }
     } else {
       const count = addedDevices.filter((d) => d.type === 'iot').length + 1;
       setAddedDevices((prev) => [
         ...prev,
         {
-          id: `added-${nodeAddType}-${Date.now()}`,
+          id: `added-${type}-${Date.now()}`,
           type: 'iot',
-          placeType: nodeAddType,
-          label: deviceDraftInfo.deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
-          x: nodeStagedPosition.x,
-          y: nodeStagedPosition.y,
+          placeType: type,
+          label: deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
+          x: position.x,
+          y: position.y,
           status: 'online',
-          zone: deviceDraftInfo.location || '사용자 등록',
+          zone: location || '사용자 등록',
         },
       ]);
     }
 
-    setDeviceDraftInfo(null);
+    setNodeAddStage('entry');
     setNodeStagedPosition(null);
     setZoneDraftRect(null);
     setNodeAddOpen(false);
   };
 
-  const handleZoneDragEnd = () => {
-    const rect = zoneDraftRectRef.current;
-    if (editingStair) {
-      // 드래그만으로 바로 저장하지 않고 미리보기만 남겨둠 — 패널의 "완료" 버튼을 눌러야 반영됨
+  // 그리드가 필요한 두 진입점(CCTV 등록, 그리드 표시 토글)이 공유하는 확인 로직 —
+  // 로컬 state가 비어있어도 실제로 없는 게 맞는지 서버에서 한 번 더 확인한 뒤에만 설정 팝업을 띄움
+  const ensureFloorGridCells = (): Promise<FloorGridCell[]> => {
+    if (floorGridCells.length > 0) return Promise.resolve(floorGridCells);
+    if (!currentFloor) return Promise.resolve([]);
+    return getFloorGridCells(currentFloor.id)
+      .then((cells) => {
+        setFloorGridCells(cells);
+        return cells;
+      })
+      .catch(() => []);
+  };
+
+  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
+    setGridSetupIntent(intent);
+    setGridSizeMeterInput('1');
+    setGridSetupPromptOpen(true);
+  };
+
+  // 입력 단계 제출 — CCTV는 그리드 유무에 따라 그리드설정/시야구역 단계로, 나머지는 바로 확정
+  const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
+    if (!nodeStagedPosition) return;
+    if (type === 'cctv') {
+      ensureFloorGridCells().then((cells) => {
+        setNodeAddStage(cells.length > 0 ? 'fov' : 'entry');
+        if (cells.length === 0) openGridSetupPrompt('cctv');
+      });
       return;
     }
-    if (editingCctvZoneId) {
+    finalizeNodePlacement(type, deviceId, location, nodeStagedPosition);
+  };
+
+  // 그리드설정/시야구역 단계에서 뒤로 — 입력 단계로 돌아가되 이미 지정한 위치는 유지
+  const handleNodeAddBack = () => {
+    setNodeAddStage('entry');
+    setZoneDraftRect(null);
+    setCctvDraftCellIds([]);
+  };
+
+  // 그리드 표시 토글
+  const handleToggleGridOverlay = () => {
+    if (showGridOverlay) {
+      setShowGridOverlay(false);
+      return;
+    }
+    ensureFloorGridCells().then((cells) => {
+      if (cells.length > 0) {
+        setShowGridOverlay(true);
+        return;
+      }
+      openGridSetupPrompt('toggle');
+    });
+  };
+
+  const handleGridSetupPromptCancel = () => {
+    setGridSetupPromptOpen(false);
+    if (gridSetupIntent === 'cctv') handleNodeAddBack();
+    setGridSetupIntent(null);
+  };
+
+  const handleGridSetupPromptConfirm = () => {
+    if (!currentFloor) return;
+    const cellSizeMeter = Number(gridSizeMeterInput);
+    if (!(cellSizeMeter > 0)) return;
+    setFloorGrid(currentFloor.id, cellSizeMeter)
+      .then(() => getFloorGridCells(currentFloor.id))
+      .then((cells) => {
+        setFloorGridCells(cells);
+        setGridSetupPromptOpen(false);
+        if (gridSetupIntent === 'cctv') {
+          setNodeAddStage('fov');
+        } else if (gridSetupIntent === 'zone') {
+          setZoneAddOpen(true);
+        } else {
+          setShowGridOverlay(true);
+        }
+        setGridSetupIntent(null);
+      })
+      .catch(() => {});
+  };
+
+  // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
+  // 그중 CCTV/구역 두 플로우는 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에
+  // 담아두고 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀
+  const activeDraftCellIds = zoneAddOpen ? zoneDraftCellIds : cctvDraftCellIds;
+  const setActiveDraftCellIds = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
+
+  const handleGridCellToggle = (cellId: string) => {
+    setActiveDraftCellIds((prev) =>
+      prev.includes(cellId) ? prev.filter((id) => id !== cellId) : [...prev, cellId],
+    );
+  };
+
+  const handleFinalizeFov = (deviceId: string) => {
+    if (!nodeStagedPosition || !currentFloor || cctvDraftCellIds.length === 0) return;
+    const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
+    const label = deviceId || `CCTV-${String(count).padStart(2, '0')}`;
+    createCctv({
+      floorId: currentFloor.id,
+      name: label,
+      x: nodeStagedPosition.x / 100,
+      y: nodeStagedPosition.y / 100,
+      gridCellIds: cctvDraftCellIds,
+    })
+      .then((newCctv) => {
+        setRealCctvs((prev) => [...prev, newCctv]);
+        setAddedDevices((prev) => [
+          ...prev,
+          {
+            id: newCctv.id,
+            type: 'cctv',
+            placeType: 'cctv',
+            label: newCctv.name,
+            x: nodeStagedPosition.x,
+            y: nodeStagedPosition.y,
+            status: 'online',
+            zone: `모니터링 ${newCctv.monitoredGridCellCount}칸 · ${newCctv.monitoredAreaM2}㎡`,
+          },
+        ]);
+        setNodeAddStage('entry');
+        setNodeStagedPosition(null);
+        setZoneDraftRect(null);
+        setCctvDraftCellIds([]);
+        setNodeAddOpen(false);
+      })
+      .catch(() => {});
+  };
+
+  const handleZoneDragEnd = () => {
+    const rect = zoneDraftRectRef.current;
+    const cctvCellSelecting =
+      (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || !!editingCctvId;
+    if (cctvCellSelecting || zoneAddOpen) {
       if (rect && rect.w > 0 && rect.h > 0) {
-        const zoneId = editingCctvZoneId;
-        setZones((prev) => prev.map((z) => (z.id === zoneId ? { ...z, rect } : z)));
+        const overlapping = floorGridCells.filter((cell) => {
+          const cx = cell.centerX * 560;
+          const cy = cell.centerY * 420;
+          return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
+        });
+        setActiveDraftCellIds((prev) =>
+          Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])),
+        );
       }
       setZoneDraftRect(null);
     }
   };
 
-  const handleDoorNodeClick = (id: string) => {
-    setDoorNodes((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, isFinalExit: !d.isFinalExit } : d)),
+  // 최종 탈출구 지정은 문에서만 의미 있음 — 서버에도 저장(실패 시 롤백)
+  const handleToggleFinalExit = (id: string) => {
+    const node = structureNodes.find((n) => n.id === id);
+    if (!node) return;
+    const nextIsFinalExit = !node.isFinalExit;
+    setStructureNodes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isFinalExit: nextIsFinalExit } : n)),
     );
+    updateMapNodePosition(id, {
+      x: node.x / 560,
+      y: node.y / 420,
+      isExitTarget: nextIsFinalExit,
+    }).catch(() => {
+      setStructureNodes((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
+      );
+      show({ title: '최종 탈출구 지정에 실패했습니다.', variant: 'error' });
+    });
   };
 
-  const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean => {
-    if (!a || a.kind !== b.kind) return false;
-    if (a.kind === 'door' && b.kind === 'door') return a.id === b.id;
-    if (a.kind === 'zone' && b.kind === 'zone') return a.id === b.id;
-    return a.kind === 'stair' && b.kind === 'stair';
-  };
+  const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean =>
+    !!a && a.kind === b.kind && a.id === b.id;
 
   // 우측 패널 카드 클릭 — 이미 필터를 통과해 보이는 카드이므로 필터는 건드리지 않음
   const handleZoneRefSelect = (ref: ZoneRefSelection) => {
@@ -1678,62 +2377,86 @@ const FloorPlansDetailPage = () => {
   // 도면 클릭 — 선택한 항목이 필터에 가려져 있을 수 있으므로 패널에 드러나도록 필터를 초기화
   const handleZoneRefSelectFromMap = (ref: ZoneRefSelection) => {
     handleZoneRefSelect(ref);
-    setTopFilter((prev) => (prev === 'device' ? 'all' : prev));
-    setZoneTypeFilter(null);
+    if (ref.kind === 'zone') {
+      setTopFilter((prev) => (prev === 'device' ? 'all' : prev));
+    } else {
+      setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+    }
   };
 
-  // 카메라 시야 구역을 도면에서 클릭하면 카메라 시야는 별도 카드가 없으므로 연결된 CCTV 장비를 선택
-  const handleCctvZoneClick = (zoneId: string) => {
-    const zone = zones.find((z) => z.id === zoneId);
-    if (!zone) return;
-    const cctvLabel = zone.label.replace(/ 시야 구역$/, '');
-    const floorDevice = floor?.devices.find((d) => d.type === 'cctv' && d.label === cctvLabel);
-    const addedDevice = addedDevices.find((d) => d.type === 'cctv' && d.label === cctvLabel);
-    const device = floorDevice ?? (addedDevice as unknown as DeviceMarker | undefined);
-    if (!device) return;
-    setSelectedItem({ kind: 'device', data: device });
-    setSelectedZoneRef(null);
-    setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+  // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
+  const handleStructureNodeMove = (id: string, x: number, y: number) => {
+    setStructureNodes((prev) => prev.map((n) => (n.id === id ? { ...n, x, y } : n)));
   };
 
-  const handleDoorNodeMove = (id: string, x: number, y: number) => {
-    setDoorNodes((prev) => prev.map((d) => (d.id === id ? { ...d, x, y } : d)));
+  const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
+    updateMapNodePosition(id, { x: x / 560, y: y / 420 }).catch(() => {});
   };
 
-  const handleDoorDelete = (id: string) => {
-    setDoorNodes((prev) => prev.filter((d) => d.id !== id));
-    setEditingDoorId((prev) => (prev === id ? null : prev));
+  const handleStructureNodeDelete = (id: string) => {
+    deleteMapNode(id)
+      .then(() => {
+        setStructureNodes((prev) => prev.filter((n) => n.id !== id));
+        setEditingStructureId((prev) => (prev === id ? null : prev));
+      })
+      .catch(() => {});
   };
 
-  const handleStartEditDoor = (id: string) => {
+  // 노드 id로 표시용 라벨 조회 (구조 노드 + 그 외 그래프 노드 통합)
+  const getGraphNodeLabel = (id: string): string => {
+    const structureNode = structureNodes.find((n) => n.id === id);
+    if (structureNode) return STRUCTURE_NODE_LABEL[structureNode.type];
+    const graphNode = graphNodes.find((n) => n.id === id);
+    return graphNode?.name ?? id;
+  };
+
+  const handleEdgeNodeClick = (nodeId: string) => {
+    if (!edgeDraftFromId) {
+      setEdgeDraftFromId(nodeId);
+      return;
+    }
+    if (nodeId === edgeDraftFromId) return;
+    setEdgeDraftToId(nodeId);
+  };
+
+  const handleCancelEdgeDraft = () => {
+    setEdgeDraftFromId(null);
+    setEdgeDraftToId(null);
+    setEdgeAddOpen(false);
+  };
+
+  const handleCreateEdge = (distance: number, bidirectional: boolean) => {
+    if (!edgeDraftFromId || !edgeDraftToId) return;
+    createMapEdge({
+      fromNodeId: edgeDraftFromId,
+      toNodeId: edgeDraftToId,
+      distance,
+      bidirectional,
+    })
+      .then((newEdge) => {
+        setGraphEdges((prev) => [...prev, newEdge]);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setEdgeDraftFromId(null);
+        setEdgeDraftToId(null);
+        setEdgeAddOpen(false);
+      });
+  };
+
+  const handleEdgeDelete = (edgeId: string) => {
+    deleteMapEdge(edgeId)
+      .then(() => {
+        setGraphEdges((prev) => prev.filter((e) => e.id !== edgeId));
+        setSelectedEdgeId((prev) => (prev === edgeId ? null : prev));
+      })
+      .catch(() => {});
+  };
+
+  const handleStartEditStructure = (id: string) => {
     setNodeAddOpen(false);
     setZoneAddOpen(false);
-    setEditingStair(false);
-    setEditingCctvZoneId(null);
-    setEditingDoorId((prev) => (prev === id ? null : id));
-  };
-
-  const handleStartEditStair = () => {
-    setNodeAddOpen(false);
-    setZoneAddOpen(false);
-    setEditingDoorId(null);
-    setEditingCctvZoneId(null);
-    setZoneDraftRect(null);
-    setEditingStair(true);
-  };
-
-  // 계단 수정 완료 — 드래그로 그려둔 영역이 있으면 그때 반영하고 편집 모드 종료
-  const handleFinishEditStair = () => {
-    const rect = zoneDraftRectRef.current;
-    if (rect && rect.w > 0 && rect.h > 0) setStairArea(rect);
-    setEditingStair(false);
-    setZoneDraftRect(null);
-  };
-
-  const handleStairDelete = () => {
-    setStairArea(null);
-    setEditingStair(false);
-    setSelectedZoneRef((prev) => (prev?.kind === 'stair' ? null : prev));
+    setEditingStructureId((prev) => (prev === id ? null : id));
   };
 
   const handleStartEditZone = (zone: ZoneEntry) => {
@@ -1741,6 +2464,7 @@ const FloorPlansDetailPage = () => {
     setZoneEditLabel(zone.label);
   };
 
+  // 이름 수정 API가 아직 없어서 로컬에만 반영됨 — 새로고침하면 원래 이름으로 돌아감
   const handleSaveZoneLabel = (id: string) => {
     const trimmed = zoneEditLabel.trim();
     if (trimmed) {
@@ -1750,63 +2474,109 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleAddZone = (label: string) => {
-    const rect = zoneDraftRect;
-    if (!rect || rect.w <= 0 || rect.h <= 0) return;
-    if (zones.some((z) => z.rect && isSameRect(z.rect, rect))) return;
-    setZones((prev) => [...prev, { id: `zone-${Date.now()}`, type: 'general', label, rect }]);
-    setZoneAddOpen(false);
+    if (!currentFloor || zoneDraftCellIds.length === 0) return;
+    createUserZone(currentFloor.id, { name: label, cellIds: zoneDraftCellIds })
+      .then((zone) => {
+        setZones((prev) => [
+          ...prev,
+          { id: zone.id, type: 'general', label: zone.name, cellIds: zoneDraftCellIds },
+        ]);
+        setZoneAddOpen(false);
+        setZoneDraftCellIds([]);
+      })
+      .catch(() => {
+        show({ title: '구역 저장에 실패했습니다.', variant: 'error' });
+      });
   };
 
-  const handleZoneDelete = (id: string) => {
-    setZones((prev) => prev.filter((z) => z.id !== id));
+  // 구역 추가 버튼 — 그리드가 있어야 셀을 선택할 수 있어서, 없으면 설정 팝업부터 띄움
+  const handleToggleZoneAdd = () => {
+    setNodeAddOpen(false);
+    if (zoneAddOpen) {
+      setZoneAddOpen(false);
+      return;
+    }
+    ensureFloorGridCells().then((cells) => {
+      if (cells.length > 0) {
+        setZoneAddOpen(true);
+        return;
+      }
+      openGridSetupPrompt('zone');
+    });
   };
 
-  const selectedCctvZoneId =
-    selectedItem?.kind === 'device' && selectedItem.data.type === 'cctv'
-      ? (zones.find(
-          (z) => z.type === 'camera' && z.label === `${selectedItem.data.label} 시야 구역`,
-        )?.id ?? null)
-      : null;
+  // 다른 삭제(장비/POI)는 전부 확인 모달을 거치는데 구역만 클릭 즉시 삭제되고 있어서 맞춤
+  const handleZoneDeleteRequest = (zone: ZoneEntry) => setZoneDeleteTarget(zone);
+  const handleZoneDeleteCancel = () => setZoneDeleteTarget(null);
 
-  const isDoorSelected = (id: string) =>
-    selectedZoneRef?.kind === 'door' && selectedZoneRef.id === id;
-  const isStairSelected = selectedZoneRef?.kind === 'stair';
+  const handleZoneDeleteConfirm = () => {
+    if (!currentFloor || !zoneDeleteTarget || isDeletingZone) return;
+    const id = zoneDeleteTarget.id;
+    setIsDeletingZone(true);
+    deleteUserZone(currentFloor.id, id)
+      .then(() => {
+        setZones((prev) => prev.filter((z) => z.id !== id));
+        if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) {
+          setSelectedZoneRef(null);
+        }
+        setZoneDeleteTarget(null);
+      })
+      .catch(() => {
+        show({ title: '구역 삭제에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => setIsDeletingZone(false));
+  };
+
+  const isNodeSelected = (id: string) =>
+    selectedZoneRef?.kind === 'node' && selectedZoneRef.id === id;
   const isZoneSelected = (id: string) =>
-    (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) || selectedCctvZoneId === id;
+    selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id;
 
-  const renderDoorCard = (d: DoorNode) => {
-    const i = doorNodes.findIndex((x) => x.id === d.id);
-    const isEditing = editingDoorId === d.id;
+  const renderStructureCard = (n: StructureNode) => {
+    const isStair = n.type === 'stair';
+    const sameTypeIndex = structureNodes
+      .filter((x) => x.type === n.type)
+      .findIndex((x) => x.id === n.id);
+    const isEditing = editingStructureId === n.id;
     return (
       <div
-        key={d.id}
-        data-panel-id={d.id}
-        className={clsx(styles.deviceCard, isDoorSelected(d.id) && styles.deviceCardSelected)}
-        onClick={() => handleZoneRefSelect({ kind: 'door', id: d.id })}
+        key={n.id}
+        data-panel-id={n.id}
+        className={clsx(styles.deviceCard, isNodeSelected(n.id) && styles.deviceCardSelected)}
+        onClick={() => handleZoneRefSelect({ kind: 'node', id: n.id })}
       >
         <div className={styles.zoneCardHeader}>
           <span className={styles.zoneCardTitleGroup}>
-            <span className={clsx(styles.zoneCardDot, styles.zoneCardDotDoor)} />
-            <span className={styles.deviceCardName}>문 · 출입구 {i + 1}</span>
+            <span
+              className={clsx(
+                styles.zoneCardDot,
+                isStair ? styles.zoneCardDotStair : styles.zoneCardDotDoor,
+              )}
+            />
+            <span className={styles.deviceCardName}>
+              {STRUCTURE_NODE_LABEL[n.type]} {sameTypeIndex + 1}
+            </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            <button
-              type="button"
-              className={d.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDoorNodeClick(d.id);
-              }}
-            >
-              {d.isFinalExit ? '최종 탈출구' : '탈출구로 지정'}
-            </button>
+            {!isStair && (
+              <button
+                type="button"
+                className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleFinalExit(n.id);
+                }}
+              >
+                {n.isFinalExit ? '최종 탈출구' : '탈출구로 지정'}
+              </button>
+            )}
             <button
               type="button"
               aria-label={isEditing ? '수정 완료' : '수정'}
               className={isEditing ? styles.zoneCardIconBtnDone : styles.zoneCardIconBtn}
               onClick={(e) => {
                 e.stopPropagation();
-                handleStartEditDoor(d.id);
+                handleStartEditStructure(n.id);
               }}
             >
               {isEditing ? (
@@ -1821,7 +2591,7 @@ const FloorPlansDetailPage = () => {
               className={styles.zoneCardIconBtnDelete}
               onClick={(e) => {
                 e.stopPropagation();
-                handleDoorDelete(d.id);
+                handleStructureNodeDelete(n.id);
               }}
             >
               <TrashIcon width={14} height={14} />
@@ -1831,55 +2601,6 @@ const FloorPlansDetailPage = () => {
       </div>
     );
   };
-
-  const renderStairCard = () => (
-    <div
-      data-panel-id="stair"
-      className={clsx(styles.deviceCard, isStairSelected && styles.deviceCardSelected)}
-      onClick={() => stairArea && handleZoneRefSelect({ kind: 'stair' })}
-    >
-      <div className={styles.zoneCardHeader}>
-        <span className={styles.zoneCardTitleGroup}>
-          <span className={clsx(styles.zoneCardDot, styles.zoneCardDotStair)} />
-          <span className={styles.deviceCardName}>계단 영역</span>
-        </span>
-        <span className={styles.zoneCardHeaderActions}>
-          <button
-            type="button"
-            aria-label={editingStair ? '수정 완료' : stairArea ? '수정' : '추가'}
-            className={editingStair ? styles.zoneCardIconBtnDone : styles.zoneCardIconBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (editingStair) {
-                handleFinishEditStair();
-              } else {
-                handleStartEditStair();
-              }
-            }}
-          >
-            {editingStair ? (
-              <CheckIcon width={14} height={14} />
-            ) : (
-              <EditIcon width={14} height={14} />
-            )}
-          </button>
-          {stairArea && (
-            <button
-              type="button"
-              aria-label="삭제"
-              className={styles.zoneCardIconBtnDelete}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStairDelete();
-              }}
-            >
-              <TrashIcon width={14} height={14} />
-            </button>
-          )}
-        </span>
-      </div>
-    </div>
-  );
 
   const renderZoneCard = (z: ZoneEntry) => {
     const isEditing = editingZoneId === z.id;
@@ -1930,7 +2651,7 @@ const FloorPlansDetailPage = () => {
               className={styles.zoneCardIconBtnDelete}
               onClick={(e) => {
                 e.stopPropagation();
-                handleZoneDelete(z.id);
+                handleZoneDeleteRequest(z);
               }}
             >
               <TrashIcon width={14} height={14} />
@@ -1979,6 +2700,40 @@ const FloorPlansDetailPage = () => {
     return true;
   });
 
+  const visibleStructureNodes = structureNodes.filter(
+    (n) => !deviceTypeFilter || deviceTypeFilter === n.type,
+  );
+
+  // 유도등 설정 모달의 판단 노드/엣지 드롭다운 목록
+  const lightNodeOptions = [
+    ...structureNodes.map((n) => ({ id: n.id, label: STRUCTURE_NODE_LABEL[n.type] })),
+    ...graphNodes.map((n) => ({ id: n.id, label: n.name })),
+  ];
+  const lightEdgeOptions = graphEdges.map((edge) => ({
+    id: edge.id,
+    label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
+  }));
+
+  const gridCellPxSize = getGridCellPxSize(floorGridCells);
+
+  const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
+    (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
+    editingCctvId ||
+    zoneAddOpen
+      ? 'selecting'
+      : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
+        ? 'viewing'
+        : showGridOverlay
+          ? 'browsing'
+          : 'hidden';
+
+  const selectedGridCellIds =
+    cctvGridCellsMode === 'selecting'
+      ? activeDraftCellIds
+      : cctvGridCellsMode === 'viewing' && selectedItem?.kind === 'device'
+        ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
+        : [];
+
   const isPanelItemSelected = (item: PanelItem) =>
     selectedItem?.kind === 'device'
       ? item.kind === 'device' && selectedItem.data.id === item.id
@@ -2010,16 +2765,9 @@ const FloorPlansDetailPage = () => {
     }
     setEditForm({ label: item.label, zone: item.zone });
     setEditingItemId(item.id);
-    if (item.type === 'cctv') {
-      const zone = zones.find((z) => z.type === 'camera' && z.label === `${item.label} 시야 구역`);
-      setEditingCctvZoneId(zone?.id ?? null);
-    } else {
-      setEditingCctvZoneId(null);
-    }
   };
 
   const handleSaveEdit = (item: PanelItem) => {
-    const oldLabel = item.label;
     const newLabel = editForm.label;
     if (item.source === 'floor') {
       setFloor((prev) =>
@@ -2033,18 +2781,34 @@ const FloorPlansDetailPage = () => {
           : prev,
       );
     } else if (item.source === 'added') {
+      const prevDevice = addedDevices.find((d) => d.id === item.id);
       setAddedDevices((prev) =>
         prev.map((d) => (d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d)),
       );
-    }
-    if (item.type === 'cctv' && newLabel !== oldLabel) {
-      setZones((prev) =>
-        prev.map((z) =>
-          z.type === 'camera' && z.label === `${oldLabel} 시야 구역`
-            ? { ...z, label: `${newLabel} 시야 구역` }
-            : z,
-        ),
-      );
+      // 실패하면 방금 낙관적으로 바꾼 이름/구역을 원래대로 되돌림 — 안 그러면 저장 안 됐는데 화면엔 새 이름이 남음
+      const rollback = () => {
+        if (prevDevice)
+          setAddedDevices((prev) => prev.map((d) => (d.id === item.id ? prevDevice : d)));
+      };
+      if (item.type === 'light' && prevDevice) {
+        updateIoTLight(item.id, {
+          name: newLabel,
+          x: prevDevice.x / 100,
+          y: prevDevice.y / 100,
+        }).catch(() => {
+          rollback();
+          show({ title: '유도등 정보 수정에 실패했습니다.', variant: 'error' });
+        });
+      } else if (item.type === 'cctv' && prevDevice) {
+        updateCctv(item.id, { name: newLabel, x: prevDevice.x / 100, y: prevDevice.y / 100 })
+          .then((updated) => {
+            setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          })
+          .catch(() => {
+            rollback();
+            show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
+          });
+      }
     }
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
       setSelectedItem({
@@ -2053,7 +2817,6 @@ const FloorPlansDetailPage = () => {
       });
     }
     setEditingItemId(null);
-    setEditingCctvZoneId(null);
   };
 
   const handlePanelItemDelete = (item: PanelItem) => {
@@ -2062,7 +2825,7 @@ const FloorPlansDetailPage = () => {
 
   const handleDeleteConfirm = () => {
     const item = deleteConfirmTarget;
-    if (!item) return;
+    if (!item || isDeletingItem) return;
     if (editingItemId === item.id) setEditingItemId(null);
     if (item.kind === 'poi') {
       handlePoiDelete(item.id);
@@ -2070,6 +2833,21 @@ const FloorPlansDetailPage = () => {
       return;
     }
     if (item.source === 'added') {
+      if (item.type === 'light') {
+        // 서버에서 이 유도등이 붙어있던 노드·엣지까지 cascade로 함께 삭제됨
+        setIsDeletingItem(true);
+        deleteIoTLight(item.id)
+          .then(() => {
+            handleAddedDeviceDelete(item.id);
+            setIotLights((prev) => prev.filter((l) => l.id !== item.id));
+            setDeleteConfirmTarget(null);
+          })
+          .catch(() => {
+            show({ title: '유도등 삭제에 실패했습니다.', variant: 'error' });
+          })
+          .finally(() => setIsDeletingItem(false));
+        return;
+      }
       handleAddedDeviceDelete(item.id);
       setDeleteConfirmTarget(null);
       return;
@@ -2114,8 +2892,8 @@ const FloorPlansDetailPage = () => {
                 {[...(currentBuilding?.floors ?? [])]
                   .sort((a, b) => b.floorNum - a.floorNum)
                   .map((f) => {
-                    const isCurrent = String(f.id) === selectedFloorId;
-                    const isNone = f.segmentationStatus === 'NONE';
+                    const isCurrent = f.id === selectedFloorId;
+                    const isNone = !hasFloorPlan(f);
                     return (
                       <button
                         key={f.id}
@@ -2124,7 +2902,7 @@ const FloorPlansDetailPage = () => {
                           styles.floorNavItem,
                           isCurrent && styles.floorNavItemActive,
                         )}
-                        onClick={() => handleFloorChange(String(f.id))}
+                        onClick={() => handleFloorChange(f.id)}
                       >
                         <span>{formatFloor(f.floorNum)}</span>
                         {isNone && <StatusBadge label="미등록" color="neutral" />}
@@ -2169,6 +2947,18 @@ const FloorPlansDetailPage = () => {
               <div className={styles.canvasActionFloat}>
                 <button
                   type="button"
+                  className={clsx(
+                    styles.canvasActionButton,
+                    showGridOverlay && styles.canvasActionButtonActive,
+                  )}
+                  aria-pressed={showGridOverlay}
+                  onClick={handleToggleGridOverlay}
+                >
+                  <LayersIcon width={14} height={14} />
+                  그리드 표시
+                </button>
+                <button
+                  type="button"
                   className={styles.canvasActionButton}
                   onClick={() => {
                     setZoneAddOpen(false);
@@ -2181,46 +2971,161 @@ const FloorPlansDetailPage = () => {
                 <button
                   type="button"
                   className={styles.canvasActionButton}
-                  onClick={() => {
-                    setNodeAddOpen(false);
-                    setZoneAddOpen((v) => !v);
-                  }}
+                  onClick={handleToggleZoneAdd}
                 >
                   <PlusIcon width={14} height={14} />
                   구역 추가
                 </button>
+                <button
+                  type="button"
+                  className={styles.canvasActionButton}
+                  onClick={() => {
+                    setNodeAddOpen(false);
+                    setZoneAddOpen(false);
+                    setSelectedEdgeId(null);
+                    setEdgeAddOpen((v) => {
+                      if (v) {
+                        setEdgeDraftFromId(null);
+                        setEdgeDraftToId(null);
+                      }
+                      return !v;
+                    });
+                  }}
+                >
+                  <PlusIcon width={14} height={14} />
+                  엣지 연결
+                </button>
               </div>
             )}
 
-            {nodeAddOpen && (
+            {gridSetupPromptOpen && (
+              <div className={styles.gridSetupPopup} onClick={(e) => e.stopPropagation()}>
+                <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
+                <span className={styles.nodeAddHint}>
+                  이 층에는 아직 그리드가 없어요. 셀 크기를 정하고 설정해주세요.
+                </span>
+                <div className={styles.nodeAddField}>
+                  <div className={styles.gridSizeLabelRow}>
+                    <span className={styles.nodeAddLabel}>셀 크기</span>
+                    <span className={styles.gridSizeValue}>
+                      {Number(gridSizeMeterInput || 1).toFixed(1)}m
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    className={styles.gridSizeSlider}
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    value={Number(gridSizeMeterInput || 1)}
+                    onChange={(e) => setGridSizeMeterInput(e.target.value)}
+                  />
+                </div>
+                <div className={styles.nodeAddActions}>
+                  <button
+                    type="button"
+                    className={styles.nodeAddCancelBtn}
+                    onClick={handleGridSetupPromptCancel}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.nodeAddSubmitBtn}
+                    disabled={!(Number(gridSizeMeterInput) > 0)}
+                    onClick={handleGridSetupPromptConfirm}
+                  >
+                    설정
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {edgeAddOpen && edgeDraftFromId && !edgeDraftToId && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '0.8rem',
+                  left: '0.8rem',
+                  zIndex: 5,
+                  background: 'white',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.6rem',
+                  padding: '0.6rem 1rem',
+                  fontSize: '1.2rem',
+                  color: '#374151',
+                }}
+              >
+                연결할 두 번째 노드를 클릭해주세요
+              </div>
+            )}
+
+            {edgeAddOpen && edgeDraftFromId && edgeDraftToId && (
+              <EdgeAddPopup
+                containerRef={edgePopupRef}
+                fromLabel={getGraphNodeLabel(edgeDraftFromId)}
+                toLabel={getGraphNodeLabel(edgeDraftToId)}
+                onCancel={handleCancelEdgeDraft}
+                onSave={handleCreateEdge}
+              />
+            )}
+
+            {editingCctvId && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '0.8rem',
+                  left: '0.8rem',
+                  zIndex: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  background: 'white',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.6rem',
+                  padding: '0.6rem 1rem',
+                  fontSize: '1.2rem',
+                  color: '#374151',
+                }}
+              >
+                <span>감시 영역 편집 중 · {cctvDraftCellIds.length}칸 선택됨</span>
+                <button
+                  type="button"
+                  className={styles.nodeAddCancelBtn}
+                  onClick={handleCancelEditCctvCells}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className={styles.nodeAddSubmitBtn}
+                  disabled={cctvDraftCellIds.length === 0}
+                  onClick={handleSaveEditCctvCells}
+                >
+                  저장
+                </button>
+              </div>
+            )}
+
+            {nodeAddOpen && !gridSetupPromptOpen && (
               <NodeAddPopup
                 containerRef={nodePopupRef}
                 type={nodeAddType}
                 onTypeChange={setNodeAddType}
-                stage={
-                  !deviceDraftInfo
-                    ? 'form'
-                    : !nodeStagedPosition
-                      ? 'position'
-                      : nodeAddType === 'cctv'
-                        ? 'fov'
-                        : 'ready'
-                }
-                hasDraftRect={!!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0}
+                stage={nodeAddStage}
+                hasPosition={!!nodeStagedPosition}
+                selectedCellCount={cctvDraftCellIds.length}
                 onCancel={() => setNodeAddOpen(false)}
                 onBack={handleNodeAddBack}
-                onAdd={handleAddDevice}
-                onFinalize={handleFinalizePlacement}
+                onSubmitEntry={handleSubmitNodeEntry}
+                onFinalize={handleFinalizeFov}
               />
             )}
 
             {zoneAddOpen && (
               <ZoneAddPopup
                 containerRef={zonePopupRef}
-                hasDraftRect={!!zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0}
-                isDuplicateRect={
-                  !!zoneDraftRect && zones.some((z) => z.rect && isSameRect(z.rect, zoneDraftRect))
-                }
+                selectedCellCount={zoneDraftCellIds.length}
                 onCancel={() => setZoneAddOpen(false)}
                 onSave={handleAddZone}
               />
@@ -2234,6 +3139,7 @@ const FloorPlansDetailPage = () => {
               <FloorCanvas
                 mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
+                resolvedImageUrl={resolvedMapImageUrl}
                 selected={selectedItem}
                 aiLayers={aiLayers}
                 zoom={zoom}
@@ -2242,22 +3148,31 @@ const FloorPlansDetailPage = () => {
                 placingActive={nodeAddOpen}
                 zoneAddActive={
                   zoneAddOpen ||
-                  editingStair ||
-                  !!editingCctvZoneId ||
-                  (nodeAddType === 'cctv' && !!deviceDraftInfo && !!nodeStagedPosition)
+                  (nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
+                  !!editingCctvId
                 }
                 zoneDraftRect={zoneDraftRect}
                 onZoneDraftChange={setZoneDraftRect}
                 onZoneDragEnd={handleZoneDragEnd}
                 savedZones={zones}
-                stairArea={stairArea}
-                doorNodes={doorNodes}
-                editingDoorId={editingDoorId}
-                onDoorNodeMove={handleDoorNodeMove}
+                structureNodes={structureNodes}
+                editingStructureId={editingStructureId}
+                onStructureNodeMove={handleStructureNodeMove}
+                onStructureNodeMoveEnd={handleStructureNodeMoveEnd}
+                graphNodes={graphNodes}
+                graphEdges={graphEdges}
+                edgeAddActive={edgeAddOpen}
+                onNodeClickForEdge={handleEdgeNodeClick}
+                selectedEdgeId={selectedEdgeId}
+                onEdgeSelect={setSelectedEdgeId}
+                onEdgeDelete={handleEdgeDelete}
                 selectedZoneRef={selectedZoneRef}
                 onZoneRefSelect={handleZoneRefSelectFromMap}
-                selectedCctvZoneId={selectedCctvZoneId}
-                onCctvZoneClick={handleCctvZoneClick}
+                cctvGridCellsMode={cctvGridCellsMode}
+                floorGridCells={floorGridCells}
+                selectedGridCellIds={selectedGridCellIds}
+                gridCellPxSize={gridCellPxSize}
+                onGridCellToggle={handleGridCellToggle}
                 stagedCameraPosition={nodeStagedPosition}
                 poiMarkers={poiMarkers}
                 editingPoiId={editingPoiId}
@@ -2281,6 +3196,7 @@ const FloorPlansDetailPage = () => {
                 }}
                 devicePositions={devicePositions}
                 onDeviceMoved={handleDeviceMoved}
+                onDeviceMoveEnd={handleDeviceMoveEnd}
                 addedDevices={addedDevices}
                 onUpload={() => setUploadModalOpen(true)}
               />
@@ -2307,22 +3223,20 @@ const FloorPlansDetailPage = () => {
                   <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotLight)} />
                   <span className={styles.zoneLegendLabel}>유도등</span>
                 </div>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotDoor)} />
+                  <span className={styles.zoneLegendLabel}>문 · 출입구</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStair)} />
+                  <span className={styles.zoneLegendLabel}>계단</span>
+                </div>
               </div>
 
               <div className={styles.nodeTypeLegendDivider} />
 
               <div className={styles.nodeTypeLegendSection}>
                 <span className={styles.zoneLegendTitle}>구역 종류</span>
-                <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotDoor)} />
-                  <span className={styles.zoneLegendLabel}>문 · 출입구</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span
-                    className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchStair)}
-                  />
-                  <span className={styles.zoneLegendLabel}>계단</span>
-                </div>
                 <div className={styles.zoneLegendItem}>
                   <span
                     className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchGeneral)}
@@ -2376,7 +3290,7 @@ const FloorPlansDetailPage = () => {
                 {(
                   [
                     { key: 'all', label: '전체' },
-                    { key: 'device', label: '장비' },
+                    { key: 'device', label: '노드' },
                     { key: 'zone', label: '구역' },
                   ] as const
                 ).map(({ key, label }) => (
@@ -2398,6 +3312,8 @@ const FloorPlansDetailPage = () => {
                       { key: 'cctv', label: 'CCTV' },
                       { key: 'iot', label: 'IoT' },
                       { key: 'light', label: '유도등' },
+                      { key: 'door', label: '문 · 출입구' },
+                      { key: 'stair', label: '계단' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
@@ -2414,66 +3330,39 @@ const FloorPlansDetailPage = () => {
                   ))}
                 </div>
               )}
-
-              {topFilter === 'zone' && (
-                <div className={styles.subFilterChips}>
-                  {(
-                    [
-                      { key: 'door', label: '문 · 출입구' },
-                      { key: 'stair', label: '계단' },
-                      { key: 'general', label: '일반' },
-                    ] as const
-                  ).map(({ key, label }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={clsx(
-                        styles.subFilterChip,
-                        zoneTypeFilter === key && styles.subFilterChipActive,
-                      )}
-                      onClick={() => setZoneTypeFilter((prev) => (prev === key ? null : key))}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div className={styles.devicePanelList}>
-              {topFilter !== 'zone' &&
-                (panelItems.length === 0
-                  ? topFilter === 'device' && (
-                      <p className={styles.devicePanelEmpty}>표시할 장비가 없습니다</p>
-                    )
-                  : panelItems.map((item) => (
-                      <DeviceCard
-                        key={item.id}
-                        item={item}
-                        selected={isPanelItemSelected(item)}
-                        editing={editingItemId === item.id}
-                        editForm={editForm}
-                        onEditFormChange={setEditForm}
-                        onSelect={handlePanelItemSelect}
-                        onStartEdit={handleStartEdit}
-                        onSaveEdit={handleSaveEdit}
-                        onDelete={handlePanelItemDelete}
-                      />
-                    )))}
-
-              {topFilter !== 'device' && (
+              {topFilter !== 'zone' && (
                 <>
-                  {(!zoneTypeFilter || zoneTypeFilter === 'door') &&
-                    doorNodes.map((d) => renderDoorCard(d))}
+                  {visibleStructureNodes.map((n) => renderStructureCard(n))}
 
-                  {(!zoneTypeFilter || zoneTypeFilter === 'stair') && renderStairCard()}
+                  {panelItems.map((item) => (
+                    <DeviceCard
+                      key={item.id}
+                      item={item}
+                      selected={isPanelItemSelected(item)}
+                      editing={editingItemId === item.id}
+                      editForm={editForm}
+                      onEditFormChange={setEditForm}
+                      onSelect={handlePanelItemSelect}
+                      onStartEdit={handleStartEdit}
+                      onSaveEdit={handleSaveEdit}
+                      onDelete={handlePanelItemDelete}
+                      onOpenSettings={handleOpenDeviceSettings}
+                    />
+                  ))}
 
-                  {zones
-                    .filter((z) => z.type === 'general')
-                    .filter((z) => !zoneTypeFilter || zoneTypeFilter === z.type)
-                    .map((z) => renderZoneCard(z))}
+                  {panelItems.length === 0 &&
+                    visibleStructureNodes.length === 0 &&
+                    topFilter === 'device' && (
+                      <p className={styles.devicePanelEmpty}>표시할 노드가 없습니다</p>
+                    )}
                 </>
               )}
+
+              {topFilter !== 'device' &&
+                zones.filter((z) => z.type === 'general').map((z) => renderZoneCard(z))}
             </div>
           </div>
         </aside>
@@ -2484,15 +3373,16 @@ const FloorPlansDetailPage = () => {
         onClose={() => setUploadModalOpen(false)}
         buildingName={currentBuilding?.name ?? ''}
         floorNum={currentFloor?.floorNum ?? 0}
-        onConfirm={handleUploadConfirm}
+        onConfirm={handleFileSelected}
       />
 
-      {segmentTarget && (
+      {pendingUpload && (
         <GridAreaSettingModal
           open
-          onClose={handleCloseSegmentModal}
-          mapImageUrl={segmentTarget.previewUrl}
-          onConfirm={handleSegmentConfirm}
+          onClose={handleCloseUploadDimensionsModal}
+          mapImageUrl={pendingUpload.previewUrl}
+          onConfirm={handleUploadDimensionsConfirm}
+          isSubmitting={isReuploading}
         />
       )}
 
@@ -2502,6 +3392,41 @@ const FloorPlansDetailPage = () => {
           onClose={() => setDeleteConfirmTarget(null)}
           label={deleteConfirmTarget.label}
           onConfirm={handleDeleteConfirm}
+          isSubmitting={isDeletingItem}
+        />
+      )}
+
+      {zoneDeleteTarget && (
+        <EquipmentDeleteConfirmModal
+          open
+          onClose={handleZoneDeleteCancel}
+          label={zoneDeleteTarget.label}
+          onConfirm={handleZoneDeleteConfirm}
+          isSubmitting={isDeletingZone}
+        />
+      )}
+
+      {lightSettingsTarget && (
+        <IoTLightSettingsModal
+          open
+          onClose={() => setLightSettingsTarget(null)}
+          light={lightSettingsTarget}
+          nodeOptions={lightNodeOptions}
+          edgeOptions={lightEdgeOptions}
+          onToggleEnabled={handleLightToggleEnabled}
+          onDirectionChange={handleLightDirectionChange}
+          onGuidanceSave={handleLightGuidanceSave}
+          onPiEndpointSave={handleLightPiEndpointSave}
+        />
+      )}
+
+      {cctvSettingsTarget && (
+        <CctvSettingsModal
+          open
+          onClose={() => setCctvSettingsTarget(null)}
+          cctv={cctvSettingsTarget}
+          onToggleEnabled={handleCctvToggleEnabled}
+          onEditCells={handleStartEditCctvCells}
         />
       )}
     </>

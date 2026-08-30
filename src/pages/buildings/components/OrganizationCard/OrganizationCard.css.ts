@@ -51,11 +51,6 @@ export const name = style({
   fontWeight: vars.fontWeight.bold,
 });
 
-export const address = style({
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
-
 export const right = style({
   display: 'flex',
   flexDirection: 'column',

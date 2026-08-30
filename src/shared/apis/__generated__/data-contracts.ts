@@ -184,6 +184,13 @@ export interface ApiResponseMapNodeResponse {
   result?: MapNodeResponse;
 }
 
+export interface ApiResponseReissueResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: ReissueResponse;
+}
+
 export interface ApiResponseRouteDeviationResponse {
   code?: string;
   isSuccess?: boolean;
@@ -339,8 +346,10 @@ export interface CellResponse {
 export type ChangeDirectionData = ApiResponseLightDirectionResponse;
 
 export interface ChangeLightDirectionRequest {
-  direction: "LEFT" | "RIGHT" | "OFF";
+  direction: "LEFT" | "RIGHT" | "BOTH" | "OFF";
 }
+
+export type ClearFloorMapData = ApiResponseFloorResponse;
 
 export interface ConfigureCctvGridCellsRequest {
   /** @minItems 1 */
@@ -466,6 +475,11 @@ export interface CreateCctvRequest {
 
 export type CreateEdgeData = ApiResponseMapEdgeResponse;
 
+export interface CreateFireZoneRequest {
+  /** @format uuid */
+  gridCellId: string;
+}
+
 export type CreateFloorData = ApiResponseFloorResponse;
 
 export interface CreateFloorRequest {
@@ -577,6 +591,8 @@ export interface CreateScenarioRequest {
   name: string;
   /** @format date-time */
   scheduledAt: string;
+  /** @format uuid */
+  startNodeId: string;
 }
 
 export interface CreateSessionRequest {
@@ -624,6 +640,8 @@ export type DeleteScenarioData = any;
 
 export type DeleteUserZoneData = any;
 
+export type DesignateOriginData = FireZoneResponse;
+
 export interface DeviceTokenIssueResponse {
   deviceToken?: string;
 }
@@ -656,6 +674,22 @@ export interface EventDetectionResponse {
 export type FindAllUserZoneData = ApiResponseAllUserZoneResponse;
 
 export type FindUserZoneData = ApiResponseUserZoneCellsResponse;
+
+export interface FireZoneResponse {
+  /** @format date-time */
+  addedAt?: string;
+  /** @format uuid */
+  floorId?: string;
+  /** @format uuid */
+  gridCellId?: string;
+  /** @format uuid */
+  id?: string;
+  isManualAdd?: boolean;
+  /** @format uuid */
+  scenarioId?: string;
+  /** @format int32 */
+  spreadGeneration?: number;
+}
 
 export interface FloorGraphResponse {
   edges?: MapEdgeResponse[];
@@ -741,6 +775,8 @@ export type GetDeviationRateData = ApiResponseRouteDeviationResponse;
 
 export type GetEventImageUrlData = ApiResponseCongestionImageUrlResponse;
 
+export type GetEventsData = MonitoringEventListApiResponse;
+
 export type GetFloorData = ApiResponseFloorResponse;
 
 export type GetFloorImageUrlData = ApiResponseFloorImageUrlResponse;
@@ -810,7 +846,7 @@ export interface IoTLightResponse {
 export type IssueDeviceTokenData = ApiResponseDeviceTokenIssueResponse;
 
 export interface LightDirectionResponse {
-  direction?: "LEFT" | "RIGHT" | "OFF";
+  direction?: "LEFT" | "RIGHT" | "BOTH" | "OFF";
   /** @format uuid */
   lightId?: string;
   /** @format date-time */
@@ -834,6 +870,7 @@ export interface LoginResponse {
   /** @format uuid */
   id?: string;
   phoneNumber?: string;
+  refreshToken?: string;
   role?: "MANAGER" | "NORMAL";
   schoolName?: string;
   tokenType?: string;
@@ -949,6 +986,79 @@ export interface MonitoringCameraResponse {
    * @example 1787725695000
    */
   urlExpiresAt?: number;
+}
+
+/** 이벤트 타임라인의 공통 API 응답 스키마 */
+export interface MonitoringEventListApiResponse {
+  /**
+   * 응답 코드
+   * @example "TRAINING_SUCCESS_009"
+   */
+  code?: string;
+  /**
+   * 요청 성공 여부
+   * @example true
+   */
+  isSuccess?: boolean;
+  /**
+   * 응답 메시지
+   * @example "모니터링 이벤트 타임라인 조회에 성공했습니다."
+   */
+  message?: string;
+  /** 이벤트 타임라인 */
+  result?: MonitoringEventListResponse;
+}
+
+/** 훈련 세션의 이벤트 타임라인 */
+export interface MonitoringEventListResponse {
+  events?: MonitoringEventResponse[];
+  /**
+   * 조회한 훈련 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
+  sessionId?: string;
+}
+
+/** 이벤트 타임라인 항목 */
+export interface MonitoringEventResponse {
+  /**
+   * 관련 CCTV 코드
+   * @example "CCTV_001"
+   */
+  cctvCode?: string;
+  /**
+   * 이벤트 시점의 혼잡 단계
+   * @example "CROWDED"
+   */
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /**
+   * 이벤트 ID. 혼잡 이벤트는 CongestionEventItem의 eventId, 경로 재탐색은 recalculationId에 상태 접미사를 붙인 값(같은 재탐색이 요청/해소 두 항목으로 나뉠 수 있어서)
+   * @example "3c9f7e2a-3b39-4f0a-9f0a-6a2b6b1f5a11"
+   */
+  eventId?: string;
+  /**
+   * 사용자 표시 문구
+   * @example "혼잡 감지 · CCTV_001"
+   */
+  message?: string;
+  /**
+   * 발생 시각(Unix epoch milliseconds)
+   * @format int64
+   * @example 1787722095000
+   */
+  occurredAt?: number;
+  /** 심각도 */
+  severity?: "INFO" | "WARNING" | "DANGER";
+  /** 이벤트 종류 */
+  type?:
+    | "CONGESTION_STARTED"
+    | "CONGESTION_LEVEL_UP"
+    | "CONGESTION_ENDED"
+    | "ROUTE_RECALCULATION_REQUESTED"
+    | "EVACUATION_ROUTE_UPDATED"
+    | "ROUTE_RECALCULATION_REJECTED"
+    | "ROUTE_RECALCULATION_CANCELLED";
 }
 
 /** 카메라별 프레임 목록의 공통 API 응답 스키마 */
@@ -1085,6 +1195,21 @@ export interface RecentTrainingReportResponse {
   /** @format date-time */
   startedAt?: string;
   survivalRate?: number;
+}
+
+export type ReissueData = ApiResponseReissueResponse;
+
+export interface ReissueRequest {
+  /** @minLength 1 */
+  refreshToken: string;
+}
+
+export interface ReissueResponse {
+  accessToken?: string;
+  /** @format int64 */
+  expiresIn?: number;
+  refreshToken?: string;
+  tokenType?: string;
 }
 
 export type RejectData = ApiResponseRouteRecalculationResponse;
@@ -1264,6 +1389,8 @@ export interface ScenarioResponse {
   reportId?: string;
   /** @format date-time */
   scheduledAt?: string;
+  /** @format uuid */
+  startNodeId?: string;
   status?: "DRAFT" | "READY" | "IN_PROGRESS" | "COMPLETED" | "ERROR";
   /** @format date-time */
   updatedAt?: string;
@@ -1480,6 +1607,8 @@ export interface UpdateScenarioRequest {
   name?: string;
   /** @format date-time */
   scheduledAt?: string;
+  /** @format uuid */
+  startNodeId?: string;
 }
 
 export interface UpdateUserProfileRequest {

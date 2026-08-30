@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import FloorStepperField from '@pages/buildings/components/FloorStepperField/FloorStepperField';
+
 import type { CreateBuildingRequest } from '@apis/__generated__/data-contracts';
 
 import { Button } from '@components/Button';
@@ -8,15 +10,18 @@ import RequiredFieldText from '@components/inputField/RequiredFieldText';
 import TextField from '@components/inputField/TextField';
 import Modal from '@components/modal';
 
+import { isNonNegativeInt, isPositiveInt } from '@shared/utils/validation';
+
 import * as styles from './buildingForm.css';
 import { BUILDING_TYPE_OPTIONS } from '../constants/buildingType';
 
 import type { BuildingType } from '../types/buildings';
+import type { FloorCounts } from '../utils/floorSync';
 
 interface BuildingAddModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (body: CreateBuildingRequest) => void;
+  onConfirm: (body: CreateBuildingRequest, floorCounts: FloorCounts) => void;
   isSubmitting?: boolean;
 }
 
@@ -24,12 +29,16 @@ interface FormState {
   name: string;
   address: string;
   buildingType: BuildingType;
+  aboveFloors: string;
+  belowFloors: string;
 }
 
 const INITIAL_FORM: FormState = {
   name: '',
   address: '',
   buildingType: 'CLASSROOM',
+  aboveFloors: '1',
+  belowFloors: '0',
 };
 
 const BuildingAddModal = ({
@@ -50,6 +59,11 @@ const BuildingAddModal = ({
     setForm((prev) => ({ ...prev, buildingType: value }));
   };
 
+  const handleFloorChange = (field: 'aboveFloors' | 'belowFloors') => (value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
   const validate = () => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
@@ -58,17 +72,27 @@ const BuildingAddModal = ({
     if (!form.address.trim()) next.address = '주소를 입력해 주세요';
     else if (form.address.trim().length < 8 || form.address.trim().length > 100)
       next.address = '주소는 8~100자로 입력해 주세요';
+    if (!form.aboveFloors.trim()) next.aboveFloors = '지상 층수를 입력해 주세요';
+    else if (!isPositiveInt(form.aboveFloors)) next.aboveFloors = '올바른 층수를 입력해 주세요';
+    if (form.belowFloors.trim() && !isNonNegativeInt(form.belowFloors))
+      next.belowFloors = '올바른 층수를 입력해 주세요';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
   const handleConfirm = () => {
     if (!validate()) return;
-    onConfirm({
-      name: form.name.trim(),
-      address: form.address.trim(),
-      buildingType: form.buildingType,
-    });
+    onConfirm(
+      {
+        name: form.name.trim(),
+        address: form.address.trim(),
+        buildingType: form.buildingType,
+      },
+      {
+        aboveFloors: Number(form.aboveFloors),
+        belowFloors: form.belowFloors.trim() ? Number(form.belowFloors) : 0,
+      },
+    );
     // 성공 시 부모가 모달을 닫아 이 컴포넌트가 언마운트되며 폼이 자연히 초기화됨.
     // 실패 시에는 입력값을 잃지 않도록 여기서 리셋하지 않음.
   };
@@ -125,6 +149,22 @@ const BuildingAddModal = ({
               />
             ))}
           </div>
+        </div>
+        <div className={styles.floorRow}>
+          <FloorStepperField
+            label="지상 *"
+            value={form.aboveFloors}
+            onChange={handleFloorChange('aboveFloors')}
+            min={1}
+            errorMessage={errors.aboveFloors}
+          />
+          <FloorStepperField
+            label="지하"
+            value={form.belowFloors}
+            onChange={handleFloorChange('belowFloors')}
+            min={0}
+            errorMessage={errors.belowFloors}
+          />
         </div>
       </div>
     </Modal>

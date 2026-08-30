@@ -117,6 +117,66 @@ export const canvasActionButton = style({
   },
 });
 
+export const canvasActionButtonActive = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
+});
+
+export const gridSizeLabelRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+});
+
+export const gridSizeValue = style({
+  color: vars.color.primary,
+  ...vars.typography.body14Medium,
+});
+
+export const gridSizeSlider = style({
+  appearance: 'none',
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray100,
+  cursor: 'pointer',
+  width: '100%',
+  height: '0.6rem',
+  selectors: {
+    '&::-webkit-slider-thumb': {
+      appearance: 'none',
+      borderRadius: '50%',
+      backgroundColor: vars.color.primary,
+      cursor: 'pointer',
+      width: '1.6rem',
+      height: '1.6rem',
+    },
+    '&::-moz-range-thumb': {
+      border: 'none',
+      borderRadius: '50%',
+      backgroundColor: vars.color.primary,
+      cursor: 'pointer',
+      width: '1.6rem',
+      height: '1.6rem',
+    },
+  },
+});
+
+export const gridSetupPopup = style({
+  position: 'absolute',
+  zIndex: 15,
+  top: '5.6rem',
+  right: vars.space.s6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s3,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  boxShadow: vars.shadow.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s4,
+  width: '25rem',
+});
+
 /* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({
@@ -171,6 +231,15 @@ export const nodeAddField = style({
 export const nodeAddLabel = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
+});
+
+export const edgeBidirectionalField = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+  cursor: 'pointer',
+  color: vars.color.textMid,
+  ...vars.typography.body14,
 });
 
 export const deviceTypeChips = style({
@@ -310,6 +379,7 @@ export const nodeTypeDot = style({
 });
 
 export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
+export const nodeTypeDotStair = style({ backgroundColor: zoneStairColor });
 export const nodeTypeDotIot = style({ backgroundColor: vars.color.success });
 export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
 

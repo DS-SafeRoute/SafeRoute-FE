@@ -25,7 +25,15 @@ const result = spawnSync(
     '--extract-request-body',
     '--extract-response-body',
   ],
-  { stdio: 'inherit' },
+  // shell: true 없으면 Windows에서 pnpm(.CMD 셸 스크립트)을 못 찾고 ENOENT로 조용히 실패함
+  { stdio: 'inherit', shell: true },
 );
+
+// 자식 프로세스가 아예 못 떴을 때(spawn 자체 실패)는 result.status가 null이라 그냥 exit(1)만
+// 하면 원인이 안 보임 — 무슨 에러였는지 찍어주고 종료
+if (result.error) {
+  console.error('[api:generate] 프로세스 실행 실패:', result.error);
+  process.exit(1);
+}
 
 process.exit(result.status ?? 1);

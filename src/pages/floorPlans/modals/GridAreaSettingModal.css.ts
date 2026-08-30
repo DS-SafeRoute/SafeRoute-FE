@@ -57,6 +57,11 @@ export const toolbar = style({
   paddingTop: vars.space.s4,
 });
 
+export const dimensionFields = style({
+  display: 'flex',
+  gap: vars.space.s4,
+});
+
 export const areaField = style({
   display: 'flex',
   flexDirection: 'column',
@@ -102,39 +107,26 @@ export const scaleField = style({
   flex: 1,
   flexDirection: 'column',
   gap: vars.space.s2,
+  minWidth: '20rem',
 });
 
-export const scaleControls = style({
+export const scaleLabelRow = style({
   display: 'flex',
   alignItems: 'center',
-  gap: vars.space.s3,
+  justifyContent: 'space-between',
 });
 
-export const scaleButton = style({
-  display: 'flex',
-  flexShrink: 0,
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  width: '2.8rem',
-  height: '2.8rem',
-  color: vars.color.textMid,
-  fontSize: '1.6rem',
-  selectors: {
-    '&:hover:not(:disabled)': { backgroundColor: vars.color.gray25 },
-    '&:disabled': { opacity: '0.5', cursor: 'not-allowed' },
-  },
+export const scaleValue = style({
+  color: vars.color.primary,
+  ...vars.typography.body14Medium,
 });
 
 export const scaleSlider = style({
   appearance: 'none',
-  flex: 1,
   borderRadius: vars.radius.pill,
   backgroundColor: vars.color.gray100,
   cursor: 'pointer',
+  width: '100%',
   height: '0.6rem',
   selectors: {
     '&::-webkit-slider-thumb': {

@@ -186,17 +186,3 @@ export const reuploadButton = style({
     },
   },
 });
-
-export const deleteButtonCard = style([
-  reuploadButton,
-  {
-    border: `1px solid ${vars.color.dangerLight}`,
-    color: vars.color.danger,
-    selectors: {
-      '&:hover': {
-        borderColor: vars.color.dangerLight,
-        backgroundColor: vars.color.dangerHoverBg,
-      },
-    },
-  },
-]);

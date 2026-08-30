@@ -9,61 +9,76 @@ interface GridAreaSettingModalProps {
   open: boolean;
   onClose: () => void;
   mapImageUrl: string | null;
-  onConfirm: (params: { area: number; gridScale: number }) => void;
+  onConfirm: (params: { realWidth: number; realHeight: number; cellSizeMeter: number }) => void;
+  isSubmitting?: boolean;
 }
-
-const MIN_SCALE = 1;
-const MAX_SCALE = 10;
 
 const GridAreaSettingModal = ({
   open,
   onClose,
   mapImageUrl,
   onConfirm,
+  isSubmitting = false,
 }: GridAreaSettingModalProps) => {
-  const [area, setArea] = useState('');
-  const [gridScale, setGridScale] = useState(5);
-  const areaInputId = useId();
-  const scaleSliderId = useId();
+  const [realWidth, setRealWidth] = useState('');
+  const [realHeight, setRealHeight] = useState('');
+  const [cellSizeMeter, setCellSizeMeter] = useState(1);
+  const widthInputId = useId();
+  const heightInputId = useId();
+  const cellSizeInputId = useId();
 
-  const handleAreaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setArea(raw);
-  };
-
-  const handleScaleStep = (delta: number) => {
-    setGridScale((prev) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta)));
-  };
+  const makeDimensionChangeHandler =
+    (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      // 중간 입력 상태("20.", ".5")도 허용해서 타이핑이 막히지 않게 함
+      if (raw === '' || /^\d*(\.\d*)?$/.test(raw)) setter(raw);
+    };
 
   const handleClose = () => {
-    setArea('');
-    setGridScale(5);
+    setRealWidth('');
+    setRealHeight('');
+    setCellSizeMeter(1);
     onClose();
   };
 
-  const isAreaValid = Number(area) > 0;
+  const isDimensionsValid = Number(realWidth) > 0 && Number(realHeight) > 0 && cellSizeMeter > 0;
 
   const handleSubmit = () => {
-    if (!isAreaValid) return;
+    if (!isDimensionsValid || isSubmitting) return;
     // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
-    onConfirm({ area: Number(area), gridScale });
+    onConfirm({
+      realWidth: Number(realWidth),
+      realHeight: Number(realHeight),
+      cellSizeMeter,
+    });
   };
 
-  const cellSize = 20 + gridScale * 4;
+  // 실제 축척과 무관한 미리보기 전용 근사치 — 정확한 격자는 업로드 후 실제 캔버스에서 확인 가능
+  const cellSize = Math.max(6, Math.min(120, cellSizeMeter * 20));
 
   return (
     <Modal
       open={open}
       onClose={handleClose}
       className={styles.wideModal}
-      title="그리드 배율 · 평수 설정"
-      description="그리드 배율과 평수를 입력하면 다음 단계에서 도면이 자동 분석됩니다"
+      title="그리드 배율 · 실측 크기 설정"
+      description="도면의 실제 가로/세로 길이와 그리드 배율을 입력하면 다음 단계에서 도면이 자동 분석됩니다"
       footer={
         <div className={styles.footer}>
-          <Button variant="ghost" className={styles.cancelButton} onClick={handleClose}>
+          <Button
+            variant="ghost"
+            className={styles.cancelButton}
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
             취소
           </Button>
-          <Button className={styles.confirmButton} disabled={!isAreaValid} onClick={handleSubmit}>
+          <Button
+            className={styles.confirmButton}
+            disabled={!isDimensionsValid || isSubmitting}
+            isLoading={isSubmitting}
+            onClick={handleSubmit}
+          >
             입력하기
           </Button>
         </div>
@@ -88,59 +103,63 @@ const GridAreaSettingModal = ({
       </div>
 
       <div className={styles.toolbar}>
-        <div className={styles.areaField}>
-          <label className={styles.fieldLabel} htmlFor={areaInputId}>
-            평수 (㎡)
-          </label>
-          <div className={styles.areaInputShell}>
-            <input
-              id={areaInputId}
-              className={styles.areaInput}
-              type="text"
-              inputMode="decimal"
-              placeholder="450"
-              value={area}
-              onChange={handleAreaChange}
-            />
-            <span className={styles.areaUnit}>㎡</span>
+        <div className={styles.dimensionFields}>
+          <div className={styles.areaField}>
+            <label className={styles.fieldLabel} htmlFor={widthInputId}>
+              가로 (m)
+            </label>
+            <div className={styles.areaInputShell}>
+              <input
+                id={widthInputId}
+                className={styles.areaInput}
+                type="text"
+                inputMode="decimal"
+                placeholder="20"
+                value={realWidth}
+                onChange={makeDimensionChangeHandler(setRealWidth)}
+              />
+              <span className={styles.areaUnit}>m</span>
+            </div>
+          </div>
+
+          <div className={styles.areaField}>
+            <label className={styles.fieldLabel} htmlFor={heightInputId}>
+              세로 (m)
+            </label>
+            <div className={styles.areaInputShell}>
+              <input
+                id={heightInputId}
+                className={styles.areaInput}
+                type="text"
+                inputMode="decimal"
+                placeholder="15"
+                value={realHeight}
+                onChange={makeDimensionChangeHandler(setRealHeight)}
+              />
+              <span className={styles.areaUnit}>m</span>
+            </div>
           </div>
         </div>
 
         <div className={styles.divider} />
 
         <div className={styles.scaleField}>
-          <label className={styles.fieldLabel} htmlFor={scaleSliderId}>
-            그리드 배율
-          </label>
-          <div className={styles.scaleControls}>
-            <button
-              type="button"
-              className={styles.scaleButton}
-              aria-label="그리드 배율 감소"
-              disabled={gridScale <= MIN_SCALE}
-              onClick={() => handleScaleStep(-1)}
-            >
-              −
-            </button>
-            <input
-              id={scaleSliderId}
-              type="range"
-              className={styles.scaleSlider}
-              min={MIN_SCALE}
-              max={MAX_SCALE}
-              value={gridScale}
-              onChange={(e) => setGridScale(Number(e.target.value))}
-            />
-            <button
-              type="button"
-              className={styles.scaleButton}
-              aria-label="그리드 배율 증가"
-              disabled={gridScale >= MAX_SCALE}
-              onClick={() => handleScaleStep(1)}
-            >
-              +
-            </button>
+          <div className={styles.scaleLabelRow}>
+            <label className={styles.fieldLabel} htmlFor={cellSizeInputId}>
+              그리드 셀 크기
+            </label>
+            <span className={styles.scaleValue}>{cellSizeMeter.toFixed(1)}m</span>
           </div>
+          <input
+            id={cellSizeInputId}
+            type="range"
+            className={styles.scaleSlider}
+            min={0.1}
+            max={5}
+            step={0.1}
+            value={cellSizeMeter}
+            onChange={(e) => setCellSizeMeter(Number(e.target.value))}
+          />
         </div>
       </div>
     </Modal>
