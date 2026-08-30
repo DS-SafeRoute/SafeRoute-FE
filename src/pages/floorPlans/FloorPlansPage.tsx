@@ -8,6 +8,7 @@ import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
+import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
@@ -158,6 +159,7 @@ const FloorPlansPage = () => {
   const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
@@ -172,9 +174,11 @@ const FloorPlansPage = () => {
 
   useEffect(() => {
     setLoading(true);
+    setIsError(false);
     getFloorBuildings()
       .then(setBuildings)
       .catch(() => {
+        setIsError(true);
         show({ title: '도면 목록을 불러오지 못했습니다.', variant: 'error' });
       })
       .finally(() => setLoading(false));
@@ -262,7 +266,25 @@ const FloorPlansPage = () => {
     <>
       <div className={styles.container}>
         {loading && <LoadingState />}
+
+        {!loading && isError && (
+          <EmptyState
+            icon={<MapIcon width={32} height={32} />}
+            title="도면 목록을 불러오지 못했습니다"
+            description="잠시 후 다시 시도해주세요"
+          />
+        )}
+
+        {!loading && !isError && buildings.length === 0 && (
+          <EmptyState
+            icon={<MapIcon width={32} height={32} />}
+            title="등록된 건물이 없습니다"
+            description="건물 관리에서 건물을 등록하면 층별 도면을 관리할 수 있습니다"
+          />
+        )}
+
         {!loading &&
+          !isError &&
           buildings.map((building) => (
             <section key={building.id} className={styles.buildingSection}>
               <div className={styles.buildingHeader}>
