@@ -13,12 +13,15 @@ export const wrap = style({
   alignItems: 'center',
   justifyContent: 'center',
   gap: vars.space.s3,
-  padding: `${vars.space.s12} 0`,
+  // 페이지 전체 로딩(lg)은 GNB 바로 아래에 붙어 보이지 않도록 상단 여백을 넉넉히 둠
+  paddingTop: vars.space.s20,
+  paddingBottom: vars.space.s12,
 });
 
 export const wrapCompact = style({
   flexDirection: 'row',
-  padding: `${vars.space.s5} 0`,
+  paddingTop: vars.space.s5,
+  paddingBottom: vars.space.s5,
 });
 
 export const spinner = style({
