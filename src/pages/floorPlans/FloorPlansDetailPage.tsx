@@ -2575,7 +2575,22 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleFinalizeFov = (deviceId: string) => {
-    if (!nodeStagedPosition || !currentFloor || cctvDraftCellIds.length === 0) return;
+    // 조용히 return하지 않고 어디서 막혔는지 알려줌
+    if (!nodeStagedPosition) {
+      show({ title: '도면에서 카메라 위치를 먼저 지정해주세요.', variant: 'warning' });
+      return;
+    }
+    if (!currentFloor) {
+      show({
+        title: '층 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (cctvDraftCellIds.length === 0) {
+      show({ title: '도면을 드래그해서 감시 구역(칸)을 먼저 선택해주세요.', variant: 'warning' });
+      return;
+    }
     const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
     const label = deviceId || `CCTV-${String(count).padStart(2, '0')}`;
     createCctv({
@@ -2606,8 +2621,27 @@ const FloorPlansDetailPage = () => {
         setCctvDraftCellIds([]);
         setNodeAddOpen(false);
       })
-      .catch(() => {
-        show({ title: 'CCTV 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+      .catch((error: unknown) => {
+        const serverMessage = isAxiosError<{ message?: string }>(error)
+          ? (error.response?.data?.message ?? '')
+          : '';
+        // 이 층에 그리드 배율(cellSizeMeter)이 설정 안 된 경우 — 설정 팝업으로 유도.
+        // 배율을 바꾸면 셀이 재생성될 수 있어 선택은 초기화하고 다시 드래그하게 함
+        if (/GridCell 크기|그리드.*크기|cellSizeMeter/i.test(serverMessage)) {
+          setCctvDraftCellIds([]);
+          openGridSetupPrompt('cctv');
+          show({
+            title:
+              '이 층의 그리드 배율(m)을 먼저 설정해야 합니다. 설정 후 감시 구역을 다시 드래그해주세요.',
+            variant: 'warning',
+            duration: 7000,
+          });
+          return;
+        }
+        show({
+          title: `CCTV 등록에 실패했습니다.${serverMessage ? ` (${serverMessage})` : ''}`,
+          variant: 'error',
+        });
       });
   };
 
