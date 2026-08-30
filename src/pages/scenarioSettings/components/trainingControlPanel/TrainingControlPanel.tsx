@@ -8,10 +8,11 @@ import { Button } from '@components/Button';
 import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
 
 import * as styles from './TrainingControlPanel.css';
+import { LIVE_STATUS } from '../../constants/scenarioSettings';
 import RecommendationCard from '../cards/recommendationCard/RecommendationCard';
 import TrainingPreviewCard from '../cards/trainingPreviewCard/TrainingPreviewCard';
 
-import type { PreviewMetric, PreviewStatus } from '../../types/scenarioSettings';
+import type { PreviewMetric } from '../../types/scenarioSettings';
 
 interface RouteProposal {
   message: string;
@@ -19,32 +20,32 @@ interface RouteProposal {
   candidateRoute: string;
 }
 
+interface RouteDecision {
+  proposal: RouteProposal | null;
+  isPending: boolean;
+  onReject: () => void;
+  onApply: () => void;
+}
+
 interface TrainingControlPanelProps {
   startedAt: number;
   currentRoute: string;
-  routeProposal: RouteProposal | null;
-  liveStatus: PreviewStatus;
   liveMetrics: PreviewMetric[];
   isEnding: boolean;
-  isRouteDecisionPending: boolean;
   onEnd: () => void;
-  onRejectRouteProposal: () => void;
-  onApplyRouteProposal: () => void;
+  routeDecision: RouteDecision;
 }
 
 const TrainingControlPanel = ({
   startedAt,
   currentRoute,
-  routeProposal,
-  liveStatus,
   liveMetrics,
   isEnding,
-  isRouteDecisionPending,
   onEnd,
-  onRejectRouteProposal,
-  onApplyRouteProposal,
+  routeDecision,
 }: TrainingControlPanelProps) => {
   const elapsedTime = useElapsedTrainingTime(startedAt);
+  const { proposal, isPending, onReject, onApply } = routeDecision;
 
   return (
     <aside className={sideColumn}>
@@ -70,7 +71,7 @@ const TrainingControlPanel = ({
 
       <RecommendationCard icon={<SparklesIcon />} title="현재 경로" message={currentRoute} />
 
-      {routeProposal && (
+      {proposal && (
         <section className={styles.proposalCard}>
           <div className={styles.proposalHeader}>
             <h2 className={styles.proposalTitle}>
@@ -79,40 +80,29 @@ const TrainingControlPanel = ({
             </h2>
             <span className={styles.aiBadge}>AI 판단</span>
           </div>
-          <p className={styles.proposalMessage}>{routeProposal.message}</p>
+          <p className={styles.proposalMessage}>{proposal.message}</p>
           <dl className={styles.routeComparison}>
             <div>
               <dt>기존</dt>
-              <dd>{routeProposal.previousRoute}</dd>
+              <dd>{proposal.previousRoute}</dd>
             </div>
             <div>
               <dt>제안</dt>
-              <dd>{routeProposal.candidateRoute}</dd>
+              <dd>{proposal.candidateRoute}</dd>
             </div>
           </dl>
           <div className={styles.proposalActions}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onRejectRouteProposal}
-              disabled={isRouteDecisionPending}
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={onReject} disabled={isPending}>
               거부
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={onApplyRouteProposal}
-              isLoading={isRouteDecisionPending}
-            >
+            <Button type="button" size="sm" onClick={onApply} isLoading={isPending}>
               승인 · 경로 적용
             </Button>
           </div>
         </section>
       )}
 
-      <TrainingPreviewCard title="실시간 도면 상태" status={liveStatus} metrics={liveMetrics} />
+      <TrainingPreviewCard title="실시간 도면 상태" status={LIVE_STATUS} metrics={liveMetrics} />
 
       <div className={styles.lockNotice}>
         🔒 훈련 진행 중에는 도면의 노드·구역 편집이 제한됩니다

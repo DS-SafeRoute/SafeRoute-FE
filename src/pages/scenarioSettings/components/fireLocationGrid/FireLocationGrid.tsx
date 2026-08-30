@@ -1,50 +1,152 @@
+import { memo, useMemo } from 'react';
+
+import type { FloorGridCell } from '@apis/floors/floorGridApi';
+import type { FloorGraph } from '@apis/floors/mapGraphApi';
+
 import * as styles from './FireLocationGrid.css';
 
-const GRID_ROW_COUNT = 4;
-const GRID_COLUMN_COUNT = 10;
-const GRID_CELL_COUNT = GRID_ROW_COUNT * GRID_COLUMN_COUNT;
+const MAP_WIDTH = 100;
+const MAP_HEIGHT = 75;
 
 interface FireLocationGridProps {
-  selectedCellIndex: number | null;
+  imageUrl?: string | null;
+  graph?: FloorGraph | null;
+  gridCells: readonly FloorGridCell[];
+  routeNodeIds: readonly string[];
+  selectedCellId: string | null;
   readOnly: boolean;
-  onSelect: (cellIndex: number) => void;
+  statusMessage?: string;
+  onSelect: (cellId: string) => void;
 }
 
-const FireLocationGrid = ({ selectedCellIndex, readOnly, onSelect }: FireLocationGridProps) => (
-  <div className={styles.panel}>
-    <div className={styles.grid} aria-label="발화 위치 선택 격자">
-      {Array.from({ length: GRID_CELL_COUNT }, (_, cellIndex) => {
-        const isSelected = selectedCellIndex === cellIndex;
-        const row = Math.floor(cellIndex / GRID_COLUMN_COUNT) + 1;
-        const column = (cellIndex % GRID_COLUMN_COUNT) + 1;
+const getGridCellSize = (cells: readonly FloorGridCell[]) => {
+  const rowCount = Math.max(...cells.map((cell) => cell.rowIndex), 0) + 1;
+  const columnCount = Math.max(...cells.map((cell) => cell.columnIndex), 0) + 1;
+  return { width: MAP_WIDTH / columnCount, height: MAP_HEIGHT / rowCount };
+};
 
-        return (
-          <button
-            key={cellIndex}
-            type="button"
-            className={isSelected ? styles.selectedCell : styles.cell}
-            aria-label={`${row}행 ${column}열${isSelected ? ', 발화 위치' : ''}`}
-            aria-pressed={isSelected}
-            disabled={readOnly}
-            onClick={() => onSelect(cellIndex)}
-          >
-            {isSelected ? (
-              <span className={styles.fireMarker}>
-                <span className={styles.fireIcon} aria-hidden="true">
-                  🔥
-                </span>
-                <span>발화점</span>
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
+const FireLocationGrid = ({
+  imageUrl,
+  graph,
+  gridCells,
+  routeNodeIds,
+  selectedCellId,
+  readOnly,
+  statusMessage,
+  onSelect,
+}: FireLocationGridProps) => {
+  const nodeById = useMemo(
+    () => new Map(graph?.nodes.map((node) => [node.id, node]) ?? []),
+    [graph],
+  );
+  const routePoints = useMemo(
+    () =>
+      routeNodeIds
+        .map((nodeId) => nodeById.get(nodeId))
+        .filter((node) => node !== undefined)
+        .map((node) => `${node.x * MAP_WIDTH},${node.y * MAP_HEIGHT}`)
+        .join(' '),
+    [nodeById, routeNodeIds],
+  );
+  const cellSize = useMemo(() => getGridCellSize(gridCells), [gridCells]);
+
+  return (
+    <div className={styles.panel}>
+      <svg
+        className={styles.map}
+        viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+        role="group"
+        aria-label="발화 위치와 대피 경로가 표시된 층 도면"
+      >
+        {imageUrl ? (
+          <image
+            href={imageUrl}
+            width={MAP_WIDTH}
+            height={MAP_HEIGHT}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        ) : null}
+
+        {graph?.edges.map((edge) => {
+          const fromNode = nodeById.get(edge.fromNodeId);
+          const toNode = nodeById.get(edge.toNodeId);
+          if (!fromNode || !toNode) return null;
+
+          return (
+            <line
+              key={edge.id}
+              className={styles.graphEdge}
+              x1={fromNode.x * MAP_WIDTH}
+              y1={fromNode.y * MAP_HEIGHT}
+              x2={toNode.x * MAP_WIDTH}
+              y2={toNode.y * MAP_HEIGHT}
+            />
+          );
+        })}
+
+        {routePoints ? <polyline className={styles.route} points={routePoints} /> : null}
+
+        {gridCells.map((cell) => {
+          const isSelected = cell.id === selectedCellId;
+          const x = cell.centerX * MAP_WIDTH - cellSize.width / 2;
+          const y = cell.centerY * MAP_HEIGHT - cellSize.height / 2;
+          const selectCell = () => {
+            if (!readOnly) onSelect(cell.id);
+          };
+
+          return (
+            <g
+              key={cell.id}
+              role="button"
+              tabIndex={readOnly ? -1 : 0}
+              aria-label={`${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열${isSelected ? ', 발화 위치' : ''}`}
+              aria-disabled={readOnly}
+              className={readOnly ? styles.readOnlyCell : styles.selectableCell}
+              onClick={selectCell}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  selectCell();
+                }
+              }}
+            >
+              <rect
+                className={isSelected ? styles.selectedCell : styles.gridCell}
+                x={x}
+                y={y}
+                width={cellSize.width}
+                height={cellSize.height}
+              />
+              {isSelected ? (
+                <text
+                  className={styles.fireMarker}
+                  x={cell.centerX * MAP_WIDTH}
+                  y={cell.centerY * MAP_HEIGHT - 1}
+                >
+                  <tspan aria-hidden="true">🔥</tspan>
+                  <tspan x={cell.centerX * MAP_WIDTH} dy="4">
+                    발화점
+                  </tspan>
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+
+        {graph?.nodes.map((node) => (
+          <circle
+            key={node.id}
+            className={node.isExitTarget ? styles.exitNode : styles.graphNode}
+            cx={node.x * MAP_WIDTH}
+            cy={node.y * MAP_HEIGHT}
+            r={node.id === routeNodeIds[0] ? 1.2 : 0.7}
+          />
+        ))}
+      </svg>
+
+      {statusMessage ? <p className={styles.statusMessage}>{statusMessage}</p> : null}
     </div>
+  );
+};
 
-    {selectedCellIndex === null && readOnly ? (
-      <p className={styles.emptyMessage}>발화 위치 정보 없음</p>
-    ) : null}
-  </div>
-);
-
-export default FireLocationGrid;
+export default memo(FireLocationGrid);

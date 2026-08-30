@@ -29,14 +29,8 @@ import TrainingPreviewCard from './components/cards/trainingPreviewCard/Training
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
-import {
-  FIRE_SPREAD_LABEL,
-  FIRE_SPREAD_OPTIONS,
-  FIRE_SPREAD_VALUE,
-  LIVE_STATUS,
-  PREVIEW_METRICS,
-  PREVIEW_STATUS,
-} from './constants/scenarioSettings';
+import { FIRE_SPREAD_LABEL, FIRE_SPREAD_VALUE, PREVIEW_STATUS } from './constants/scenarioSettings';
+import { useScenarioFloorView } from './hooks/useScenarioFloorView';
 import { useTrainingRouteData } from './hooks/useTrainingRouteData';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
@@ -79,6 +73,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
   const [createdSessionStartedAt, setCreatedSessionStartedAt] = useState<string | null>(null);
   const [basicInfo, setBasicInfo] = useState<BasicInfo>(() => getInitialBasicInfo(scenario));
+  const [selectedFireCellId, setSelectedFireCellId] = useState<string | null>(null);
   const [fireSpreadLabel, setFireSpreadLabel] = useState<FireSpreadLabel>(
     scenario ? FIRE_SPREAD_LABEL[scenario.fireSpreadSpeed] : FIRE_SPREAD_LABEL.MEDIUM,
   );
@@ -100,12 +95,19 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     label: building.name,
     value: building.id,
   }));
+  const startNodeId = basicInfo.startNodeId.trim();
+  const floorView = useScenarioFloorView({
+    buildingId: selectedBuildingId,
+    startNodeId,
+  });
   const trainingRouteData = useTrainingRouteData({
     sessionId: activeSessionId,
     enabled: isRunning,
+    cctvMetricValue: floorView.cctvMetricValue,
+    lightMetricValue: floorView.lightMetricValue,
   });
   useTrainingSessionSocket({
-    sessionId: activeSessionId ?? scheduledSession?.sessionId,
+    sessionId: activeSessionId,
     onEvent: trainingRouteData.handleTrainingEvent,
   });
 
@@ -163,6 +165,9 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   };
 
   const handleBasicInfoChange = (key: keyof BasicInfo, value: string) => {
+    if (key === 'targetBuilding' || key === 'startNodeId') {
+      setSelectedFireCellId(null);
+    }
     setBasicInfo((current) => ({ ...current, [key]: value }));
   };
 
@@ -272,29 +277,38 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     <div className={styles.container}>
       <div className={styles.contentGrid}>
         <ScenarioSetupForm
-          basicInfo={displayedBasicInfo}
-          fireSpreadLabel={fireSpreadLabel}
-          fireSpreadOptions={FIRE_SPREAD_OPTIONS}
+          value={{
+            basicInfo: displayedBasicInfo,
+            fireSpreadLabel,
+            selectedFireCellId,
+          }}
           buildingOptions={buildingOptions}
-          buildingReadOnly={!isCreatePage}
-          isRunning={isRunning}
-          readOnly={!isEditable && !isRunning}
-          onBasicInfoChange={handleBasicInfoChange}
-          onFireSpreadChange={handleFireSpreadChange}
+          floorMap={floorView.floorMap}
+          mode={{
+            isRunning,
+            readOnly: !isEditable && !isRunning,
+            buildingReadOnly: !isCreatePage,
+          }}
+          handlers={{
+            onBasicInfoChange: handleBasicInfoChange,
+            onFireSpreadChange: handleFireSpreadChange,
+            onFireCellSelect: setSelectedFireCellId,
+          }}
         />
 
         {isRunning && startedAt !== null ? (
           <TrainingControlPanel
             startedAt={startedAt}
-            currentRoute={trainingRouteData.currentRoute}
-            routeProposal={trainingRouteData.routeProposal}
-            liveStatus={LIVE_STATUS}
+            currentRoute={trainingRouteData.currentRoute ?? floorView.initialRouteMessage}
             liveMetrics={trainingRouteData.liveMetrics}
             isEnding={endTrainingSessionMutation.isPending}
-            isRouteDecisionPending={trainingRouteData.isRouteDecisionPending}
             onEnd={() => void handleEndTraining()}
-            onRejectRouteProposal={() => void handleRejectRouteProposal()}
-            onApplyRouteProposal={() => void handleApplyRouteProposal()}
+            routeDecision={{
+              proposal: trainingRouteData.routeProposal,
+              isPending: trainingRouteData.isRouteDecisionPending,
+              onReject: () => void handleRejectRouteProposal(),
+              onApply: () => void handleApplyRouteProposal(),
+            }}
           />
         ) : (
           <aside className={styles.sideColumn}>
@@ -345,7 +359,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   </p>
                 ) : null}
                 {canStartTraining ? (
-                  <TrainingPreviewCard status={PREVIEW_STATUS} metrics={PREVIEW_METRICS} />
+                  <TrainingPreviewCard status={PREVIEW_STATUS} metrics={floorView.previewMetrics} />
                 ) : null}
                 {scenario?.status === SCENARIO_STATUS.READY ? (
                   <Button

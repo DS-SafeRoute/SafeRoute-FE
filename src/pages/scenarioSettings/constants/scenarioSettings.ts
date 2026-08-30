@@ -1,5 +1,5 @@
 import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
-import type { PreviewMetric, PreviewStatus } from '@pages/scenarioSettings/types/scenarioSettings';
+import type { PreviewStatus } from '@pages/scenarioSettings/types/scenarioSettings';
 
 export const SCENARIO_STATUS_FILTER_OPTIONS = [
   { label: '전체 상태', value: 'ALL' },
@@ -31,11 +31,6 @@ export const PREVIEW_STATUS: PreviewStatus = {
   color: 'green',
   dot: true,
 };
-
-export const PREVIEW_METRICS: PreviewMetric[] = [
-  { id: 'cctv', label: '감지 CCTV', value: '4대' },
-  { id: 'iot', label: '활성 IoT 유도등', value: '12개' },
-];
 
 export const LIVE_STATUS: PreviewStatus = {
   label: '진행중',

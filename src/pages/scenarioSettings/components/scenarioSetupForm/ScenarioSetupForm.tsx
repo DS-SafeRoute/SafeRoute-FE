@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import * as pageStyles from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
@@ -7,39 +5,53 @@ import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 import TextField from '@components/inputField/TextField';
 
 import * as styles from './ScenarioSetupForm.css';
+import { FIRE_SPREAD_OPTIONS } from '../../constants/scenarioSettings';
 import FireLocationGrid from '../fireLocationGrid/FireLocationGrid';
 import DateTimeField from '../inputField/dateTimeField/DateTimeField';
 import ScenarioField from '../inputField/scenarioField/ScenarioField';
 
+import type { ScenarioFloorMapView } from '../../hooks/useScenarioFloorView';
 import type { BasicInfo } from '../../types/scenarioSettings';
 import type { ScenarioFieldOption } from '../inputField/scenarioField/ScenarioField';
 
-interface ScenarioSetupFormProps {
+interface ScenarioSetupValue {
   basicInfo: BasicInfo;
   fireSpreadLabel: string;
-  fireSpreadOptions: readonly string[];
-  isRunning?: boolean;
-  readOnly?: boolean;
-  buildingOptions: readonly ScenarioFieldOption[];
+  selectedFireCellId: string | null;
+}
+
+interface ScenarioSetupMode {
+  isRunning: boolean;
+  readOnly: boolean;
   buildingReadOnly: boolean;
+}
+
+interface ScenarioSetupHandlers {
   onBasicInfoChange: (key: keyof BasicInfo, value: string) => void;
   onFireSpreadChange: (value: string) => void;
+  onFireCellSelect: (cellId: string) => void;
+}
+
+interface ScenarioSetupFormProps {
+  value: ScenarioSetupValue;
+  buildingOptions: readonly ScenarioFieldOption[];
+  floorMap: ScenarioFloorMapView;
+  mode: ScenarioSetupMode;
+  handlers: ScenarioSetupHandlers;
 }
 
 const TRAINING_LOCK_MESSAGE = '🔒 잠금 · 훈련 중 수정 불가';
 
 const ScenarioSetupForm = ({
-  basicInfo,
-  fireSpreadLabel,
-  fireSpreadOptions,
-  isRunning = false,
-  readOnly = false,
+  value,
   buildingOptions,
-  buildingReadOnly,
-  onBasicInfoChange,
-  onFireSpreadChange,
+  floorMap,
+  mode,
+  handlers,
 }: ScenarioSetupFormProps) => {
-  const [selectedFireCellIndex, setSelectedFireCellIndex] = useState<number | null>(null);
+  const { basicInfo, fireSpreadLabel, selectedFireCellId } = value;
+  const { isRunning, readOnly, buildingReadOnly } = mode;
+  const { onBasicInfoChange, onFireSpreadChange, onFireCellSelect } = handlers;
   const isFireLocationReadOnly = readOnly || isRunning;
 
   return (
@@ -97,7 +109,7 @@ const ScenarioSetupForm = ({
           <ScenarioField
             label="확산 속도"
             value={fireSpreadLabel}
-            options={fireSpreadOptions}
+            options={FIRE_SPREAD_OPTIONS}
             disabled={isRunning}
             readOnly={readOnly}
             onChange={onFireSpreadChange}
@@ -106,9 +118,14 @@ const ScenarioSetupForm = ({
 
         <h3 className={styles.fireLocationLabel}>발화 위치</h3>
         <FireLocationGrid
-          selectedCellIndex={selectedFireCellIndex}
+          imageUrl={floorMap.imageUrl}
+          graph={floorMap.graph}
+          gridCells={floorMap.gridCells}
+          routeNodeIds={floorMap.routeNodeIds}
+          selectedCellId={selectedFireCellId}
           readOnly={isFireLocationReadOnly}
-          onSelect={setSelectedFireCellIndex}
+          statusMessage={floorMap.statusMessage}
+          onSelect={onFireCellSelect}
         />
       </section>
     </div>

@@ -25,9 +25,16 @@ import type { PreviewMetric } from '../types/scenarioSettings';
 interface UseTrainingRouteDataParams {
   sessionId?: string | null;
   enabled: boolean;
+  cctvMetricValue: string;
+  lightMetricValue: string;
 }
 
-export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDataParams) => {
+export const useTrainingRouteData = ({
+  sessionId,
+  enabled,
+  cctvMetricValue,
+  lightMetricValue,
+}: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
   const shouldFetch = enabled && Boolean(sessionId);
   const recalculationsQuery = useRouteRecalculationsQuery(
@@ -55,17 +62,12 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
     {
       id: 'cctv',
       label: '감지 CCTV',
-      value: '—',
+      value: cctvMetricValue,
     },
     {
       id: 'iot',
       label: '활성 IoT 유도등',
-      value: '—',
-    },
-    {
-      id: 'evacuation',
-      label: '잔여 예상 대피 시간',
-      value: '—',
+      value: lightMetricValue,
     },
   ];
 
@@ -90,7 +92,7 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   );
 
   return {
-    currentRoute: formatRouteSegment(detailQuery.data?.previousRoute),
+    currentRoute: detailQuery.data ? formatRouteSegment(detailQuery.data.previousRoute) : null,
     routeProposal,
     liveMetrics,
     isRouteDecisionPending: approveMutation.isPending || rejectMutation.isPending,
