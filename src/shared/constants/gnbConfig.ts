@@ -94,6 +94,13 @@ const GNB_CONFIGS = [
     },
   },
   {
+    path: ROUTES.REPORTS_ROOT,
+    config: {
+      title: '분석 보고서',
+      description: '훈련 분석 보고서를 확인합니다',
+    },
+  },
+  {
     path: ROUTES.REPORTS,
     config: {
       title: '분석 보고서',

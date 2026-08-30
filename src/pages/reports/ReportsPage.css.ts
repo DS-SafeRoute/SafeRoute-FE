@@ -25,6 +25,11 @@ export const pageState = style({
   minHeight: '32rem',
 });
 
+export const emptyActions = style({
+  display: 'flex',
+  gap: vars.space.s3,
+});
+
 export const reportContent = style({
   display: 'flex',
   flexDirection: 'column',

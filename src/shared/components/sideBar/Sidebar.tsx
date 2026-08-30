@@ -13,7 +13,6 @@ interface SidebarProps {
     label: string;
     icon: React.ComponentType<React.ComponentProps<'svg'>>;
     path?: string;
-    activePath?: string;
     items?: Array<{
       label: string;
       icon: React.ComponentType<React.ComponentProps<'svg'>>;
@@ -87,12 +86,11 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
               );
             }
 
-            const activePath = item.activePath ?? item.path;
             const isActive =
-              activePath === '/'
-                ? location.pathname === activePath
-                : location.pathname === activePath ||
-                  location.pathname.startsWith(`${activePath ?? ''}/`);
+              item.path === '/'
+                ? location.pathname === item.path
+                : location.pathname === item.path ||
+                  location.pathname.startsWith(`${item.path ?? ''}/`);
 
             return (
               <li key={item.label}>
