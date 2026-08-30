@@ -30,9 +30,8 @@ import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm'
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
 import {
-  DEFAULT_FIRE_CONDITIONS,
-  FIRE_CONDITION_OPTIONS,
   FIRE_SPREAD_LABEL,
+  FIRE_SPREAD_OPTIONS,
   FIRE_SPREAD_VALUE,
   LIVE_STATUS,
   PREVIEW_METRICS,
@@ -97,9 +96,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
   const selectedBuildingId = basicInfo.targetBuilding || buildings[0]?.id || '';
   const displayedBasicInfo = { ...basicInfo, targetBuilding: selectedBuildingId };
-  const fireConditions = DEFAULT_FIRE_CONDITIONS.map((condition) =>
-    condition.key === 'spread' ? { ...condition, value: fireSpreadLabel } : condition,
-  );
   const buildingOptions = buildings.map((building) => ({
     label: building.name,
     value: building.id,
@@ -277,8 +273,8 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
       <div className={styles.contentGrid}>
         <ScenarioSetupForm
           basicInfo={displayedBasicInfo}
-          conditions={fireConditions}
-          options={FIRE_CONDITION_OPTIONS}
+          fireSpreadLabel={fireSpreadLabel}
+          fireSpreadOptions={FIRE_SPREAD_OPTIONS}
           buildingOptions={buildingOptions}
           buildingReadOnly={!isCreatePage}
           isRunning={isRunning}
