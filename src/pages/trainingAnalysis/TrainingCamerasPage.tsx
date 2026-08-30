@@ -76,10 +76,12 @@ const TrainingCamerasPage = () => {
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
-  const cameraWithFrame = cameras.filter((c) => c.thumbnailUrl !== null);
+  // 저장된 프레임 유무는 capturedAt으로 판단 — MonitoringCamera 계약상 캡처 프레임이 없을 때만 null이고,
+  // thumbnailUrl은 만료 등으로 프레임이 있어도 null일 수 있음
+  const cameraWithFrame = cameras.filter((camera) => camera.capturedAt !== null);
 
   const handleSelect = (camera: MonitoringCamera) => {
-    if (camera.thumbnailUrl === null) return;
+    if (camera.capturedAt === null) return;
     void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId));
   };
 

@@ -31,6 +31,12 @@ export const thumb = style({
   backgroundColor: vars.color.gray900,
 });
 
+export const thumbImg = style({
+  objectFit: 'cover',
+  width: '100%',
+  height: '100%',
+});
+
 export const thumbPlaceholder = style({
   borderRadius: vars.radius.sm,
   backgroundColor: 'rgba(255,255,255,0.15)',

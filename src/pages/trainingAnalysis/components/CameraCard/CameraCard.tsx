@@ -13,7 +13,7 @@ interface CameraCardProps {
 // 훈련 종료 후 카메라별 최신 캡처 프레임을 보여주는 카드.
 // LIVE/fps 같은 실시간 스트리밍 지표는 API에 없어서 캡처 시각만 표시함
 const CameraCard = ({ camera, onClick }: CameraCardProps) => {
-  const hasFrame = camera.thumbnailUrl !== null;
+  const hasFrame = camera.capturedAt !== null;
   const capturedTime = formatCapturedTime(camera.capturedAt);
 
   return (
@@ -27,7 +27,16 @@ const CameraCard = ({ camera, onClick }: CameraCardProps) => {
         {hasFrame ? (
           <>
             {capturedTime ? <span className={styles.timeBadge}>{capturedTime}</span> : null}
-            <span className={styles.thumbPlaceholder} aria-hidden="true" />
+            {camera.thumbnailUrl ? (
+              <img
+                className={styles.thumbImg}
+                src={camera.thumbnailUrl}
+                alt={`${camera.name} 최신 캡처 프레임`}
+                loading="lazy"
+              />
+            ) : (
+              <span className={styles.thumbPlaceholder} aria-hidden="true" />
+            )}
           </>
         ) : (
           <span className={styles.noFrame}>프레임 없음</span>

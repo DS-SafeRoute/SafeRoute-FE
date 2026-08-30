@@ -17,6 +17,13 @@ export const mainGrid = style({
   gridTemplateColumns: '1fr 32rem',
   alignItems: 'start',
   gap: vars.space.s5,
+  // 좁은 화면에서는 고정 32rem 우측 열이 컨테이너 패딩과 함께 가로 폭을 넘겨서
+  // 단일 열로 떨어뜨림
+  '@media': {
+    '(max-width: 1024px)': {
+      gridTemplateColumns: '1fr',
+    },
+  },
 });
 
 // minWidth:0 필수 — 없으면 grid item의 기본 min-width가 콘텐츠 크기(auto)로 잡혀서,

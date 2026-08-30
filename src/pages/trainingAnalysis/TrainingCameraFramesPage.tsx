@@ -43,12 +43,22 @@ const TrainingCameraFramesPage = () => {
   const [frameIndex, setFrameIndex] = useState(0);
   const filmstripRef = useRef<HTMLDivElement>(null);
 
+  // 카메라 탭으로 cctvId만 바뀌면 프레임 목록도 카메라별로 새로 조회되므로,
+  // 이전 카메라의 frameIndex가 남아 새 카메라의 프레임 수를 넘어가지 않도록 초기화
+  useEffect(() => {
+    setFrameIndex(0);
+  }, [cctvId, sessionId]);
+
   const {
     session,
     isLoading: isSessionLoading,
     isError: isSessionError,
   } = useTrainingSessionQuery(sessionId);
-  const { data: cameras = [] } = useSessionCamerasQuery(sessionId);
+  const {
+    data: cameras = [],
+    isLoading: isCamerasLoading,
+    isError: isCamerasError,
+  } = useSessionCamerasQuery(sessionId);
   const camera = cameras.find((c) => c.cctvId === cctvId);
 
   const {
@@ -77,7 +87,7 @@ const TrainingCameraFramesPage = () => {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
   }
 
-  if (isSessionError) {
+  if (isSessionError || isCamerasError) {
     return (
       <div className={styles.container}>
         <EmptyState
@@ -88,12 +98,18 @@ const TrainingCameraFramesPage = () => {
     );
   }
 
-  if (isSessionLoading || !session || !camera) {
+  if (isSessionLoading || isCamerasLoading || !session) {
     return (
       <div className={styles.container}>
         <LoadingState />
       </div>
     );
+  }
+
+  // 카메라 조회가 끝났는데 cctvId와 일치하는 카메라가 없으면(잘못된 URL·삭제된 카메라)
+  // 무한 로딩 대신 카메라 목록으로 돌려보냄
+  if (!camera) {
+    return <Navigate to={getTrainingCamerasPath(session.sessionId)} replace />;
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
