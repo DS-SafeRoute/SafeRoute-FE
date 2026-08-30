@@ -167,14 +167,19 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 반면 맵그래프 노드/엣지의 좌표(x,y)는 0~1 정규화 double로 자유 좌표이고 그리드와 무관함 —
 // 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
-// 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560x420)를 열/행 수로 그대로 나눔.
-// 도면 이미지도 preserveAspectRatio="none"로 같은 영역을 꽉 채우므로, 셀 rect가 캔버스를 정확히
-// 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함 → 드래그 영역과 잡히는 블럭이 맞음
-const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => {
+// SVG 캔버스 폭은 560 고정, 높이는 도면 실제 비율(그리드 columns/rows 또는 이미지 비율)에 맞춰
+// 렌더 시점에 계산해서 넘김 — viewBox 비율 == 이미지 비율이므로 이미지를 늘리지 않고도
+// 그리드·노드·드래그 좌표가 전부 같은 0~1 ↔ 0~(560,canvasH) 공간에 정확히 맞물림
+const CANVAS_W = 560;
+const DEFAULT_CANVAS_H = 420;
+
+// 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560 x canvasH)를 열/행 수로 그대로 나눔.
+// 셀 rect가 캔버스를 정확히 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함
+const getGridCellPxSize = (cells: FloorGridCell[], canvasH: number): { w: number; h: number } => {
   if (cells.length === 0) return { w: 20, h: 20 };
   const maxCol = Math.max(...cells.map((c) => c.columnIndex));
   const maxRow = Math.max(...cells.map((c) => c.rowIndex));
-  return { w: 560 / (maxCol + 1), h: 420 / (maxRow + 1) };
+  return { w: CANVAS_W / (maxCol + 1), h: canvasH / (maxRow + 1) };
 };
 
 // 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
@@ -183,11 +188,12 @@ const cellIdsIntersectingRect = (
   cells: FloorGridCell[],
   rect: { x: number; y: number; w: number; h: number },
   size: { w: number; h: number },
+  canvasH: number,
 ): string[] =>
   cells
     .filter((cell) => {
-      const left = cell.centerX * 560 - size.w / 2;
-      const top = cell.centerY * 420 - size.h / 2;
+      const left = cell.centerX * CANVAS_W - size.w / 2;
+      const top = cell.centerY * canvasH - size.h / 2;
       return (
         left < rect.x + rect.w &&
         left + size.w > rect.x &&
@@ -203,19 +209,24 @@ const cellIdsIntersectingRect = (
 const getGridPxOrigin = (
   cells: FloorGridCell[],
   size: { w: number; h: number },
+  canvasH: number,
 ): { x: number; y: number } => {
   const ref = cells[0];
   if (!ref) return { x: 0, y: 0 };
   return {
-    x: ref.centerX * 560 - size.w / 2 - ref.columnIndex * size.w,
-    y: ref.centerY * 420 - size.h / 2 - ref.rowIndex * size.h,
+    x: ref.centerX * CANVAS_W - size.w / 2 - ref.columnIndex * size.w,
+    y: ref.centerY * canvasH - size.h / 2 - ref.rowIndex * size.h,
   };
 };
 
 // 셀 집합의 바깥 윤곽선을 하나의 SVG path(d)로. 셀별 rect를 이어 붙이면 반투명 채움 사이에
 // 이음매가 보여 "직사각형의 집합"처럼 보이므로, 합집합 윤곽을 구해 단일 도형으로 그림.
-const buildZoneOutlinePath = (cells: FloorGridCell[], size: { w: number; h: number }): string => {
-  const origin = getGridPxOrigin(cells, size);
+const buildZoneOutlinePath = (
+  cells: FloorGridCell[],
+  size: { w: number; h: number },
+  canvasH: number,
+): string => {
+  const origin = getGridPxOrigin(cells, size, canvasH);
   const cellKey = (col: number, row: number) => `${col},${row}`;
   const inZone = new Set(cells.map((c) => cellKey(c.columnIndex, c.rowIndex)));
   const cornerX = (col: number) => origin.x + col * size.w;
@@ -266,13 +277,14 @@ const buildZoneOutlinePath = (cells: FloorGridCell[], size: { w: number; h: numb
 const GridOverlayLines = ({
   cells,
   size,
+  canvasH,
 }: {
   cells: FloorGridCell[];
   size: { w: number; h: number };
+  canvasH: number;
 }) => {
   if (cells.length === 0) return null;
-  const CANVAS_W = 560;
-  const CANVAS_H = 420;
+  const CANVAS_H = canvasH;
 
   // 위상(offset)은 각 셀 왼쪽/위쪽 변을 셀 크기로 나눈 나머지의 중앙값으로 구함 —
   // 특정 셀 하나의 부동소수 오차에 흔들리지 않고, 격자선이 실제 셀 경계에 맞음.
@@ -283,13 +295,13 @@ const GridOverlayLines = ({
   };
   const phaseX = median(
     cells.map((c) => {
-      const left = c.centerX * 560 - size.w / 2;
+      const left = c.centerX * CANVAS_W - size.w / 2;
       return ((left % size.w) + size.w) % size.w;
     }),
   );
   const phaseY = median(
     cells.map((c) => {
-      const top = c.centerY * 420 - size.h / 2;
+      const top = c.centerY * CANVAS_H - size.h / 2;
       return ((top % size.h) + size.h) % size.h;
     }),
   );
@@ -328,6 +340,7 @@ const GridOverlayLines = ({
 
 const MockFloorMap3F = ({
   mapImageUrl,
+  canvasH,
   aiLayers,
   editMode,
   placingActive,
@@ -361,6 +374,7 @@ const MockFloorMap3F = ({
   onBackgroundClick,
 }: {
   mapImageUrl: string | null;
+  canvasH: number;
   aiLayers: Record<string, boolean>;
   editMode: EditMode;
   placingActive: boolean;
@@ -399,12 +413,12 @@ const MockFloorMap3F = ({
   // 엣지(선) 양 끝 좌표를 찾기 위한 노드 id → SVG 좌표 조회 (구조 노드 + 그 외 그래프 노드 통합)
   const nodePositionById = new Map<string, { x: number; y: number }>();
   structureNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x, y: n.y }));
-  graphNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x * 560, y: n.y * 420 }));
+  graphNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x * CANVAS_W, y: n.y * canvasH }));
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * 560);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * 420);
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * CANVAS_W);
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * canvasH);
     if (editMode === 'poi' || placingActive) {
       onMapClick(x, y);
       return;
@@ -413,15 +427,15 @@ const MockFloorMap3F = ({
     onBackgroundClick();
   };
 
-  // 클릭/드래그 지점을 캔버스(560x420) 좌표로 그대로 변환 — 격자 스냅 없이 포인터를 정확히 따라감.
+  // 클릭/드래그 지점을 캔버스(560 x canvasH) 좌표로 그대로 변환 — 격자 스냅 없이 포인터를 정확히 따라감.
   // 구역 드래그는 이 사각형과 겹치는 실제 그리드 셀이 선택되고(handleZoneDragEnd), 노드는 이 좌표에 그대로 배치됨
   const svgPoint = (clientX: number, clientY: number, svgEl: SVGSVGElement) => {
     const rect = svgEl.getBoundingClientRect();
-    const rawX = ((clientX - rect.left) / rect.width) * 560;
-    const rawY = ((clientY - rect.top) / rect.height) * 420;
+    const rawX = ((clientX - rect.left) / rect.width) * CANVAS_W;
+    const rawY = ((clientY - rect.top) / rect.height) * canvasH;
     return {
-      x: Math.max(0, Math.min(560, rawX)),
-      y: Math.max(0, Math.min(420, rawY)),
+      x: Math.max(0, Math.min(CANVAS_W, rawX)),
+      y: Math.max(0, Math.min(canvasH, rawY)),
     };
   };
 
@@ -483,21 +497,27 @@ const MockFloorMap3F = ({
 
   return (
     <svg
-      viewBox="0 0 560 420"
-      width="700"
-      height="525"
+      viewBox={`0 0 ${CANVAS_W} ${canvasH}`}
+      width={700}
+      height={(700 * canvasH) / CANVAS_W}
       xmlns="http://www.w3.org/2000/svg"
       style={{ cursor: svgCursor }}
       onClick={handleSvgClick}
       onMouseDown={handleSvgMouseDown}
     >
       {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음.
-          그리드 셀·노드 좌표는 0~1 정규화 값이라 도면 전체(560x420)에 그대로 매핑됨.
-          이미지도 preserveAspectRatio="none"로 같은 영역에 꽉 채워, 격자·노드·드래그 좌표가 정확히 일치하게 함
-          (도면 실측 비율이 4:3이 아니면 이미지가 약간 늘어나 보이지만, 오버레이가 벽과 어긋나는 것보다 낫다) */}
-      <rect width="560" height="420" fill="#f8f9fa" />
+          viewBox 높이(canvasH)를 도면 실제 비율에 맞춰 잡으므로, 이미지를 preserveAspectRatio="none"로
+          꽉 채워도 늘어나지 않고 격자·노드·드래그 좌표(0~1 정규화)와 정확히 일치함 */}
+      <rect width={CANVAS_W} height={canvasH} fill="#f8f9fa" />
       {mapImageUrl && (
-        <image href={mapImageUrl} x={0} y={0} width={560} height={420} preserveAspectRatio="none" />
+        <image
+          href={mapImageUrl}
+          x={0}
+          y={0}
+          width={CANVAS_W}
+          height={canvasH}
+          preserveAspectRatio="none"
+        />
       )}
 
       {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
@@ -573,8 +593,8 @@ const MockFloorMap3F = ({
         graphNodes.map((n) => {
           const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
           if (isRoomOrHallway && !edgeAddActive) return null;
-          const x = n.x * 560;
-          const y = n.y * 420;
+          const x = n.x * CANVAS_W;
+          const y = n.y * canvasH;
           const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
           return (
             <g
@@ -692,8 +712,8 @@ const MockFloorMap3F = ({
             .filter((c): c is FloorGridCell => !!c);
           if (cells.length === 0) return null;
           const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
-          const xs = cells.map((c) => c.centerX * 560);
-          const ys = cells.map((c) => c.centerY * 420);
+          const xs = cells.map((c) => c.centerX * CANVAS_W);
+          const ys = cells.map((c) => c.centerY * canvasH);
           const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
           const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
 
@@ -708,7 +728,7 @@ const MockFloorMap3F = ({
               style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
             >
               <path
-                d={buildZoneOutlinePath(cells, gridCellPxSize)}
+                d={buildZoneOutlinePath(cells, gridCellPxSize, canvasH)}
                 fillRule="evenodd"
                 fill="rgba(107,114,128,0.15)"
                 stroke={isSelected ? '#2563eb' : '#6b7280'}
@@ -732,7 +752,7 @@ const MockFloorMap3F = ({
 
       {/* 그리드 표시 토글 — 도면 위에 얹는 균일한 모눈종이 격자선(선만, 채움 없음) */}
       {cctvGridCellsMode === 'browsing' && (
-        <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} />
+        <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} canvasH={canvasH} />
       )}
 
       {/* 그리드 셀 선택 — CCTV 신규 등록 중(선택 가능) 또는 기존 CCTV 감시 영역(조회 전용).
@@ -741,7 +761,7 @@ const MockFloorMap3F = ({
       {(cctvGridCellsMode === 'selecting' || cctvGridCellsMode === 'viewing') && (
         <>
           {cctvGridCellsMode === 'selecting' && (
-            <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} />
+            <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} canvasH={canvasH} />
           )}
 
           {(() => {
@@ -749,7 +769,7 @@ const MockFloorMap3F = ({
             if (selectedCells.length === 0) return null;
             return (
               <path
-                d={buildZoneOutlinePath(selectedCells, gridCellPxSize)}
+                d={buildZoneOutlinePath(selectedCells, gridCellPxSize, canvasH)}
                 fillRule="evenodd"
                 fill="rgba(139,92,246,0.3)"
                 stroke="#8b5cf6"
@@ -763,8 +783,8 @@ const MockFloorMap3F = ({
             floorGridCells.map((cell) => (
               <rect
                 key={cell.id}
-                x={cell.centerX * 560 - gridCellPxSize.w / 2}
-                y={cell.centerY * 420 - gridCellPxSize.h / 2}
+                x={cell.centerX * CANVAS_W - gridCellPxSize.w / 2}
+                y={cell.centerY * canvasH - gridCellPxSize.h / 2}
                 width={gridCellPxSize.w}
                 height={gridCellPxSize.h}
                 fill="transparent"
@@ -1418,6 +1438,7 @@ const FloorCanvas = ({
   mapWrapRef,
   floor,
   resolvedImageUrl,
+  canvasH,
   selected,
   aiLayers,
   zoom,
@@ -1468,6 +1489,7 @@ const FloorCanvas = ({
   mapWrapRef: React.RefObject<HTMLDivElement>;
   floor: Floor;
   resolvedImageUrl: string | null;
+  canvasH: number;
   selected: SelectedItem | null;
   aiLayers: Record<string, boolean>;
   zoom: number;
@@ -1558,6 +1580,7 @@ const FloorCanvas = ({
     <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
         mapImageUrl={resolvedImageUrl}
+        canvasH={canvasH}
         aiLayers={aiLayers}
         editMode={editMode}
         placingActive={placingActive}
@@ -1752,6 +1775,22 @@ const FloorPlansDetailPage = () => {
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
+  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
+
+  // SVG viewBox 높이 — 폭 CANVAS_W(560)은 고정, 높이만 도면 실제 비율에 맞춤.
+  // 이미지 원본 비율을 우선(가장 직접적), 없으면 그리드 columns/rows, 그것도 없으면 4:3.
+  // viewBox 비율 == 이미지 비율이라 preserveAspectRatio="none"으로 채워도 이미지가 안 늘어남
+  const canvasH = (() => {
+    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
+    if (floorGridCells.length > 0) {
+      const cols = Math.max(...floorGridCells.map((c) => c.columnIndex)) + 1;
+      const rows = Math.max(...floorGridCells.map((c) => c.rowIndex)) + 1;
+      if (cols > 0 && rows > 0) return (CANVAS_W * rows) / cols;
+    }
+    return DEFAULT_CANVAS_H;
+  })();
 
   // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
   // 이미지가 올라온 층에서 DONE/FAILED가 아니면 "분석 중"으로 보고(업로드 전 층은 제외),
@@ -1832,6 +1871,23 @@ const FloorPlansDetailPage = () => {
     };
   }, [buildingId, floorId, floor?.mapImageUrl]);
 
+  // 도면 이미지 원본 비율 측정 — 그리드가 없을 때 canvasH 계산의 기준으로 씀
+  useEffect(() => {
+    setImageAspect(null);
+    if (!resolvedMapImageUrl) return;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled && img.naturalHeight > 0) {
+        setImageAspect(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.src = resolvedMapImageUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedMapImageUrl]);
+
   // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
   // 세그멘테이션이 끝나야(DONE) 노드가 생기므로, 완료 시점에 (재)조회함
   useEffect(() => {
@@ -1845,8 +1901,8 @@ const FloorPlansDetailPage = () => {
           .map((n) => ({
             id: n.id,
             type: n.type === 'DOOR' ? 'door' : 'stair',
-            x: Math.round(n.x * 560),
-            y: Math.round(n.y * 420),
+            x: n.x * CANVAS_W,
+            y: n.y * canvasH,
             isFinalExit: n.isExitTarget,
           }));
         setStructureNodes(structureFromGraph);
@@ -1857,7 +1913,8 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [floorId, isFloorReady]);
+    // canvasH가 확정되면(그리드/이미지 로드) 구조 노드 px 좌표를 그 기준으로 다시 계산해야 함
+  }, [floorId, isFloorReady, canvasH]);
 
   // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
   useEffect(() => {
@@ -2022,7 +2079,6 @@ const FloorPlansDetailPage = () => {
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
-  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
   const [showGridOverlay, setShowGridOverlay] = useState(false);
   // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
@@ -2318,8 +2374,8 @@ const FloorPlansDetailPage = () => {
     // (CCTV 시야 구역 드래그 단계에서는 클릭이 다른 용도이므로 위치를 덮어쓰지 않음)
     if (nodeAddOpen) {
       if (nodeAddStage === 'entry') {
-        const pctX = (x / 560) * 100;
-        const pctY = (y / 420) * 100;
+        const pctX = (x / CANVAS_W) * 100;
+        const pctY = (y / canvasH) * 100;
         setNodeStagedPosition({ x: pctX, y: pctY });
       }
       return;
@@ -2351,9 +2407,11 @@ const FloorPlansDetailPage = () => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
     if (type === 'door' || type === 'stair') {
-      // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음)
-      const x = (position.x / 100) * 560;
-      const y = (position.y / 100) * 420;
+      // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음). position은 0~100(%) 기준
+      const ratioX = position.x / 100;
+      const ratioY = position.y / 100;
+      const x = ratioX * CANVAS_W;
+      const y = ratioY * canvasH;
       if (currentFloor) {
         const apiType = type === 'door' ? 'DOOR' : 'STAIR';
         const count = structureNodes.filter((n) => n.type === type).length + 1;
@@ -2361,8 +2419,8 @@ const FloorPlansDetailPage = () => {
           code: `${apiType}-${Date.now()}`,
           type: apiType,
           name: `${cfg.label} ${count}`,
-          x: x / 560,
-          y: y / 420,
+          x: ratioX,
+          y: ratioY,
           isExitTarget: false,
         })
           .then((newNode) => {
@@ -2560,7 +2618,9 @@ const FloorPlansDetailPage = () => {
     if (cctvCellSelecting || zoneAddOpen) {
       if (rect && rect.w > 0 && rect.h > 0) {
         // 새 드래그가 이전 선택을 대체함(여러 번 드래그해도 마지막 것만 유효). 미세 조정은 셀 클릭 토글로
-        setActiveDraftCellIds(cellIdsIntersectingRect(floorGridCells, rect, gridCellPxSize));
+        setActiveDraftCellIds(
+          cellIdsIntersectingRect(floorGridCells, rect, gridCellPxSize, canvasH),
+        );
       }
       setZoneDraftRect(null);
     }
@@ -2575,8 +2635,8 @@ const FloorPlansDetailPage = () => {
       prev.map((n) => (n.id === id ? { ...n, isFinalExit: nextIsFinalExit } : n)),
     );
     updateMapNodePosition(id, {
-      x: node.x / 560,
-      y: node.y / 420,
+      x: node.x / CANVAS_W,
+      y: node.y / canvasH,
       isExitTarget: nextIsFinalExit,
     }).catch(() => {
       setStructureNodes((prev) =>
@@ -2618,7 +2678,7 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
-    updateMapNodePosition(id, { x: x / 560, y: y / 420 }).catch(() => {});
+    updateMapNodePosition(id, { x: x / CANVAS_W, y: y / canvasH }).catch(() => {});
   };
 
   const handleStructureNodeDelete = (id: string) => {
@@ -2942,7 +3002,7 @@ const FloorPlansDetailPage = () => {
     label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
   }));
 
-  const gridCellPxSize = getGridCellPxSize(floorGridCells);
+  const gridCellPxSize = getGridCellPxSize(floorGridCells, canvasH);
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
@@ -2958,7 +3018,7 @@ const FloorPlansDetailPage = () => {
   // 드래그 중에는 미리보기로 "겹치는 셀"을 실시간 표시 → 손을 떼면 그대로 확정됨
   const dragPreviewCellIds =
     cctvGridCellsMode === 'selecting' && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0
-      ? cellIdsIntersectingRect(floorGridCells, zoneDraftRect, gridCellPxSize)
+      ? cellIdsIntersectingRect(floorGridCells, zoneDraftRect, gridCellPxSize, canvasH)
       : null;
 
   const selectedGridCellIds =
@@ -3376,6 +3436,7 @@ const FloorPlansDetailPage = () => {
                 mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
                 resolvedImageUrl={resolvedMapImageUrl}
+                canvasH={canvasH}
                 selected={selectedItem}
                 aiLayers={aiLayers}
                 zoom={zoom}
