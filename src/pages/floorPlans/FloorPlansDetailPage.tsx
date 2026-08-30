@@ -167,15 +167,14 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 반면 맵그래프 노드/엣지의 좌표(x,y)는 0~1 정규화 double로 자유 좌표이고 그리드와 무관함 —
 // 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
-// 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
-// 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
-// 두 값 중 더 작은 쪽으로 통일해서 항상 정사각형으로 보이게 함
+// 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560x420)를 열/행 수로 그대로 나눔.
+// 도면 이미지도 preserveAspectRatio="none"로 같은 영역을 꽉 채우므로, 셀 rect가 캔버스를 정확히
+// 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함 → 드래그 영역과 잡히는 블럭이 맞음
 const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => {
   if (cells.length === 0) return { w: 20, h: 20 };
   const maxCol = Math.max(...cells.map((c) => c.columnIndex));
   const maxRow = Math.max(...cells.map((c) => c.rowIndex));
-  const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
-  return { w: size, h: size };
+  return { w: 560 / (maxCol + 1), h: 420 / (maxRow + 1) };
 };
 
 // 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
@@ -492,17 +491,13 @@ const MockFloorMap3F = ({
       onClick={handleSvgClick}
       onMouseDown={handleSvgMouseDown}
     >
-      {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음 */}
+      {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음.
+          그리드 셀·노드 좌표는 0~1 정규화 값이라 도면 전체(560x420)에 그대로 매핑됨.
+          이미지도 preserveAspectRatio="none"로 같은 영역에 꽉 채워, 격자·노드·드래그 좌표가 정확히 일치하게 함
+          (도면 실측 비율이 4:3이 아니면 이미지가 약간 늘어나 보이지만, 오버레이가 벽과 어긋나는 것보다 낫다) */}
       <rect width="560" height="420" fill="#f8f9fa" />
       {mapImageUrl && (
-        <image
-          href={mapImageUrl}
-          x={0}
-          y={0}
-          width={560}
-          height={420}
-          preserveAspectRatio="xMidYMid meet"
-        />
+        <image href={mapImageUrl} x={0} y={0} width={560} height={420} preserveAspectRatio="none" />
       )}
 
       {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
