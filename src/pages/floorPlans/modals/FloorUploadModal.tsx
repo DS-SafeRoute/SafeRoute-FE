@@ -17,6 +17,8 @@ interface FloorUploadModalProps {
   onConfirm: (file: File) => void;
 }
 
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png'];
+
 const formatFloor = (floorNum: number) => {
   if (floorNum > 0) return `${floorNum}층`;
   if (floorNum < 0) return `B${Math.abs(floorNum)}층`;
@@ -43,8 +45,8 @@ const FloorUploadModal = ({
   }, [preview]);
 
   const handleFileSelect = (selected: File) => {
-    if (selected.type !== 'image/jpeg') {
-      setFileError('JPG 형식의 파일만 업로드할 수 있어요');
+    if (!ACCEPTED_IMAGE_TYPES.includes(selected.type)) {
+      setFileError('JPG 또는 PNG 형식의 파일만 업로드할 수 있어요');
       return;
     }
     setFileError(null);
@@ -133,7 +135,7 @@ const FloorUploadModal = ({
           {fileError ? (
             <span className={styles.dropzoneError}>{fileError}</span>
           ) : (
-            <span className={styles.dropzoneHint}>JPG 형식만 지원</span>
+            <span className={styles.dropzoneHint}>JPG · PNG 형식 지원</span>
           )}
         </div>
       )}
@@ -141,7 +143,7 @@ const FloorUploadModal = ({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg"
+        accept="image/jpeg,image/png"
         className={styles.fileInput}
         onChange={handleInputChange}
       />
