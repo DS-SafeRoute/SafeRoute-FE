@@ -9,6 +9,7 @@ import EmptyState from '@components/empty';
 import { getTrainingCamerasPath } from '@constants/path';
 
 import { useViewableTrainingSessionsQuery } from './api/useViewableTrainingSessionsQuery';
+import LoadingState from './components/LoadingState/LoadingState';
 import {
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
@@ -32,7 +33,7 @@ const TrainingAnalysisPage = () => {
 
   return (
     <div className={styles.container}>
-      {isLoading && <p className={styles.stateMessage}>불러오는 중...</p>}
+      {isLoading && <LoadingState />}
 
       {!isLoading && isError && (
         <EmptyState

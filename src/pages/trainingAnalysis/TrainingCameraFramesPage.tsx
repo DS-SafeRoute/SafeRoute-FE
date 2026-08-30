@@ -15,6 +15,7 @@ import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useSessionEventsQuery } from './api/useSessionEventsQuery';
 import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
 import CameraTabs from './components/CameraTabs/CameraTabs';
+import LoadingState from './components/LoadingState/LoadingState';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   EVENT_SEVERITY_COLOR,
@@ -76,12 +77,21 @@ const TrainingCameraFramesPage = () => {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
   }
 
+  if (isSessionError) {
+    return (
+      <div className={styles.container}>
+        <EmptyState
+          title="훈련 정보를 불러오지 못했습니다"
+          description="잠시 후 다시 시도해주세요"
+        />
+      </div>
+    );
+  }
+
   if (isSessionLoading || !session || !camera) {
     return (
       <div className={styles.container}>
-        <p className={styles.stateMessage}>
-          {isSessionError ? '불러오지 못했습니다' : '불러오는 중...'}
-        </p>
+        <LoadingState />
       </div>
     );
   }
@@ -113,7 +123,7 @@ const TrainingCameraFramesPage = () => {
         onSelect={(c) => void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId))}
       />
 
-      {isFramesLoading && <p className={styles.stateMessage}>프레임을 불러오는 중...</p>}
+      {isFramesLoading && <LoadingState size="md" message="프레임을 불러오는 중..." />}
 
       {!isFramesLoading && isFramesError && (
         <EmptyState title="프레임을 불러오지 못했습니다" description="잠시 후 다시 시도해주세요" />

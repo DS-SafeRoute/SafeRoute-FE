@@ -12,12 +12,6 @@ export const container = style({
   overflow: 'auto',
 });
 
-export const stateMessage = style({
-  padding: `${vars.space.s5} 0`,
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
-
 export const mainGrid = style({
   display: 'grid',
   gridTemplateColumns: '1fr 32rem',

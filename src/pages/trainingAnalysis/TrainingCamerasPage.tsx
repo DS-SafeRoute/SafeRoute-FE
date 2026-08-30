@@ -9,6 +9,7 @@ import { getTrainingCameraFramesPath, ROUTES } from '@constants/path';
 import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
 import CameraCard from './components/CameraCard/CameraCard';
+import LoadingState from './components/LoadingState/LoadingState';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   TRAINING_SESSION_STATUS_VIEW,
@@ -55,12 +56,21 @@ const TrainingCamerasPage = () => {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
   }
 
+  if (isSessionError) {
+    return (
+      <div className={styles.container}>
+        <EmptyState
+          title="훈련 정보를 불러오지 못했습니다"
+          description="잠시 후 다시 시도해주세요"
+        />
+      </div>
+    );
+  }
+
   if (isSessionLoading || !session) {
     return (
       <div className={styles.container}>
-        <p className={styles.stateMessage}>
-          {isSessionError ? '불러오지 못했습니다' : '불러오는 중...'}
-        </p>
+        <LoadingState />
       </div>
     );
   }
@@ -85,7 +95,7 @@ const TrainingCamerasPage = () => {
       />
 
       <div className={styles.gridSection}>
-        {isCamerasLoading && <p className={styles.stateMessage}>카메라 목록을 불러오는 중...</p>}
+        {isCamerasLoading && <LoadingState size="md" message="카메라 목록을 불러오는 중..." />}
 
         {!isCamerasLoading && isCamerasError && (
           <EmptyState
