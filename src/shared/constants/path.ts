@@ -20,6 +20,11 @@ export const ROUTES = {
 export const getScenarioDetailPath = (scenarioId: string) =>
   ROUTES.SCENARIO_DETAIL.replace(':scenarioId', encodeURIComponent(scenarioId));
 
+export const getReportPath = (scenarioId: string, reportId: string) => {
+  const searchParams = new URLSearchParams({ scenarioId, reportId });
+  return `${ROUTES.REPORTS}?${searchParams.toString()}`;
+};
+
 export const getTrainingCamerasPath = (sessionId: string) =>
   ROUTES.TRAINING_CAMERAS.replace(':sessionId', encodeURIComponent(sessionId));
 

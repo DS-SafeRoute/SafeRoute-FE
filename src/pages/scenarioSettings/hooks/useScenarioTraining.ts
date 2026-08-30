@@ -181,6 +181,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
 
   return {
     route,
+    sessionId: activeSessionId,
     startedAt,
     isRunning,
     areSessionsPending:

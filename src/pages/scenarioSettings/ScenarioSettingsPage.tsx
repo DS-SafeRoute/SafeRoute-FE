@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
+import { useGenerateTrainingReportMutation } from '@pages/reports/api/useGenerateTrainingReportMutation';
 
 import { extractApiError } from '@apis/errors/apiError';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
@@ -11,7 +12,7 @@ import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
-import { ROUTES, getScenarioDetailPath } from '@constants/path';
+import { ROUTES, getReportPath, getScenarioDetailPath } from '@constants/path';
 
 import {
   useCreateScenarioDraftMutation,
@@ -30,6 +31,7 @@ import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
 
 import type { ScenarioActionMode } from './components/scenarioActionPanel/ScenarioActionPanel';
+import type { TrainingResultValues } from './components/trainingEndModal/TrainingEndModal';
 import type { Scenario } from './types/scenarioList';
 
 interface ScenarioSettingsContentProps {
@@ -95,10 +97,14 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const createDraftMutation = useCreateScenarioDraftMutation();
   const updateScenarioMutation = useUpdateScenarioMutation();
   const readyScenarioMutation = useReadyScenarioMutation();
+  const generateTrainingReportMutation = useGenerateTrainingReportMutation();
 
   // 기본 정보 편집과 훈련 종료 모달은 독립적인 화면 상태
   const [isEditing, setIsEditing] = useState(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+  const [hasEndedSession, setHasEndedSession] = useState(false);
+  const [isTrainingCompleted, setIsTrainingCompleted] = useState(false);
+  const [generatedReportId, setGeneratedReportId] = useState<string | null>(null);
 
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
@@ -243,14 +249,34 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     void navigate(ROUTES.REPORTS, { replace: true });
   }, [navigate, show, training.timeLimitExceededAt]);
 
-  // 진행 중인 훈련 종료 후 결과 이동 모달 표시
-  const handleEndTraining = async () => {
-    if (!training.isRunning) return;
+  // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
+  const handleCompleteTraining = async (values: TrainingResultValues) => {
+    if (!training.sessionId) return;
+    const sessionId = training.sessionId;
+    let sessionEnded = hasEndedSession;
+
     try {
-      await training.endTraining();
-      setIsEndModalOpen(true);
+      if (!sessionEnded) {
+        await training.endTraining();
+        sessionEnded = true;
+        setHasEndedSession(true);
+      }
+
+      const report = await generateTrainingReportMutation.mutateAsync({
+        sessionId,
+        body: values,
+      });
+      if (!report.reportId) throw new Error('생성된 분석 보고서 ID가 없습니다.');
+
+      setGeneratedReportId(report.reportId);
+      setIsTrainingCompleted(true);
     } catch {
-      show({ title: '훈련 종료에 실패했습니다.', variant: 'error' });
+      show({
+        title: sessionEnded
+          ? '분석 보고서 생성에 실패했습니다. 다시 시도해 주세요.'
+          : '훈련 종료에 실패했습니다.',
+        variant: 'error',
+      });
     }
   };
 
@@ -307,7 +333,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
             currentRoute={training.route.currentRouteMessage}
             liveMetrics={floorView.previewMetrics}
             isEnding={training.isEnding}
-            onEnd={() => void handleEndTraining()}
+            onEnd={() => setIsEndModalOpen(true)}
             routeDecision={{
               proposal: training.route.routeProposal,
               isApplying: training.route.isApplyingRouteProposal,
@@ -346,8 +372,17 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
 
       <TrainingEndModal
         open={isEndModalOpen}
+        completed={isTrainingCompleted}
+        initialParticipantCount={scenario?.expectedParticipants}
+        isSubmitting={training.isEnding || generateTrainingReportMutation.isPending}
+        canClose={!hasEndedSession}
+        onClose={() => setIsEndModalOpen(false)}
+        onSubmit={handleCompleteTraining}
         onHome={() => void navigate(ROUTES.HOME)}
-        onReport={() => void navigate(ROUTES.REPORTS)}
+        onReport={() => {
+          if (!scenario?.id || !generatedReportId) return;
+          void navigate(getReportPath(scenario.id, generatedReportId));
+        }}
       />
     </div>
   );
