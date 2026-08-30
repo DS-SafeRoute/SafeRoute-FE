@@ -1,5 +1,7 @@
 import { useRef } from 'react';
 
+import { getStartOfToday } from '@pages/scenarioSettings/utils/scenarioSettings';
+
 import CalendarIcon from '@assets/icons/ic-calendar.svg?react';
 
 import * as styles from './DateTimeField.css';
@@ -43,6 +45,7 @@ const DateTimeField = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const isInactive = disabled || readOnly;
   const inputValue = toInputValue(value);
+  const minimumInputValue = toInputValue(getStartOfToday().toISOString());
 
   return (
     <label className={styles.root}>
@@ -64,6 +67,7 @@ const DateTimeField = ({
       <input
         ref={inputRef}
         type="datetime-local"
+        min={minimumInputValue}
         disabled={isInactive}
         value={inputValue}
         className={styles.hiddenInput}

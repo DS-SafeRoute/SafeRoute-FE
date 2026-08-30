@@ -9,9 +9,16 @@ export const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({
   startNodeId: scenario?.startNodeId ?? '',
 });
 
+export const getStartOfToday = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
 export const toScheduledAt = (value: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  if (Number.isNaN(date.getTime()) || date < getStartOfToday()) return null;
+  return date.toISOString();
 };
 
 export const formatScenarioScheduledAt = (scheduledAt: string) => {
