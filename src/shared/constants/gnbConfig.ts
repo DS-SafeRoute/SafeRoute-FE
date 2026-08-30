@@ -74,17 +74,24 @@ const GNB_CONFIGS = [
   {
     path: ROUTES.TRAINING_ANALYSIS,
     config: {
-      breadcrumbs: [{ label: '훈련 분석' }],
-      title: '영상 분석',
-      description: '훈련 영상을 업로드하거나 실시간 CCTV를 분석합니다',
+      title: '훈련 분석',
+      description: '종료된 훈련을 선택해 CCTV 프레임을 분석합니다',
     },
   },
   {
-    path: ROUTES.TRAINING_MONITORING,
+    path: ROUTES.TRAINING_CAMERAS,
     config: {
       breadcrumbs: [{ label: '훈련 분석' }],
-      title: '모니터링',
-      description: '실시간 카메라 스트림을 확인합니다',
+      title: '영상 분석',
+      description: '선택한 훈련에서 카메라별로 수집된 프레임을 확인합니다',
+    },
+  },
+  {
+    path: ROUTES.TRAINING_CAMERA_FRAMES,
+    config: {
+      breadcrumbs: [{ label: '훈련 분석' }],
+      title: '영상 분석',
+      description: '선택한 훈련에서 카메라별로 수집된 프레임을 확인합니다',
     },
   },
   {

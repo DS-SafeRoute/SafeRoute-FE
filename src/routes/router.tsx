@@ -108,11 +108,19 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.TRAINING_MONITORING,
+        path: ROUTES.TRAINING_CAMERAS,
         lazy: async () => {
-          const { default: TrainingMonitoringPage } =
-            await import('@/pages/trainingAnalysis/TrainingMonitoringPage');
-          return { Component: TrainingMonitoringPage };
+          const { default: TrainingCamerasPage } =
+            await import('@/pages/trainingAnalysis/TrainingCamerasPage');
+          return { Component: TrainingCamerasPage };
+        },
+      },
+      {
+        path: ROUTES.TRAINING_CAMERA_FRAMES,
+        lazy: async () => {
+          const { default: TrainingCameraFramesPage } =
+            await import('@/pages/trainingAnalysis/TrainingCameraFramesPage');
+          return { Component: TrainingCameraFramesPage };
         },
       },
       {

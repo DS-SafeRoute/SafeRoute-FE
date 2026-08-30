@@ -1,48 +1,55 @@
-import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
+import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 
 import * as styles from './CameraCard.css';
+import { formatCapturedTime } from '../../utils/trainingAnalysis';
 
-import type { StreamCamera } from '../../types/trainingAnalysis';
+import type { MonitoringCamera } from '../../types/trainingAnalysis';
 
 interface CameraCardProps {
-  camera: StreamCamera;
-  onClick: (camera: StreamCamera) => void;
+  camera: MonitoringCamera;
+  onClick: (camera: MonitoringCamera) => void;
 }
 
-const CameraCard = ({ camera, onClick }: CameraCardProps) => (
-  <button type="button" className={styles.card} onClick={() => onClick(camera)}>
-    <div className={styles.video}>
-      <div className={styles.badgeRow}>
-        {camera.status === 'online' ? (
-          <div className={styles.liveBadge}>
-            <span className={styles.liveDot} />
-            LIVE
-          </div>
-        ) : (
-          <div className={styles.offlineBadge}>OFFLINE</div>
-        )}
-        {camera.status === 'online' && (
-          <div className={styles.personCount}>
-            <UsersIcon width={11} height={11} />
-            {camera.detectedCount}
-          </div>
-        )}
-      </div>
-      {camera.status === 'offline' && <div className={styles.offlineOverlay}>신호 없음</div>}
-    </div>
+// 훈련 종료 후 카메라별 최신 캡처 프레임을 보여주는 카드.
+// LIVE/fps 같은 실시간 스트리밍 지표는 API에 없어서 캡처 시각만 표시함
+const CameraCard = ({ camera, onClick }: CameraCardProps) => {
+  const hasFrame = camera.thumbnailUrl !== null;
+  const capturedTime = formatCapturedTime(camera.capturedAt);
 
-    <div className={styles.info}>
-      <div>
-        <div className={styles.name}>{camera.name}</div>
-        <div className={styles.zone}>{camera.zone}</div>
+  return (
+    <button
+      type="button"
+      className={styles.card}
+      disabled={!hasFrame}
+      onClick={() => onClick(camera)}
+    >
+      <div className={styles.thumb}>
+        {hasFrame ? (
+          <>
+            {capturedTime ? <span className={styles.timeBadge}>{capturedTime}</span> : null}
+            <span className={styles.thumbPlaceholder} aria-hidden="true" />
+          </>
+        ) : (
+          <span className={styles.noFrame}>프레임 없음</span>
+        )}
       </div>
-      {camera.status === 'online' && (
-        <div className={styles.meta}>
-          {camera.fps}fps · {camera.latencyMs}ms
+
+      <div className={styles.info}>
+        <div>
+          <div className={styles.name}>{camera.name}</div>
+          <div className={styles.location}>{camera.location}</div>
         </div>
-      )}
-    </div>
-  </button>
-);
+        {hasFrame ? (
+          <span className={styles.link}>
+            영상 분석 보기
+            <ChevronRightIcon width={12} height={12} />
+          </span>
+        ) : (
+          <span className={styles.linkDisabled}>프레임 없음</span>
+        )}
+      </div>
+    </button>
+  );
+};
 
 export default CameraCard;

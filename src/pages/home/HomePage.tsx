@@ -62,7 +62,9 @@ const HomePage = () => {
     if (!training) return;
 
     if (training.status === TRAINING_SESSION_STATUS.RUNNING) {
-      void navigate(ROUTES.TRAINING_MONITORING);
+      // TODO: TRAINING_MONITORING 라우트가 훈련분석 개편으로 제거됨 — 원래 의도(진행 중 훈련 모니터링
+      // 화면 이동)에 맞는 목적지를 홈/대시보드 담당자와 확인 필요. 우선 빌드 유지를 위해 훈련 분석 목록으로 연결
+      void navigate(ROUTES.TRAINING_ANALYSIS);
       return;
     }
 
