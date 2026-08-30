@@ -1,7 +1,5 @@
 import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
-import StatusBadge from '@components/chip/StatusBadge';
-
 import * as styles from './AiReportCard.css';
 
 import type { ReportNarrative } from '../../types/report';
@@ -15,9 +13,8 @@ const AiReportCard = ({ narrative }: AiReportCardProps) => (
     <div className={styles.header}>
       <div className={styles.titleGroup}>
         <SparklesIcon className={styles.iconBox} aria-hidden="true" focusable="false" />
-        <h2 className={styles.title}>AI 자동 평가 보고서</h2>
+        <h2 className={styles.title}>자동 평가 보고서</h2>
       </div>
-      <StatusBadge label="Claude · 자동 생성" color="blue" />
     </div>
 
     <div className={styles.body}>

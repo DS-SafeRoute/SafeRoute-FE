@@ -1,5 +1,4 @@
 import type {
-  DensityItem,
   RecommendationItem,
   ReportNarrative,
   ReportScoreItem,
@@ -10,15 +9,6 @@ import type {
 export const reportSummary: ReportSummary = {
   grade: 'A',
   scoreText: '92.4 / 100점',
-  percentileText: '상위 12%',
-  previousDelta: {
-    value: '+4.2점',
-    direction: 'up',
-  },
-  nationalDelta: {
-    value: '+8.1점',
-    direction: 'up',
-  },
 };
 
 export const reportScores: ReportScoreItem[] = [
@@ -26,7 +16,6 @@ export const reportScores: ReportScoreItem[] = [
   { label: '평균 대피 시간', weight: '25%', score: 88, color: 'primary' },
   { label: '병목 회피율', weight: '20%', score: 91, color: 'primary' },
   { label: '경로 준수율', weight: '15%', score: 94, color: 'primary' },
-  { label: '밀집도 관리', weight: '5%', score: 87, color: 'primary' },
   { label: 'IoT 활용도', weight: '5%', score: 98, color: 'success' },
 ];
 
@@ -38,14 +27,6 @@ export const evacuationAccumulation: TrendPoint[] = [
   { label: '2:40', value: 91 },
   { label: '3:20', value: 96 },
   { label: '4:08', value: 98 },
-];
-
-export const densityByZone: DensityItem[] = [
-  { label: 'A구역', value: 62, level: 'low' },
-  { label: 'B구역', value: 92, level: 'high' },
-  { label: 'C구역', value: 48, level: 'low' },
-  { label: 'D구역', value: 71, level: 'medium' },
-  { label: '로비', value: 88, level: 'high' },
 ];
 
 export const recentEvacuationTimes: TrendPoint[] = [

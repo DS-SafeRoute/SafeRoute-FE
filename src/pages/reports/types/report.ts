@@ -14,12 +14,6 @@ export interface TrendPoint {
 
 export type DensityLevel = 'high' | 'medium' | 'low';
 
-export interface DensityItem {
-  label: string;
-  value: number;
-  level: DensityLevel;
-}
-
 export interface RecommendationItem {
   id: string;
   level: DensityLevel;
@@ -40,14 +34,4 @@ export interface ReportNarrative {
 export interface ReportSummary {
   grade: string;
   scoreText: string;
-  percentileText: string;
-  previousDelta: ReportDelta;
-  nationalDelta: ReportDelta;
-}
-
-export type ReportDeltaDirection = 'up' | 'down' | 'flat';
-
-export interface ReportDelta {
-  value: string;
-  direction: ReportDeltaDirection;
 }
