@@ -1888,6 +1888,37 @@ const FloorPlansDetailPage = () => {
     };
   }, [resolvedMapImageUrl]);
 
+  // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
+  // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
+  useEffect(() => {
+    if (!floorId || !isFloorReady) return;
+    const key = `saferoute:pendingGridCellSize:${floorId}`;
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem(key);
+    } catch {
+      return;
+    }
+    const cellSizeMeter = Number(pending);
+    if (!pending || !(cellSizeMeter > 0)) return;
+    let cancelled = false;
+    setFloorGrid(floorId, cellSizeMeter)
+      .then(() => getFloorGridCells(floorId))
+      .then((cells) => {
+        if (cancelled) return;
+        setFloorGridCells(cells);
+        try {
+          sessionStorage.removeItem(key);
+        } catch {
+          /* noop */
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId, isFloorReady]);
+
   // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
   // 세그멘테이션이 끝나야(DONE) 노드가 생기므로, 완료 시점에 (재)조회함
   useEffect(() => {

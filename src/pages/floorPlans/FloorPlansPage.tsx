@@ -221,14 +221,24 @@ const FloorPlansPage = () => {
     setIsUploading(true);
     uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
       .then(async (newFloor) => {
-        // 그리드 생성을 기다리지 않고 바로 상세 화면으로 넘어가면, 상세 화면의 1회성 그리드 조회가
-        // 그리드가 채 만들어지기 전에 실행돼 빈 결과를 캐싱해버릴 수 있음 — 성공/실패와 무관하게 완료까지 대기
+        // 그리드 배율을 지금 설정해도, 뒤이어 실행되는 AI 분석이 그리드 셀을 재생성하면서
+        // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 sessionStorage에 남겨두고
+        // (새로고침에도 살아남음) 상세 화면에서 분석 완료 후 한 번 더 PUT 하게 함
+        try {
+          sessionStorage.setItem(
+            `saferoute:pendingGridCellSize:${newFloor.id}`,
+            String(params.cellSizeMeter),
+          );
+        } catch {
+          // sessionStorage 사용 불가 환경 — 무시하고 아래 즉시 설정에만 의존
+        }
+        // 상세 화면의 1회성 그리드 조회가 빈 결과를 캐싱하지 않도록, 이동 전에 한 번은 설정 시도
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
         } catch {
           show({
-            title: '그리드 설정에 실패했습니다. 상세 화면에서 다시 설정해주세요.',
-            variant: 'error',
+            title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
+            variant: 'warning',
           });
         }
         setBuildings((prev) =>
