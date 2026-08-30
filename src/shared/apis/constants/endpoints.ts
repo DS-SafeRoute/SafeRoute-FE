@@ -23,8 +23,12 @@ export const API_ENDPOINTS = {
   // 층/도면, AI 분석
   FLOORS: {
     ROOT: (buildingId: string) => `${API_V1}/buildings/${buildingId}/floors`,
+    // GET(상세) · PATCH(층 정보 수정) · DELETE(층 삭제) 공용
     DETAIL: (buildingId: string, floorId: string) =>
       `${API_V1}/buildings/${buildingId}/floors/${floorId}`,
+    // 층은 남기고 업로드된 도면 이미지만 삭제
+    MAP: (buildingId: string, floorId: string) =>
+      `${API_V1}/buildings/${buildingId}/floors/${floorId}/map`,
     UPLOAD: (buildingId: string) => `${API_V1}/buildings/${buildingId}/floors/upload`,
     ANALYZE: (floorId: string) => `${API_V1}/${floorId}/analyse`,
     IMAGE_URL: (buildingId: string, floorId: string) =>
@@ -77,6 +81,10 @@ export const API_ENDPOINTS = {
     ENABLE: (lightId: string) => `${API_V1}/lights/${lightId}/enable`,
     DISABLE: (lightId: string) => `${API_V1}/lights/${lightId}/disable`,
     DIRECTION: (lightId: string) => `${API_V1}/lights/${lightId}/direction`,
+    // 유도등이 참고할 CCTV 연결
+    CCTV: (lightId: string) => `${API_V1}/lights/${lightId}/cctv`,
+    // 안내 방향과 실제 대피 흐름의 이탈률
+    DEVIATION: (lightId: string) => `${API_V1}/lights/${lightId}/deviation`,
   },
 
   // CCTV
@@ -116,15 +124,31 @@ export const API_ENDPOINTS = {
     SHORTEST: (floorId: string) => `${API_V1}/floors/${floorId}/routes`,
   },
 
-  // 혼잡도
-  CONGESTION_EVENTS: {
-    ROOT: `${API_V1}/congestion-events`,
+  // 혼잡 이벤트/관측 이미지 — 목록 조회 API는 없고, 이벤트 id로 이미지 presigned URL만 받는다
+  // (혼잡 이벤트 자체는 훈련 세션 모니터링 타임라인 MONITORING_EVENTS로 조회)
+  CONGESTION: {
+    EVENT_IMAGE_URL: (eventId: string) => `${API_V1}/congestion-events/${eventId}/image-url`,
+    OBSERVATION_IMAGE_URL: (eventId: string) =>
+      `${API_V1}/congestion-observations/${eventId}/image-url`,
   },
 
-  // 재탐색 승인
+  // 경로 재탐색 — 훈련 중 서버가 자동 생성한 요청을 조회하고 승인/거부
   ROUTE_RECALCULATIONS: {
+    ROOT: `${API_V1}/route-recalculations`,
+    DETAIL: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}`,
     APPROVE: (recalculationId: string) =>
       `${API_V1}/route-recalculations/${recalculationId}/approve`,
     REJECT: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}/reject`,
+  },
+
+  // 훈련 보고서 조회
+  REPORTS: {
+    DETAIL: (reportId: string) => `${API_V1}/reports/${reportId}`,
+    PDF: (reportId: string) => `${API_V1}/reports/${reportId}/pdf`,
+  },
+
+  // 시나리오 발화점(화재 확산 시작 격자)
+  FIRE_ZONES: {
+    ROOT: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,
   },
 } as const;
