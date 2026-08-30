@@ -15,6 +15,8 @@ export interface FloorGridCell {
   centerX: number;
   centerY: number;
   walkable: boolean;
+  /** 화재 확산 시뮬레이션에서 이 셀이 불에 탄 상태인지 (훈련 중에만 true가 됨) */
+  fired: boolean;
 }
 
 export interface FloorGrid {
@@ -36,7 +38,15 @@ const toFloorGridCell = (response: FloorGridCellResponse): FloorGridCell => {
     throw new Error('그리드 셀 응답에 필수 필드가 누락되었습니다.');
   }
   // 대피 경로/CCTV 감시영역 계산에 쓰이는 값이라, 응답에 walkable이 없으면 통행 불가로 안전하게 처리
-  return { id, rowIndex, columnIndex, centerX, centerY, walkable: response.walkable ?? false };
+  return {
+    id,
+    rowIndex,
+    columnIndex,
+    centerX,
+    centerY,
+    walkable: response.walkable ?? false,
+    fired: response.fired ?? false,
+  };
 };
 
 export async function setFloorGrid(floorId: string, cellSizeMeter: number): Promise<FloorGrid> {

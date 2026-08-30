@@ -161,7 +161,11 @@ const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> =
 
 type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
-const GRID_SIZE = 20;
+// 그리드(PUT /floors/{id}/grid, GET /floors/{id}/grid/cells)는 두 가지 용도로만 존재함:
+//  1) 사용자 구역(user-zone): 구역 = 그리드 셀 id의 집합(UserZoneCreateRequest.cellIds). 셀 단위로만 선택 가능
+//  2) 화재 구역(fire-zone): 초기 발화 셀 = 그리드 셀 id 하나(CreateFireZoneRequest.gridCellId), 화재 확산 시뮬레이션 기준
+// 반면 맵그래프 노드/엣지의 좌표(x,y)는 0~1 정규화 double로 자유 좌표이고 그리드와 무관함 —
+// 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
 // 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
 // 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
@@ -375,13 +379,15 @@ const MockFloorMap3F = ({
     onBackgroundClick();
   };
 
+  // 클릭/드래그 지점을 캔버스(560x420) 좌표로 그대로 변환 — 격자 스냅 없이 포인터를 정확히 따라감.
+  // 구역 드래그는 이 사각형과 겹치는 실제 그리드 셀이 선택되고(handleZoneDragEnd), 노드는 이 좌표에 그대로 배치됨
   const svgPoint = (clientX: number, clientY: number, svgEl: SVGSVGElement) => {
     const rect = svgEl.getBoundingClientRect();
     const rawX = ((clientX - rect.left) / rect.width) * 560;
     const rawY = ((clientY - rect.top) / rect.height) * 420;
     return {
-      x: Math.max(0, Math.min(560, Math.round(rawX / GRID_SIZE) * GRID_SIZE)),
-      y: Math.max(0, Math.min(420, Math.round(rawY / GRID_SIZE) * GRID_SIZE)),
+      x: Math.max(0, Math.min(560, rawX)),
+      y: Math.max(0, Math.min(420, rawY)),
     };
   };
 
@@ -2302,8 +2308,9 @@ const FloorPlansDetailPage = () => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
     if (type === 'door' || type === 'stair') {
-      const x = Math.round(((position.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
-      const y = Math.round(((position.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
+      // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음)
+      const x = (position.x / 100) * 560;
+      const y = (position.y / 100) * 420;
       if (currentFloor) {
         const apiType = type === 'door' ? 'DOOR' : 'STAIR';
         const count = structureNodes.filter((n) => n.type === type).length + 1;
