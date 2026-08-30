@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
@@ -236,8 +237,9 @@ const buildZoneOutlinePath = (cells: FloorGridCell[], size: { w: number; h: numb
   return d;
 };
 
-// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 전체 폭/높이를 가로지르는
-// 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰
+// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 캔버스(560x420) 전체를
+// 가로지르는 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰.
+// 선 위치는 실제 그리드 원점에 위상만 맞추고, 셀 범위를 넘어 캔버스 가장자리까지 채움
 const GridOverlayLines = ({
   cells,
   size,
@@ -247,23 +249,16 @@ const GridOverlayLines = ({
 }) => {
   if (cells.length === 0) return null;
   const origin = getGridPxOrigin(cells, size);
-  const minCol = Math.min(...cells.map((c) => c.columnIndex));
-  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
-  const minRow = Math.min(...cells.map((c) => c.rowIndex));
-  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
-  const left = origin.x + minCol * size.w;
-  const right = origin.x + (maxCol + 1) * size.w;
-  const top = origin.y + minRow * size.h;
-  const bottom = origin.y + (maxRow + 1) * size.h;
+  const CANVAS_W = 560;
+  const CANVAS_H = 420;
 
-  const verticalXs = Array.from(
-    { length: maxCol - minCol + 2 },
-    (_, i) => origin.x + (minCol + i) * size.w,
-  );
-  const horizontalYs = Array.from(
-    { length: maxRow - minRow + 2 },
-    (_, i) => origin.y + (minRow + i) * size.h,
-  );
+  // 그리드 원점의 위상(offset)만 유지한 채, 0부터 캔버스 끝까지 셀 간격으로 선을 반복
+  const phaseX = ((origin.x % size.w) + size.w) % size.w;
+  const phaseY = ((origin.y % size.h) + size.h) % size.h;
+  const verticalXs: number[] = [];
+  for (let x = phaseX; x <= CANVAS_W + 0.001; x += size.w) verticalXs.push(x);
+  const horizontalYs: number[] = [];
+  for (let y = phaseY; y <= CANVAS_H + 0.001; y += size.h) horizontalYs.push(y);
 
   return (
     <g style={{ pointerEvents: 'none' }}>
@@ -271,9 +266,9 @@ const GridOverlayLines = ({
         <line
           key={`v${x}`}
           x1={x}
-          y1={top}
+          y1={0}
           x2={x}
-          y2={bottom}
+          y2={CANVAS_H}
           stroke="rgba(107,114,128,0.22)"
           strokeWidth="0.75"
         />
@@ -281,9 +276,9 @@ const GridOverlayLines = ({
       {horizontalYs.map((y) => (
         <line
           key={`h${y}`}
-          x1={left}
+          x1={0}
           y1={y}
-          x2={right}
+          x2={CANVAS_W}
           y2={y}
           stroke="rgba(107,114,128,0.22)"
           strokeWidth="0.75"
@@ -1474,15 +1469,34 @@ const FloorCanvas = ({
   const hasFloorPlan = floor.segmentationStatus === 'DONE';
 
   if (!hasFloorPlan) {
+    const isAnalyzing =
+      floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
+    const isAnalysisFailed = floor.segmentationStatus === 'FAILED';
+
     return (
       <div className={styles.canvasPlaceholder}>
-        <span className={styles.canvasPlaceholderTitle}>등록된 도면이 없습니다</span>
-        <p style={{ color: 'inherit', margin: 0 }}>
-          도면을 업로드하거나 AI 영역 분할을 실행해 주세요
-        </p>
-        <Button variant="primary" size="sm" onClick={onUpload}>
-          도면 업로드
-        </Button>
+        {isAnalyzing ? (
+          <>
+            <LoadingState size="md" message="AI가 도면을 분석하고 있습니다" />
+            <p style={{ color: 'inherit', margin: 0 }}>
+              완료되면 이 화면에 도면과 노드가 자동으로 표시됩니다
+            </p>
+          </>
+        ) : (
+          <>
+            <span className={styles.canvasPlaceholderTitle}>
+              {isAnalysisFailed ? '도면 분석에 실패했습니다' : '등록된 도면이 없습니다'}
+            </span>
+            <p style={{ color: 'inherit', margin: 0 }}>
+              {isAnalysisFailed
+                ? '도면을 다시 업로드해 주세요'
+                : '도면을 업로드하거나 AI 영역 분할을 실행해 주세요'}
+            </p>
+            <Button variant="primary" size="sm" onClick={onUpload}>
+              도면 {isAnalysisFailed ? '다시 ' : ''}업로드
+            </Button>
+          </>
+        )}
       </div>
     );
   }
@@ -1688,6 +1702,12 @@ const FloorPlansDetailPage = () => {
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
 
+  // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
+  // 완료(DONE)되면 그래프를 불러오고, 그 전까지는 상태를 폴링해 자동 반영함
+  const isAnalyzing =
+    floor?.segmentationStatus === 'PENDING' || floor?.segmentationStatus === 'PROCESSING';
+  const isFloorReady = floor?.segmentationStatus === 'DONE';
+
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {
     getFloorBuildings()
@@ -1714,6 +1734,17 @@ const FloorPlansDetailPage = () => {
     };
   }, [buildingId, floorId]);
 
+  // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회 — 수동 새로고침 없이 DONE/FAILED로 갱신됨
+  useEffect(() => {
+    if (!buildingId || !floorId || !isAnalyzing) return;
+    const timer = setInterval(() => {
+      getFloorDetail(buildingId, floorId)
+        .then(setFloor)
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [buildingId, floorId, isAnalyzing]);
+
   // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
   useEffect(() => {
     setResolvedMapImageUrl(null);
@@ -1729,9 +1760,10 @@ const FloorPlansDetailPage = () => {
     };
   }, [buildingId, floorId, floor?.mapImageUrl]);
 
-  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관
+  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
+  // 세그멘테이션이 끝나야(DONE) 노드가 생기므로, 완료 시점에 (재)조회함
   useEffect(() => {
-    if (!floorId) return;
+    if (!floorId || !isFloorReady) return;
     let cancelled = false;
     getFloorGraph(floorId)
       .then((graph) => {
@@ -1753,7 +1785,7 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [floorId]);
+  }, [floorId, isFloorReady]);
 
   // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
   useEffect(() => {
@@ -2188,8 +2220,13 @@ const FloorPlansDetailPage = () => {
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
-        analyzeFloor(newFloor.id).catch(() => {
-          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        // 분석은 서버에서 비동기로 진행되고 이 화면이 상태를 폴링하므로, 타임아웃은 실패로 보지 않음
+        analyzeFloor(newFloor.id).catch((error: unknown) => {
+          if (isAxiosError(error) && error.code === 'ECONNABORTED') return;
+          show({
+            title: '도면 분석 요청 중 문제가 발생했습니다. 잠시 후 상태를 확인해주세요.',
+            variant: 'warning',
+          });
         });
       })
       .catch(() => {

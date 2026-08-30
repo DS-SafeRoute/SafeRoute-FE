@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { isAxiosError } from 'axios';
 import { useNavigate } from 'react-router';
 
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
@@ -244,15 +245,21 @@ const FloorPlansPage = () => {
         );
         show({
           title: '도면이 업로드되었습니다.',
-          description: `${buildingName} · ${formatFloor(floorNum)} 도면이 등록되었습니다.`,
+          description: `${buildingName} · ${formatFloor(floorNum)} AI 분석이 진행 중입니다. 완료되면 상세 화면에 자동으로 반영됩니다.`,
           variant: 'success',
         });
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsUploading(false);
         void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
-        analyzeFloor(newFloor.id).catch(() => {
-          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        // 분석은 서버에서 비동기로 처리되고 상세 화면이 상태를 폴링하므로, 요청이 타임아웃돼도
+        // (POST는 도달했고 분석은 계속 진행됨) 실패로 취급하지 않음. 실제 요청 거부만 안내
+        analyzeFloor(newFloor.id).catch((error: unknown) => {
+          if (isAxiosError(error) && error.code === 'ECONNABORTED') return;
+          show({
+            title: '도면 분석 요청 중 문제가 발생했습니다. 상세 화면에서 상태를 확인해주세요.',
+            variant: 'warning',
+          });
         });
       })
       .catch(() => {
