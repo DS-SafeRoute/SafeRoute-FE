@@ -252,13 +252,28 @@ const GridOverlayLines = ({
   size: { w: number; h: number };
 }) => {
   if (cells.length === 0) return null;
-  const origin = getGridPxOrigin(cells, size);
   const CANVAS_W = 560;
   const CANVAS_H = 420;
 
-  // 그리드 원점의 위상(offset)만 유지한 채, 0부터 캔버스 끝까지 셀 간격으로 선을 반복
-  const phaseX = ((origin.x % size.w) + size.w) % size.w;
-  const phaseY = ((origin.y % size.h) + size.h) % size.h;
+  // 위상(offset)은 각 셀 왼쪽/위쪽 변을 셀 크기로 나눈 나머지의 중앙값으로 구함 —
+  // 특정 셀 하나의 부동소수 오차에 흔들리지 않고, 격자선이 실제 셀 경계에 맞음.
+  // 그 위상에서 0부터 캔버스 끝까지 셀 간격으로 선을 반복해 전체를 덮음
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)] ?? 0;
+  };
+  const phaseX = median(
+    cells.map((c) => {
+      const left = c.centerX * 560 - size.w / 2;
+      return ((left % size.w) + size.w) % size.w;
+    }),
+  );
+  const phaseY = median(
+    cells.map((c) => {
+      const top = c.centerY * 420 - size.h / 2;
+      return ((top % size.h) + size.h) % size.h;
+    }),
+  );
   const verticalXs: number[] = [];
   for (let x = phaseX; x <= CANVAS_W + 0.001; x += size.w) verticalXs.push(x);
   const horizontalYs: number[] = [];
@@ -274,7 +289,7 @@ const GridOverlayLines = ({
           x2={x}
           y2={CANVAS_H}
           stroke="rgba(107,114,128,0.22)"
-          strokeWidth="0.75"
+          strokeWidth="0.6"
         />
       ))}
       {horizontalYs.map((y) => (
@@ -285,7 +300,7 @@ const GridOverlayLines = ({
           x2={CANVAS_W}
           y2={y}
           stroke="rgba(107,114,128,0.22)"
-          strokeWidth="0.75"
+          strokeWidth="0.6"
         />
       ))}
     </g>
@@ -705,35 +720,48 @@ const MockFloorMap3F = ({
         <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} />
       )}
 
-      {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능) 또는 선택된 기존 CCTV의 감시 영역(조회 전용) */}
-      {(cctvGridCellsMode === 'selecting' || cctvGridCellsMode === 'viewing') &&
-        floorGridCells.map((cell) => {
-          const cx = cell.centerX * 560;
-          const cy = cell.centerY * 420;
-          const isSelected = selectedGridCellIds.includes(cell.id);
-          if (cctvGridCellsMode === 'viewing' && !isSelected) return null;
-          return (
-            <rect
-              key={cell.id}
-              x={cx - gridCellPxSize.w / 2}
-              y={cy - gridCellPxSize.h / 2}
-              width={gridCellPxSize.w}
-              height={gridCellPxSize.h}
-              fill={isSelected ? 'rgba(139,92,246,0.35)' : 'rgba(139,92,246,0.04)'}
-              stroke="#8b5cf6"
-              strokeWidth={isSelected ? '1.5' : '0.5'}
-              style={{
-                cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
-                pointerEvents: cctvGridCellsMode === 'selecting' ? 'auto' : 'none',
-              }}
-              onClick={(e) => {
-                if (cctvGridCellsMode !== 'selecting') return;
-                e.stopPropagation();
-                onGridCellToggle(cell.id);
-              }}
-            />
-          );
-        })}
+      {/* 그리드 셀 선택 — CCTV 신규 등록 중(선택 가능) 또는 기존 CCTV 감시 영역(조회 전용).
+          셀마다 테두리를 그리면 원고지처럼 보여서, 얇은 균일 격자선 위에 선택된 셀만
+          하나의 면적(채움+외곽선)으로 표시하고, 클릭 판정은 투명 히트영역이 담당함 */}
+      {(cctvGridCellsMode === 'selecting' || cctvGridCellsMode === 'viewing') && (
+        <>
+          {cctvGridCellsMode === 'selecting' && (
+            <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} />
+          )}
+
+          {(() => {
+            const selectedCells = floorGridCells.filter((c) => selectedGridCellIds.includes(c.id));
+            if (selectedCells.length === 0) return null;
+            return (
+              <path
+                d={buildZoneOutlinePath(selectedCells, gridCellPxSize)}
+                fillRule="evenodd"
+                fill="rgba(139,92,246,0.3)"
+                stroke="#8b5cf6"
+                strokeWidth="1.5"
+                style={{ pointerEvents: 'none' }}
+              />
+            );
+          })()}
+
+          {cctvGridCellsMode === 'selecting' &&
+            floorGridCells.map((cell) => (
+              <rect
+                key={cell.id}
+                x={cell.centerX * 560 - gridCellPxSize.w / 2}
+                y={cell.centerY * 420 - gridCellPxSize.h / 2}
+                width={gridCellPxSize.w}
+                height={gridCellPxSize.h}
+                fill="transparent"
+                style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGridCellToggle(cell.id);
+                }}
+              />
+            ))}
+        </>
+      )}
 
       {/* 구역 추가 드래그 선택 영역 */}
       {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
