@@ -21,16 +21,6 @@ export interface RecommendationItem {
   description: string;
 }
 
-export interface ReportNarrative {
-  headlinePrefix: string;
-  grade: string;
-  headlineSuffix: string;
-  strength: string;
-  improvementPrefix: string;
-  improvementScore: string;
-  improvementSuffix: string;
-}
-
 export interface ReportSummary {
   grade: string;
   scoreText: string;

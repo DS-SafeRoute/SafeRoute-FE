@@ -24,17 +24,21 @@ interface RecommendationsCardProps {
 const RecommendationsCard = ({ items }: RecommendationsCardProps) => (
   <section className={styles.card}>
     <h2 className={styles.title}>개선 권고사항</h2>
-    <ul className={styles.list}>
-      {items.map((item) => (
-        <li key={item.id} className={styles.item}>
-          <div className={styles.itemHeader}>
-            <StatusBadge label={priorityLabels[item.level]} color={priorityColors[item.level]} />
-            <strong className={styles.itemTitle}>{item.title}</strong>
-          </div>
-          <p className={styles.description}>{item.description}</p>
-        </li>
-      ))}
-    </ul>
+    {items.length > 0 ? (
+      <ul className={styles.list}>
+        {items.map((item) => (
+          <li key={item.id} className={styles.item}>
+            <div className={styles.itemHeader}>
+              <StatusBadge label={priorityLabels[item.level]} color={priorityColors[item.level]} />
+              <strong className={styles.itemTitle}>{item.title}</strong>
+            </div>
+            <p className={styles.description}>{item.description}</p>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className={styles.description}>개선 권고사항이 없습니다.</p>
+    )}
   </section>
 );
 

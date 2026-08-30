@@ -2,13 +2,11 @@ import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
 import * as styles from './AiReportCard.css';
 
-import type { ReportNarrative } from '../../types/report';
-
 interface AiReportCardProps {
-  narrative: ReportNarrative;
+  summaryText?: string;
 }
 
-const AiReportCard = ({ narrative }: AiReportCardProps) => (
+const AiReportCard = ({ summaryText }: AiReportCardProps) => (
   <section className={styles.card}>
     <div className={styles.header}>
       <div className={styles.titleGroup}>
@@ -17,22 +15,7 @@ const AiReportCard = ({ narrative }: AiReportCardProps) => (
       </div>
     </div>
 
-    <div className={styles.body}>
-      <p>
-        {narrative.headlinePrefix} <span className={styles.successText}>{narrative.grade}</span>
-        {narrative.headlineSuffix}
-      </p>
-      <p>
-        <span className={styles.paragraphLabel}>강점: </span>
-        {narrative.strength}
-      </p>
-      <p>
-        <span className={styles.paragraphLabel}>개선: </span>
-        {narrative.improvementPrefix}{' '}
-        <span className={styles.warningText}>{narrative.improvementScore}</span>
-        {narrative.improvementSuffix}
-      </p>
-    </div>
+    <p className={styles.body}>{summaryText || '자동 평가 내용이 없습니다.'}</p>
   </section>
 );
 
