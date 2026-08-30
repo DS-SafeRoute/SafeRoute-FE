@@ -6,12 +6,21 @@ import type {
   TrainingSessionStatus,
 } from '../types/trainingAnalysis';
 
-// 훈련분석 목록은 종료된 훈련(COMPLETED/FAILED)만 대상으로 함 — 진행 중(RUNNING)에는
-// 실시간 열람이 불가능해서 목록 진입 자체를 막고, SCHEDULED/STOPPED/CANCELLED는 열람 대상 아님
+// 훈련분석은 진행 중(RUNNING) 훈련과 종료된(COMPLETED/FAILED) 훈련을 대상으로 함.
+// RUNNING은 5초 간격으로 최신 CCTV 프레임이 계속 들어와 실시간처럼 갱신되고,
+// COMPLETED/FAILED는 훈련 중 수집된 프레임을 사후 열람함.
+// SCHEDULED/STOPPED/CANCELLED는 열람 대상 아님
 export const VIEWABLE_SESSION_STATUSES = [
+  'RUNNING',
   'COMPLETED',
   'FAILED',
 ] as const satisfies readonly TrainingSessionStatus[];
+
+// 진행 중 훈련은 카메라 목록·프레임·이벤트를 이 주기로 다시 조회해 최신 프레임을 반영함
+export const LIVE_SESSION_POLL_INTERVAL_MS = 5000;
+
+export const isLiveSessionStatus = (status: TrainingSessionStatus | undefined) =>
+  status === 'RUNNING';
 
 export const TRAINING_SESSION_STATUS_VIEW = {
   RUNNING: { label: '진행 중', color: 'yellow' },

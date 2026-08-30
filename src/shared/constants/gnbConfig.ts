@@ -76,7 +76,7 @@ const GNB_CONFIGS = [
     config: {
       breadcrumbs: [{ label: '훈련 분석' }],
       title: '훈련 분석',
-      description: '종료된 훈련을 선택해 CCTV 프레임을 분석합니다',
+      description: '진행 중이거나 종료된 훈련의 CCTV 프레임을 확인합니다',
     },
   },
   {

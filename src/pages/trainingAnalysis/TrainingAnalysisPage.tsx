@@ -46,8 +46,8 @@ const TrainingAnalysisPage = () => {
       {!isLoading && !isError && sessions.length === 0 && (
         <EmptyState
           icon={<CameraIcon width={32} height={32} />}
-          title="분석할 수 있는 훈련이 없습니다"
-          description="훈련이 종료되면 이곳에서 CCTV 프레임을 확인할 수 있습니다"
+          title="확인할 수 있는 훈련이 없습니다"
+          description="진행 중이거나 종료된 훈련의 CCTV 프레임을 이곳에서 확인할 수 있습니다"
         />
       )}
 
@@ -87,7 +87,7 @@ const TrainingAnalysisPage = () => {
                       영상 분석 보기
                     </Button>
                   ) : (
-                    <span className={styles.actionHint}>종료 후 열람</span>
+                    <span className={styles.actionHint}>열람 불가</span>
                   )}
                 </div>
               </div>

@@ -52,6 +52,38 @@ export const viewer = style({
   overflow: 'hidden',
 });
 
+export const viewerImg = style({
+  objectFit: 'contain',
+  width: '100%',
+  height: '100%',
+});
+
+export const viewerEmpty = style({
+  color: 'rgba(255,255,255,0.5)',
+  ...vars.typography.body14,
+});
+
+export const liveBadge = style({
+  position: 'absolute',
+  bottom: vars.space.s3,
+  left: vars.space.s3,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  borderRadius: vars.radius.sm,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  padding: '0.4rem 0.9rem',
+  color: '#F87171',
+  ...vars.typography.captionBold,
+});
+
+export const liveDot = style({
+  borderRadius: '50%',
+  backgroundColor: '#F87171',
+  width: '0.7rem',
+  height: '0.7rem',
+});
+
 export const viewerTime = style({
   position: 'absolute',
   top: vars.space.s3,
@@ -200,6 +232,15 @@ export const filmstripItem = style({
 export const filmstripItemActive = style({
   outlineColor: vars.color.primary,
   boxShadow: `0 0 0 2px ${vars.color.primaryLight}`,
+});
+
+export const filmstripThumb = style({
+  position: 'absolute',
+  inset: 0,
+  borderRadius: vars.radius.md,
+  objectFit: 'cover',
+  width: '100%',
+  height: '100%',
 });
 
 export const filmstripIndex = style({

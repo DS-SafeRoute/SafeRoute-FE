@@ -20,6 +20,7 @@ import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   EVENT_SEVERITY_COLOR,
   EVENT_TYPE_LABEL,
+  isLiveSessionStatus,
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
@@ -54,11 +55,13 @@ const TrainingCameraFramesPage = () => {
     isLoading: isSessionLoading,
     isError: isSessionError,
   } = useTrainingSessionQuery(sessionId);
+  // 진행 중 훈련이면 카메라·프레임·이벤트를 주기적으로 다시 조회해 최신 프레임을 반영
+  const isLive = isLiveSessionStatus(session?.status);
   const {
     data: cameras = [],
     isLoading: isCamerasLoading,
     isError: isCamerasError,
-  } = useSessionCamerasQuery(sessionId);
+  } = useSessionCamerasQuery(sessionId, { live: isLive });
   const camera = cameras.find((c) => c.cctvId === cctvId);
 
   const {
@@ -68,13 +71,13 @@ const TrainingCameraFramesPage = () => {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-  } = useCameraFramesQuery(sessionId, cctvId);
+  } = useCameraFramesQuery(sessionId, cctvId, { live: isLive });
   const frames = useMemo(
     () => framePages?.pages.flatMap((page) => page.frames) ?? [],
     [framePages],
   );
 
-  const { data: events = [] } = useSessionEventsQuery(sessionId, camera?.code);
+  const { data: events = [] } = useSessionEventsQuery(sessionId, camera?.code, { live: isLive });
 
   // 마지막 프레임 근처까지 보면 다음 페이지를 미리 불러와서, ›로 넘길 때 끊기지 않게 함
   useEffect(() => {
@@ -129,7 +132,11 @@ const TrainingCameraFramesPage = () => {
         statusLabel={statusView.label}
         statusColor={statusView.color}
         meta={`${camera.location} · ${camera.code}`}
-        notice={`훈련 중 5초 간격으로 수집된 CCTV 프레임입니다. 프레임과 프레임 사이의 상황은 확인할 수 없습니다.`}
+        notice={
+          isLive
+            ? '훈련이 진행 중입니다. 약 5초 간격으로 최신 CCTV 프레임이 들어옵니다.'
+            : '훈련 중 5초 간격으로 수집된 CCTV 프레임입니다. 프레임과 프레임 사이의 상황은 확인할 수 없습니다.'
+        }
         onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
       />
 
@@ -153,6 +160,16 @@ const TrainingCameraFramesPage = () => {
         <div className={styles.mainGrid}>
           <div className={styles.leftCol}>
             <div className={styles.viewer}>
+              {currentFrame.imageUrl ? (
+                <img
+                  className={styles.viewerImg}
+                  src={currentFrame.imageUrl}
+                  alt={`${camera.code} ${formatCapturedTime(currentFrame.capturedAt)} 프레임`}
+                />
+              ) : (
+                <span className={styles.viewerEmpty}>이미지 준비 중…</span>
+              )}
+
               <span className={styles.viewerTime}>
                 촬영 시각 {formatCapturedTime(currentFrame.capturedAt)} ·{' '}
                 {formatElapsedFromStart(currentFrame.capturedAt, sessionStartedAtMs)}
@@ -161,6 +178,12 @@ const TrainingCameraFramesPage = () => {
                 {frameIndex + 1}/{frames.length}
                 {hasNextPage ? '+' : ''}
               </span>
+              {isLive && frameIndex === 0 && (
+                <span className={styles.liveBadge}>
+                  <span className={styles.liveDot} aria-hidden="true" />
+                  LIVE
+                </span>
+              )}
 
               <button
                 type="button"
@@ -205,6 +228,9 @@ const TrainingCameraFramesPage = () => {
                     )}
                     onClick={() => setFrameIndex(index)}
                   >
+                    {frame.imageUrl && (
+                      <img className={styles.filmstripThumb} src={frame.imageUrl} alt="" />
+                    )}
                     <span className={styles.filmstripIndex}>{index + 1}</span>
                     {NEEDS_ATTENTION.includes(frame.congestionLevel) && (
                       <AlertIcon

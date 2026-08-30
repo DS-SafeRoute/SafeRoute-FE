@@ -7,6 +7,8 @@ import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionC
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi';
 
+import { LIVE_SESSION_POLL_INTERVAL_MS } from '../constants/trainingAnalysis';
+
 import type { TrainingSessionSummary } from '../types/trainingAnalysis';
 
 const toTrainingSessionSummary = (
@@ -19,14 +21,22 @@ const toTrainingSessionSummary = (
   return { sessionId, scenarioName, buildingId, buildingName, status, startedAt };
 };
 
-// 훈련분석 목록은 훈련 중에는 열람이 불가능해서 종료된(COMPLETED) 훈련뿐 아니라 실패로
-// 끝난(FAILED) 훈련도 대상으로 함 — 실패 전까지 수집된 프레임은 여전히 확인할 가치가 있음.
-// status가 필수 파라미터라 상태별로 두 번 호출해서 합침
+// 훈련분석은 진행 중(RUNNING) 훈련과 종료된(COMPLETED/FAILED) 훈련을 모두 대상으로 함.
+// status가 필수 파라미터라 상태별로 나눠 호출해서 합치고, RUNNING 목록은 새 훈련이
+// 시작되거나 종료되는 걸 반영하려고 주기적으로 다시 조회함
 export const useViewableTrainingSessionsQuery = () => {
-  const [completed, failed] = useQueries({
-    queries: [TRAINING_SESSION_STATUS.COMPLETED, TRAINING_SESSION_STATUS.FAILED].map((status) => ({
+  const [running, completed, failed] = useQueries({
+    queries: [
+      TRAINING_SESSION_STATUS.RUNNING,
+      TRAINING_SESSION_STATUS.COMPLETED,
+      TRAINING_SESSION_STATUS.FAILED,
+    ].map((status) => ({
       queryKey: trainingSessionQueryKeys.list(status),
       queryFn: ({ signal }: { signal: AbortSignal }) => getTrainingSessions(status, signal),
+      refetchInterval:
+        status === TRAINING_SESSION_STATUS.RUNNING
+          ? LIVE_SESSION_POLL_INTERVAL_MS
+          : (false as const),
     })),
   });
 
@@ -34,16 +44,16 @@ export const useViewableTrainingSessionsQuery = () => {
   // 각 쿼리의 data만 뽑아서 의존성에 넣음(react-query가 data 참조는 안정적으로 유지해줌)
   const sessions = useMemo(
     () =>
-      [...(completed.data ?? []), ...(failed.data ?? [])]
+      [...(running.data ?? []), ...(completed.data ?? []), ...(failed.data ?? [])]
         .map(toTrainingSessionSummary)
         .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)),
-    [completed.data, failed.data],
+    [running.data, completed.data, failed.data],
   );
 
   return {
     sessions,
-    isLoading: completed.isLoading || failed.isLoading,
-    isError: completed.isError || failed.isError,
+    isLoading: running.isLoading || completed.isLoading || failed.isLoading,
+    isError: running.isError || completed.isError || failed.isError,
   };
 };
 

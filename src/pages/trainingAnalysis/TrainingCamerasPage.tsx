@@ -12,6 +12,7 @@ import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery'
 import CameraCard from './components/CameraCard/CameraCard';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
+  isLiveSessionStatus,
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
@@ -44,11 +45,12 @@ const TrainingCamerasPage = () => {
     isLoading: isSessionLoading,
     isError: isSessionError,
   } = useTrainingSessionQuery(sessionId);
+  const isLive = isLiveSessionStatus(session?.status);
   const {
     data: cameras = [],
     isLoading: isCamerasLoading,
     isError: isCamerasError,
-  } = useSessionCamerasQuery(sessionId);
+  } = useSessionCamerasQuery(sessionId, { live: isLive });
 
   const floorGroups = useMemo(() => groupByFloor(cameras), [cameras]);
 
@@ -92,7 +94,11 @@ const TrainingCamerasPage = () => {
         statusLabel={statusView.label}
         statusColor={statusView.color}
         meta={`${session.buildingName} · ${formatSessionStartedAt(session.startedAt)} 시작 · 카메라 ${cameras.length}대`}
-        notice="훈련 중에는 열람할 수 없으며, 종료 후 수집된 프레임만 확인할 수 있습니다."
+        notice={
+          isLive
+            ? '훈련이 진행 중입니다. 카메라별 최신 프레임이 약 5초 간격으로 갱신됩니다.'
+            : '훈련 중 5초 간격으로 수집된 프레임을 카메라별로 확인할 수 있습니다.'
+        }
         onBack={() => void navigate(ROUTES.TRAINING_ANALYSIS)}
       />
 
@@ -114,7 +120,8 @@ const TrainingCamerasPage = () => {
           <>
             <div className={styles.gridHeadRow}>
               <span className={styles.gridSubtitle}>
-                프레임이 있는 카메라 {cameraWithFrame.length}대 · 5초 간격으로 저장됨
+                프레임이 있는 카메라 {cameraWithFrame.length}대 ·{' '}
+                {isLive ? '약 5초 간격으로 갱신 중' : '5초 간격으로 수집됨'}
               </span>
             </div>
 
