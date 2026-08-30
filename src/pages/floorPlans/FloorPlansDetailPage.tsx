@@ -7,6 +7,7 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
+import EyeOffIcon from '@assets/icons/ic-eye-off.svg?react';
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
@@ -170,6 +171,126 @@ const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => 
   const maxRow = Math.max(...cells.map((c) => c.rowIndex));
   const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
   return { w: size, h: size };
+};
+
+// 셀의 (row,col) 인덱스만으로 픽셀 좌표를 뽑을 수 있도록 그리드 원점(0,0 셀의 좌상단)을 역산.
+// 셀마다 제각각인 centerX/centerY(부동소수) 대신 원점+인덱스로 좌표를 계산하면 인접 셀의
+// 공유 모서리 좌표가 정확히 일치해서, 경계선/격자선에 미세한 어긋남이나 이중선이 안 생김
+const getGridPxOrigin = (
+  cells: FloorGridCell[],
+  size: { w: number; h: number },
+): { x: number; y: number } => {
+  const ref = cells[0];
+  if (!ref) return { x: 0, y: 0 };
+  return {
+    x: ref.centerX * 560 - size.w / 2 - ref.columnIndex * size.w,
+    y: ref.centerY * 420 - size.h / 2 - ref.rowIndex * size.h,
+  };
+};
+
+// 셀 집합의 바깥 윤곽선을 하나의 SVG path(d)로. 셀별 rect를 이어 붙이면 반투명 채움 사이에
+// 이음매가 보여 "직사각형의 집합"처럼 보이므로, 합집합 윤곽을 구해 단일 도형으로 그림.
+const buildZoneOutlinePath = (cells: FloorGridCell[], size: { w: number; h: number }): string => {
+  const origin = getGridPxOrigin(cells, size);
+  const cellKey = (col: number, row: number) => `${col},${row}`;
+  const inZone = new Set(cells.map((c) => cellKey(c.columnIndex, c.rowIndex)));
+  const cornerX = (col: number) => origin.x + col * size.w;
+  const cornerY = (row: number) => origin.y + row * size.h;
+  const ptKey = (x: number, y: number) => `${x},${y}`;
+
+  // 이웃이 없는 변만 방향성 있게 수집(셀 기준 시계방향) → 이어 붙이면 닫힌 윤곽이 됨
+  const nextByStart = new Map<string, { x: number; y: number }>();
+  cells.forEach((c) => {
+    const { columnIndex: col, rowIndex: row } = c;
+    const tl = { x: cornerX(col), y: cornerY(row) };
+    const tr = { x: cornerX(col + 1), y: cornerY(row) };
+    const br = { x: cornerX(col + 1), y: cornerY(row + 1) };
+    const bl = { x: cornerX(col), y: cornerY(row + 1) };
+    if (!inZone.has(cellKey(col, row - 1))) nextByStart.set(ptKey(tl.x, tl.y), tr);
+    if (!inZone.has(cellKey(col + 1, row))) nextByStart.set(ptKey(tr.x, tr.y), br);
+    if (!inZone.has(cellKey(col, row + 1))) nextByStart.set(ptKey(br.x, br.y), bl);
+    if (!inZone.has(cellKey(col - 1, row))) nextByStart.set(ptKey(bl.x, bl.y), tl);
+  });
+
+  let d = '';
+  const visited = new Set<string>();
+  for (const startKey of nextByStart.keys()) {
+    if (visited.has(startKey)) continue;
+    const [sx, sy] = startKey.split(',').map(Number);
+    d += `M${sx} ${sy}`;
+    let curKey = startKey;
+    while (true) {
+      const next = nextByStart.get(curKey);
+      if (!next) break;
+      visited.add(curKey);
+      d += `L${next.x} ${next.y}`;
+      const nextKey = ptKey(next.x, next.y);
+      if (nextKey === startKey) {
+        d += 'Z';
+        break;
+      }
+      if (visited.has(nextKey)) break;
+      curKey = nextKey;
+    }
+  }
+  return d;
+};
+
+// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 전체 폭/높이를 가로지르는
+// 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰
+const GridOverlayLines = ({
+  cells,
+  size,
+}: {
+  cells: FloorGridCell[];
+  size: { w: number; h: number };
+}) => {
+  if (cells.length === 0) return null;
+  const origin = getGridPxOrigin(cells, size);
+  const minCol = Math.min(...cells.map((c) => c.columnIndex));
+  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
+  const minRow = Math.min(...cells.map((c) => c.rowIndex));
+  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
+  const left = origin.x + minCol * size.w;
+  const right = origin.x + (maxCol + 1) * size.w;
+  const top = origin.y + minRow * size.h;
+  const bottom = origin.y + (maxRow + 1) * size.h;
+
+  const verticalXs = Array.from(
+    { length: maxCol - minCol + 2 },
+    (_, i) => origin.x + (minCol + i) * size.w,
+  );
+  const horizontalYs = Array.from(
+    { length: maxRow - minRow + 2 },
+    (_, i) => origin.y + (minRow + i) * size.h,
+  );
+
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      {verticalXs.map((x) => (
+        <line
+          key={`v${x}`}
+          x1={x}
+          y1={top}
+          x2={x}
+          y2={bottom}
+          stroke="rgba(107,114,128,0.22)"
+          strokeWidth="0.75"
+        />
+      ))}
+      {horizontalYs.map((y) => (
+        <line
+          key={`h${y}`}
+          x1={left}
+          y1={y}
+          x2={right}
+          y2={y}
+          stroke="rgba(107,114,128,0.22)"
+          strokeWidth="0.75"
+        />
+      ))}
+    </g>
+  );
 };
 
 const MockFloorMap3F = ({
@@ -529,9 +650,8 @@ const MockFloorMap3F = ({
           );
         })}
 
-      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시.
-          셀마다 테두리를 그리면 바둑판처럼 보여서, 채움은 셀 단위로 이어 붙이되 테두리는
-          바깥 경계선만 그려 하나의 면적으로 보이게 함.
+      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라, 셀들의 합집합 윤곽을
+          단일 path로 그려 하나의 면적으로 보이게 함(내부 격자선·이음매 없음).
           구역마다 매번 floorGridCells를 선형 탐색하지 않도록 id→셀 매핑을 한 번만 만들어 재사용 */}
       {(() => {
         const floorGridCellById = new Map(floorGridCells.map((c) => [c.id, c]));
@@ -546,26 +666,6 @@ const MockFloorMap3F = ({
           const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
           const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
 
-          // 이웃 셀이 같은 구역에 없을 때만 그 변을 경계선으로 그림 → 내부 격자선 제거
-          const { w, h } = gridCellPxSize;
-          const cellKey = (row: number, col: number) => `${row},${col}`;
-          const inZone = new Set(cells.map((c) => cellKey(c.rowIndex, c.columnIndex)));
-          const borderEdges: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-          cells.forEach((cell) => {
-            const left = cell.centerX * 560 - w / 2;
-            const top = cell.centerY * 420 - h / 2;
-            const right = left + w;
-            const bottom = top + h;
-            if (!inZone.has(cellKey(cell.rowIndex - 1, cell.columnIndex)))
-              borderEdges.push({ x1: left, y1: top, x2: right, y2: top });
-            if (!inZone.has(cellKey(cell.rowIndex + 1, cell.columnIndex)))
-              borderEdges.push({ x1: left, y1: bottom, x2: right, y2: bottom });
-            if (!inZone.has(cellKey(cell.rowIndex, cell.columnIndex - 1)))
-              borderEdges.push({ x1: left, y1: top, x2: left, y2: bottom });
-            if (!inZone.has(cellKey(cell.rowIndex, cell.columnIndex + 1)))
-              borderEdges.push({ x1: right, y1: top, x2: right, y2: bottom });
-          });
-
           return (
             <g
               key={z.id}
@@ -576,28 +676,13 @@ const MockFloorMap3F = ({
               }}
               style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
             >
-              {cells.map((cell) => (
-                <rect
-                  key={cell.id}
-                  x={cell.centerX * 560 - w / 2}
-                  y={cell.centerY * 420 - h / 2}
-                  width={w}
-                  height={h}
-                  fill="rgba(107,114,128,0.15)"
-                  stroke="none"
-                />
-              ))}
-              {borderEdges.map((edge, index) => (
-                <line
-                  key={index}
-                  x1={edge.x1}
-                  y1={edge.y1}
-                  x2={edge.x2}
-                  y2={edge.y2}
-                  stroke={isSelected ? '#2563eb' : '#6b7280'}
-                  strokeWidth={isSelected ? '2' : '1'}
-                />
-              ))}
+              <path
+                d={buildZoneOutlinePath(cells, gridCellPxSize)}
+                fillRule="evenodd"
+                fill="rgba(107,114,128,0.15)"
+                stroke={isSelected ? '#2563eb' : '#6b7280'}
+                strokeWidth={isSelected ? '2' : '1'}
+              />
               <text
                 x={labelX}
                 y={labelY + 3}
@@ -614,15 +699,18 @@ const MockFloorMap3F = ({
         });
       })()}
 
-      {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능), 선택된 기존 CCTV의 감시 영역(조회 전용),
-          또는 그리드 표시 토글이 켜진 경우(전체 조회 전용) */}
-      {cctvGridCellsMode !== 'hidden' &&
+      {/* 그리드 표시 토글 — 도면 위에 얹는 균일한 모눈종이 격자선(선만, 채움 없음) */}
+      {cctvGridCellsMode === 'browsing' && (
+        <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} />
+      )}
+
+      {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능) 또는 선택된 기존 CCTV의 감시 영역(조회 전용) */}
+      {(cctvGridCellsMode === 'selecting' || cctvGridCellsMode === 'viewing') &&
         floorGridCells.map((cell) => {
           const cx = cell.centerX * 560;
           const cy = cell.centerY * 420;
           const isSelected = selectedGridCellIds.includes(cell.id);
           if (cctvGridCellsMode === 'viewing' && !isSelected) return null;
-          const isBrowsing = cctvGridCellsMode === 'browsing';
           return (
             <rect
               key={cell.id}
@@ -630,10 +718,8 @@ const MockFloorMap3F = ({
               y={cy - gridCellPxSize.h / 2}
               width={gridCellPxSize.w}
               height={gridCellPxSize.h}
-              fill={
-                isSelected ? 'rgba(139,92,246,0.35)' : isBrowsing ? 'none' : 'rgba(139,92,246,0.04)'
-              }
-              stroke={isBrowsing ? 'rgba(107,114,128,0.25)' : '#8b5cf6'}
+              fill={isSelected ? 'rgba(139,92,246,0.35)' : 'rgba(139,92,246,0.04)'}
+              stroke="#8b5cf6"
               strokeWidth={isSelected ? '1.5' : '0.5'}
               style={{
                 cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
@@ -2984,7 +3070,11 @@ const FloorPlansDetailPage = () => {
                   aria-pressed={showGridOverlay}
                   onClick={handleToggleGridOverlay}
                 >
-                  <EyeIcon width={14} height={14} />
+                  {showGridOverlay ? (
+                    <EyeOffIcon width={14} height={14} />
+                  ) : (
+                    <EyeIcon width={14} height={14} />
+                  )}
                   그리드 표시
                 </button>
                 <button
