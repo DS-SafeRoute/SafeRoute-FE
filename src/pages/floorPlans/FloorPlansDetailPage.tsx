@@ -417,8 +417,13 @@ const MockFloorMap3F = ({
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * CANVAS_W);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * canvasH);
+    // 캔버스 경계 밖 클릭이 0~1 범위를 벗어난 좌표로 저장되지 않도록 클램프 (백엔드 x,y 검증: 0~1)
+    const x = Math.round(
+      Math.max(0, Math.min(CANVAS_W, ((e.clientX - rect.left) / rect.width) * CANVAS_W)),
+    );
+    const y = Math.round(
+      Math.max(0, Math.min(canvasH, ((e.clientY - rect.top) / rect.height) * canvasH)),
+    );
     if (editMode === 'poi' || placingActive) {
       onMapClick(x, y);
       return;
@@ -1912,12 +1917,26 @@ const FloorPlansDetailPage = () => {
         } catch {
           /* noop */
         }
+        show({
+          title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
+          variant: 'success',
+        });
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const msg = isAxiosError<{ message?: string }>(error)
+          ? (error.response?.data?.message ?? '')
+          : '';
+        show({
+          title: `그리드 배율 자동 적용 실패${msg ? ` (${msg})` : ''} — 그리드 설정에서 직접 지정해주세요.`,
+          variant: 'error',
+          duration: 8000,
+        });
+      });
     return () => {
       cancelled = true;
     };
-  }, [floorId, isFloorReady]);
+  }, [floorId, isFloorReady, show]);
 
   // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
   // 세그멘테이션이 끝나야(DONE) 노드가 생기므로, 완료 시점에 (재)조회함
@@ -2576,10 +2595,16 @@ const FloorPlansDetailPage = () => {
     if (!currentFloor) return;
     const cellSizeMeter = Number(gridSizeMeterInput);
     if (!(cellSizeMeter > 0)) return;
-    setFloorGrid(currentFloor.id, cellSizeMeter)
-      .then(() => getFloorGridCells(currentFloor.id))
+    const floorIdForGrid = currentFloor.id;
+    setFloorGrid(floorIdForGrid, cellSizeMeter)
+      .then(() => getFloorGridCells(floorIdForGrid))
       .then((cells) => {
         setFloorGridCells(cells);
+        try {
+          sessionStorage.removeItem(`saferoute:pendingGridCellSize:${floorIdForGrid}`);
+        } catch {
+          /* noop */
+        }
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
           setNodeAddStage('fov');
@@ -2590,7 +2615,16 @@ const FloorPlansDetailPage = () => {
         }
         setGridSetupIntent(null);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        const msg = isAxiosError<{ message?: string }>(error)
+          ? (error.response?.data?.message ?? '')
+          : '';
+        show({
+          title: `그리드 설정에 실패했습니다${msg ? ` (${msg})` : ''}`,
+          variant: 'error',
+          duration: 8000,
+        });
+      });
   };
 
   // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
@@ -2624,11 +2658,13 @@ const FloorPlansDetailPage = () => {
     }
     const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
     const label = deviceId || `CCTV-${String(count).padStart(2, '0')}`;
+    // x,y는 0~1 정규화 값이어야 함 — 캔버스 경계 밖 클릭 등으로 살짝 벗어나는 경우 클램프
+    const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
     createCctv({
       floorId: currentFloor.id,
       name: label,
-      x: nodeStagedPosition.x / 100,
-      y: nodeStagedPosition.y / 100,
+      x: clamp01(nodeStagedPosition.x / 100),
+      y: clamp01(nodeStagedPosition.y / 100),
       gridCellIds: cctvDraftCellIds,
     })
       .then((newCctv) => {
@@ -2653,9 +2689,13 @@ const FloorPlansDetailPage = () => {
         setNodeAddOpen(false);
       })
       .catch((error: unknown) => {
-        const serverMessage = isAxiosError<{ message?: string }>(error)
-          ? (error.response?.data?.message ?? '')
-          : '';
+        const responseData = isAxiosError(error) ? error.response?.data : undefined;
+        const serverMessage =
+          responseData && typeof responseData === 'object' && 'message' in responseData
+            ? String((responseData as { message?: unknown }).message ?? '')
+            : '';
+        // 어느 필드가 문제인지 콘솔에서 확인할 수 있게 응답 전체를 출력
+        console.error('[CCTV 등록 실패] 응답 본문:', responseData);
         // 이 층에 그리드 배율(cellSizeMeter)이 설정 안 된 경우 — 설정 팝업으로 유도.
         // 배율을 바꾸면 셀이 재생성될 수 있어 선택은 초기화하고 다시 드래그하게 함
         if (/GridCell 크기|그리드.*크기|cellSizeMeter/i.test(serverMessage)) {
