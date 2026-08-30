@@ -6,13 +6,14 @@ import EmptyState from '@components/empty';
 
 import { getTrainingCameraFramesPath, ROUTES } from '@constants/path';
 
+import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
+import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
 import CameraCard from './components/CameraCard/CameraCard';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
-import { mockCameras, mockSessions } from './mocks/trainingAnalysisData';
 import * as styles from './TrainingCamerasPage.css';
 import { formatSessionStartedAt } from './utils/trainingAnalysis';
 
@@ -37,20 +38,38 @@ const TrainingCamerasPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
 
-  // TODO(API 연동): mockSessions.find → 세션 상세 조회로 교체, mockCameras → getSessionCameras(sessionId)
-  const session = mockSessions.find((s) => s.sessionId === sessionId);
-  const cameras = mockCameras;
+  const {
+    session,
+    isLoading: isSessionLoading,
+    isError: isSessionError,
+  } = useTrainingSessionQuery(sessionId);
+  const {
+    data: cameras = [],
+    isLoading: isCamerasLoading,
+    isError: isCamerasError,
+  } = useSessionCamerasQuery(sessionId);
+
   const floorGroups = useMemo(() => groupByFloor(cameras), [cameras]);
 
-  if (!session || !isViewable(session.status)) {
+  if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
+  }
+
+  if (isSessionLoading || !session) {
+    return (
+      <div className={styles.container}>
+        <p className={styles.stateMessage}>
+          {isSessionError ? '불러오지 못했습니다' : '불러오는 중...'}
+        </p>
+      </div>
+    );
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
   const cameraWithFrame = cameras.filter((c) => c.thumbnailUrl !== null);
 
   const handleSelect = (camera: MonitoringCamera) => {
-    if (!session || camera.thumbnailUrl === null) return;
+    if (camera.thumbnailUrl === null) return;
     void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId));
   };
 
@@ -66,30 +85,41 @@ const TrainingCamerasPage = () => {
       />
 
       <div className={styles.gridSection}>
-        {cameras.length > 0 && (
-          <div className={styles.gridHeadRow}>
-            <span className={styles.gridSubtitle}>
-              프레임이 있는 카메라 {cameraWithFrame.length}대 · 5초 간격으로 저장됨
-            </span>
-          </div>
+        {isCamerasLoading && <p className={styles.stateMessage}>카메라 목록을 불러오는 중...</p>}
+
+        {!isCamerasLoading && isCamerasError && (
+          <EmptyState
+            title="카메라 목록을 불러오지 못했습니다"
+            description="잠시 후 다시 시도해주세요"
+          />
         )}
 
-        {cameras.length === 0 ? (
+        {!isCamerasLoading && !isCamerasError && cameras.length === 0 && (
           <EmptyState title="등록된 카메라가 없습니다" />
-        ) : (
-          floorGroups.map(([floorName, floorCameras]) => (
-            <div key={floorName} className={styles.floorGroup}>
-              <div className={styles.floorHeadRow}>
-                <span className={styles.floorLabel}>{floorName}</span>
-                <span className={styles.floorCount}>카메라 {floorCameras.length}대</span>
-              </div>
-              <div className={styles.grid}>
-                {floorCameras.map((camera) => (
-                  <CameraCard key={camera.cctvId} camera={camera} onClick={handleSelect} />
-                ))}
-              </div>
+        )}
+
+        {!isCamerasLoading && !isCamerasError && cameras.length > 0 && (
+          <>
+            <div className={styles.gridHeadRow}>
+              <span className={styles.gridSubtitle}>
+                프레임이 있는 카메라 {cameraWithFrame.length}대 · 5초 간격으로 저장됨
+              </span>
             </div>
-          ))
+
+            {floorGroups.map(([floorName, floorCameras]) => (
+              <div key={floorName} className={styles.floorGroup}>
+                <div className={styles.floorHeadRow}>
+                  <span className={styles.floorLabel}>{floorName}</span>
+                  <span className={styles.floorCount}>카메라 {floorCameras.length}대</span>
+                </div>
+                <div className={styles.grid}>
+                  {floorCameras.map((camera) => (
+                    <CameraCard key={camera.cctvId} camera={camera} onClick={handleSelect} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
         )}
       </div>
     </div>

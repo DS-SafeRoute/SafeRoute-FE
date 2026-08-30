@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import clsx from 'clsx';
 import { Navigate, useNavigate, useParams } from 'react-router';
@@ -10,6 +10,10 @@ import EmptyState from '@components/empty';
 
 import { getTrainingCameraFramesPath, getTrainingCamerasPath, ROUTES } from '@constants/path';
 
+import { useCameraFramesQuery } from './api/useCameraFramesQuery';
+import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
+import { useSessionEventsQuery } from './api/useSessionEventsQuery';
+import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
 import CameraTabs from './components/CameraTabs/CameraTabs';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -18,7 +22,6 @@ import {
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
-import { mockCameras, mockEvents, mockFrames, mockSessions } from './mocks/trainingAnalysisData';
 import * as styles from './TrainingCameraFramesPage.css';
 import { CONGESTION_LEVEL_LABEL } from './types/trainingAnalysis';
 import { formatCapturedTime, formatElapsedFromStart } from './utils/trainingAnalysis';
@@ -30,21 +33,57 @@ const isViewable = (status: TrainingSessionStatus) =>
 
 const NEEDS_ATTENTION: CongestionLevel[] = ['CROWDED', 'VERY_CROWDED'];
 
+// 프레임 끝에서 이만큼 남았을 때 다음 페이지를 미리 불러옴
+const PREFETCH_THRESHOLD = 3;
+
 const TrainingCameraFramesPage = () => {
   const { sessionId, cctvId } = useParams<{ sessionId: string; cctvId: string }>();
   const navigate = useNavigate();
   const [frameIndex, setFrameIndex] = useState(0);
   const filmstripRef = useRef<HTMLDivElement>(null);
 
-  // TODO(API 연동): mockSessions/mockCameras.find → 세션/카메라 조회, mockFrames →
-  // useInfiniteQuery(getCameraFrames)로 커서 페이징, mockEvents → getSessionEvents(sessionId, cctvCode)
-  const session = mockSessions.find((s) => s.sessionId === sessionId);
-  const camera = mockCameras.find((c) => c.cctvId === cctvId);
-  const frames = mockFrames;
-  const events = mockEvents;
+  const {
+    session,
+    isLoading: isSessionLoading,
+    isError: isSessionError,
+  } = useTrainingSessionQuery(sessionId);
+  const { data: cameras = [] } = useSessionCamerasQuery(sessionId);
+  const camera = cameras.find((c) => c.cctvId === cctvId);
 
-  if (!session || !camera || !isViewable(session.status)) {
+  const {
+    data: framePages,
+    isLoading: isFramesLoading,
+    isError: isFramesError,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useCameraFramesQuery(sessionId, cctvId);
+  const frames = useMemo(
+    () => framePages?.pages.flatMap((page) => page.frames) ?? [],
+    [framePages],
+  );
+
+  const { data: events = [] } = useSessionEventsQuery(sessionId, camera?.code);
+
+  // 마지막 프레임 근처까지 보면 다음 페이지를 미리 불러와서, ›로 넘길 때 끊기지 않게 함
+  useEffect(() => {
+    if (frameIndex >= frames.length - PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [frameIndex, frames.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
+  }
+
+  if (isSessionLoading || !session || !camera) {
+    return (
+      <div className={styles.container}>
+        <p className={styles.stateMessage}>
+          {isSessionError ? '불러오지 못했습니다' : '불러오는 중...'}
+        </p>
+      </div>
+    );
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
@@ -64,19 +103,27 @@ const TrainingCameraFramesPage = () => {
         statusLabel={statusView.label}
         statusColor={statusView.color}
         meta={`${camera.location} · ${camera.code}`}
-        notice={`훈련 중 5초 간격으로 수집된 CCTV 프레임입니다. 총 ${frames.length}개 프레임이 저장되었으며, 프레임과 프레임 사이의 상황은 확인할 수 없습니다.`}
+        notice={`훈련 중 5초 간격으로 수집된 CCTV 프레임입니다. 프레임과 프레임 사이의 상황은 확인할 수 없습니다.`}
         onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
       />
 
       <CameraTabs
-        cameras={mockCameras}
+        cameras={cameras}
         activeCctvId={camera.cctvId}
         onSelect={(c) => void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId))}
       />
 
-      {frames.length === 0 || !currentFrame ? (
+      {isFramesLoading && <p className={styles.stateMessage}>프레임을 불러오는 중...</p>}
+
+      {!isFramesLoading && isFramesError && (
+        <EmptyState title="프레임을 불러오지 못했습니다" description="잠시 후 다시 시도해주세요" />
+      )}
+
+      {!isFramesLoading && !isFramesError && (frames.length === 0 || !currentFrame) && (
         <EmptyState title="저장된 프레임이 없습니다" />
-      ) : (
+      )}
+
+      {!isFramesLoading && !isFramesError && frames.length > 0 && currentFrame && (
         <div className={styles.mainGrid}>
           <div className={styles.leftCol}>
             <div className={styles.viewer}>
@@ -86,6 +133,7 @@ const TrainingCameraFramesPage = () => {
               </span>
               <span className={styles.viewerIndex}>
                 {frameIndex + 1}/{frames.length}
+                {hasNextPage ? '+' : ''}
               </span>
 
               <button
@@ -102,7 +150,7 @@ const TrainingCameraFramesPage = () => {
                 type="button"
                 className={styles.navBtn}
                 style={{ right: '1.2rem' }}
-                disabled={frameIndex === frames.length - 1}
+                disabled={frameIndex === frames.length - 1 && !hasNextPage}
                 aria-label="다음 프레임"
                 onClick={goNext}
               >
@@ -191,7 +239,9 @@ const TrainingCameraFramesPage = () => {
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoKey}>저장 프레임 수</span>
-                <span className={styles.infoValue}>{frames.length}개</span>
+                <span className={styles.infoValue}>
+                  {frames.length}개{hasNextPage ? '+' : ''}
+                </span>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoKey}>저장 간격</span>

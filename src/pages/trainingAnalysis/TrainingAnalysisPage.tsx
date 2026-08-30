@@ -8,11 +8,11 @@ import EmptyState from '@components/empty';
 
 import { getTrainingCamerasPath } from '@constants/path';
 
+import { useViewableTrainingSessionsQuery } from './api/useViewableTrainingSessionsQuery';
 import {
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
-import { mockSessions } from './mocks/trainingAnalysisData';
 import * as styles from './TrainingAnalysisPage.css';
 import { formatSessionStartedAt } from './utils/trainingAnalysis';
 
@@ -23,8 +23,7 @@ const isViewable = (status: TrainingSessionStatus) =>
 
 const TrainingAnalysisPage = () => {
   const navigate = useNavigate();
-  // TODO(API 연동): mockSessions → useGetTrainingSessionsQuery('COMPLETED') + useGetTrainingSessionsQuery('FAILED') 병합
-  const sessions = mockSessions;
+  const { sessions, isLoading, isError } = useViewableTrainingSessionsQuery();
 
   const handleOpen = (session: TrainingSessionSummary) => {
     if (!isViewable(session.status)) return;
@@ -33,13 +32,25 @@ const TrainingAnalysisPage = () => {
 
   return (
     <div className={styles.container}>
-      {sessions.length === 0 ? (
+      {isLoading && <p className={styles.stateMessage}>불러오는 중...</p>}
+
+      {!isLoading && isError && (
+        <EmptyState
+          icon={<CameraIcon width={32} height={32} />}
+          title="훈련 목록을 불러오지 못했습니다"
+          description="잠시 후 다시 시도해주세요"
+        />
+      )}
+
+      {!isLoading && !isError && sessions.length === 0 && (
         <EmptyState
           icon={<CameraIcon width={32} height={32} />}
           title="분석할 수 있는 훈련이 없습니다"
           description="훈련이 종료되면 이곳에서 CCTV 프레임을 확인할 수 있습니다"
         />
-      ) : (
+      )}
+
+      {!isLoading && !isError && sessions.length > 0 && (
         <div className={styles.table}>
           <div className={styles.headRow}>
             <span className={styles.headCell}>훈련명</span>
