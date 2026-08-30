@@ -167,6 +167,30 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 반면 맵그래프 노드/엣지의 좌표(x,y)는 0~1 정규화 double로 자유 좌표이고 그리드와 무관함 —
 // 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
+// CCTV 등록(POST /cctvs)은 감시 면적 계산에 그리드 배율(cellSizeMeter)을 요구하는데(없으면 CCTV006),
+// "이 층에 배율이 설정됐는지" 조회하는 API가 없다. 그래서 PUT /grid가 성공한 층을 세션에 기록해두고,
+// 기록이 없으면 CCTV 시야 선택 단계로 넘어가기 전에 배율부터 받는다(실패 후 되돌리는 대신 선제 차단).
+const GRID_SIZE_KEY = (floorId: string) => `saferoute:gridCellSize:${floorId}`;
+const PENDING_GRID_SIZE_KEY = (floorId: string) => `saferoute:pendingGridCellSize:${floorId}`;
+
+const readStoredNumber = (key: string): number | null => {
+  try {
+    const value = Number(sessionStorage.getItem(key));
+    return value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const rememberGridSize = (floorId: string, cellSizeMeter: number) => {
+  try {
+    sessionStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeMeter));
+    sessionStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
+  } catch {
+    /* sessionStorage 사용 불가 환경 — 기록만 생략 */
+  }
+};
+
 // SVG 캔버스 폭은 560 고정, 높이는 도면 실제 비율(그리드 columns/rows 또는 이미지 비율)에 맞춰
 // 렌더 시점에 계산해서 넘김 — viewBox 비율 == 이미지 비율이므로 이미지를 늘리지 않고도
 // 그리드·노드·드래그 좌표가 전부 같은 0~1 ↔ 0~(560,canvasH) 공간에 정확히 맞물림
@@ -1897,26 +1921,15 @@ const FloorPlansDetailPage = () => {
   // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
   useEffect(() => {
     if (!floorId || !isFloorReady) return;
-    const key = `saferoute:pendingGridCellSize:${floorId}`;
-    let pending: string | null = null;
-    try {
-      pending = sessionStorage.getItem(key);
-    } catch {
-      return;
-    }
-    const cellSizeMeter = Number(pending);
-    if (!pending || !(cellSizeMeter > 0)) return;
+    const cellSizeMeter = readStoredNumber(PENDING_GRID_SIZE_KEY(floorId));
+    if (!cellSizeMeter) return;
     let cancelled = false;
     setFloorGrid(floorId, cellSizeMeter)
       .then(() => getFloorGridCells(floorId))
       .then((cells) => {
         if (cancelled) return;
         setFloorGridCells(cells);
-        try {
-          sessionStorage.removeItem(key);
-        } catch {
-          /* noop */
-        }
+        rememberGridSize(floorId, cellSizeMeter);
         show({
           title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
           variant: 'success',
@@ -2546,17 +2559,31 @@ const FloorPlansDetailPage = () => {
 
   const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
     setGridSetupIntent(intent);
-    setGridSizeMeterInput('1');
+    // 업로드 때 정했던 값이 남아 있으면 다시 입력하지 않도록 채워둠
+    const remembered = currentFloor
+      ? (readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
+        readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)))
+      : null;
+    setGridSizeMeterInput(String(remembered ?? 1));
     setGridSetupPromptOpen(true);
   };
 
-  // 입력 단계 제출 — CCTV는 그리드 유무에 따라 그리드설정/시야구역 단계로, 나머지는 바로 확정
+  // 입력 단계 제출 — CCTV는 그리드 배율이 확정된 뒤에만 시야구역 단계로 넘어감.
+  // 배율(cellSizeMeter)이 없으면 서버가 CCTV 등록을 거부(CCTV006)하는데 조회 API가 없어서,
+  // 이 세션에서 PUT /grid가 성공한 기록이 없으면 먼저 배율 설정을 받는다(드래그 뒤 실패 방지)
   const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
-      ensureFloorGridCells().then((cells) => {
-        setNodeAddStage(cells.length > 0 ? 'fov' : 'entry');
-        if (cells.length === 0) openGridSetupPrompt('cctv');
+      void ensureFloorGridCells().then((cells) => {
+        const confirmedSize = currentFloor
+          ? readStoredNumber(GRID_SIZE_KEY(currentFloor.id))
+          : null;
+        if (cells.length === 0 || !confirmedSize) {
+          setNodeAddStage('entry');
+          openGridSetupPrompt('cctv');
+          return;
+        }
+        setNodeAddStage('fov');
       });
       return;
     }
@@ -2600,11 +2627,7 @@ const FloorPlansDetailPage = () => {
       .then(() => getFloorGridCells(floorIdForGrid))
       .then((cells) => {
         setFloorGridCells(cells);
-        try {
-          sessionStorage.removeItem(`saferoute:pendingGridCellSize:${floorIdForGrid}`);
-        } catch {
-          /* noop */
-        }
+        rememberGridSize(floorIdForGrid, cellSizeMeter);
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
           setNodeAddStage('fov');
