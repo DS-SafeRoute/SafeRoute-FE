@@ -43,6 +43,11 @@ export const API_ENDPOINTS = {
     START: (sessionId: string) => `${API_V1}/sessions/${sessionId}/start`,
     END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/end`,
     FORCE_END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/force-end`,
+    // 훈련분석(모니터링): 종료된 세션의 카메라별 최신 캡처/프레임 목록/이벤트 타임라인
+    MONITORING_CAMERAS: (sessionId: string) => `${API_V1}/sessions/${sessionId}/monitoring/cameras`,
+    MONITORING_FRAMES: (sessionId: string, cctvId: string) =>
+      `${API_V1}/sessions/${sessionId}/monitoring/cameras/${cctvId}/frames`,
+    MONITORING_EVENTS: (sessionId: string) => `${API_V1}/sessions/${sessionId}/monitoring/events`,
   },
 
   // 훈련 시나리오
