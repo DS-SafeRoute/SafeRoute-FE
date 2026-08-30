@@ -7,7 +7,7 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
-import LayersIcon from '@assets/icons/ic-layers.svg?react';
+import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
@@ -530,6 +530,8 @@ const MockFloorMap3F = ({
         })}
 
       {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시.
+          셀마다 테두리를 그리면 바둑판처럼 보여서, 채움은 셀 단위로 이어 붙이되 테두리는
+          바깥 경계선만 그려 하나의 면적으로 보이게 함.
           구역마다 매번 floorGridCells를 선형 탐색하지 않도록 id→셀 매핑을 한 번만 만들어 재사용 */}
       {(() => {
         const floorGridCellById = new Map(floorGridCells.map((c) => [c.id, c]));
@@ -543,6 +545,27 @@ const MockFloorMap3F = ({
           const ys = cells.map((c) => c.centerY * 420);
           const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
           const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
+
+          // 이웃 셀이 같은 구역에 없을 때만 그 변을 경계선으로 그림 → 내부 격자선 제거
+          const { w, h } = gridCellPxSize;
+          const cellKey = (row: number, col: number) => `${row},${col}`;
+          const inZone = new Set(cells.map((c) => cellKey(c.rowIndex, c.columnIndex)));
+          const borderEdges: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+          cells.forEach((cell) => {
+            const left = cell.centerX * 560 - w / 2;
+            const top = cell.centerY * 420 - h / 2;
+            const right = left + w;
+            const bottom = top + h;
+            if (!inZone.has(cellKey(cell.rowIndex - 1, cell.columnIndex)))
+              borderEdges.push({ x1: left, y1: top, x2: right, y2: top });
+            if (!inZone.has(cellKey(cell.rowIndex + 1, cell.columnIndex)))
+              borderEdges.push({ x1: left, y1: bottom, x2: right, y2: bottom });
+            if (!inZone.has(cellKey(cell.rowIndex, cell.columnIndex - 1)))
+              borderEdges.push({ x1: left, y1: top, x2: left, y2: bottom });
+            if (!inZone.has(cellKey(cell.rowIndex, cell.columnIndex + 1)))
+              borderEdges.push({ x1: right, y1: top, x2: right, y2: bottom });
+          });
+
           return (
             <g
               key={z.id}
@@ -556,11 +579,21 @@ const MockFloorMap3F = ({
               {cells.map((cell) => (
                 <rect
                   key={cell.id}
-                  x={cell.centerX * 560 - gridCellPxSize.w / 2}
-                  y={cell.centerY * 420 - gridCellPxSize.h / 2}
-                  width={gridCellPxSize.w}
-                  height={gridCellPxSize.h}
+                  x={cell.centerX * 560 - w / 2}
+                  y={cell.centerY * 420 - h / 2}
+                  width={w}
+                  height={h}
                   fill="rgba(107,114,128,0.15)"
+                  stroke="none"
+                />
+              ))}
+              {borderEdges.map((edge, index) => (
+                <line
+                  key={index}
+                  x1={edge.x1}
+                  y1={edge.y1}
+                  x2={edge.x2}
+                  y2={edge.y2}
                   stroke={isSelected ? '#2563eb' : '#6b7280'}
                   strokeWidth={isSelected ? '2' : '1'}
                 />
@@ -598,14 +631,10 @@ const MockFloorMap3F = ({
               width={gridCellPxSize.w}
               height={gridCellPxSize.h}
               fill={
-                isSelected
-                  ? 'rgba(139,92,246,0.35)'
-                  : isBrowsing
-                    ? 'rgba(107,114,128,0.05)'
-                    : 'rgba(139,92,246,0.04)'
+                isSelected ? 'rgba(139,92,246,0.35)' : isBrowsing ? 'none' : 'rgba(139,92,246,0.04)'
               }
-              stroke={isBrowsing ? 'rgba(107,114,128,0.35)' : '#8b5cf6'}
-              strokeWidth={isSelected ? '1.5' : isBrowsing ? '1' : '0.5'}
+              stroke={isBrowsing ? 'rgba(107,114,128,0.25)' : '#8b5cf6'}
+              strokeWidth={isSelected ? '1.5' : '0.5'}
               style={{
                 cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
                 pointerEvents: cctvGridCellsMode === 'selecting' ? 'auto' : 'none',
@@ -2955,7 +2984,7 @@ const FloorPlansDetailPage = () => {
                   aria-pressed={showGridOverlay}
                   onClick={handleToggleGridOverlay}
                 >
-                  <LayersIcon width={14} height={14} />
+                  <EyeIcon width={14} height={14} />
                   그리드 표시
                 </button>
                 <button
