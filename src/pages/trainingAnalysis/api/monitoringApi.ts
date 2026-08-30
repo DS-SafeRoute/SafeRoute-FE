@@ -1,12 +1,16 @@
 import type {
+  MonitoringCamera,
+  MonitoringEvent,
+  MonitoringFrame,
+} from '@pages/trainingAnalysis/types/trainingAnalysis';
+
+import type {
   MonitoringCameraResponse,
   MonitoringEventResponse,
   MonitoringFrameResponse,
 } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
-
-import type { MonitoringCamera, MonitoringEvent, MonitoringFrame } from '../types/trainingAnalysis';
 
 // 캡처된 프레임이 아직 없는 카메라는 thumbnailUrl/capturedAt/urlExpiresAt이 정상적으로 없는
 // 상태라 필수값으로 취급하지 않음(카드에서 "프레임 없음"으로 표시)

@@ -2,14 +2,13 @@ import { useMemo } from 'react';
 
 import { useQueries } from '@tanstack/react-query';
 
+import { LIVE_SESSION_POLL_INTERVAL_MS } from '@pages/trainingAnalysis/constants/trainingAnalysis';
+import type { TrainingSessionSummary } from '@pages/trainingAnalysis/types/trainingAnalysis';
+
 import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi';
-
-import { LIVE_SESSION_POLL_INTERVAL_MS } from '../constants/trainingAnalysis';
-
-import type { TrainingSessionSummary } from '../types/trainingAnalysis';
 
 const toTrainingSessionSummary = (
   response: TrainingSessionSummaryResponse,
@@ -22,8 +21,10 @@ const toTrainingSessionSummary = (
 };
 
 // 훈련분석은 진행 중(RUNNING) 훈련과 종료된(COMPLETED/FAILED) 훈련을 모두 대상으로 함.
-// status가 필수 파라미터라 상태별로 나눠 호출해서 합치고, RUNNING 목록은 새 훈련이
-// 시작되거나 종료되는 걸 반영하려고 주기적으로 다시 조회함
+// status가 필수 파라미터라 상태별로 나눠 호출해서 합침.
+// 세 목록을 모두 같은 주기로 갱신하는 이유: RUNNING만 갱신하면 훈련이 끝나는 순간
+// RUNNING 목록에서는 빠지는데 COMPLETED 목록은 옛 데이터라 세션이 어디에도 없는 순간이 생기고,
+// 상세 화면(카메라/프레임)이 "없는 세션"으로 판단해 목록으로 튕겨나감
 export const useViewableTrainingSessionsQuery = () => {
   const [running, completed, failed] = useQueries({
     queries: [
@@ -33,10 +34,7 @@ export const useViewableTrainingSessionsQuery = () => {
     ].map((status) => ({
       queryKey: trainingSessionQueryKeys.list(status),
       queryFn: ({ signal }: { signal: AbortSignal }) => getTrainingSessions(status, signal),
-      refetchInterval:
-        status === TRAINING_SESSION_STATUS.RUNNING
-          ? LIVE_SESSION_POLL_INTERVAL_MS
-          : (false as const),
+      refetchInterval: LIVE_SESSION_POLL_INTERVAL_MS,
     })),
   });
 

@@ -1,8 +1,9 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 
+import { LIVE_SESSION_POLL_INTERVAL_MS } from '@pages/trainingAnalysis/constants/trainingAnalysis';
+
 import { getCameraFrames } from './monitoringApi';
 import { monitoringQueryKeys } from './monitoringQueryKeys';
-import { LIVE_SESSION_POLL_INTERVAL_MS } from '../constants/trainingAnalysis';
 
 const FRAMES_PAGE_SIZE = 20;
 

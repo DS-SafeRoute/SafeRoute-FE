@@ -268,12 +268,14 @@ const FloorPlansPage = () => {
         setPendingUpload(null);
         setIsUploading(false);
         void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
-        // 분석은 서버에서 비동기로 처리되고 상세 화면이 상태를 폴링하므로, 요청이 타임아웃돼도
-        // (POST는 도달했고 분석은 계속 진행됨) 실패로 취급하지 않음. 실제 요청 거부만 안내
+        // 분석 요청은 서버에서 오래 걸려 타임아웃될 수 있는데, 타임아웃은 '분석이 시작됐다'는 증거가
+        // 아니므로 성공으로 넘기지 않는다. 상세 화면이 상태를 폴링하니 그쪽에서 확인하도록 안내만 구분
         analyzeFloor(newFloor.id).catch((error: unknown) => {
-          if (isAxiosError(error) && error.code === 'ECONNABORTED') return;
+          const timedOut = isAxiosError(error) && error.code === 'ECONNABORTED';
           show({
-            title: '도면 분석 요청 중 문제가 발생했습니다. 상세 화면에서 상태를 확인해주세요.',
+            title: timedOut
+              ? '분석 요청 응답이 지연되고 있습니다. 상세 화면에서 진행 상태를 확인해주세요.'
+              : '도면 분석 요청에 실패했습니다. 상세 화면에서 다시 시도해주세요.',
             variant: 'warning',
           });
         });

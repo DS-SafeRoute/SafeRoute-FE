@@ -965,6 +965,11 @@ export const canvasPlaceholderTitle = style({
   ...vars.typography.body14Medium,
 });
 
+export const canvasPlaceholderText = style({
+  margin: 0,
+  color: 'inherit',
+});
+
 /* ── 줌 리셋 ── */
 export const zoomValueClickable = style({
   borderRadius: vars.radius.sm,

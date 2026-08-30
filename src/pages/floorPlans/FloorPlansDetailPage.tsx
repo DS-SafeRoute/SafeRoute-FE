@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
+
+import { ApiError } from '@apis/errors/apiError';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -189,13 +191,24 @@ const DEFAULT_CANVAS_H = 420;
 const GRAPH_RETRY_LIMIT = 5;
 const GRAPH_RETRY_INTERVAL_MS = 2000;
 
+// 그리드 행·열 수 — 셀이 수십만 개까지 갈 수 있어서 Math.max(...spread) 대신 순회로 구함
+// (스프레드는 인자 개수 한계로 RangeError: Maximum call stack size exceeded가 날 수 있음)
+const getGridDimensions = (cells: FloorGridCell[]): { cols: number; rows: number } => {
+  let maxCol = 0;
+  let maxRow = 0;
+  for (const cell of cells) {
+    if (cell.columnIndex > maxCol) maxCol = cell.columnIndex;
+    if (cell.rowIndex > maxRow) maxRow = cell.rowIndex;
+  }
+  return { cols: maxCol + 1, rows: maxRow + 1 };
+};
+
 // 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560 x canvasH)를 열/행 수로 그대로 나눔.
 // 셀 rect가 캔버스를 정확히 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함
 const getGridCellPxSize = (cells: FloorGridCell[], canvasH: number): { w: number; h: number } => {
   if (cells.length === 0) return { w: 20, h: 20 };
-  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
-  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
-  return { w: CANVAS_W / (maxCol + 1), h: canvasH / (maxRow + 1) };
+  const { cols, rows } = getGridDimensions(cells);
+  return { w: CANVAS_W / cols, h: canvasH / rows };
 };
 
 // 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
@@ -1504,7 +1517,7 @@ const FloorCanvas = ({
         {isAnalyzing ? (
           <>
             <LoadingState size="md" message="AI가 도면을 분석하고 있습니다" />
-            <p style={{ color: 'inherit', margin: 0 }}>
+            <p className={styles.canvasPlaceholderText}>
               완료되면 이 화면에 도면과 노드가 자동으로 표시됩니다
             </p>
           </>
@@ -1513,7 +1526,7 @@ const FloorCanvas = ({
             <span className={styles.canvasPlaceholderTitle}>
               {isAnalysisFailed ? '도면 분석에 실패했습니다' : '등록된 도면이 없습니다'}
             </span>
-            <p style={{ color: 'inherit', margin: 0 }}>
+            <p className={styles.canvasPlaceholderText}>
               {isAnalysisFailed
                 ? '도면을 다시 업로드해 주세요'
                 : '도면을 업로드하거나 AI 영역 분할을 실행해 주세요'}
@@ -1621,15 +1634,14 @@ const FloorPlansDetailPage = () => {
   // SVG viewBox 높이 — 폭 CANVAS_W(560)은 고정, 높이만 도면 실제 비율에 맞춤.
   // 이미지 원본 비율을 우선(가장 직접적), 없으면 그리드 columns/rows, 그것도 없으면 4:3.
   // viewBox 비율 == 이미지 비율이라 preserveAspectRatio="none"으로 채워도 이미지가 안 늘어남
-  const canvasH = (() => {
+  const canvasH = useMemo(() => {
     if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
     if (floorGridCells.length > 0) {
-      const cols = Math.max(...floorGridCells.map((c) => c.columnIndex)) + 1;
-      const rows = Math.max(...floorGridCells.map((c) => c.rowIndex)) + 1;
+      const { cols, rows } = getGridDimensions(floorGridCells);
       if (cols > 0 && rows > 0) return (CANVAS_W * rows) / cols;
     }
     return DEFAULT_CANVAS_H;
-  })();
+  }, [imageAspect, floorGridCells]);
 
   // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
   // 이미지가 올라온 층에서 DONE/FAILED가 아니면 "분석 중"으로 보고(업로드 전 층은 제외),
@@ -2217,13 +2229,20 @@ const FloorPlansDetailPage = () => {
       params.realHeight,
     )
       .then(async (newFloor) => {
+        // 초기 업로드 경로와 동일하게, AI 분석이 배율을 지우더라도 복원할 수 있도록 먼저 기록해둠
+        try {
+          localStorage.setItem(PENDING_GRID_SIZE_KEY(newFloor.id), String(params.cellSizeMeter));
+          localStorage.setItem(GRID_SIZE_KEY(newFloor.id), String(params.cellSizeMeter));
+        } catch {
+          /* 스토리지 사용 불가 환경 — 기록만 생략 */
+        }
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
           setFloorGridCells(await getFloorGridCells(newFloor.id));
         } catch {
           show({
-            title: '그리드 설정에 실패했습니다. "그리드 표시" 토글에서 다시 설정해주세요.',
-            variant: 'error',
+            title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
+            variant: 'warning',
           });
         }
         setFloorBuildings((prev) =>
@@ -2237,11 +2256,13 @@ const FloorPlansDetailPage = () => {
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
-        // 분석은 서버에서 비동기로 진행되고 이 화면이 상태를 폴링하므로, 타임아웃은 실패로 보지 않음
+        // 타임아웃은 '분석이 시작됐다'는 증거가 아니므로 성공으로 넘기지 않고 구분해서 안내한다
         analyzeFloor(newFloor.id).catch((error: unknown) => {
-          if (isAxiosError(error) && error.code === 'ECONNABORTED') return;
+          const timedOut = isAxiosError(error) && error.code === 'ECONNABORTED';
           show({
-            title: '도면 분석 요청 중 문제가 발생했습니다. 잠시 후 상태를 확인해주세요.',
+            title: timedOut
+              ? '분석 요청 응답이 지연되고 있습니다. 잠시 후 진행 상태를 확인해주세요.'
+              : '도면 분석 요청에 실패했습니다. 다시 시도해주세요.',
             variant: 'warning',
           });
         });
@@ -2529,17 +2550,22 @@ const FloorPlansDetailPage = () => {
         setNodeAddOpen(false);
       })
       .catch((error: unknown) => {
+        // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 본다
         const responseData = isAxiosError(error) ? error.response?.data : undefined;
+        const body =
+          responseData && typeof responseData === 'object'
+            ? (responseData as { code?: unknown; message?: unknown })
+            : undefined;
+        const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
         const serverMessage =
-          responseData && typeof responseData === 'object' && 'message' in responseData
-            ? String((responseData as { message?: unknown }).message ?? '')
-            : '';
-        // 어느 필드가 문제인지 콘솔에서 확인할 수 있게 응답 전체를 출력
-        console.error('[CCTV 등록 실패] 응답 본문:', responseData);
-        // 이 층에 그리드 배율(cellSizeMeter)이 설정 안 된 경우(CCTV006).
+          error instanceof ApiError ? error.message : String(body?.message ?? '');
+        if (import.meta.env.DEV) {
+          console.error('[CCTV 등록 실패]', serverCode, responseData ?? error);
+        }
+        // CCTV006 = 이 층에 그리드 배율(cellSizeMeter)이 설정 안 됨.
         // 아는 배율이 있으면 조용히 재적용해서 사용자는 다시 드래그만 하면 되게 하고,
         // 정말 모를 때만 설정 팝업을 띄운다. (배율 재적용 시 셀이 바뀌므로 선택은 초기화)
-        if (/GridCell 크기|그리드.*크기|cellSizeMeter/i.test(serverMessage)) {
+        if (serverCode === 'CCTV006' || /GridCell 크기|cellSizeMeter/i.test(serverMessage)) {
           setCctvDraftCellIds([]);
           const knownSize = readStoredNumber(GRID_SIZE_KEY(currentFloor.id));
           if (knownSize) {
@@ -2962,7 +2988,10 @@ const FloorPlansDetailPage = () => {
     label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
   }));
 
-  const gridCellPxSize = getGridCellPxSize(floorGridCells, canvasH);
+  const gridCellPxSize = useMemo(
+    () => getGridCellPxSize(floorGridCells, canvasH),
+    [floorGridCells, canvasH],
+  );
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||

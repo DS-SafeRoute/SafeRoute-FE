@@ -57,8 +57,11 @@ const CctvSettingsModal = ({
       }
     >
       <div className={styles.section}>
-        <span className={styles.sectionTitle}>이름</span>
+        <label className={styles.sectionTitle} htmlFor="cctv-name-input">
+          이름
+        </label>
         <input
+          id="cctv-name-input"
           className={styles.textInput}
           value={name}
           onChange={(e) => setName(e.target.value)}

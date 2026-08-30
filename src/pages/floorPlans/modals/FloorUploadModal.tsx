@@ -17,7 +17,10 @@ interface FloorUploadModalProps {
   onConfirm: (file: File) => void;
 }
 
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png'];
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png'] as const;
+
+const isAcceptedImageType = (type: string): boolean =>
+  (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(type);
 
 const formatFloor = (floorNum: number) => {
   if (floorNum > 0) return `${floorNum}층`;
@@ -45,7 +48,7 @@ const FloorUploadModal = ({
   }, [preview]);
 
   const handleFileSelect = (selected: File) => {
-    if (!ACCEPTED_IMAGE_TYPES.includes(selected.type)) {
+    if (!isAcceptedImageType(selected.type)) {
       setFileError('JPG 또는 PNG 형식의 파일만 업로드할 수 있어요');
       return;
     }
