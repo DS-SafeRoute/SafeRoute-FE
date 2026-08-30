@@ -178,6 +178,26 @@ const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => 
   return { w: size, h: size };
 };
 
+// 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
+// 드래그 미리보기와 실제 잡히는 셀이 일치하도록 드래그 중/드래그 종료 양쪽에서 같은 로직을 씀
+const cellIdsIntersectingRect = (
+  cells: FloorGridCell[],
+  rect: { x: number; y: number; w: number; h: number },
+  size: { w: number; h: number },
+): string[] =>
+  cells
+    .filter((cell) => {
+      const left = cell.centerX * 560 - size.w / 2;
+      const top = cell.centerY * 420 - size.h / 2;
+      return (
+        left < rect.x + rect.w &&
+        left + size.w > rect.x &&
+        top < rect.y + rect.h &&
+        top + size.h > rect.y
+      );
+    })
+    .map((cell) => cell.id);
+
 // 셀의 (row,col) 인덱스만으로 픽셀 좌표를 뽑을 수 있도록 그리드 원점(0,0 셀의 좌상단)을 역산.
 // 셀마다 제각각인 centerX/centerY(부동소수) 대신 원점+인덱스로 좌표를 계산하면 인접 셀의
 // 공유 모서리 좌표가 정확히 일치해서, 경계선/격자선에 미세한 어긋남이나 이중선이 안 생김
@@ -1062,7 +1082,7 @@ const NodeAddPopup = ({
         </div>
         <span className={styles.nodeAddHint}>
           {selectedCellCount > 0
-            ? `${selectedCellCount}칸 선택됨. 도면을 드래그하면 겹치는 칸이 추가되고, 선택된 칸을 클릭하면 해제돼요.`
+            ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡히고, 칸을 클릭하면 하나씩 켜고 끌 수 있어요.`
             : '도면을 드래그해서 카메라 시야 구역에 해당하는 칸을 선택해주세요'}
         </span>
 
@@ -1186,7 +1206,7 @@ const ZoneAddPopup = ({
       </div>
       <span className={styles.nodeAddHint}>
         {hasSelectedCells
-          ? `${selectedCellCount}칸 선택됨. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
+          ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡혀요. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
           : '이름을 입력하거나 도면을 드래그해서 영역에 해당하는 칸을 선택해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
       </span>
 
@@ -2533,7 +2553,9 @@ const FloorPlansDetailPage = () => {
         setCctvDraftCellIds([]);
         setNodeAddOpen(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        show({ title: 'CCTV 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+      });
   };
 
   const handleZoneDragEnd = () => {
@@ -2542,14 +2564,8 @@ const FloorPlansDetailPage = () => {
       (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || !!editingCctvId;
     if (cctvCellSelecting || zoneAddOpen) {
       if (rect && rect.w > 0 && rect.h > 0) {
-        const overlapping = floorGridCells.filter((cell) => {
-          const cx = cell.centerX * 560;
-          const cy = cell.centerY * 420;
-          return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
-        });
-        setActiveDraftCellIds((prev) =>
-          Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])),
-        );
+        // 새 드래그가 이전 선택을 대체함(여러 번 드래그해도 마지막 것만 유효). 미세 조정은 셀 클릭 토글로
+        setActiveDraftCellIds(cellIdsIntersectingRect(floorGridCells, rect, gridCellPxSize));
       }
       setZoneDraftRect(null);
     }
@@ -2585,14 +2601,20 @@ const FloorPlansDetailPage = () => {
     setSelectedZoneRef((prev) => (isSameZoneRef(prev, ref) ? null : ref));
   };
 
-  // 도면 클릭 — 선택한 항목이 필터에 가려져 있을 수 있으므로 패널에 드러나도록 필터를 초기화
+  // 도면에서 항목을 클릭하면, 그 카드가 지금 필터에 가려져 있어도 우측 패널에 드러나서
+  // 포커싱(스크롤)되도록 상위/하위 필터를 그 항목에 맞게 이동시킴
   const handleZoneRefSelectFromMap = (ref: ZoneRefSelection) => {
     handleZoneRefSelect(ref);
     if (ref.kind === 'zone') {
       setTopFilter((prev) => (prev === 'device' ? 'all' : prev));
-    } else {
-      setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+      return;
     }
+    setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+    // 문/계단 노드면 해당 하위 칩으로 이동, 그 외(방·복도 등)는 하위 필터 해제
+    const structureType = structureNodes.find((n) => n.id === ref.id)?.type;
+    setDeviceTypeFilter(
+      structureType === 'door' || structureType === 'stair' ? structureType : null,
+    );
   };
 
   // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
@@ -2938,9 +2960,15 @@ const FloorPlansDetailPage = () => {
           ? 'browsing'
           : 'hidden';
 
+  // 드래그 중에는 미리보기로 "겹치는 셀"을 실시간 표시 → 손을 떼면 그대로 확정됨
+  const dragPreviewCellIds =
+    cctvGridCellsMode === 'selecting' && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0
+      ? cellIdsIntersectingRect(floorGridCells, zoneDraftRect, gridCellPxSize)
+      : null;
+
   const selectedGridCellIds =
     cctvGridCellsMode === 'selecting'
-      ? activeDraftCellIds
+      ? (dragPreviewCellIds ?? activeDraftCellIds)
       : cctvGridCellsMode === 'viewing' && selectedItem?.kind === 'device'
         ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
         : [];
@@ -3395,7 +3423,9 @@ const FloorPlansDetailPage = () => {
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
                   setSelectedZoneRef(null);
+                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
                   setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+                  setDeviceTypeFilter(d.type === 'cctv' || d.type === 'iot' ? d.type : null);
                 }}
                 onMapClick={handleMapClick}
                 onPoiClick={handlePoiClick}
