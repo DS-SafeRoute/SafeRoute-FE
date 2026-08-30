@@ -73,37 +73,20 @@ import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
 import type { MapEdge, MapNode } from './api/mapGraphApi';
-import type {
-  AiLayer,
-  DeviceMarker,
-  EditMode,
-  Floor,
-  FloorBuilding,
-  PoiMarker,
-} from './types/floorPlans';
+import type { DeviceMarker, Floor, FloorBuilding } from './types/floorPlans';
 
-type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
+type SelectedItem = { kind: 'device'; data: DeviceMarker };
 
 type PanelItem = {
   id: string;
-  kind: 'device' | 'poi';
+  kind: 'device';
   /** 우측 패널 필터 기준 — AddedDevice.placeType과 같은 체계(유도등은 'light') */
   type: 'cctv' | 'light' | 'general';
   label: string;
   statusText: string;
   statusOnline: boolean;
   zone: string;
-  source: 'floor' | 'added' | 'poi';
-};
-
-type PoiType = 'exit' | 'stair' | 'extinguisher' | 'assembly' | 'firstaid';
-
-const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: string }> = {
-  exit: { label: '비상구', color: '#16a34a', icon: 'E' },
-  stair: { label: '계단', color: '#2563eb', icon: '▲' },
-  extinguisher: { label: '소화기', color: '#dc2626', icon: 'F' },
-  assembly: { label: '집결지', color: '#7c3aed', icon: 'A' },
-  firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
+  source: 'floor' | 'added';
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
@@ -201,6 +184,10 @@ const rememberGridSize = (floorId: string, cellSizeMeter: number) => {
 // 그리드·노드·드래그 좌표가 전부 같은 0~1 ↔ 0~(560,canvasH) 공간에 정확히 맞물림
 const CANVAS_W = 560;
 const DEFAULT_CANVAS_H = 420;
+
+// AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
+const GRAPH_RETRY_LIMIT = 5;
+const GRAPH_RETRY_INTERVAL_MS = 2000;
 
 // 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560 x canvasH)를 열/행 수로 그대로 나눔.
 // 셀 rect가 캔버스를 정확히 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함
@@ -370,8 +357,6 @@ const GridOverlayLines = ({
 const MockFloorMap3F = ({
   mapImageUrl,
   canvasH,
-  aiLayers,
-  editMode,
   placingActive,
   zoneAddActive,
   zoneDraftRect,
@@ -396,16 +381,11 @@ const MockFloorMap3F = ({
   selectedGridCellIds,
   gridCellPxSize,
   onGridCellToggle,
-  poiMarkers,
-  relocatingPoiId,
   onMapClick,
-  onPoiClick,
   onBackgroundClick,
 }: {
   mapImageUrl: string | null;
   canvasH: number;
-  aiLayers: Record<string, boolean>;
-  editMode: EditMode;
   placingActive: boolean;
   zoneAddActive: boolean;
   zoneDraftRect: ZoneRect | null;
@@ -430,10 +410,7 @@ const MockFloorMap3F = ({
   selectedGridCellIds: string[];
   gridCellPxSize: { w: number; h: number };
   onGridCellToggle: (cellId: string) => void;
-  poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
-  relocatingPoiId: string | null;
   onMapClick: (x: number, y: number) => void;
-  onPoiClick: (id: string) => void;
   onBackgroundClick: () => void;
 }) => {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -453,7 +430,7 @@ const MockFloorMap3F = ({
     const y = Math.round(
       Math.max(0, Math.min(canvasH, ((e.clientY - rect.top) / rect.height) * canvasH)),
     );
-    if (editMode === 'poi' || placingActive) {
+    if (placingActive) {
       onMapClick(x, y);
       return;
     }
@@ -524,10 +501,7 @@ const MockFloorMap3F = ({
     document.addEventListener('mouseup', onUp);
   };
 
-  const svgCursor =
-    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive || edgeAddActive
-      ? 'crosshair'
-      : 'default';
+  const svgCursor = placingActive || zoneAddActive || edgeAddActive ? 'crosshair' : 'default';
 
   return (
     <svg
@@ -555,185 +529,182 @@ const MockFloorMap3F = ({
       )}
 
       {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
-      {aiLayers.room &&
-        graphEdges.map((edge) => {
-          const from = nodePositionById.get(edge.fromNodeId);
-          const to = nodePositionById.get(edge.toNodeId);
-          if (!from || !to) return null;
-          const isSelected = selectedEdgeId === edge.id;
-          const canSelect = !edgeAddActive && !placingActive && !zoneAddActive;
-          const midX = (from.x + to.x) / 2;
-          const midY = (from.y + to.y) / 2;
-          return (
-            <g key={edge.id}>
-              <line
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
-                stroke="transparent"
-                strokeWidth="10"
-                style={{
-                  cursor: canSelect ? 'pointer' : 'default',
-                  pointerEvents: canSelect ? 'stroke' : 'none',
-                }}
+      {graphEdges.map((edge) => {
+        const from = nodePositionById.get(edge.fromNodeId);
+        const to = nodePositionById.get(edge.toNodeId);
+        if (!from || !to) return null;
+        const isSelected = selectedEdgeId === edge.id;
+        const canSelect = !edgeAddActive && !placingActive && !zoneAddActive;
+        const midX = (from.x + to.x) / 2;
+        const midY = (from.y + to.y) / 2;
+        return (
+          <g key={edge.id}>
+            <line
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke="transparent"
+              strokeWidth="10"
+              style={{
+                cursor: canSelect ? 'pointer' : 'default',
+                pointerEvents: canSelect ? 'stroke' : 'none',
+              }}
+              onClick={(e) => {
+                if (!canSelect) return;
+                e.stopPropagation();
+                onEdgeSelect(edge.id);
+              }}
+            />
+            <line
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke={isSelected ? '#2563eb' : '#9ca3af'}
+              strokeWidth={isSelected ? '2.5' : '1.5'}
+              strokeDasharray="3 3"
+              style={{ pointerEvents: 'none' }}
+            />
+            {isSelected && (
+              <g
+                style={{ cursor: 'pointer' }}
                 onClick={(e) => {
-                  if (!canSelect) return;
                   e.stopPropagation();
-                  onEdgeSelect(edge.id);
+                  onEdgeDelete(edge.id);
                 }}
-              />
-              <line
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
-                stroke={isSelected ? '#2563eb' : '#9ca3af'}
-                strokeWidth={isSelected ? '2.5' : '1.5'}
-                strokeDasharray="3 3"
-                style={{ pointerEvents: 'none' }}
-              />
-              {isSelected && (
-                <g
-                  style={{ cursor: 'pointer' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdgeDelete(edge.id);
-                  }}
-                >
-                  <circle cx={midX} cy={midY} r="8" fill="#ef4444" />
-                  <text
-                    x={midX}
-                    y={midY + 3}
-                    textAnchor="middle"
-                    fontSize="11"
-                    fontWeight="700"
-                    fill="white"
-                    fontFamily="sans-serif"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    ×
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
-          ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
-          평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
-      {aiLayers.room &&
-        graphNodes.map((n) => {
-          const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
-          if (isRoomOrHallway && !edgeAddActive) return null;
-          const x = n.x * CANVAS_W;
-          const y = n.y * canvasH;
-          const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
-          return (
-            <g
-              key={n.id}
-              style={{ pointerEvents: edgeAddActive ? 'auto' : 'none', cursor: 'pointer' }}
-              onClick={(e) => {
-                if (!edgeAddActive) return;
-                e.stopPropagation();
-                onNodeClickForEdge(n.id);
-              }}
-            >
-              <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
-              {n.type === 'EXIT' && (
+              >
+                <circle cx={midX} cy={midY} r="8" fill="#ef4444" />
                 <text
-                  x={x}
-                  y={y - 12}
+                  x={midX}
+                  y={midY + 3}
                   textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="700"
-                  fill={color}
-                  fontFamily="sans-serif"
-                >
-                  {n.name}
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-      {/* 구조 노드 — 계단 · 문/출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
-      {aiLayers.room &&
-        structureNodes.map((n) => {
-          const isEditingThis = n.id === editingStructureId;
-          const isSelected = selectedZoneRef?.kind === 'node' && selectedZoneRef.id === n.id;
-          const isStair = n.type === 'stair';
-          const baseColor = isStair ? '#f97316' : '#2563eb';
-          return (
-            <g
-              key={n.id}
-              onMouseDown={(e) => handleStructureMouseDown(e, n.id)}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (edgeAddActive) {
-                  onNodeClickForEdge(n.id);
-                  return;
-                }
-                if (structureDragMovedRef.current) {
-                  structureDragMovedRef.current = false;
-                  return;
-                }
-                if (editingStructureId) return;
-                onZoneRefSelect({ kind: 'node', id: n.id });
-              }}
-              style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
-            >
-              {isSelected && (
-                <circle
-                  cx={n.x}
-                  cy={n.y}
-                  r={(n.isFinalExit ? 7 : isStair ? 6 : 4) + 5}
-                  fill="none"
-                  stroke="#2563eb"
-                  strokeWidth="2"
-                  strokeDasharray="3 2"
-                />
-              )}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
-                fill={n.isFinalExit ? '#16a34a' : baseColor}
-                stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
-                strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
-              />
-              {isStair && (
-                <text
-                  x={n.x}
-                  y={n.y + 3}
-                  textAnchor="middle"
-                  fontSize="8"
+                  fontSize="11"
                   fontWeight="700"
                   fill="white"
                   fontFamily="sans-serif"
                   style={{ pointerEvents: 'none' }}
                 >
-                  ▲
+                  ×
                 </text>
-              )}
-              {n.isFinalExit && (
-                <text
-                  x={n.x}
-                  y={n.y - 14}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="700"
-                  fill="#16a34a"
-                  fontFamily="sans-serif"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  최종 탈출구
-                </text>
-              )}
-            </g>
-          );
-        })}
+              </g>
+            )}
+          </g>
+        );
+      })}
+
+      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
+          ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
+          평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
+      {graphNodes.map((n) => {
+        const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
+        if (isRoomOrHallway && !edgeAddActive) return null;
+        const x = n.x * CANVAS_W;
+        const y = n.y * canvasH;
+        const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
+        return (
+          <g
+            key={n.id}
+            style={{ pointerEvents: edgeAddActive ? 'auto' : 'none', cursor: 'pointer' }}
+            onClick={(e) => {
+              if (!edgeAddActive) return;
+              e.stopPropagation();
+              onNodeClickForEdge(n.id);
+            }}
+          >
+            <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
+            {n.type === 'EXIT' && (
+              <text
+                x={x}
+                y={y - 12}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill={color}
+                fontFamily="sans-serif"
+              >
+                {n.name}
+              </text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* 구조 노드 — 계단 · 문/출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
+      {structureNodes.map((n) => {
+        const isEditingThis = n.id === editingStructureId;
+        const isSelected = selectedZoneRef?.kind === 'node' && selectedZoneRef.id === n.id;
+        const isStair = n.type === 'stair';
+        const baseColor = isStair ? '#f97316' : '#2563eb';
+        return (
+          <g
+            key={n.id}
+            onMouseDown={(e) => handleStructureMouseDown(e, n.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (edgeAddActive) {
+                onNodeClickForEdge(n.id);
+                return;
+              }
+              if (structureDragMovedRef.current) {
+                structureDragMovedRef.current = false;
+                return;
+              }
+              if (editingStructureId) return;
+              onZoneRefSelect({ kind: 'node', id: n.id });
+            }}
+            style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
+          >
+            {isSelected && (
+              <circle
+                cx={n.x}
+                cy={n.y}
+                r={(n.isFinalExit ? 7 : isStair ? 6 : 4) + 5}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="2"
+                strokeDasharray="3 2"
+              />
+            )}
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
+              fill={n.isFinalExit ? '#16a34a' : baseColor}
+              stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
+              strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
+            />
+            {isStair && (
+              <text
+                x={n.x}
+                y={n.y + 3}
+                textAnchor="middle"
+                fontSize="8"
+                fontWeight="700"
+                fill="white"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                ▲
+              </text>
+            )}
+            {n.isFinalExit && (
+              <text
+                x={n.x}
+                y={n.y - 14}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill="#16a34a"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                최종 탈출구
+              </text>
+            )}
+          </g>
+        );
+      })}
 
       {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라, 셀들의 합집합 윤곽을
           단일 path로 그려 하나의 면적으로 보이게 함(내부 격자선·이음매 없음).
@@ -846,54 +817,6 @@ const MockFloorMap3F = ({
           style={{ pointerEvents: 'none' }}
         />
       )}
-
-      {/* POI 마커 */}
-      {poiMarkers.map((m) => {
-        const isRelocating = relocatingPoiId === m.id;
-        const cfg = POI_TYPE_CONFIG[m.poiType as PoiType] ?? POI_TYPE_CONFIG.exit;
-        const fill = isRelocating ? '#f59e0b' : cfg.color;
-        return (
-          <g key={m.id}>
-            <circle
-              cx={m.x}
-              cy={m.y}
-              r="14"
-              fill={fill}
-              stroke="white"
-              strokeWidth="2"
-              style={{ cursor: editMode === 'poi' ? 'pointer' : 'default' }}
-              onClick={(e) => {
-                if (editMode !== 'poi') return;
-                e.stopPropagation();
-                onPoiClick(m.id);
-              }}
-            />
-            <text
-              x={m.x}
-              y={m.y + 5}
-              textAnchor="middle"
-              fill="white"
-              fontSize="10"
-              fontWeight="bold"
-              fontFamily="sans-serif"
-              style={{ pointerEvents: 'none' }}
-            >
-              {isRelocating ? '↖' : cfg.icon}
-            </text>
-            <text
-              x={m.x}
-              y={m.y + 26}
-              textAnchor="middle"
-              fill={fill}
-              fontSize="9"
-              fontFamily="sans-serif"
-              style={{ pointerEvents: 'none' }}
-            >
-              {isRelocating ? '클릭해서 이동' : m.label}
-            </text>
-          </g>
-        );
-      })}
     </svg>
   );
 };
@@ -1490,9 +1413,7 @@ const FloorCanvas = ({
   resolvedImageUrl,
   canvasH,
   selected,
-  aiLayers,
   zoom,
-  editMode,
   editingItemId,
   placingActive,
   zoneAddActive,
@@ -1519,18 +1440,10 @@ const FloorCanvas = ({
   gridCellPxSize,
   onGridCellToggle,
   stagedCameraPosition,
-  poiMarkers,
-  editingPoiId,
-  relocatingPoiId,
   devicePositions,
   addedDevices,
   onSelectDevice,
   onMapClick,
-  onPoiClick,
-  onPoiLabelChange,
-  onPoiDelete,
-  onPoiRelocate,
-  onPoiPopoverClose,
   onDeviceMoved,
   onDeviceMoveEnd,
   onUpload,
@@ -1541,9 +1454,7 @@ const FloorCanvas = ({
   resolvedImageUrl: string | null;
   canvasH: number;
   selected: SelectedItem | null;
-  aiLayers: Record<string, boolean>;
   zoom: number;
-  editMode: EditMode;
   editingItemId: string | null;
   placingActive: boolean;
   zoneAddActive: boolean;
@@ -1570,18 +1481,10 @@ const FloorCanvas = ({
   gridCellPxSize: { w: number; h: number };
   onGridCellToggle: (cellId: string) => void;
   stagedCameraPosition: { x: number; y: number } | null;
-  poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
-  editingPoiId: string | null;
-  relocatingPoiId: string | null;
   devicePositions: Record<string, { x: number; y: number }>;
   addedDevices: AddedDevice[];
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
-  onPoiClick: (id: string) => void;
-  onPoiLabelChange: (id: string, label: string) => void;
-  onPoiDelete: (id: string) => void;
-  onPoiRelocate: (id: string) => void;
-  onPoiPopoverClose: () => void;
   onDeviceMoved: (id: string, x: number, y: number) => void;
   onDeviceMoveEnd: (id: string, x: number, y: number) => void;
   onUpload: () => void;
@@ -1631,8 +1534,6 @@ const FloorCanvas = ({
       <MockFloorMap3F
         mapImageUrl={resolvedImageUrl}
         canvasH={canvasH}
-        aiLayers={aiLayers}
-        editMode={editMode}
         placingActive={placingActive}
         zoneAddActive={zoneAddActive}
         zoneDraftRect={zoneDraftRect}
@@ -1657,10 +1558,7 @@ const FloorCanvas = ({
         selectedGridCellIds={selectedGridCellIds}
         gridCellPxSize={gridCellPxSize}
         onGridCellToggle={onGridCellToggle}
-        poiMarkers={poiMarkers}
-        relocatingPoiId={relocatingPoiId}
         onMapClick={onMapClick}
-        onPoiClick={onPoiClick}
         onBackgroundClick={onBackgroundClick}
       />
       {stagedCameraPosition && (
@@ -1702,115 +1600,6 @@ const FloorCanvas = ({
           />
         );
       })}
-
-      {/* POI 편집 팝오버 — SVG 바깥 절대 위치 (잘림 없음) */}
-      {editingPoiId &&
-        (() => {
-          const poi = poiMarkers.find((m) => m.id === editingPoiId);
-          if (!poi) return null;
-          const cfg = POI_TYPE_CONFIG[poi.poiType as PoiType] ?? POI_TYPE_CONFIG.exit;
-          const left = poi.x + 20 > 400 ? poi.x - 180 : poi.x + 20;
-          const top = poi.y - 20;
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left,
-                top,
-                zIndex: 20,
-                background: 'white',
-                border: `1px solid ${cfg.color}40`,
-                borderRadius: '8px',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                padding: '10px',
-                width: '170px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-              >
-                <span style={{ fontSize: '11px', color: cfg.color, fontWeight: 700 }}>
-                  {cfg.icon} {cfg.label} 편집
-                </span>
-                <button
-                  type="button"
-                  onClick={onPoiPopoverClose}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#9ca3af',
-                    fontSize: '14px',
-                    lineHeight: 1,
-                    padding: '0 2px',
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-              <input
-                type="text"
-                value={poi.label}
-                onChange={(e) => onPoiLabelChange(poi.id, e.target.value)}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  padding: '4px 6px',
-                  fontSize: '11px',
-                  width: '100%',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = cfg.color;
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db';
-                }}
-              />
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => onPoiRelocate(poi.id)}
-                  style={{
-                    flex: 1,
-                    border: `1px solid ${cfg.color}`,
-                    borderRadius: '4px',
-                    background: 'white',
-                    color: cfg.color,
-                    fontSize: '10px',
-                    padding: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  위치 변경
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onPoiDelete(poi.id)}
-                  style={{
-                    flex: 1,
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: '#ef4444',
-                    color: 'white',
-                    fontSize: '10px',
-                    padding: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          );
-        })()}
     </div>
   );
 };
@@ -1849,8 +1638,6 @@ const FloorPlansDetailPage = () => {
   const isAnalysisSettled =
     floor?.segmentationStatus === 'DONE' || floor?.segmentationStatus === 'FAILED';
   const isAnalyzing = Boolean(floor?.mapImageUrl) && !isAnalysisSettled;
-  const reloadScheduledRef = useRef(false);
-  const wasAnalyzingRef = useRef(false);
 
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {
@@ -1889,22 +1676,8 @@ const FloorPlansDetailPage = () => {
     return () => clearInterval(timer);
   }, [buildingId, floorId, isAnalyzing]);
 
-  // 층을 바꾸면 자동 새로고침 감지 상태를 초기화(다른 층으로 넘어갈 때 오작동 방지)
-  useEffect(() => {
-    wasAnalyzingRef.current = false;
-    reloadScheduledRef.current = false;
-  }, [floorId]);
-
-  // AI 분석 중 → 완료(DONE/FAILED)로 바뀌면 도면·노드·유도등 등 이 화면의 데이터를 전부
-  // 다시 불러와야 하므로 자동으로 새로고침함(수동 새로고침 대체).
-  // 상태가 막 바뀐 직후엔 그래프 노드가 아직 안 만들어져 있을 수 있어 잠깐 뒤에 새로고침
-  useEffect(() => {
-    if (isAnalyzing) wasAnalyzingRef.current = true;
-    if (wasAnalyzingRef.current && isAnalysisSettled && !reloadScheduledRef.current) {
-      reloadScheduledRef.current = true;
-      setTimeout(() => window.location.reload(), 1500);
-    }
-  }, [isAnalyzing, isAnalysisSettled]);
+  // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
+  // 그리드 셀은 배율 재적용 effect가 다시 받아온다 — 별도의 페이지 새로고침은 필요 없음
 
   // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
   useEffect(() => {
@@ -1973,29 +1746,45 @@ const FloorPlansDetailPage = () => {
   }, [floorId, isFloorReady, show]);
 
   // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
-  // 세그멘테이션이 끝나야(DONE) 노드가 생기므로, 완료 시점에 (재)조회함
+  // 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기 전이라 빈 그래프가 올 수 있어서,
+  // 비어 있으면 짧은 간격으로 몇 번 더 조회한다. (예전에는 이 자리에서 페이지를 통째로
+  // 새로고침했는데, 편집 중이던 상태가 날아가고 깜빡임이 커서 재조회 방식으로 바꿈)
   useEffect(() => {
     if (!floorId || !isFloorReady) return;
     let cancelled = false;
-    getFloorGraph(floorId)
-      .then((graph) => {
-        if (cancelled) return;
-        const structureFromGraph: StructureNode[] = graph.nodes
-          .filter((n) => n.type === 'DOOR' || n.type === 'STAIR')
-          .map((n) => ({
-            id: n.id,
-            type: n.type === 'DOOR' ? 'door' : 'stair',
-            x: n.x * CANVAS_W,
-            y: n.y * canvasH,
-            isFinalExit: n.isExitTarget,
-          }));
-        setStructureNodes(structureFromGraph);
-        setGraphNodes(graph.nodes.filter((n) => n.type !== 'DOOR' && n.type !== 'STAIR'));
-        setGraphEdges(graph.edges);
-      })
-      .catch(() => {});
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const load = () => {
+      getFloorGraph(floorId)
+        .then((graph) => {
+          if (cancelled) return;
+          const structureFromGraph: StructureNode[] = graph.nodes
+            .filter((n) => n.type === 'DOOR' || n.type === 'STAIR')
+            .map((n) => ({
+              id: n.id,
+              type: n.type === 'DOOR' ? 'door' : 'stair',
+              x: n.x * CANVAS_W,
+              y: n.y * canvasH,
+              isFinalExit: n.isExitTarget,
+            }));
+          setStructureNodes(structureFromGraph);
+          setGraphNodes(graph.nodes.filter((n) => n.type !== 'DOOR' && n.type !== 'STAIR'));
+          setGraphEdges(graph.edges);
+
+          // 분석 직후 아직 노드가 안 만들어졌으면 잠시 뒤 다시 시도(최대 GRAPH_RETRY_LIMIT회)
+          if (graph.nodes.length === 0 && attempts < GRAPH_RETRY_LIMIT) {
+            attempts += 1;
+            timer = setTimeout(load, GRAPH_RETRY_INTERVAL_MS);
+          }
+        })
+        .catch(() => {});
+    };
+
+    load();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
     // canvasH가 확정되면(그리드/이미지 로드) 구조 노드 px 좌표를 그 기준으로 다시 계산해야 함
   }, [floorId, isFloorReady, canvasH]);
@@ -2099,14 +1888,6 @@ const FloorPlansDetailPage = () => {
 
   const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
-  const [editMode] = useState<EditMode>('view');
-  const [aiLayers] = useState<Record<AiLayer, boolean>>({
-    wall: true,
-    corridor: true,
-    stairwell: true,
-    exit: true,
-    room: true,
-  });
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
@@ -2146,10 +1927,6 @@ const FloorPlansDetailPage = () => {
     label: '',
     zone: '',
   });
-  const [poiMarkers, setPoiMarkers] = useState<
-    Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
-  >([]);
-  const [selectedPoiType] = useState<PoiType>('exit');
   const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
@@ -2178,8 +1955,6 @@ const FloorPlansDetailPage = () => {
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
-  const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
-  const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
   const [devicePositions, setDevicePositions] = useState<Record<string, { x: number; y: number }>>(
     {},
   );
@@ -2351,9 +2126,7 @@ const FloorPlansDetailPage = () => {
 
   // 선택된 카드를 상단에 고정하지 않는 대신, 리스트 안에서 스크롤로 한 번 보여줌 (하이퍼링크 이동과 동일한 느낌)
   const focusedPanelId =
-    selectedItem?.kind === 'device' || selectedItem?.kind === 'poi'
-      ? selectedItem.data.id
-      : (selectedZoneRef?.id ?? null);
+    selectedItem?.kind === 'device' ? selectedItem.data.id : (selectedZoneRef?.id ?? null);
 
   useEffect(() => {
     if (!focusedPanelId) return;
@@ -2480,33 +2253,11 @@ const FloorPlansDetailPage = () => {
       });
   };
 
+  // 장치 배치 모드 — 정보 입력과 같은 단계에서 클릭으로 위치 지정. 다시 클릭하면 위치를 옮길 수 있음
+  // (CCTV 시야 구역 드래그 단계에서는 클릭이 다른 용도이므로 위치를 덮어쓰지 않음)
   const handleMapClick = (x: number, y: number) => {
-    if (relocatingPoiId) {
-      setPoiMarkers((prev) => prev.map((m) => (m.id === relocatingPoiId ? { ...m, x, y } : m)));
-      setRelocatingPoiId(null);
-      return;
-    }
-    // 장치 배치 모드 — 정보 입력과 같은 단계에서 클릭으로 위치 지정. 다시 클릭하면 위치를 옮길 수 있음
-    // (CCTV 시야 구역 드래그 단계에서는 클릭이 다른 용도이므로 위치를 덮어쓰지 않음)
-    if (nodeAddOpen) {
-      if (nodeAddStage === 'entry') {
-        const pctX = (x / CANVAS_W) * 100;
-        const pctY = (y / canvasH) * 100;
-        setNodeStagedPosition({ x: pctX, y: pctY });
-      }
-      return;
-    }
-    // POI 배치
-    setPoiMarkers((prev) => [
-      ...prev,
-      {
-        id: `poi-${Date.now()}`,
-        x,
-        y,
-        label: `${(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label} ${prev.filter((m) => m.poiType === selectedPoiType).length + 1}`,
-        poiType: selectedPoiType,
-      },
-    ]);
+    if (!nodeAddOpen || nodeAddStage !== 'entry') return;
+    setNodeStagedPosition({ x: (x / CANVAS_W) * 100, y: (y / canvasH) * 100 });
   };
 
   const handleAddedDeviceDelete = (id: string) => {
@@ -3190,16 +2941,6 @@ const FloorPlansDetailPage = () => {
         source: 'added' as const,
       };
     }),
-    ...poiMarkers.map((p) => ({
-      id: p.id,
-      kind: 'poi' as const,
-      type: 'general' as const,
-      label: p.label,
-      statusText: '등록됨',
-      statusOnline: true,
-      zone: '-',
-      source: 'poi' as const,
-    })),
   ];
 
   const panelItems = allPanelItems.filter((item) => {
@@ -3247,12 +2988,7 @@ const FloorPlansDetailPage = () => {
         ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
         : [];
 
-  const isPanelItemSelected = (item: PanelItem) =>
-    selectedItem?.kind === 'device'
-      ? item.kind === 'device' && selectedItem.data.id === item.id
-      : selectedItem?.kind === 'poi'
-        ? item.kind === 'poi' && selectedItem.data.id === item.id
-        : false;
+  const isPanelItemSelected = (item: PanelItem) => selectedItem?.data.id === item.id;
 
   const handlePanelItemSelect = (item: PanelItem) => {
     if (item.kind !== 'device') return;
@@ -3340,11 +3076,6 @@ const FloorPlansDetailPage = () => {
     const item = deleteConfirmTarget;
     if (!item || isDeletingItem) return;
     if (editingItemId === item.id) setEditingItemId(null);
-    if (item.kind === 'poi') {
-      handlePoiDelete(item.id);
-      setDeleteConfirmTarget(null);
-      return;
-    }
     if (item.source === 'added') {
       if (item.type === 'light') {
         // 서버에서 이 유도등이 붙어있던 노드·엣지까지 cascade로 함께 삭제됨
@@ -3372,24 +3103,6 @@ const FloorPlansDetailPage = () => {
       setSelectedItem(null);
     }
     setDeleteConfirmTarget(null);
-  };
-
-  const handlePoiClick = (id: string) => {
-    setEditingPoiId((prev) => (prev === id ? null : id));
-  };
-
-  const handlePoiLabelChange = (id: string, label: string) => {
-    setPoiMarkers((prev) => prev.map((m) => (m.id === id ? { ...m, label } : m)));
-  };
-
-  const handlePoiDelete = (id: string) => {
-    setPoiMarkers((prev) => prev.filter((m) => m.id !== id));
-    setEditingPoiId(null);
-  };
-
-  const handlePoiRelocate = (id: string) => {
-    setRelocatingPoiId(id);
-    setEditingPoiId(null);
   };
 
   return (
@@ -3657,9 +3370,7 @@ const FloorPlansDetailPage = () => {
                 resolvedImageUrl={resolvedMapImageUrl}
                 canvasH={canvasH}
                 selected={selectedItem}
-                aiLayers={aiLayers}
                 zoom={zoom}
-                editMode={editMode}
                 editingItemId={editingItemId}
                 placingActive={nodeAddOpen}
                 zoneAddActive={
@@ -3690,11 +3401,7 @@ const FloorPlansDetailPage = () => {
                 gridCellPxSize={gridCellPxSize}
                 onGridCellToggle={handleGridCellToggle}
                 stagedCameraPosition={nodeStagedPosition}
-                poiMarkers={poiMarkers}
-                editingPoiId={editingPoiId}
-                relocatingPoiId={relocatingPoiId}
                 onSelectDevice={(d) => {
-                  if (editMode === 'poi') return;
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
                   setSelectedZoneRef(null);
@@ -3707,11 +3414,6 @@ const FloorPlansDetailPage = () => {
                   );
                 }}
                 onMapClick={handleMapClick}
-                onPoiClick={handlePoiClick}
-                onPoiLabelChange={handlePoiLabelChange}
-                onPoiDelete={handlePoiDelete}
-                onPoiRelocate={handlePoiRelocate}
-                onPoiPopoverClose={() => setEditingPoiId(null)}
                 onBackgroundClick={() => {
                   setSelectedItem(null);
                   setSelectedZoneRef(null);
