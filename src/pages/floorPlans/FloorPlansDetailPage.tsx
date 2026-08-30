@@ -1469,8 +1469,10 @@ const FloorCanvas = ({
   const hasFloorPlan = floor.segmentationStatus === 'DONE';
 
   if (!hasFloorPlan) {
+    // 이미지가 올라온 층만 "분석 중"으로 취급 — 업로드 전 층은 기존 안내를 보여줌
     const isAnalyzing =
-      floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
+      !!floor.mapImageUrl &&
+      (floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING');
     const isAnalysisFailed = floor.segmentationStatus === 'FAILED';
 
     return (
@@ -1703,10 +1705,14 @@ const FloorPlansDetailPage = () => {
   const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
 
   // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
-  // 완료(DONE)되면 그래프를 불러오고, 그 전까지는 상태를 폴링해 자동 반영함
-  const isAnalyzing =
-    floor?.segmentationStatus === 'PENDING' || floor?.segmentationStatus === 'PROCESSING';
+  // 이미지가 올라온 층에서 DONE/FAILED가 아니면 "분석 중"으로 보고(업로드 전 층은 제외),
+  // 완료로 바뀌는 순간 화면을 자동 새로고침함
   const isFloorReady = floor?.segmentationStatus === 'DONE';
+  const isAnalysisSettled =
+    floor?.segmentationStatus === 'DONE' || floor?.segmentationStatus === 'FAILED';
+  const isAnalyzing = Boolean(floor?.mapImageUrl) && !isAnalysisSettled;
+  const reloadScheduledRef = useRef(false);
+  const wasAnalyzingRef = useRef(false);
 
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {
@@ -1734,16 +1740,33 @@ const FloorPlansDetailPage = () => {
     };
   }, [buildingId, floorId]);
 
-  // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회 — 수동 새로고침 없이 DONE/FAILED로 갱신됨
+  // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회해서 상태 전환을 감지
   useEffect(() => {
     if (!buildingId || !floorId || !isAnalyzing) return;
     const timer = setInterval(() => {
       getFloorDetail(buildingId, floorId)
         .then(setFloor)
         .catch(() => {});
-    }, 5000);
+    }, 4000);
     return () => clearInterval(timer);
   }, [buildingId, floorId, isAnalyzing]);
+
+  // 층을 바꾸면 자동 새로고침 감지 상태를 초기화(다른 층으로 넘어갈 때 오작동 방지)
+  useEffect(() => {
+    wasAnalyzingRef.current = false;
+    reloadScheduledRef.current = false;
+  }, [floorId]);
+
+  // AI 분석 중 → 완료(DONE/FAILED)로 바뀌면 도면·노드·유도등 등 이 화면의 데이터를 전부
+  // 다시 불러와야 하므로 자동으로 새로고침함(수동 새로고침 대체).
+  // 상태가 막 바뀐 직후엔 그래프 노드가 아직 안 만들어져 있을 수 있어 잠깐 뒤에 새로고침
+  useEffect(() => {
+    if (isAnalyzing) wasAnalyzingRef.current = true;
+    if (wasAnalyzingRef.current && isAnalysisSettled && !reloadScheduledRef.current) {
+      reloadScheduledRef.current = true;
+      setTimeout(() => window.location.reload(), 1500);
+    }
+  }, [isAnalyzing, isAnalysisSettled]);
 
   // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
   useEffect(() => {
