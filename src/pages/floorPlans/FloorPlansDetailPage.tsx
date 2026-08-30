@@ -168,14 +168,17 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
 // CCTV 등록(POST /cctvs)은 감시 면적 계산에 그리드 배율(cellSizeMeter)을 요구하는데(없으면 CCTV006),
-// "이 층에 배율이 설정됐는지" 조회하는 API가 없다. 그래서 PUT /grid가 성공한 층을 세션에 기록해두고,
-// 기록이 없으면 CCTV 시야 선택 단계로 넘어가기 전에 배율부터 받는다(실패 후 되돌리는 대신 선제 차단).
+// 백엔드에 "이 층의 배율" 조회 API가 없다(PUT /grid만 있고 GET /grid 없음).
+// 그래서 배율을 아래 순서로 되찾고, 되찾으면 사용자에게 묻지 않고 조용히 다시 적용한다.
+//   1) 이 브라우저에 기록해둔 값(업로드 때 입력했거나 이전에 설정한 값) — localStorage라 새로고침/재접속에도 유지
+//   2) 이 층에 이미 등록된 CCTV의 gridCellSizeMeter (한 대라도 있으면 그때 쓰인 배율을 알 수 있음)
+//   3) 위 둘 다 없을 때만 사용자에게 한 번 물어봄
 const GRID_SIZE_KEY = (floorId: string) => `saferoute:gridCellSize:${floorId}`;
 const PENDING_GRID_SIZE_KEY = (floorId: string) => `saferoute:pendingGridCellSize:${floorId}`;
 
 const readStoredNumber = (key: string): number | null => {
   try {
-    const value = Number(sessionStorage.getItem(key));
+    const value = Number(localStorage.getItem(key) ?? sessionStorage.getItem(key));
     return value > 0 ? value : null;
   } catch {
     return null;
@@ -184,10 +187,11 @@ const readStoredNumber = (key: string): number | null => {
 
 const rememberGridSize = (floorId: string, cellSizeMeter: number) => {
   try {
-    sessionStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeMeter));
+    localStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeMeter));
+    localStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
     sessionStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
   } catch {
-    /* sessionStorage 사용 불가 환경 — 기록만 생략 */
+    /* 스토리지 사용 불가 환경 — 기록만 생략 */
   }
 };
 
@@ -1413,30 +1417,8 @@ const DeviceCard = ({
       )}
     </div>
     <div className={styles.deviceCardActions}>
-      {editing ? (
-        <button
-          type="button"
-          className={styles.deviceCardDoneBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSaveEdit(item);
-          }}
-        >
-          완료
-        </button>
-      ) : (
-        <button
-          type="button"
-          className={styles.deviceCardEditBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onStartEdit(item);
-          }}
-        >
-          수정
-        </button>
-      )}
-      {(item.type === 'light' || item.type === 'cctv') && (
+      {/* CCTV는 이름 수정·활성화·감시영역을 한 모달에서 처리하므로 버튼을 "수정" 하나로 합침 */}
+      {item.type === 'cctv' ? (
         <button
           type="button"
           className={styles.deviceCardEditBtn}
@@ -1445,8 +1427,46 @@ const DeviceCard = ({
             onOpenSettings(item);
           }}
         >
-          설정
+          수정
         </button>
+      ) : (
+        <>
+          {editing ? (
+            <button
+              type="button"
+              className={styles.deviceCardDoneBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSaveEdit(item);
+              }}
+            >
+              완료
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.deviceCardEditBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartEdit(item);
+              }}
+            >
+              수정
+            </button>
+          )}
+          {item.type === 'light' && (
+            <button
+              type="button"
+              className={styles.deviceCardEditBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSettings(item);
+              }}
+            >
+              설정
+            </button>
+          )}
+        </>
       )}
       <button
         type="button"
@@ -2137,6 +2157,7 @@ const FloorPlansDetailPage = () => {
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
   const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
   const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
+  const [isSavingCctv, setIsSavingCctv] = useState(false);
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -2193,14 +2214,45 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleCctvToggleEnabled = (enabled: boolean) => {
-    if (!cctvSettingsTarget) return;
+    if (!cctvSettingsTarget || cctvSettingsTarget.enabled === enabled) return;
     const request = enabled ? enableCctv : disableCctv;
     request(cctvSettingsTarget.id)
       .then((updated) => {
         setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
         setCctvSettingsTarget(updated);
+        show({
+          title: enabled
+            ? 'CCTV를 사용 가능으로 바꿨습니다.'
+            : 'CCTV를 사용 불가능으로 바꿨습니다.',
+          variant: 'success',
+        });
       })
-      .catch(() => {});
+      .catch(() => {
+        show({ title: 'CCTV 사용 여부 변경에 실패했습니다.', variant: 'error' });
+      });
+  };
+
+  // 통합 모달에서 이름만 저장 — 위치(x,y)는 도면 드래그로 바꾸므로 기존 값을 그대로 보냄
+  const handleCctvSaveName = (name: string) => {
+    if (!cctvSettingsTarget || isSavingCctv) return;
+    setIsSavingCctv(true);
+    updateCctv(cctvSettingsTarget.id, {
+      name,
+      x: cctvSettingsTarget.x,
+      y: cctvSettingsTarget.y,
+    })
+      .then((updated) => {
+        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setCctvSettingsTarget(updated);
+        setAddedDevices((prev) =>
+          prev.map((d) => (d.id === updated.id ? { ...d, label: updated.name } : d)),
+        );
+        show({ title: 'CCTV 정보가 수정되었습니다.', variant: 'success' });
+      })
+      .catch(() => {
+        show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => setIsSavingCctv(false));
   };
 
   const handleStartEditCctvCells = () => {
@@ -2568,22 +2620,46 @@ const FloorPlansDetailPage = () => {
     setGridSetupPromptOpen(true);
   };
 
-  // 입력 단계 제출 — CCTV는 그리드 배율이 확정된 뒤에만 시야구역 단계로 넘어감.
-  // 배율(cellSizeMeter)이 없으면 서버가 CCTV 등록을 거부(CCTV006)하는데 조회 API가 없어서,
-  // 이 세션에서 PUT /grid가 성공한 기록이 없으면 먼저 배율 설정을 받는다(드래그 뒤 실패 방지)
+  // 입력 단계 제출 — CCTV는 서버가 배율(cellSizeMeter) 없이는 등록을 거부(CCTV006)하는데
+  // 배율 조회 API가 없어서, 아는 값이 있으면 조용히 다시 적용하고 정말 모를 때만 사용자에게 묻는다.
+  // (드래그를 다 끝낸 뒤에 실패하지 않도록 시야 선택 단계로 넘어가기 전에 처리)
   const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
       void ensureFloorGridCells().then((cells) => {
-        const confirmedSize = currentFloor
-          ? readStoredNumber(GRID_SIZE_KEY(currentFloor.id))
-          : null;
-        if (cells.length === 0 || !confirmedSize) {
+        const floorIdForGrid = currentFloor?.id;
+        if (!floorIdForGrid || cells.length === 0) {
           setNodeAddStage('entry');
           openGridSetupPrompt('cctv');
           return;
         }
-        setNodeAddStage('fov');
+        // 기억해둔 값 → 이미 등록된 CCTV가 쓰던 배율 순으로 되찾음
+        const knownSize =
+          readStoredNumber(GRID_SIZE_KEY(floorIdForGrid)) ??
+          realCctvs.find((c) => c.floorId === floorIdForGrid && c.gridCellSizeMeter)
+            ?.gridCellSizeMeter ??
+          null;
+
+        if (!knownSize) {
+          setNodeAddStage('entry');
+          openGridSetupPrompt('cctv');
+          return;
+        }
+
+        // 배율을 알고 있으면 사용자를 막지 않고 조용히 재적용(PUT은 create-or-update라 안전).
+        // 셀이 재생성될 수 있으므로 적용 후 셀을 다시 받아온 뒤에 시야 선택 단계로 넘어감
+        setFloorGrid(floorIdForGrid, knownSize)
+          .then(() => getFloorGridCells(floorIdForGrid))
+          .then((refreshed) => {
+            setFloorGridCells(refreshed);
+            rememberGridSize(floorIdForGrid, knownSize);
+            setNodeAddStage('fov');
+          })
+          .catch(() => {
+            // 재적용이 실패하면 그때 사용자에게 물어봄
+            setNodeAddStage('entry');
+            openGridSetupPrompt('cctv');
+          });
       });
       return;
     }
@@ -2719,10 +2795,26 @@ const FloorPlansDetailPage = () => {
             : '';
         // 어느 필드가 문제인지 콘솔에서 확인할 수 있게 응답 전체를 출력
         console.error('[CCTV 등록 실패] 응답 본문:', responseData);
-        // 이 층에 그리드 배율(cellSizeMeter)이 설정 안 된 경우 — 설정 팝업으로 유도.
-        // 배율을 바꾸면 셀이 재생성될 수 있어 선택은 초기화하고 다시 드래그하게 함
+        // 이 층에 그리드 배율(cellSizeMeter)이 설정 안 된 경우(CCTV006).
+        // 아는 배율이 있으면 조용히 재적용해서 사용자는 다시 드래그만 하면 되게 하고,
+        // 정말 모를 때만 설정 팝업을 띄운다. (배율 재적용 시 셀이 바뀌므로 선택은 초기화)
         if (/GridCell 크기|그리드.*크기|cellSizeMeter/i.test(serverMessage)) {
           setCctvDraftCellIds([]);
+          const knownSize = readStoredNumber(GRID_SIZE_KEY(currentFloor.id));
+          if (knownSize) {
+            setFloorGrid(currentFloor.id, knownSize)
+              .then(() => getFloorGridCells(currentFloor.id))
+              .then((refreshed) => {
+                setFloorGridCells(refreshed);
+                show({
+                  title: `그리드 배율(${knownSize}m)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
+                  variant: 'warning',
+                  duration: 7000,
+                });
+              })
+              .catch(() => openGridSetupPrompt('cctv'));
+            return;
+          }
           openGridSetupPrompt('cctv');
           show({
             title:
@@ -3089,16 +3181,24 @@ const FloorPlansDetailPage = () => {
       zone: d.zone,
       source: 'floor' as const,
     })),
-    ...addedDevices.map((d) => ({
-      id: d.id,
-      kind: 'device' as const,
-      type: d.placeType,
-      label: d.label,
-      statusText: '실시간',
-      statusOnline: true,
-      zone: d.zone,
-      source: 'added' as const,
-    })),
+    // 상태는 실제 CCTV/유도등의 enabled를 따라감 — 예전엔 '실시간'으로 고정돼 있어서
+    // 사용 불가로 바꿔도 카드에 반영되지 않았음
+    ...addedDevices.map((d) => {
+      const enabled =
+        realCctvs.find((c) => c.id === d.id)?.enabled ??
+        iotLights.find((l) => l.id === d.id)?.enabled ??
+        true;
+      return {
+        id: d.id,
+        kind: 'device' as const,
+        type: d.placeType,
+        label: d.label,
+        statusText: enabled ? '사용 가능' : '사용 불가능',
+        statusOnline: enabled,
+        zone: d.zone,
+        source: 'added' as const,
+      };
+    }),
     ...poiMarkers.map((p) => ({
       id: p.id,
       kind: 'poi' as const,
@@ -3852,6 +3952,8 @@ const FloorPlansDetailPage = () => {
           open
           onClose={() => setCctvSettingsTarget(null)}
           cctv={cctvSettingsTarget}
+          isSaving={isSavingCctv}
+          onSaveName={handleCctvSaveName}
           onToggleEnabled={handleCctvToggleEnabled}
           onEditCells={handleStartEditCctvCells}
         />
