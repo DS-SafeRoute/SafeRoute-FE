@@ -8,6 +8,7 @@ import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
@@ -260,11 +261,7 @@ const FloorPlansPage = () => {
   return (
     <>
       <div className={styles.container}>
-        {loading && (
-          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>
-            불러오는 중...
-          </p>
-        )}
+        {loading && <LoadingState />}
         {!loading &&
           buildings.map((building) => (
             <section key={building.id} className={styles.buildingSection}>

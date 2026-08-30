@@ -7,6 +7,7 @@ import AlertIcon from '@assets/icons/ic-alert.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 
 import { getTrainingCameraFramesPath, getTrainingCamerasPath, ROUTES } from '@constants/path';
 
@@ -15,7 +16,6 @@ import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useSessionEventsQuery } from './api/useSessionEventsQuery';
 import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
 import CameraTabs from './components/CameraTabs/CameraTabs';
-import LoadingState from './components/LoadingState/LoadingState';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   EVENT_SEVERITY_COLOR,

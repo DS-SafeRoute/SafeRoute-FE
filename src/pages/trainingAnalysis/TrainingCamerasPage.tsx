@@ -3,13 +3,13 @@ import { useMemo } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router';
 
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 
 import { getTrainingCameraFramesPath, ROUTES } from '@constants/path';
 
 import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
 import CameraCard from './components/CameraCard/CameraCard';
-import LoadingState from './components/LoadingState/LoadingState';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   TRAINING_SESSION_STATUS_VIEW,

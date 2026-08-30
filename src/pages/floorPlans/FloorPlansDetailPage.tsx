@@ -14,6 +14,7 @@ import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
@@ -3132,9 +3133,7 @@ const FloorPlansDetailPage = () => {
             )}
 
             {loadingFloor ? (
-              <div style={{ padding: '4rem', color: '#6b7280', fontSize: '1.4rem' }}>
-                도면을 불러오는 중...
-              </div>
+              <LoadingState message="도면을 불러오는 중..." />
             ) : currentFloor ? (
               <FloorCanvas
                 mapWrapRef={mapWrapRef}

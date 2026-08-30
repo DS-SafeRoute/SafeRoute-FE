@@ -5,11 +5,11 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 
 import { getTrainingCamerasPath } from '@constants/path';
 
 import { useViewableTrainingSessionsQuery } from './api/useViewableTrainingSessionsQuery';
-import LoadingState from './components/LoadingState/LoadingState';
 import {
   TRAINING_SESSION_STATUS_VIEW,
   VIEWABLE_SESSION_STATUSES,
