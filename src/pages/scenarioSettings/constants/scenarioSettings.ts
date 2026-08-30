@@ -1,7 +1,7 @@
-import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
 import type { PreviewStatus } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import type { ScenarioResponse } from '@apis/__generated__/data-contracts';
+import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
 
 type FireSpreadSpeed = NonNullable<ScenarioResponse['fireSpreadSpeed']>;
 

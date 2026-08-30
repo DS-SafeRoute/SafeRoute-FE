@@ -1,12 +1,13 @@
-import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
-import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
-
 import type {
   CreateScenarioDraftRequest,
   UpdateScenarioRequest,
 } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
+
+import { SCENARIO_STATUS } from './scenarioTypes';
+
+import type { Scenario } from './scenarioTypes';
 
 const FIRE_SPREAD_SPEEDS = ['SLOW', 'MEDIUM', 'FAST'] as const;
 const SCENARIO_STATUSES = Object.values(SCENARIO_STATUS);

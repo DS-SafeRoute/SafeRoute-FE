@@ -3,9 +3,17 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
-import { useGenerateTrainingReportMutation } from '@pages/reports/api/useGenerateTrainingReportMutation';
 
 import { extractApiError } from '@apis/errors/apiError';
+import { useGenerateTrainingReportMutation } from '@apis/reports/useReports';
+import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
+import {
+  useCreateScenarioDraftMutation,
+  useReadyScenarioMutation,
+  useUpdateScenarioMutation,
+} from '@apis/scenarios/useScenarioMutations';
+import { useGetScenarioQuery } from '@apis/scenarios/useScenariosQuery';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import EmptyState from '@components/empty';
@@ -14,12 +22,6 @@ import useToast from '@components/toast/useToast';
 
 import { ROUTES, getReportPath, getScenarioDetailPath } from '@constants/path';
 
-import {
-  useCreateScenarioDraftMutation,
-  useGetScenarioQuery,
-  useReadyScenarioMutation,
-  useUpdateScenarioMutation,
-} from './api/scenarioQueries';
 import ScenarioActionPanel from './components/scenarioActionPanel/ScenarioActionPanel';
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
@@ -28,11 +30,9 @@ import { useScenarioFloorView } from './hooks/useScenarioFloorView';
 import { useScenarioForm } from './hooks/useScenarioForm';
 import { useScenarioTraining } from './hooks/useScenarioTraining';
 import * as styles from './ScenarioSettingsPage.css';
-import { SCENARIO_STATUS } from './types/scenarioList';
 
 import type { ScenarioActionMode } from './components/scenarioActionPanel/ScenarioActionPanel';
-import type { TrainingResultValues } from './components/trainingEndModal/TrainingEndModal';
-import type { Scenario } from './types/scenarioList';
+import type { GenerateTrainingReportRequest } from '@apis/reports/reportTypes';
 
 interface ScenarioSettingsContentProps {
   scenario?: Scenario;
@@ -250,7 +250,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   }, [navigate, show, training.timeLimitExceededAt]);
 
   // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
-  const handleCompleteTraining = async (values: TrainingResultValues) => {
+  const handleCompleteTraining = async (values: GenerateTrainingReportRequest) => {
     if (!training.sessionId) return;
     const sessionId = training.sessionId;
     let sessionEnded = hasEndedSession;
@@ -373,15 +373,15 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
       <TrainingEndModal
         open={isEndModalOpen}
         completed={isTrainingCompleted}
-        initialParticipantCount={scenario?.expectedParticipants}
+        participantCount={scenario?.expectedParticipants ?? 0}
         isSubmitting={training.isEnding || generateTrainingReportMutation.isPending}
         canClose={!hasEndedSession}
         onClose={() => setIsEndModalOpen(false)}
         onSubmit={handleCompleteTraining}
         onHome={() => void navigate(ROUTES.HOME)}
         onReport={() => {
-          if (!scenario?.id || !generatedReportId) return;
-          void navigate(getReportPath(scenario.id, generatedReportId));
+          if (!generatedReportId) return;
+          void navigate(getReportPath(generatedReportId));
         }}
       />
     </div>

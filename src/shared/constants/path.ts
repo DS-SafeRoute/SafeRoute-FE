@@ -14,16 +14,12 @@ export const ROUTES = {
   TRAINING_ANALYSIS: '/trainingAnalysis',
   TRAINING_CAMERAS: '/trainingAnalysis/:sessionId/cameras',
   TRAINING_CAMERA_FRAMES: '/trainingAnalysis/:sessionId/cameras/:cctvId',
-  REPORTS: '/reports',
+  REPORTS_ROOT: '/reports',
+  REPORTS: '/reports/:reportId',
 } as const;
 
 export const getScenarioDetailPath = (scenarioId: string) =>
   ROUTES.SCENARIO_DETAIL.replace(':scenarioId', encodeURIComponent(scenarioId));
-
-export const getReportPath = (scenarioId: string, reportId: string) => {
-  const searchParams = new URLSearchParams({ scenarioId, reportId });
-  return `${ROUTES.REPORTS}?${searchParams.toString()}`;
-};
 
 export const getTrainingCamerasPath = (sessionId: string) =>
   ROUTES.TRAINING_CAMERAS.replace(':sessionId', encodeURIComponent(sessionId));
@@ -33,3 +29,6 @@ export const getTrainingCameraFramesPath = (sessionId: string, cctvId: string) =
     ':cctvId',
     encodeURIComponent(cctvId),
   );
+
+export const getReportPath = (reportId: string) =>
+  ROUTES.REPORTS.replace(':reportId', encodeURIComponent(reportId));

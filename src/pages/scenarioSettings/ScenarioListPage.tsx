@@ -4,6 +4,10 @@ import { useNavigate } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
+import { useDeleteScenarioMutation } from '@apis/scenarios/useScenarioMutations';
+import { useGetScenariosQuery } from '@apis/scenarios/useScenariosQuery';
+
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
@@ -13,15 +17,12 @@ import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
-import { ROUTES, getScenarioDetailPath } from '@constants/path';
+import { ROUTES, getReportPath, getScenarioDetailPath } from '@constants/path';
 
-import { useDeleteScenarioMutation, useGetScenariosQuery } from './api/scenarioQueries';
 import ScenarioDeleteModal from './components/scenarioDeleteModal/ScenarioDeleteModal';
 import ScenarioListRow from './components/scenarioList/ScenarioListRow';
 import { SCENARIO_STATUS_FILTER_OPTIONS } from './constants/scenarioSettings';
 import * as styles from './ScenarioListPage.css';
-
-import type { Scenario } from './types/scenarioList';
 
 type StatusFilter = (typeof SCENARIO_STATUS_FILTER_OPTIONS)[number]['value'];
 
@@ -54,6 +55,10 @@ const ScenarioListPage = () => {
 
   const handleOpen = (scenario: Scenario) => {
     void navigate(getScenarioDetailPath(scenario.id));
+  };
+
+  const handleOpenReport = (reportId: string) => {
+    void navigate(getReportPath(reportId));
   };
 
   const handleDelete = (scenario: Scenario) => {
@@ -117,6 +122,7 @@ const ScenarioListPage = () => {
             scenario={scenario}
             buildingName={scenario.buildingId ? buildingNames.get(scenario.buildingId) : undefined}
             onOpen={handleOpen}
+            onOpenReport={handleOpenReport}
             onDelete={handleDelete}
           />
         ))}

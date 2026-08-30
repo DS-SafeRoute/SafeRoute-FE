@@ -20,5 +20,10 @@ export const sidebarItems = [
     ],
   },
   { label: '훈련 분석', icon: VideoIcon, path: ROUTES.TRAINING_ANALYSIS },
-  { label: '분석 보고서', icon: FileTextIcon, path: ROUTES.REPORTS },
+  {
+    label: '분석 보고서',
+    icon: FileTextIcon,
+    path: ROUTES.SCENARIO_LIST,
+    activePath: ROUTES.REPORTS_ROOT,
+  },
 ];

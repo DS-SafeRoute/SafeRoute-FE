@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
-import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
-import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
+import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
 
 import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
