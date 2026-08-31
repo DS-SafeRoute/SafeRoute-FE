@@ -560,6 +560,7 @@ export const zoneCardDot = style({
 
 export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
 export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
+export const zoneCardDotHallway = style({ backgroundColor: '#0891B2' });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 
 export const finalExitToggle = style({

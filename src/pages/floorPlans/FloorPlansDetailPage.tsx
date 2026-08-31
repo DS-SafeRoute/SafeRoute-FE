@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { isAxiosError } from 'axios';
 import clsx from 'clsx';
@@ -74,7 +74,7 @@ import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
 import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
-import type { MapEdge, MapNode } from './api/mapGraphApi';
+import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
 import type { DeviceMarker, Floor, FloorBuilding } from './types/floorPlans';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
@@ -92,14 +92,15 @@ type PanelItem = {
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair'>;
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
   light: { label: '유도등', color: '#d97706' },
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
+  hallway: { label: '복도', color: '#0891b2' },
 };
 
 type AddedDevice = {
@@ -122,7 +123,7 @@ type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] 
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
    isFinalExit은 문에서만 의미 있음(계단은 항상 false) */
-type StructureNodeType = 'door' | 'stair';
+type StructureNodeType = 'door' | 'stair' | 'hallway';
 
 type StructureNode = {
   id: string;
@@ -135,6 +136,26 @@ type StructureNode = {
 const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   door: '문 · 출입구',
   stair: '계단',
+  hallway: '복도',
+};
+
+// 구조 노드 ↔ 맵그래프 노드 타입 매핑 (API MapNodeResponse.type)
+const STRUCTURE_NODE_API_TYPE = {
+  door: 'DOOR',
+  stair: 'STAIR',
+  hallway: 'HALLWAY',
+} as const satisfies Record<StructureNodeType, MapNodeType>;
+
+const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
+  DOOR: 'door',
+  STAIR: 'stair',
+  HALLWAY: 'hallway',
+};
+
+const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
+  door: '#2563eb',
+  stair: '#f97316',
+  hallway: '#0891b2',
 };
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
@@ -648,7 +669,7 @@ const MockFloorMap3F = ({
         const isEditingThis = n.id === editingStructureId;
         const isSelected = selectedZoneRef?.kind === 'node' && selectedZoneRef.id === n.id;
         const isStair = n.type === 'stair';
-        const baseColor = isStair ? '#f97316' : '#2563eb';
+        const baseColor = STRUCTURE_NODE_COLOR[n.type];
         return (
           <g
             key={n.id}
@@ -1110,7 +1131,7 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair'] as const).map((t) => (
+          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -1658,11 +1679,39 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   }, []);
 
+  // 층이 바뀌거나 도면을 다시 올렸을 때, 이전 도면 기준으로 만들어진 노드·장비·구역이
+  // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
+  const resetFloorScopedState = useCallback(() => {
+    setStructureNodes([]);
+    setGraphNodes([]);
+    setGraphEdges([]);
+    setAddedDevices([]);
+    setRealCctvs([]);
+    setIotLights([]);
+    setZones([]);
+    setFloorGridCells([]);
+    setSelectedItem(null);
+    setSelectedZoneRef(null);
+    setSelectedEdgeId(null);
+    setEditingItemId(null);
+    setEditingStructureId(null);
+    setEditingZoneId(null);
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEdgeAddOpen(false);
+    setEditingCctvId(null);
+    setCctvDraftCellIds([]);
+    setZoneDraftCellIds([]);
+    setNodeStagedPosition(null);
+    setShowGridOverlay(false);
+  }, []);
+
   // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
   useEffect(() => {
     if (!buildingId || !floorId) return;
     let cancelled = false;
     setFloor(null);
+    resetFloorScopedState();
     setLoadingFloor(true);
     getFloorDetail(buildingId, floorId)
       .then((data) => {
@@ -1675,7 +1724,7 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [buildingId, floorId]);
+  }, [buildingId, floorId, resetFloorScopedState]);
 
   // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회해서 상태 전환을 감지
   useEffect(() => {
@@ -1771,17 +1820,21 @@ const FloorPlansDetailPage = () => {
       getFloorGraph(floorId)
         .then((graph) => {
           if (cancelled) return;
-          const structureFromGraph: StructureNode[] = graph.nodes
-            .filter((n) => n.type === 'DOOR' || n.type === 'STAIR')
-            .map((n) => ({
-              id: n.id,
-              type: n.type === 'DOOR' ? 'door' : 'stair',
-              x: n.x * CANVAS_W,
-              y: n.y * canvasH,
-              isFinalExit: n.isExitTarget,
-            }));
+          const structureFromGraph: StructureNode[] = graph.nodes.flatMap((n) => {
+            const structureType = API_TYPE_TO_STRUCTURE[n.type];
+            if (!structureType) return [];
+            return [
+              {
+                id: n.id,
+                type: structureType,
+                x: n.x * CANVAS_W,
+                y: n.y * canvasH,
+                isFinalExit: n.isExitTarget,
+              },
+            ];
+          });
           setStructureNodes(structureFromGraph);
-          setGraphNodes(graph.nodes.filter((n) => n.type !== 'DOOR' && n.type !== 'STAIR'));
+          setGraphNodes(graph.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]));
           setGraphEdges(graph.edges);
 
           // 분석 직후 아직 노드가 안 만들어졌으면 잠시 뒤 다시 시도(최대 GRAPH_RETRY_LIMIT회)
@@ -1932,7 +1985,7 @@ const FloorPlansDetailPage = () => {
   };
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    'cctv' | 'light' | 'door' | 'stair' | null
+    'cctv' | 'light' | 'door' | 'stair' | 'hallway' | null
   >(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
@@ -2229,6 +2282,9 @@ const FloorPlansDetailPage = () => {
       params.realHeight,
     )
       .then(async (newFloor) => {
+        // 도면이 바뀌면 이전 도면 기준으로 만들어진 노드·엣지·장비·구역은 더 이상 유효하지 않으므로
+        // 화면에서 먼저 비우고, AI 재분석이 끝나면 각 조회 effect가 새 데이터로 채운다
+        resetFloorScopedState();
         // 초기 업로드 경로와 동일하게, AI 분석이 배율을 지우더라도 복원할 수 있도록 먼저 기록해둠
         try {
           localStorage.setItem(PENDING_GRID_SIZE_KEY(newFloor.id), String(params.cellSizeMeter));
@@ -2294,14 +2350,14 @@ const FloorPlansDetailPage = () => {
   ) => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
-    if (type === 'door' || type === 'stair') {
+    if (type === 'door' || type === 'stair' || type === 'hallway') {
       // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음). position은 0~100(%) 기준
       const ratioX = position.x / 100;
       const ratioY = position.y / 100;
       const x = ratioX * CANVAS_W;
       const y = ratioY * canvasH;
       if (currentFloor) {
-        const apiType = type === 'door' ? 'DOOR' : 'STAIR';
+        const apiType = STRUCTURE_NODE_API_TYPE[type];
         const count = structureNodes.filter((n) => n.type === type).length + 1;
         createMapNode(currentFloor.id, {
           code: `${apiType}-${Date.now()}`,
@@ -2808,7 +2864,6 @@ const FloorPlansDetailPage = () => {
     selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id;
 
   const renderStructureCard = (n: StructureNode) => {
-    const isStair = n.type === 'stair';
     const sameTypeIndex = structureNodes
       .filter((x) => x.type === n.type)
       .findIndex((x) => x.id === n.id);
@@ -2825,7 +2880,11 @@ const FloorPlansDetailPage = () => {
             <span
               className={clsx(
                 styles.zoneCardDot,
-                isStair ? styles.zoneCardDotStair : styles.zoneCardDotDoor,
+                n.type === 'stair'
+                  ? styles.zoneCardDotStair
+                  : n.type === 'hallway'
+                    ? styles.zoneCardDotHallway
+                    : styles.zoneCardDotDoor,
               )}
             />
             <span className={styles.deviceCardName}>
@@ -2833,7 +2892,7 @@ const FloorPlansDetailPage = () => {
             </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            {!isStair && (
+            {n.type === 'door' && (
               <button
                 type="button"
                 className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
@@ -3566,6 +3625,7 @@ const FloorPlansDetailPage = () => {
                       { key: 'light', label: '유도등' },
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
+                      { key: 'hallway', label: '복도' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
