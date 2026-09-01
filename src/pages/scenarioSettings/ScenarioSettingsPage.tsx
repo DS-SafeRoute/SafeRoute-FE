@@ -182,19 +182,24 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     const expectedParticipants = Number(basicInfo.expectedParticipants);
     const scheduledAt = toScheduledAt(basicInfo.scheduledAt);
     const fireSpreadSpeed = FIRE_SPREAD_VALUE[fireSpreadLabel];
+    const targetEvacuationSec = basicInfo.targetEvacuationSec
+      ? Number(basicInfo.targetEvacuationSec)
+      : undefined;
 
     if (
       !name ||
       !selectedBuildingId ||
       !Number.isInteger(expectedParticipants) ||
       expectedParticipants < 1 ||
+      (targetEvacuationSec !== undefined &&
+        (!Number.isInteger(targetEvacuationSec) || targetEvacuationSec < 1)) ||
       !scheduledAt
     ) {
       show({ title: '시나리오 정보를 모두 올바르게 입력해 주세요.', variant: 'error' });
       return null;
     }
 
-    return { name, expectedParticipants, scheduledAt, fireSpreadSpeed };
+    return { name, expectedParticipants, scheduledAt, fireSpreadSpeed, targetEvacuationSec };
   };
 
   const handleSaveDraft = async () => {

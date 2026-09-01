@@ -6,7 +6,6 @@ export interface BasicInfo {
   scheduledAt: string;
   expectedParticipants: string;
   targetEvacuationSec: string;
-  startNodeId: string;
 }
 
 export interface PreviewMetric {

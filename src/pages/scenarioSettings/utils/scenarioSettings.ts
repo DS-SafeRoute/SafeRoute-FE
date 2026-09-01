@@ -7,8 +7,7 @@ export const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({
   targetBuilding: scenario?.buildingId ?? '',
   scheduledAt: scenario?.scheduledAt ?? '',
   expectedParticipants: scenario ? String(scenario.expectedParticipants) : '',
-  targetEvacuationSec: '',
-  startNodeId: scenario?.startNodeId ?? '',
+  targetEvacuationSec: scenario?.targetEvacuationSec ? String(scenario.targetEvacuationSec) : '',
 });
 
 // 오늘 날짜의 00시 00분 00초 반환
