@@ -1,23 +1,26 @@
-import { useMemo } from 'react';
-
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 import {
   useFloorCctvsQuery,
+  useFloorGraphQuery,
   useFloorGridCellsQuery,
   useFloorImageUrlQuery,
   useFloorLightsQuery,
 } from '@apis/floors/floorQueries';
 import type { FloorGraph } from '@apis/floors/mapGraphApi';
 
-import { useEvacuationRouteQuery } from '../api/evacuationRoutes/evacuationRouteQueries';
-import { useScenarioFloorQuery } from '../api/floorContext/scenarioFloorQueries';
-import { formatEvacuationRoute } from '../utils/trainingRoutes';
+import {
+  useScenarioFireOriginQuery,
+  useScenarioFireZonesQuery,
+} from '../api/fireZones/fireZoneQueries';
 
 import type { PreviewMetric } from '../types/scenarioSettings';
 
 interface UseScenarioFloorViewParams {
+  scenarioId?: string;
   buildingId: string;
-  startNodeId: string;
+  isRunning: boolean;
+  routeFloorId?: string | null;
+  routeNodeIds: readonly string[];
 }
 
 export interface ScenarioFloorMapView {
@@ -25,6 +28,8 @@ export interface ScenarioFloorMapView {
   graph?: FloorGraph | null;
   gridCells: readonly FloorGridCell[];
   routeNodeIds: readonly string[];
+  fireCellIds: readonly string[];
+  originCellId?: string | null;
   statusMessage?: string;
 }
 
@@ -41,37 +46,31 @@ const getMetricValue = ({ count, suffix, isPending, isUnavailable }: MetricValue
   return `${count}${suffix}`;
 };
 
-export const useScenarioFloorView = ({ buildingId, startNodeId }: UseScenarioFloorViewParams) => {
-  const floorParams = buildingId && startNodeId ? { buildingId, startNodeId } : undefined;
-  const scenarioFloorQuery = useScenarioFloorQuery(floorParams, Boolean(floorParams));
-  const floorId = scenarioFloorQuery.data?.floor.id;
-  const hasFloorImage = Boolean(scenarioFloorQuery.data?.floor.mapImageKey);
-  const floorImageQuery = useFloorImageUrlQuery(
-    buildingId,
-    floorId,
-    Boolean(floorId && hasFloorImage),
-  );
-  const floorGridQuery = useFloorGridCellsQuery(floorId, Boolean(floorId));
-  const floorCctvsQuery = useFloorCctvsQuery(floorId, Boolean(floorId));
-  const floorLightsQuery = useFloorLightsQuery(floorId, Boolean(floorId));
-  const evacuationRouteQuery = useEvacuationRouteQuery(
-    floorId && startNodeId ? { floorId, startNodeId } : undefined,
-    Boolean(floorId && startNodeId),
-  );
+export const useScenarioFloorView = ({
+  scenarioId,
+  buildingId,
+  isRunning,
+  routeFloorId,
+  routeNodeIds,
+}: UseScenarioFloorViewParams) => {
+  const fireOriginQuery = useScenarioFireOriginQuery(scenarioId);
+  const fireZonesQuery = useScenarioFireZonesQuery(scenarioId, isRunning);
+  const fireOrigin = fireOriginQuery.data?.[0];
+  const displayedFireZones = isRunning ? (fireZonesQuery.data ?? []) : (fireOriginQuery.data ?? []);
+  const floorId = routeFloorId ?? fireOrigin?.floorId ?? displayedFireZones[0]?.floorId;
+  const floorImageQuery = useFloorImageUrlQuery(buildingId, floorId);
+  const floorGraphQuery = useFloorGraphQuery(floorId);
+  const floorGridQuery = useFloorGridCellsQuery(floorId);
+  const floorCctvsQuery = useFloorCctvsQuery(floorId);
+  const floorLightsQuery = useFloorLightsQuery(floorId);
+  const isFireZonePending =
+    Boolean(scenarioId) && (fireOriginQuery.isPending || (isRunning && fireZonesQuery.isPending));
 
-  const routeNodeIds = useMemo(
-    () =>
-      evacuationRouteQuery.data?.path
-        ?.map((node) => node.id)
-        .filter((nodeId): nodeId is string => Boolean(nodeId)) ?? [],
-    [evacuationRouteQuery.data],
-  );
-  const isResolvingFloor = Boolean(floorParams) && scenarioFloorQuery.isPending;
   const cctvMetricValue = getMetricValue({
     count: floorCctvsQuery.data?.length,
     suffix: '대',
-    isPending: isResolvingFloor || (Boolean(floorId) && floorCctvsQuery.isPending),
-    isUnavailable: !floorId || scenarioFloorQuery.isError || floorCctvsQuery.isError,
+    isPending: isFireZonePending || (Boolean(floorId) && floorCctvsQuery.isPending),
+    isUnavailable: !floorId || fireOriginQuery.isError || floorCctvsQuery.isError,
   });
   const activeLightCount = floorLightsQuery.data?.filter(
     (light) => light.enabled && light.guidanceConfigured,
@@ -79,55 +78,53 @@ export const useScenarioFloorView = ({ buildingId, startNodeId }: UseScenarioFlo
   const lightMetricValue = getMetricValue({
     count: activeLightCount,
     suffix: '개',
-    isPending: isResolvingFloor || (Boolean(floorId) && floorLightsQuery.isPending),
-    isUnavailable: !floorId || scenarioFloorQuery.isError || floorLightsQuery.isError,
+    isPending: isFireZonePending || (Boolean(floorId) && floorLightsQuery.isPending),
+    isUnavailable: !floorId || fireOriginQuery.isError || floorLightsQuery.isError,
   });
   const previewMetrics: PreviewMetric[] = [
     { id: 'cctv', label: '감지 CCTV', value: cctvMetricValue },
     { id: 'iot', label: '활성 IoT 유도등', value: lightMetricValue },
   ];
   const isFloorVisualPending =
-    isResolvingFloor ||
-    (Boolean(floorId) &&
-      ((hasFloorImage && floorImageQuery.isPending) ||
-        floorGridQuery.isPending ||
-        evacuationRouteQuery.isPending));
+    Boolean(floorId) &&
+    (floorImageQuery.isPending || floorGraphQuery.isPending || floorGridQuery.isPending);
 
   let statusMessage: string | undefined;
-  if (!floorParams) {
-    statusMessage = '대피 시작 위치가 연결되면 도면이 표시됩니다.';
+  if (!scenarioId) {
+    statusMessage = '시나리오 등록 후 도면 관리에서 발화점을 지정해 주세요.';
+  } else if (isFireZonePending) {
+    statusMessage = '발화점 정보를 불러오는 중...';
+  } else if (fireOriginQuery.isError || (isRunning && fireZonesQuery.isError)) {
+    statusMessage = '화재구역 정보를 불러오지 못했습니다.';
+  } else if (!floorId) {
+    statusMessage = '도면 관리에서 발화점을 지정해 주세요.';
   } else if (isFloorVisualPending) {
     statusMessage = '도면을 불러오는 중...';
-  } else if (scenarioFloorQuery.isError) {
-    statusMessage = '도면 정보를 불러오지 못했습니다.';
-  } else if (!scenarioFloorQuery.data) {
-    statusMessage = '대피 시작 노드가 포함된 층을 찾지 못했습니다.';
   } else if (floorImageQuery.isError) {
     statusMessage = '도면 이미지를 불러오지 못했습니다.';
+  } else if (floorGraphQuery.isError) {
+    statusMessage = '맵 그래프를 불러오지 못했습니다.';
   } else if (floorGridQuery.isError) {
     statusMessage = '격자 정보를 불러오지 못했습니다.';
   } else if (floorGridQuery.data?.length === 0) {
     statusMessage = '등록된 격자 정보가 없습니다.';
   }
 
-  const initialRouteMessage =
-    isResolvingFloor || (Boolean(floorId) && evacuationRouteQuery.isPending)
-      ? '현재 대피 경로를 불러오는 중...'
-      : evacuationRouteQuery.isError
-        ? '현재 대피 경로를 불러오지 못했습니다.'
-        : formatEvacuationRoute(evacuationRouteQuery.data);
-
   return {
     floorMap: {
       imageUrl: floorImageQuery.data?.imageUrl,
-      graph: scenarioFloorQuery.data?.graph,
+      graph: floorGraphQuery.data,
       gridCells: floorGridQuery.data ?? [],
       routeNodeIds,
+      fireCellIds: displayedFireZones
+        .filter((zone) => zone.floorId === floorId)
+        .map((zone) => zone.gridCellId),
+      originCellId: fireOrigin?.gridCellId,
       statusMessage,
     } satisfies ScenarioFloorMapView,
     previewMetrics,
-    cctvMetricValue,
-    lightMetricValue,
-    initialRouteMessage,
+    hasFireOrigin: Boolean(fireOrigin),
+    isFireOriginPending: fireOriginQuery.isPending,
+    isFireOriginError: fireOriginQuery.isError,
   };
 };

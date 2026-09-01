@@ -35,6 +35,16 @@ export const floorGraphQueryOptions = (floorId: string) =>
     queryFn: ({ signal }) => getFloorGraph(floorId, signal),
   });
 
+export const useFloorGraphQuery = (floorId?: string, enabled = true) =>
+  useQuery({
+    queryKey: floorQueryKeys.graph(floorId),
+    queryFn: ({ signal }) => {
+      if (!floorId) throw new Error('맵 그래프 조회 조건이 필요합니다.');
+      return getFloorGraph(floorId, signal);
+    },
+    enabled: enabled && Boolean(floorId),
+  });
+
 export const useFloorImageUrlQuery = (buildingId?: string, floorId?: string, enabled = true) =>
   useQuery({
     queryKey: floorQueryKeys.image(buildingId, floorId),

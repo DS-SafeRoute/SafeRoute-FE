@@ -18,7 +18,6 @@ import type { ScenarioFieldOption } from '../inputField/scenarioField/ScenarioFi
 interface ScenarioSetupValue {
   basicInfo: BasicInfo;
   fireSpreadLabel: string;
-  selectedFireCellId: string | null;
 }
 
 interface ScenarioSetupMode {
@@ -30,7 +29,6 @@ interface ScenarioSetupMode {
 interface ScenarioSetupHandlers {
   onBasicInfoChange: (key: keyof BasicInfo, value: string) => void;
   onFireSpreadChange: (value: string) => void;
-  onFireCellSelect: (cellId: string) => void;
 }
 
 interface ScenarioSetupFormProps {
@@ -50,10 +48,9 @@ const ScenarioSetupForm = ({
   mode,
   handlers,
 }: ScenarioSetupFormProps) => {
-  const { basicInfo, fireSpreadLabel, selectedFireCellId } = value;
+  const { basicInfo, fireSpreadLabel } = value;
   const { isRunning, readOnly, buildingReadOnly } = mode;
-  const { onBasicInfoChange, onFireSpreadChange, onFireCellSelect } = handlers;
-  const isFireLocationReadOnly = readOnly || isRunning;
+  const { onBasicInfoChange, onFireSpreadChange } = handlers;
 
   return (
     <div className={styles.container}>
@@ -129,10 +126,9 @@ const ScenarioSetupForm = ({
           graph={floorMap.graph}
           gridCells={floorMap.gridCells}
           routeNodeIds={floorMap.routeNodeIds}
-          selectedCellId={selectedFireCellId}
-          readOnly={isFireLocationReadOnly}
+          fireCellIds={floorMap.fireCellIds}
+          originCellId={floorMap.originCellId}
           statusMessage={floorMap.statusMessage}
-          onSelect={onFireCellSelect}
         />
       </section>
     </div>

@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -45,29 +45,10 @@ export const gridCell = style({
   strokeWidth: 0.15,
 });
 
-export const selectedCell = style({
+export const fireCell = style({
   fill: fireSurface,
   stroke: fireBorder,
   strokeWidth: 0.45,
-});
-
-export const selectableCell = style({
-  outline: 'none',
-  cursor: 'pointer',
-});
-
-globalStyle(`${selectableCell}:focus-visible rect`, {
-  stroke: vars.color.primary,
-  strokeWidth: 0.6,
-});
-
-globalStyle(`${selectableCell}:hover ${gridCell}`, {
-  fill: vars.color.warningSurface,
-});
-
-export const readOnlyCell = style({
-  outline: 'none',
-  cursor: 'default',
 });
 
 export const fireMarker = style({

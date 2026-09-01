@@ -64,7 +64,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     shouldQueryTrainingSessions && (isRunningSessionsPending || isScheduledSessionsPending);
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
-  const canStartTraining = scenario?.status === SCENARIO_STATUS.READY;
+  const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
   const isRestartUnavailable =
     scenario?.status === SCENARIO_STATUS.COMPLETED || scenario?.status === SCENARIO_STATUS.ERROR;
   const [isEditing, setIsEditing] = useState(false);
@@ -73,7 +73,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
   const [createdSessionStartedAt, setCreatedSessionStartedAt] = useState<string | null>(null);
   const [basicInfo, setBasicInfo] = useState<BasicInfo>(() => getInitialBasicInfo(scenario));
-  const [selectedFireCellId, setSelectedFireCellId] = useState<string | null>(null);
   const [fireSpreadLabel, setFireSpreadLabel] = useState<FireSpreadLabel>(
     scenario ? FIRE_SPREAD_LABEL[scenario.fireSpreadSpeed] : FIRE_SPREAD_LABEL.MEDIUM,
   );
@@ -86,6 +85,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
       session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
   );
   const activeSessionId = createdSessionId ?? runningSession?.sessionId ?? null;
+  const routeSessionId = activeSessionId ?? scheduledSession?.sessionId ?? null;
   const activeStartedAt = createdSessionStartedAt ?? runningSession?.startedAt ?? null;
   const startedAt = activeStartedAt ? Date.parse(activeStartedAt) : null;
   const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
@@ -95,17 +95,23 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     label: building.name,
     value: building.id,
   }));
-  const startNodeId = basicInfo.startNodeId.trim();
-  const floorView = useScenarioFloorView({
-    buildingId: selectedBuildingId,
-    startNodeId,
-  });
   const trainingRouteData = useTrainingRouteData({
-    sessionId: activeSessionId,
+    sessionId: routeSessionId,
     enabled: isRunning,
-    cctvMetricValue: floorView.cctvMetricValue,
-    lightMetricValue: floorView.lightMetricValue,
   });
+  const floorView = useScenarioFloorView({
+    scenarioId: scenario?.id,
+    buildingId: selectedBuildingId,
+    isRunning,
+    routeFloorId: trainingRouteData.routeFloorId,
+    routeNodeIds: trainingRouteData.routeNodeIds,
+  });
+  const canStartTraining = isScenarioReady && floorView.hasFireOrigin;
+  const isFireOriginRequired =
+    isScenarioReady &&
+    !floorView.isFireOriginPending &&
+    !floorView.isFireOriginError &&
+    !floorView.hasFireOrigin;
   useTrainingSessionSocket({
     sessionId: activeSessionId,
     onEvent: trainingRouteData.handleTrainingEvent,
@@ -165,9 +171,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   };
 
   const handleBasicInfoChange = (key: keyof BasicInfo, value: string) => {
-    if (key === 'targetBuilding' || key === 'startNodeId') {
-      setSelectedFireCellId(null);
-    }
     setBasicInfo((current) => ({ ...current, [key]: value }));
   };
 
@@ -283,7 +286,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           value={{
             basicInfo: displayedBasicInfo,
             fireSpreadLabel,
-            selectedFireCellId,
           }}
           buildingOptions={buildingOptions}
           floorMap={floorView.floorMap}
@@ -295,15 +297,14 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           handlers={{
             onBasicInfoChange: handleBasicInfoChange,
             onFireSpreadChange: handleFireSpreadChange,
-            onFireCellSelect: setSelectedFireCellId,
           }}
         />
 
         {isRunning && startedAt !== null ? (
           <TrainingControlPanel
             startedAt={startedAt}
-            currentRoute={trainingRouteData.currentRoute ?? floorView.initialRouteMessage}
-            liveMetrics={trainingRouteData.liveMetrics}
+            currentRoute={trainingRouteData.currentRouteMessage}
+            liveMetrics={floorView.previewMetrics}
             isEnding={endTrainingSessionMutation.isPending}
             onEnd={() => void handleEndTraining()}
             routeDecision={{
@@ -347,7 +348,9 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   fullWidth
                   leftIcon={<PlayIcon />}
                   onClick={() => void handleStartTraining()}
-                  disabled={areTrainingSessionsPending || !canStartTraining}
+                  disabled={
+                    areTrainingSessionsPending || floorView.isFireOriginPending || !canStartTraining
+                  }
                   isLoading={
                     createTrainingSessionMutation.isPending ||
                     startTrainingSessionMutation.isPending
@@ -359,6 +362,11 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   <p className={styles.startRestrictionNotice}>
                     완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를
                     생성해 주세요.
+                  </p>
+                ) : null}
+                {isFireOriginRequired ? (
+                  <p className={styles.startRestrictionNotice}>
+                    도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.
                   </p>
                 ) : null}
                 {canStartTraining ? (

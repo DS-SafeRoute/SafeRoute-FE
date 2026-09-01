@@ -13,10 +13,9 @@ interface FireLocationGridProps {
   graph?: FloorGraph | null;
   gridCells: readonly FloorGridCell[];
   routeNodeIds: readonly string[];
-  selectedCellId: string | null;
-  readOnly: boolean;
+  fireCellIds: readonly string[];
+  originCellId?: string | null;
   statusMessage?: string;
-  onSelect: (cellId: string) => void;
 }
 
 const getGridCellSize = (cells: readonly FloorGridCell[]) => {
@@ -30,10 +29,9 @@ const FireLocationGrid = ({
   graph,
   gridCells,
   routeNodeIds,
-  selectedCellId,
-  readOnly,
+  fireCellIds,
+  originCellId,
   statusMessage,
-  onSelect,
 }: FireLocationGridProps) => {
   const nodeById = useMemo(
     () => new Map(graph?.nodes.map((node) => [node.id, node]) ?? []),
@@ -49,6 +47,7 @@ const FireLocationGrid = ({
     [nodeById, routeNodeIds],
   );
   const cellSize = useMemo(() => getGridCellSize(gridCells), [gridCells]);
+  const fireCellIdSet = useMemo(() => new Set(fireCellIds), [fireCellIds]);
 
   return (
     <div className={styles.panel}>
@@ -87,37 +86,24 @@ const FireLocationGrid = ({
         {routePoints ? <polyline className={styles.route} points={routePoints} /> : null}
 
         {gridCells.map((cell) => {
-          const isSelected = cell.id === selectedCellId;
+          const isFireCell = fireCellIdSet.has(cell.id);
+          const isOrigin = cell.id === originCellId;
           const x = cell.centerX * MAP_WIDTH - cellSize.width / 2;
           const y = cell.centerY * MAP_HEIGHT - cellSize.height / 2;
-          const selectCell = () => {
-            if (!readOnly) onSelect(cell.id);
-          };
 
           return (
             <g
               key={cell.id}
-              role="button"
-              tabIndex={readOnly ? -1 : 0}
-              aria-label={`${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열${isSelected ? ', 발화 위치' : ''}`}
-              aria-disabled={readOnly}
-              className={readOnly ? styles.readOnlyCell : styles.selectableCell}
-              onClick={selectCell}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  selectCell();
-                }
-              }}
+              aria-label={`${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열${isFireCell ? ', 화재구역' : ''}`}
             >
               <rect
-                className={isSelected ? styles.selectedCell : styles.gridCell}
+                className={isFireCell ? styles.fireCell : styles.gridCell}
                 x={x}
                 y={y}
                 width={cellSize.width}
                 height={cellSize.height}
               />
-              {isSelected ? (
+              {isOrigin ? (
                 <text
                   className={styles.fireMarker}
                   x={cell.centerX * MAP_WIDTH}
@@ -125,7 +111,7 @@ const FireLocationGrid = ({
                 >
                   <tspan aria-hidden="true">🔥</tspan>
                   <tspan x={cell.centerX * MAP_WIDTH} dy="4">
-                    발화점
+                    최초 발화점
                   </tspan>
                 </text>
               ) : null}
