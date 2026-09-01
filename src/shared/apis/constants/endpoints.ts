@@ -49,6 +49,8 @@ export const API_ENDPOINTS = {
   SCENARIOS: {
     ROOT: `${API_V1}/scenarios`,
     DETAIL: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}`,
+    FIRE_ORIGIN: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-origin`,
+    FIRE_ZONES: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,
   },
 
   // 훈련 리포트
