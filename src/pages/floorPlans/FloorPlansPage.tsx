@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router';
 
@@ -175,10 +175,10 @@ const FloorPlansPage = () => {
     };
   }, [pendingUpload]);
 
-  useEffect(() => {
+  const loadFloorBuildings = useCallback(() => {
     setLoading(true);
     setHasLoadError(false);
-    getFloorBuildings()
+    return getFloorBuildings()
       .then(setBuildings)
       .catch(() => {
         setHasLoadError(true);
@@ -186,6 +186,10 @@ const FloorPlansPage = () => {
       })
       .finally(() => setLoading(false));
   }, [show]);
+
+  useEffect(() => {
+    void loadFloorBuildings();
+  }, [loadFloorBuildings]);
 
   const handleOpenFloorUpload = (target: FloorActionTarget) => {
     setUploadTarget({
@@ -271,6 +275,18 @@ const FloorPlansPage = () => {
     <>
       <div className={styles.container}>
         {loading && <p className={styles.stateMessage}>불러오는 중...</p>}
+        {!loading && hasLoadError ? (
+          <EmptyState
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="도면 목록을 불러오지 못했습니다."
+            action={
+              <Button type="button" variant="ghost" onClick={() => void loadFloorBuildings()}>
+                다시 시도
+              </Button>
+            }
+          />
+        ) : null}
         {!loading && !hasLoadError && !hasFloors ? (
           <EmptyState
             className={styles.emptyState}
