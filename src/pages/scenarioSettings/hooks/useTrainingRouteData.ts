@@ -14,7 +14,6 @@ import {
   useRouteRecalculationsQuery,
 } from '../api/routeRecalculations/routeRecalculationQueries';
 import {
-  formatRecalculationTime,
   formatRouteSegment,
   formatRouteProposal,
   getLatestRecalculation,
@@ -45,7 +44,6 @@ export const useTrainingRouteData = ({
   const pendingRecalculation = getLatestRecalculation(
     recalculations.filter((item) => item.status === 'PENDING'),
   );
-  const latestRecalculation = getLatestRecalculation(recalculations);
   const detailQuery = useRouteRecalculationDetailQuery(
     pendingRecalculation?.recalculationId,
     shouldFetch,
@@ -54,11 +52,6 @@ export const useTrainingRouteData = ({
   const rejectMutation = useRejectRouteRecalculationMutation();
   const routeProposal = formatRouteProposal(detailQuery.data);
   const liveMetrics: PreviewMetric[] = [
-    {
-      id: 'route-recalculation',
-      label: '마지막 경로 재산출',
-      value: formatRecalculationTime(latestRecalculation?.requestedAt),
-    },
     {
       id: 'cctv',
       label: '감지 CCTV',
