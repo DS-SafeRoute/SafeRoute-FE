@@ -1,19 +1,18 @@
+import FireLocationGrid from '@pages/scenarioSettings/components/fireLocationGrid/FireLocationGrid';
+import DateTimeField from '@pages/scenarioSettings/components/inputField/dateTimeField/DateTimeField';
+import ScenarioField from '@pages/scenarioSettings/components/inputField/scenarioField/ScenarioField';
+import type { ScenarioFieldOption } from '@pages/scenarioSettings/components/inputField/scenarioField/ScenarioField';
+import TargetEvacuationTimeField from '@pages/scenarioSettings/components/inputField/targetEvacuationTimeField/TargetEvacuationTimeField';
+import { FIRE_SPREAD_OPTIONS } from '@pages/scenarioSettings/constants/scenarioSettings';
+import type { ScenarioFloorMapView } from '@pages/scenarioSettings/hooks/useScenarioFloorView';
 import * as pageStyles from '@pages/scenarioSettings/ScenarioSettingsPage.css';
+import type { BasicInfo } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 
 import TextField from '@components/inputField/TextField';
 
 import * as styles from './ScenarioSetupForm.css';
-import { FIRE_SPREAD_OPTIONS } from '../../constants/scenarioSettings';
-import FireLocationGrid from '../fireLocationGrid/FireLocationGrid';
-import DateTimeField from '../inputField/dateTimeField/DateTimeField';
-import ScenarioField from '../inputField/scenarioField/ScenarioField';
-import TargetEvacuationTimeField from '../inputField/targetEvacuationTimeField/TargetEvacuationTimeField';
-
-import type { ScenarioFloorMapView } from '../../hooks/useScenarioFloorView';
-import type { BasicInfo } from '../../types/scenarioSettings';
-import type { ScenarioFieldOption } from '../inputField/scenarioField/ScenarioField';
 
 interface ScenarioSetupValue {
   basicInfo: BasicInfo;
