@@ -6,7 +6,7 @@ import type {
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-export type MapNodeType = 'STAIR' | 'ROOM' | 'HALLWAY' | 'DOOR' | 'EXIT' | 'CUSTOM';
+export type MapNodeType = 'STAIR' | 'ROOM' | 'HALLWAY' | 'DOOR' | 'EXIT' | 'START' | 'CUSTOM';
 
 export interface MapNode {
   id: string;
