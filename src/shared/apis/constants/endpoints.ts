@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
     START: (sessionId: string) => `${API_V1}/sessions/${sessionId}/start`,
     END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/end`,
     FORCE_END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/force-end`,
+    CURRENT_ROUTE: (sessionId: string) => `${API_V1}/sessions/${sessionId}/current-route`,
   },
 
   // 훈련 시나리오
