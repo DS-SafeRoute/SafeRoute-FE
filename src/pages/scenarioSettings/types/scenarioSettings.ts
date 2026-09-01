@@ -5,6 +5,7 @@ export interface BasicInfo {
   targetBuilding: string;
   scheduledAt: string;
   expectedParticipants: string;
+  targetEvacuationSec: string;
   startNodeId: string;
 }
 

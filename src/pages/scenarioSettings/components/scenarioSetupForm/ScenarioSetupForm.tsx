@@ -9,6 +9,7 @@ import { FIRE_SPREAD_OPTIONS } from '../../constants/scenarioSettings';
 import FireLocationGrid from '../fireLocationGrid/FireLocationGrid';
 import DateTimeField from '../inputField/dateTimeField/DateTimeField';
 import ScenarioField from '../inputField/scenarioField/ScenarioField';
+import TargetEvacuationTimeField from '../inputField/targetEvacuationTimeField/TargetEvacuationTimeField';
 
 import type { ScenarioFloorMapView } from '../../hooks/useScenarioFloorView';
 import type { BasicInfo } from '../../types/scenarioSettings';
@@ -95,6 +96,12 @@ const ScenarioSetupForm = ({
             readOnly={readOnly}
             disabled={isRunning}
             onChange={(event) => onBasicInfoChange('expectedParticipants', event.target.value)}
+          />
+          <TargetEvacuationTimeField
+            value={basicInfo.targetEvacuationSec}
+            readOnly={readOnly}
+            disabled={isRunning}
+            onChange={(value) => onBasicInfoChange('targetEvacuationSec', value)}
           />
         </div>
       </section>
