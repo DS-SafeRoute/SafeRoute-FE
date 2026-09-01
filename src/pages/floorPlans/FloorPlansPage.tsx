@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router';
 
+import BuildingIcon from '@assets/icons/ic-building.svg?react';
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
 import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
+import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
+import EmptyState from '@components/empty';
 import useToast from '@components/toast/useToast';
+
+import { ROUTES } from '@constants/path';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
 
@@ -157,6 +162,7 @@ const FloorPlansPage = () => {
   const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
@@ -171,9 +177,11 @@ const FloorPlansPage = () => {
 
   useEffect(() => {
     setLoading(true);
+    setHasLoadError(false);
     getFloorBuildings()
       .then(setBuildings)
       .catch(() => {
+        setHasLoadError(true);
         show({ title: '도면 목록을 불러오지 못했습니다.', variant: 'error' });
       })
       .finally(() => setLoading(false));
@@ -257,15 +265,28 @@ const FloorPlansPage = () => {
       });
   };
 
+  const hasFloors = buildings.some((building) => building.floors.length > 0);
+
   return (
     <>
       <div className={styles.container}>
-        {loading && (
-          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>
-            불러오는 중...
-          </p>
-        )}
+        {loading && <p className={styles.stateMessage}>불러오는 중...</p>}
+        {!loading && !hasLoadError && !hasFloors ? (
+          <EmptyState
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="등록된 도면이 없습니다."
+            description="건물과 층 정보를 등록한 뒤 도면을 업로드해 주세요."
+            action={
+              <Button type="button" onClick={() => void navigate(ROUTES.BUILDINGS)}>
+                건물 등록하러 가기
+              </Button>
+            }
+          />
+        ) : null}
         {!loading &&
+          !hasLoadError &&
+          hasFloors &&
           buildings.map((building) => (
             <section key={building.id} className={styles.buildingSection}>
               <div className={styles.buildingHeader}>
