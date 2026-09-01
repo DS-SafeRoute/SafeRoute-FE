@@ -1,15 +1,12 @@
 import type {
-  EvacuationRouteResponse,
-  MapNodeResponse,
+  CurrentRouteResponse,
   RouteRecalculationDetailResponse,
   RouteRecalculationSummaryResponse,
   RouteSegment,
 } from '@apis/__generated__/data-contracts';
 
-const getNodeLabel = (node?: MapNodeResponse) => node?.name || node?.code || '이름 없는 지점';
-
-export const formatEvacuationRoute = (route?: EvacuationRouteResponse) => {
-  const labels = route?.path?.map((node) => getNodeLabel(node)).filter(Boolean) ?? [];
+export const formatCurrentRoute = (route?: CurrentRouteResponse) => {
+  const labels = route?.path?.map((node) => node.name || '이름 없는 지점').filter(Boolean) ?? [];
   if (labels.length === 0) return '현재 대피 경로 정보가 없습니다.';
   return labels.join(' → ');
 };

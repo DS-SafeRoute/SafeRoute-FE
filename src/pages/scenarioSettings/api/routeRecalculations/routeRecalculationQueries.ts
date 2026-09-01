@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
+
 import {
   getRouteRecalculationDetail,
   getRouteRecalculations,
   patchApproveRouteRecalculation,
   patchRejectRouteRecalculation,
 } from './routeRecalculationsApi';
-import { evacuationRouteQueryKeys } from '../evacuationRoutes/evacuationRouteQueries';
 
 import type { GetRouteRecalculationsParams } from './routeRecalculationsApi';
 
@@ -52,7 +53,7 @@ const useInvalidateRouteRecalculationQueries = () => {
   return () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: evacuationRouteQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: trainingSessionQueryKeys.currentRoutes() }),
     ]);
 };
 
