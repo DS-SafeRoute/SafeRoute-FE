@@ -62,6 +62,23 @@ export const select = style({
   },
 });
 
+export const hourInput = style({
+  outline: 'none',
+  border: 'none',
+  backgroundColor: 'transparent',
+  width: '5.2rem',
+  minWidth: 0,
+  textAlign: 'center',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:disabled': {
+      opacity: 1,
+      color: vars.color.textLow,
+    },
+  },
+});
+
 export const unit = style({
   flexShrink: 0,
   color: vars.color.textMid,

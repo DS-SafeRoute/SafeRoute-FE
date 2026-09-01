@@ -1,5 +1,9 @@
+import {
+  splitTargetEvacuationTime,
+  toTargetEvacuationSec,
+} from '@pages/scenarioSettings/utils/scenarioSettings';
+
 import * as styles from './TargetEvacuationTimeField.css';
-import { splitTargetEvacuationTime, toTargetEvacuationSec } from '../../../utils/scenarioSettings';
 
 interface TargetEvacuationTimeFieldProps {
   value: string;
@@ -14,7 +18,6 @@ const createOptions = (length: number) =>
     value: String(value),
   }));
 
-const HOUR_OPTIONS = createOptions(100);
 const MINUTE_SECOND_OPTIONS = createOptions(60);
 
 const TargetEvacuationTimeField = ({
@@ -32,7 +35,7 @@ const TargetEvacuationTimeField = ({
   };
 
   const renderSelect = (
-    unit: 'hours' | 'minutes' | 'seconds',
+    unit: 'minutes' | 'seconds',
     label: string,
     options: readonly { label: string; value: string }[],
   ) => (
@@ -57,8 +60,21 @@ const TargetEvacuationTimeField = ({
   return (
     <label className={styles.root}>
       <span className={styles.label}>목표 대피 시간</span>
-      <span className={styles.fieldShell({ disabled })}>
-        {renderSelect('hours', '시간', HOUR_OPTIONS)}
+      <span className={styles.fieldShell({ disabled: isInactive })}>
+        <span className={styles.segment}>
+          <input
+            type="number"
+            className={styles.hourInput}
+            value={time.hours}
+            min={0}
+            step={1}
+            inputMode="numeric"
+            aria-label="목표 대피 시간 시간"
+            disabled={isInactive}
+            onChange={(event) => handleChange('hours', event.target.value)}
+          />
+          <span className={styles.unit}>시간</span>
+        </span>
         <span className={styles.divider} aria-hidden="true" />
         {renderSelect('minutes', '분', MINUTE_SECOND_OPTIONS)}
         <span className={styles.divider} aria-hidden="true" />
