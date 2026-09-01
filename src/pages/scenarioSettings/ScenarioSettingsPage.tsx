@@ -309,7 +309,8 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
             onEnd={() => void handleEndTraining()}
             routeDecision={{
               proposal: trainingRouteData.routeProposal,
-              isPending: trainingRouteData.isRouteDecisionPending,
+              isApplying: trainingRouteData.isApplyingRouteProposal,
+              isRejecting: trainingRouteData.isRejectingRouteProposal,
               onReject: () => void handleRejectRouteProposal(),
               onApply: () => void handleApplyRouteProposal(),
             }}

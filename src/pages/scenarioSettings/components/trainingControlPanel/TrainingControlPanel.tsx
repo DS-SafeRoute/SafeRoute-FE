@@ -1,4 +1,8 @@
+import RecommendationCard from '@pages/scenarioSettings/components/cards/recommendationCard/RecommendationCard';
+import TrainingPreviewCard from '@pages/scenarioSettings/components/cards/trainingPreviewCard/TrainingPreviewCard';
+import { LIVE_STATUS } from '@pages/scenarioSettings/constants/scenarioSettings';
 import { sideColumn } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
+import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import PauseIcon from '@assets/icons/ic-pause.svg?react';
 import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
@@ -8,11 +12,6 @@ import { Button } from '@components/Button';
 import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
 
 import * as styles from './TrainingControlPanel.css';
-import { LIVE_STATUS } from '../../constants/scenarioSettings';
-import RecommendationCard from '../cards/recommendationCard/RecommendationCard';
-import TrainingPreviewCard from '../cards/trainingPreviewCard/TrainingPreviewCard';
-
-import type { PreviewMetric } from '../../types/scenarioSettings';
 
 interface RouteProposal {
   message: string;
@@ -22,7 +21,8 @@ interface RouteProposal {
 
 interface RouteDecision {
   proposal: RouteProposal | null;
-  isPending: boolean;
+  isApplying: boolean;
+  isRejecting: boolean;
   onReject: () => void;
   onApply: () => void;
 }
@@ -45,7 +45,8 @@ const TrainingControlPanel = ({
   routeDecision,
 }: TrainingControlPanelProps) => {
   const elapsedTime = useElapsedTrainingTime(startedAt);
-  const { proposal, isPending, onReject, onApply } = routeDecision;
+  const { proposal, isApplying, isRejecting, onReject, onApply } = routeDecision;
+  const isPending = isApplying || isRejecting;
 
   return (
     <aside className={sideColumn}>
@@ -92,10 +93,23 @@ const TrainingControlPanel = ({
             </div>
           </dl>
           <div className={styles.proposalActions}>
-            <Button type="button" variant="ghost" size="sm" onClick={onReject} disabled={isPending}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onReject}
+              disabled={isPending}
+              isLoading={isRejecting}
+            >
               거부
             </Button>
-            <Button type="button" size="sm" onClick={onApply} isLoading={isPending}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={onApply}
+              disabled={isPending}
+              isLoading={isApplying}
+            >
               승인 · 경로 적용
             </Button>
           </div>

@@ -87,7 +87,8 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
         ?.map((node) => node.nodeId)
         .filter((nodeId): nodeId is string => Boolean(nodeId)) ?? [],
     routeProposal,
-    isRouteDecisionPending: approveMutation.isPending || rejectMutation.isPending,
+    isApplyingRouteProposal: approveMutation.isPending,
+    isRejectingRouteProposal: rejectMutation.isPending,
     approveRouteProposal: () => {
       if (!pendingRecalculation?.recalculationId) return Promise.resolve(undefined);
       return approveMutation.mutateAsync(pendingRecalculation.recalculationId);
