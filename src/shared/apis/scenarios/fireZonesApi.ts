@@ -1,4 +1,4 @@
-import type { CreateFireZoneRequest, FireZoneResponse } from '@apis/__generated__/data-contracts';
+import type { FireZoneResponse } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
@@ -47,22 +47,8 @@ export const getScenarioFireOrigin = (scenarioId: string, signal?: AbortSignal) 
 export const getScenarioFireZones = (scenarioId: string, signal?: AbortSignal) =>
   getFireZoneList(API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId), signal);
 
-export interface CreateFireOriginVariables {
-  scenarioId: string;
-  gridCellId: string;
-}
-
-// 도면관리에서 도면 그리드 셀을 클릭해 이 시나리오의 최초 발화점으로 등록
-export const createFireOrigin = async ({
-  scenarioId,
-  gridCellId,
-}: CreateFireOriginVariables): Promise<FireZone> => {
-  const response = await request<FireZoneResponse, CreateFireZoneRequest>({
-    method: HTTP_METHOD.POST,
-    url: API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId),
-    body: { gridCellId },
-    responseMode: 'raw',
-  });
-
-  return toFireZone(response);
-};
+// 발화점 등록(POST /scenarios/{scenarioId}/fire-zones)은 백엔드에서 완전히 제거됨(팀 전달사항,
+// 2026-09-03) — 대신 POST /scenarios/{scenarioId}/evacuation-setup로 통합된 것으로 보임(스웨거
+// 확인, 화재 설정이 그쪽에 포함됨). 여기 있던 createFireOrigin/useCreateFireOriginMutation은
+// 이제 존재하지 않는 엔드포인트를 호출하던 코드라 지움 — 새 등록 플로우는 evacuation-setup
+// 기준으로 다시 만들어야 함. 조회(GET fire-origin/fire-zones)는 그대로 살아있어 안 건드림

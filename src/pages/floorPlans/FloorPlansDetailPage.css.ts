@@ -285,25 +285,6 @@ export const gridSetupPopup = style({
   width: '25rem',
 });
 
-/* ── 발화점 지정 안내/확정 패널 ── */
-export const fireOriginPopup = style({
-  position: 'absolute',
-  zIndex: 15,
-  // 툴바 버튼 줄 아래로 확실히 떨어지도록 nodeAddPopup과 같은 높이로 맞춤(gridSetupPopup의
-  // 5.6rem은 버튼 줄과 겹침)
-  top: '9.6rem',
-  right: vars.space.s6,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s3,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.lg,
-  backgroundColor: vars.color.white,
-  padding: vars.space.s4,
-  width: '25rem',
-});
-
 /* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({
@@ -1189,33 +1170,6 @@ export const stagedCameraMarker = style({
   width: '2.4rem',
   height: '2.4rem',
   animation: `${pulse} 1.4s ease-in-out infinite`,
-  '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      animation: 'none',
-    },
-  },
-});
-
-// 발화점 지정 모드에서, 이 시나리오에 이미 등록된 발화점 위치를 표시 — 다른 마커(CCTV·유도등·
-// 구조노드 점)들 사이에서 묻히기 쉬워서, 색 원 하나가 아니라 🔥 이모지 + 펄스 애니메이션으로
-// 눈에 확 띄게 함
-export const existingFireOriginMarker = style({
-  position: 'absolute',
-  zIndex: 3,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  transform: 'translate(-50%, -50%)',
-  border: `2px solid ${vars.color.danger}`,
-  borderRadius: '50%',
-  boxShadow: '0 0 0 4px rgba(239,68,68,0.2)',
-  backgroundColor: vars.color.white,
-  pointerEvents: 'none',
-  width: '2.8rem',
-  height: '2.8rem',
-  animation: `${pulse} 1.4s ease-in-out infinite`,
-  lineHeight: 1,
-  fontSize: '1.6rem',
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       animation: 'none',

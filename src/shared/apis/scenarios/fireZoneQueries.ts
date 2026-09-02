@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
-import { createFireOrigin, getScenarioFireOrigin, getScenarioFireZones } from './fireZonesApi';
+import { getScenarioFireOrigin, getScenarioFireZones } from './fireZonesApi';
 
 export const fireZoneQueryKeys = {
   all: ['scenario-fire-zones'] as const,
@@ -30,16 +30,5 @@ export const useScenarioFireZonesQuery = (scenarioId?: string, enabled = true) =
     enabled: enabled && Boolean(scenarioId),
   });
 
-export const useCreateFireOriginMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: createFireOrigin,
-    onSuccess: (fireZone) => {
-      void queryClient.invalidateQueries({
-        queryKey: fireZoneQueryKeys.origin(fireZone.scenarioId),
-      });
-      void queryClient.invalidateQueries({ queryKey: fireZoneQueryKeys.list(fireZone.scenarioId) });
-    },
-  });
-};
+// 발화점 등록 mutation(useCreateFireOriginMutation)은 백엔드에서 POST 엔드포인트 자체가
+// 제거되어(evacuation-setup으로 통합된 것으로 보임, fireZonesApi.ts 주석 참고) 지웠음

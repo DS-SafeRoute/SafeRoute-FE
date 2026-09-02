@@ -13,26 +13,30 @@ import useToast from '@components/toast/useToast';
 /**
  * 시작 노드(START) 지정 관련 상태·조회·등록 로직을 한 곳에 모은 훅.
  *
- * 시작 노드는 백엔드 확인 결과 시나리오가 아니라 "층" 기준 값(층당 최대 1개, scenario.startNodeId는
- * 서버가 발화점 등록 시 자동으로 연결)이지만, 팀 논의 결과 발화점과 마찬가지로 지정 UI는
+ * 시작 노드는 시나리오가 아니라 "층" 기준 값이지만, 팀 논의 결과 지정 UI는 발화점과 마찬가지로
  * 시나리오설정 페이지(2. 화재 발생 조건 쪽 도면)에서 다루기로 함.
  *
- * useFireOriginDesignation과 API 모양을 맞춰서(draftCellId/selectCell/confirm) 같은
- * GridCellPickerCanvas에 그대로 꽂아 쓸 수 있게 함 — 다만 시작 노드는 백엔드가 그리드 셀 id가
- * 아니라 좌표(x, y 0~1)를 요구하는 노드 API라서(CreateMapNodeRequest), 선택한 셀의
- * centerX/centerY를 그 좌표로 변환해서 보냄. 화면에서는 "셀을 고른다"는 경험이 발화점과
- * 똑같이 느껴지지만, 실제로 서버에 저장되는 값의 형태는 다르다는 걸 기억해둘 것.
+ * 팀 전달사항(2026-09-03): 노드 생성/수정 API에서 한 층에 START 후보를 여러 개 만들 수 있도록
+ * 바뀜 — 예전의 "이미 START가 있는 층엔 못 만든다"(FLOOR_START_NODE_ALREADY_EXISTS) 제약이
+ * 없어졌음. START는 여전히 isExitTarget=false로 강제 저장되고, 시나리오가 그중 하나를
+ * "실제 훈련 시작점"으로 고르는 건 이 훅/화면의 몫이 아님(이 캔버스는 후보만 만듦).
  *
- * useFireOriginDesignation과 마찬가지로 캔버스 렌더링 자체는 호스트 페이지(또는
- * GridCellPickerCanvas)가 맡고, 이 훅은 시작 노드 자체의 상태만 다룸.
+ * draftCellId/selectCell/confirm 모양을 GridCellPickerCanvas에 그대로 꽂아 쓸 수 있게 함 —
+ * 다만 시작 노드는 백엔드가 그리드 셀 id가 아니라 좌표(x, y 0~1)를 요구하는 노드 API라서
+ * (CreateMapNodeRequest), 선택한 셀의 centerX/centerY를 그 좌표로 변환해서 보냄. 화면에서는
+ * "셀을 고른다"는 경험이지만, 실제로 서버에 저장되는 값의 형태는 다르다는 걸 기억해둘 것.
+ *
+ * 캔버스 렌더링 자체는 호스트 페이지(또는 GridCellPickerCanvas)가 맡고, 이 훅은 시작 노드
+ * 자체의 상태만 다룸.
  */
 export const useStartNodeDesignation = (floorId?: string) => {
   const { show } = useToast();
   const queryClient = useQueryClient();
 
-  // 이미 이 층에 시작 노드가 있는지 — 있으면 재지정 불가(층당 1개, 스웨거 확인)
+  // 이 층에 이미 있는 시작 후보들 — 여러 개 허용되므로 더 이상 선택을 막는 데 쓰지 않고,
+  // "몇 개 있는지" 참고용 정보로만 씀
   const graphQuery = useFloorGraphQuery(floorId);
-  const startNode = graphQuery.data?.nodes.find((n) => n.type === 'START') ?? null;
+  const startNodes = graphQuery.data?.nodes.filter((n) => n.type === 'START') ?? [];
 
   // 그리드 셀 클릭으로 고르는 배치 모드 — 켜져 있는 동안 호스트 페이지가 도면 클릭을
   // selectCell로 연결해야 함(useFireOriginDesignation과 동일한 계약)
@@ -49,10 +53,8 @@ export const useStartNodeDesignation = (floorId?: string) => {
     setDraftCellId(null);
   };
 
-  // 시작 노드는 재등록 API가 없어(발화점과 같은 이유) 이미 있으면 선택 자체를 막음.
-  // 같은 칸을 다시 누르면 선택 해제 — 발화점 선택과 동일한 동작
+  // 같은 칸을 다시 누르면 선택 해제 — 한 층에 여러 개 허용되므로(팀 전달사항) 이미 있어도 막지 않음
   const selectCell = (cellId: string) => {
-    if (startNode) return;
     setDraftCellId((prev) => (prev === cellId ? null : cellId));
   };
 
@@ -101,8 +103,8 @@ export const useStartNodeDesignation = (floorId?: string) => {
   });
 
   return {
-    hasStartNode: !!startNode,
-    startNode,
+    hasStartNode: startNodes.length > 0,
+    startNodes,
     isStartNodeLoading: graphQuery.isLoading,
     isPlacing,
     beginPlacing,

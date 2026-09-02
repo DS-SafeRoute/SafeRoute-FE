@@ -67,9 +67,7 @@ import {
   getUserZoneDetail,
 } from './api/userZoneApi';
 import * as styles from './FloorPlansDetailPage.css';
-import { useFireOriginDesignation } from './hooks/useFireOriginDesignation';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
-import FireOriginScenarioModal from './modals/FireOriginScenarioModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import {
@@ -1062,7 +1060,6 @@ const NodeAddPopup = ({
   stage,
   hasPosition,
   selectedCellCount,
-  hasStartNode,
   onCancel,
   onBack,
   onSubmitEntry,
@@ -1074,8 +1071,6 @@ const NodeAddPopup = ({
   stage: 'entry' | 'fov';
   hasPosition: boolean;
   selectedCellCount: number;
-  // 시작 노드는 층당 1개만 허용돼서, 이미 있으면 칩을 비활성화함
-  hasStartNode: boolean;
   onCancel: () => void;
   onBack: () => void;
   onSubmitEntry: (type: PlacingDeviceType, deviceId: string, location: string) => void;
@@ -1145,21 +1140,16 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => {
-            const disabled = t === 'start' && hasStartNode;
-            return (
-              <button
-                key={t}
-                type="button"
-                className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
-                disabled={disabled}
-                title={disabled ? '이 층에는 이미 시작 노드가 있어요' : undefined}
-                onClick={() => onTypeChange(t)}
-              >
-                {DEVICE_PLACE_CONFIG[t].label}
-              </button>
-            );
-          })}
+          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
+              onClick={() => onTypeChange(t)}
+            >
+              {DEVICE_PLACE_CONFIG[t].label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1805,7 +1795,6 @@ const FloorCanvas = ({
   gridCellPxSize,
   onGridCellToggle,
   stagedCameraPosition,
-  existingFireOriginPosition,
   devicePositions,
   addedDevices,
   onSelectDevice,
@@ -1846,7 +1835,6 @@ const FloorCanvas = ({
   gridCellPxSize: { w: number; h: number };
   onGridCellToggle: (cellId: string) => void;
   stagedCameraPosition: { x: number; y: number } | null;
-  existingFireOriginPosition: { x: number; y: number } | null;
   devicePositions: Record<string, { x: number; y: number }>;
   addedDevices: AddedDevice[];
   onSelectDevice: (d: DeviceMarker) => void;
@@ -1931,19 +1919,6 @@ const FloorCanvas = ({
           className={styles.stagedCameraMarker}
           style={{ left: `${stagedCameraPosition.x}%`, top: `${stagedCameraPosition.y}%` }}
         />
-      )}
-      {existingFireOriginPosition && (
-        <div
-          className={styles.existingFireOriginMarker}
-          style={{
-            left: `${existingFireOriginPosition.x}%`,
-            top: `${existingFireOriginPosition.y}%`,
-          }}
-          title="발화점"
-          aria-hidden="true"
-        >
-          🔥
-        </div>
       )}
       {floor.devices.map((device) => {
         const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
@@ -2358,9 +2333,6 @@ const FloorPlansDetailPage = () => {
   const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
-  // 발화점(시나리오별 최초 화재 발생 지점) 지정 관련 상태·조회·등록은 별도 훅으로 분리되어 있음 —
-  // 추후 시나리오설정 페이지로 옮길 때 이 훅을 그대로 옮겨 쓸 수 있게 하기 위함
-  const fireOrigin = useFireOriginDesignation();
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -2370,9 +2342,7 @@ const FloorPlansDetailPage = () => {
   // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
-  const [gridSetupIntent, setGridSetupIntent] = useState<
-    'toggle' | 'cctv' | 'zone' | 'fireOrigin' | null
-  >(null);
+  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | 'zone' | null>(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
@@ -2772,7 +2742,7 @@ const FloorPlansDetailPage = () => {
       .catch(() => []);
   };
 
-  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone' | 'fireOrigin') => {
+  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
     setGridSetupIntent(intent);
     // 업로드 때 정했던 값이 남아 있으면 다시 입력하지 않도록 채워둠
     const remembered = currentFloor
@@ -2863,8 +2833,6 @@ const FloorPlansDetailPage = () => {
   const handleGridSetupPromptCancel = () => {
     setGridSetupPromptOpen(false);
     if (gridSetupIntent === 'cctv') handleNodeAddBack();
-    // 그리드가 없어서 발화점을 지정할 수 없는 상태이니, 모드 자체를 접음
-    if (gridSetupIntent === 'fireOrigin') fireOrigin.cancel();
     setGridSetupIntent(null);
   };
 
@@ -2883,8 +2851,6 @@ const FloorPlansDetailPage = () => {
           setNodeAddStage('fov');
         } else if (gridSetupIntent === 'zone') {
           setZoneAddOpen(true);
-        } else if (gridSetupIntent === 'fireOrigin') {
-          // 발화점 지정 모드는 fireOrigin.activeScenarioId로 이미 켜져 있어서 별도 처리 없이 셀 선택으로 넘어감
         } else {
           setShowGridOverlay(true);
         }
@@ -2902,24 +2868,13 @@ const FloorPlansDetailPage = () => {
       });
   };
 
-  // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
-  // 그중 CCTV/구역 두 플로우는 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에
-  // 담아두고 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀.
-  // 발화점 지정은 다중 선택이 아니라 단일 셀만 고르므로 fireOrigin.draftCellId를 배열로 감싸 재사용
-  const activeDraftCellIds = fireOrigin.activeScenarioId
-    ? fireOrigin.draftCellId
-      ? [fireOrigin.draftCellId]
-      : []
-    : zoneAddOpen
-      ? zoneDraftCellIds
-      : cctvDraftCellIds;
+  // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가/수정 세 곳에서
+  // 공유함 — 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에 담아두고
+  // 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀
+  const activeDraftCellIds = zoneAddOpen ? zoneDraftCellIds : cctvDraftCellIds;
   const setActiveDraftCellIds = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
 
   const handleGridCellToggle = (cellId: string) => {
-    if (fireOrigin.activeScenarioId) {
-      fireOrigin.selectCell(cellId);
-      return;
-    }
     setActiveDraftCellIds((prev) =>
       prev.includes(cellId) ? prev.filter((id) => id !== cellId) : [...prev, cellId],
     );
@@ -3284,7 +3239,6 @@ const FloorPlansDetailPage = () => {
   // 구역 추가 버튼 — 그리드가 있어야 셀을 선택할 수 있어서, 없으면 설정 팝업부터 띄움
   const handleToggleZoneAdd = () => {
     setNodeAddOpen(false);
-    fireOrigin.cancel();
     if (zoneAddOpen) {
       setZoneAddOpen(false);
       return;
@@ -3303,7 +3257,6 @@ const FloorPlansDetailPage = () => {
   // presetType을 주면 노드 종류 칩까지 미리 골라둠(예: 체크리스트의 "시작 노드 지정하기")
   const handleOpenNodeAdd = (presetType?: PlacingDeviceType) => {
     setZoneAddOpen(false);
-    fireOrigin.cancel();
     if (presetType) setNodeAddType(presetType);
     setNodeAddOpen(true);
   };
@@ -3311,7 +3264,6 @@ const FloorPlansDetailPage = () => {
   const handleOpenEdgeAdd = () => {
     setNodeAddOpen(false);
     setZoneAddOpen(false);
-    fireOrigin.cancel();
     setSelectedEdgeId(null);
     setEdgeAddOpen(true);
   };
@@ -3573,21 +3525,10 @@ const FloorPlansDetailPage = () => {
     [floorGridCells, canvasH],
   );
 
-  // 노드 추가 팝업에서 "시작 노드" 칩을 중복 지정하지 못하게 막는 데 씀(층당 최대 1개)
-  const hasStartNode = structureNodes.some((n) => n.type === 'start');
-
-  // 이 시나리오의 발화점이 이미 지정되어 있고, 그게 지금 보고 있는 층이면 도면에 표시함
-  const existingOrigin = fireOrigin.existingOrigin;
-  const existingFireOriginCell =
-    existingOrigin && currentFloor && existingOrigin.floorId === currentFloor.id
-      ? (floorGridCells.find((c) => c.id === existingOrigin.gridCellId) ?? null)
-      : null;
-
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
     editingCctvId ||
-    zoneAddOpen ||
-    fireOrigin.activeScenarioId
+    zoneAddOpen
       ? 'selecting'
       : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
         ? 'viewing'
@@ -3913,42 +3854,6 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {fireOrigin.activeScenarioId && !gridSetupPromptOpen && (
-              <div className={styles.fireOriginPopup} onClick={(e) => e.stopPropagation()}>
-                <span className={styles.nodeAddTitle}>발화점 지정</span>
-                <span className={styles.nodeAddHint}>
-                  {fireOrigin.isStatusLoading
-                    ? '발화점 정보를 확인하는 중...'
-                    : existingOrigin
-                      ? existingFireOriginCell
-                        ? '빨간 원이 이미 지정된 발화점이에요. 발화점은 한 번 지정하면 변경할 수 없어요.'
-                        : '이 시나리오는 다른 층에 발화점이 이미 지정되어 있어요. 발화점은 한 번 지정하면 변경할 수 없어요.'
-                      : fireOrigin.draftCellId
-                        ? '선택한 칸을 이 시나리오의 최초 발화점으로 지정합니다.'
-                        : '도면에서 발화점으로 지정할 칸을 클릭해주세요.'}
-                </span>
-                <div className={styles.nodeAddActions}>
-                  <button
-                    type="button"
-                    className={styles.nodeAddCancelBtn}
-                    onClick={fireOrigin.cancel}
-                  >
-                    {existingOrigin ? '닫기' : '취소'}
-                  </button>
-                  {!existingOrigin && (
-                    <button
-                      type="button"
-                      className={styles.nodeAddSubmitBtn}
-                      disabled={!fireOrigin.draftCellId || fireOrigin.isConfirming}
-                      onClick={fireOrigin.confirm}
-                    >
-                      {fireOrigin.isConfirming ? '지정 중...' : '지정'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
             {edgeAddOpen && edgeDraftFromId && !edgeDraftToId && (
               <div
                 style={{
@@ -4017,7 +3922,6 @@ const FloorPlansDetailPage = () => {
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
                 selectedCellCount={cctvDraftCellIds.length}
-                hasStartNode={hasStartNode}
                 onCancel={() => setNodeAddOpen(false)}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
@@ -4076,14 +3980,6 @@ const FloorPlansDetailPage = () => {
                 gridCellPxSize={gridCellPxSize}
                 onGridCellToggle={handleGridCellToggle}
                 stagedCameraPosition={nodeStagedPosition}
-                existingFireOriginPosition={
-                  existingFireOriginCell
-                    ? {
-                        x: existingFireOriginCell.centerX * 100,
-                        y: existingFireOriginCell.centerY * 100,
-                      }
-                    : null
-                }
                 onSelectDevice={(d) => {
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
@@ -4324,23 +4220,6 @@ const FloorPlansDetailPage = () => {
           label={zoneDeleteTarget.label}
           onConfirm={handleZoneDeleteConfirm}
           isSubmitting={isDeletingZone}
-        />
-      )}
-
-      {buildingId && (
-        <FireOriginScenarioModal
-          open={fireOrigin.isPickerOpen}
-          onClose={fireOrigin.closePicker}
-          buildingId={buildingId}
-          onSelect={(scenarioId) => {
-            fireOrigin.closePicker();
-            fireOrigin.setStatusScenarioId(scenarioId);
-            // CCTV 등록과 같은 이유로 그리드가 있어야 셀을 지정할 수 있음 — 없으면 먼저 만들게 함
-            void ensureFloorGridCells().then((cells) => {
-              fireOrigin.setActiveScenarioId(scenarioId);
-              if (cells.length === 0) openGridSetupPrompt('fireOrigin');
-            });
-          }}
         />
       )}
     </>
