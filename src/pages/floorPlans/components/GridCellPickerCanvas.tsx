@@ -23,10 +23,10 @@ const DEFAULT_CANVAS_H = 420;
  * `imageUrl`(도면 이미지 URL)과 `gridCells`(GET .../grid/cells 결과)만 넘기면 됨 —
  * 캔버스 크기·격자 렌더링·확대축소를 직접 구현할 필요가 없음.
  *
- * useFireOriginDesignation/useStartNodeDesignation과 짝이 맞도록 "단일 셀 선택"만 지원함
- * (draftCellId ↔ selectedCellId, selectCell ↔ onCellSelect). 여러 칸을 고르는 화면(구역
- * 설정처럼)이 필요해지면 selectedCellIds: string[]을 받는 별도 variant로 만드는 걸 권장 —
- * 이 컴포넌트의 단일-선택 계약을 흐리지 않기 위함.
+ * useEvacuationSetupDesignation(발화점 셀 선택)·useStartNodeDesignation과 짝이 맞도록
+ * "단일 셀 선택"만 지원함(draftFireOriginCellId/draftCellId ↔ selectedCellId, selectCell ↔
+ * onCellSelect). 여러 칸을 고르는 화면(구역 설정처럼)이 필요해지면 selectedCellIds: string[]을
+ * 받는 별도 variant로 만드는 걸 권장 — 이 컴포넌트의 단일-선택 계약을 흐리지 않기 위함.
  */
 interface GridCellPickerCanvasProps {
   imageUrl?: string | null;

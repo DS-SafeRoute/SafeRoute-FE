@@ -19,7 +19,9 @@ import useToast from '@components/toast/useToast';
  * 팀 전달사항(2026-09-03): 노드 생성/수정 API에서 한 층에 START 후보를 여러 개 만들 수 있도록
  * 바뀜 — 예전의 "이미 START가 있는 층엔 못 만든다"(FLOOR_START_NODE_ALREADY_EXISTS) 제약이
  * 없어졌음. START는 여전히 isExitTarget=false로 강제 저장되고, 시나리오가 그중 하나를
- * "실제 훈련 시작점"으로 고르는 건 이 훅/화면의 몫이 아님(이 캔버스는 후보만 만듦).
+ * "실제 훈련 시작점"으로 고르는 건 이 훅의 몫이 아님(이 훅은 후보만 만듦) — 그건
+ * useEvacuationSetupDesignation이 함(발화점 셀 + 이 훅이 만든 후보 중 하나의 nodeId를
+ * 같이 받아 POST /scenarios/{scenarioId}/evacuation-setup으로 확정).
  *
  * draftCellId/selectCell/confirm 모양을 GridCellPickerCanvas에 그대로 꽂아 쓸 수 있게 함 —
  * 다만 시작 노드는 백엔드가 그리드 셀 id가 아니라 좌표(x, y 0~1)를 요구하는 노드 API라서
@@ -39,7 +41,7 @@ export const useStartNodeDesignation = (floorId?: string) => {
   const startNodes = graphQuery.data?.nodes.filter((n) => n.type === 'START') ?? [];
 
   // 그리드 셀 클릭으로 고르는 배치 모드 — 켜져 있는 동안 호스트 페이지가 도면 클릭을
-  // selectCell로 연결해야 함(useFireOriginDesignation과 동일한 계약)
+  // selectCell로 연결해야 함(useEvacuationSetupDesignation과 동일한 계약)
   const [isPlacing, setIsPlacing] = useState(false);
   const [draftCellId, setDraftCellId] = useState<string | null>(null);
 
