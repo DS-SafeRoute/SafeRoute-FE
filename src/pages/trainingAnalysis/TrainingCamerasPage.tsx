@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 
 import { Navigate, useNavigate, useParams } from 'react-router';
 
+import { extractApiError } from '@apis/errors/apiError';
+
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 
@@ -50,6 +52,7 @@ const TrainingCamerasPage = () => {
     data: cameras = [],
     isLoading: isCamerasLoading,
     isError: isCamerasError,
+    error: camerasError,
   } = useSessionCamerasQuery(sessionId, { live: isLive });
 
   const floorGroups = useMemo(() => groupByFloor(cameras), [cameras]);
@@ -108,7 +111,10 @@ const TrainingCamerasPage = () => {
         {!isCamerasLoading && isCamerasError && (
           <EmptyState
             title="카메라 목록을 불러오지 못했습니다"
-            description="잠시 후 다시 시도해주세요"
+            // 서버가 이유를 message로 내려주면(예: 세션이 더 이상 조회 가능한 상태가 아님)
+            // 그대로 보여줌 — "잠시 후 다시 시도해주세요"는 재시도로 해결 안 되는 경우에도
+            // 똑같이 떠서 오해를 줬음
+            description={extractApiError(camerasError).message || '잠시 후 다시 시도해주세요'}
           />
         )}
 

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Navigate, useNavigate, useParams } from 'react-router';
 
+import { extractApiError } from '@apis/errors/apiError';
+
 import AlertIcon from '@assets/icons/ic-alert.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 
@@ -61,6 +63,7 @@ const TrainingCameraFramesPage = () => {
     data: cameras = [],
     isLoading: isCamerasLoading,
     isError: isCamerasError,
+    error: camerasError,
   } = useSessionCamerasQuery(sessionId, { live: isLive });
   const camera = cameras.find((c) => c.cctvId === cctvId);
 
@@ -68,6 +71,7 @@ const TrainingCameraFramesPage = () => {
     data: framePages,
     isLoading: isFramesLoading,
     isError: isFramesError,
+    error: framesError,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -95,7 +99,7 @@ const TrainingCameraFramesPage = () => {
       <div className={styles.container}>
         <EmptyState
           title="훈련 정보를 불러오지 못했습니다"
-          description="잠시 후 다시 시도해주세요"
+          description={extractApiError(camerasError).message || '잠시 후 다시 시도해주세요'}
         />
       </div>
     );
@@ -149,7 +153,10 @@ const TrainingCameraFramesPage = () => {
       {isFramesLoading && <LoadingState size="md" message="프레임을 불러오는 중..." />}
 
       {!isFramesLoading && isFramesError && (
-        <EmptyState title="프레임을 불러오지 못했습니다" description="잠시 후 다시 시도해주세요" />
+        <EmptyState
+          title="프레임을 불러오지 못했습니다"
+          description={extractApiError(framesError).message || '잠시 후 다시 시도해주세요'}
+        />
       )}
 
       {!isFramesLoading && !isFramesError && (frames.length === 0 || !currentFrame) && (
