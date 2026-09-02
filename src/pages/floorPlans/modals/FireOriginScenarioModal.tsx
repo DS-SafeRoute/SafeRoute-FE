@@ -5,7 +5,6 @@ import { SCENARIO_STATUS, SCENARIO_STATUS_VIEW } from '@pages/scenarioSettings/t
 
 import { Button } from '@components/Button';
 import Dropdown from '@components/dropdown';
-import type { DropdownOption } from '@components/dropdown';
 import Modal from '@components/modal';
 
 import * as styles from './IoTLightSettingsModal.css';
@@ -29,10 +28,9 @@ const FireOriginScenarioModal = ({
   const { data: scenarios = [], isLoading, isError } = useGetScenariosQuery();
   const [scenarioId, setScenarioId] = useState('');
 
-  const options: DropdownOption[] = scenarios
+  const options = scenarios
     .filter((s) => s.buildingId === buildingId && SELECTABLE_STATUSES.includes(s.status))
-    .map((s) => ({ id: s.id, label: `${s.name} · ${SCENARIO_STATUS_VIEW[s.status].label}` }))
-    .map(({ id, label }) => ({ value: id, label }));
+    .map((s) => ({ id: s.id, label: `${s.name} · ${SCENARIO_STATUS_VIEW[s.status].label}` }));
 
   const handleClose = () => {
     setScenarioId('');
@@ -75,7 +73,7 @@ const FireOriginScenarioModal = ({
           </span>
         ) : (
           <Dropdown
-            options={options}
+            options={options.map((o) => ({ value: o.id, label: o.label }))}
             value={scenarioId}
             onChange={setScenarioId}
             placeholder="시나리오 선택"

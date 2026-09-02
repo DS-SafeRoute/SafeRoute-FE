@@ -182,7 +182,7 @@ export const fireOriginPopup = style({
   position: 'absolute',
   zIndex: 15,
   top: '5.6rem',
-  left: vars.space.s6,
+  right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,

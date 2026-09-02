@@ -54,7 +54,9 @@ export const chevron = style({
 });
 
 export const panel = style({
-  position: 'absolute',
+  // document.body에 포탈로 렌더링되고 top/left/width는 인라인 스타일(뷰포트 좌표)로 정해짐 —
+  // 모달 등 overflow: hidden 조상 안에서 열려도 잘리지 않게 함
+  position: 'fixed',
   zIndex: 200,
   borderRadius: vars.radius.lg,
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.12)',

@@ -2663,6 +2663,8 @@ const FloorPlansDetailPage = () => {
 
   const handleGridCellToggle = (cellId: string) => {
     if (fireOriginScenarioId) {
+      // 발화점은 재등록 API가 없어 한 번 지정되면 다시 클릭해도 항상 실패(409)함 — 아예 선택되지 않게 막음
+      if (existingFireOrigin) return;
       // 여러 칸을 모으는 다른 플로우와 달리, 클릭할 때마다 그 칸 하나로 선택을 바꿈(다시 누르면 해제)
       setFireOriginDraftCellId((prev) => (prev === cellId ? null : cellId));
       return;
@@ -2687,8 +2689,18 @@ const FloorPlansDetailPage = () => {
           setFireOriginScenarioId(null);
           setFireOriginDraftCellId(null);
         },
-        onError: () => {
-          show({ title: '발화점 지정에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+        onError: (error: unknown) => {
+          // 발화점은 시나리오당 한 번만 등록 가능(재등록 API 없음) — 이미 지정된 상태에서
+          // 다시 지정을 시도하면 서버가 409로 거절함. 원인을 구분해서 안내함
+          if (isAxiosError(error) && error.response?.status === 409) {
+            show({
+              title: '이미 발화점이 지정된 시나리오입니다.',
+              description: '발화점은 한 번 지정하면 변경할 수 없어요.',
+              variant: 'error',
+            });
+          } else {
+            show({ title: '발화점 지정에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+          }
         },
       },
     );
@@ -3209,9 +3221,6 @@ const FloorPlansDetailPage = () => {
     existingFireOrigin && currentFloor && existingFireOrigin.floorId === currentFloor.id
       ? (floorGridCells.find((c) => c.id === existingFireOrigin.gridCellId) ?? null)
       : null;
-  const existingFireOriginOnOtherFloor = Boolean(
-    existingFireOrigin && currentFloor && existingFireOrigin.floorId !== currentFloor.id,
-  );
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
@@ -3544,16 +3553,18 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {fireOriginScenarioId && (
+            {fireOriginScenarioId && !gridSetupPromptOpen && (
               <div className={styles.fireOriginPopup} onClick={(e) => e.stopPropagation()}>
                 <span className={styles.nodeAddTitle}>발화점 지정</span>
                 <span className={styles.nodeAddHint}>
-                  {fireOriginDraftCellId
-                    ? '선택한 칸을 이 시나리오의 최초 발화점으로 지정합니다.'
-                    : existingFireOriginCell
-                      ? '빨간 원이 현재 지정된 발화점이에요. 다른 칸을 클릭하면 그 칸으로 바뀝니다.'
-                      : existingFireOriginOnOtherFloor
-                        ? '이 시나리오의 발화점은 다른 층에 지정되어 있어요. 여기서 칸을 클릭해 지정하면 그 발화점을 대체합니다.'
+                  {existingFireOriginQuery.isLoading
+                    ? '발화점 정보를 확인하는 중...'
+                    : existingFireOrigin
+                      ? existingFireOriginCell
+                        ? '빨간 원이 이미 지정된 발화점이에요. 발화점은 한 번 지정하면 변경할 수 없어요.'
+                        : '이 시나리오는 다른 층에 발화점이 이미 지정되어 있어요. 발화점은 한 번 지정하면 변경할 수 없어요.'
+                      : fireOriginDraftCellId
+                        ? '선택한 칸을 이 시나리오의 최초 발화점으로 지정합니다.'
                         : '도면에서 발화점으로 지정할 칸을 클릭해주세요.'}
                 </span>
                 <div className={styles.nodeAddActions}>
@@ -3562,16 +3573,18 @@ const FloorPlansDetailPage = () => {
                     className={styles.nodeAddCancelBtn}
                     onClick={handleCancelFireOrigin}
                   >
-                    취소
+                    {existingFireOrigin ? '닫기' : '취소'}
                   </button>
-                  <button
-                    type="button"
-                    className={styles.nodeAddSubmitBtn}
-                    disabled={!fireOriginDraftCellId || createFireOriginMutation.isPending}
-                    onClick={handleConfirmFireOrigin}
-                  >
-                    {createFireOriginMutation.isPending ? '지정 중...' : '지정'}
-                  </button>
+                  {!existingFireOrigin && (
+                    <button
+                      type="button"
+                      className={styles.nodeAddSubmitBtn}
+                      disabled={!fireOriginDraftCellId || createFireOriginMutation.isPending}
+                      onClick={handleConfirmFireOrigin}
+                    >
+                      {createFireOriginMutation.isPending ? '지정 중...' : '지정'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
