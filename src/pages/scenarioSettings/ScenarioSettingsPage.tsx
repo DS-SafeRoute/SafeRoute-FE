@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate, useParams } from 'react-router';
 
-import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
-
+import type { GenerateReportRequest } from '@apis/__generated__/data-contracts';
+import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import { extractApiError } from '@apis/errors/apiError';
 import { useGenerateTrainingReportMutation } from '@apis/reports/useReports';
 import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
@@ -32,7 +32,6 @@ import { useScenarioTraining } from './hooks/useScenarioTraining';
 import * as styles from './ScenarioSettingsPage.css';
 
 import type { ScenarioActionMode } from './components/scenarioActionPanel/ScenarioActionPanel';
-import type { GenerateTrainingReportRequest } from '@apis/reports/reportTypes';
 
 interface ScenarioSettingsContentProps {
   scenario?: Scenario;
@@ -250,7 +249,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   }, [navigate, show, training.timeLimitExceededAt]);
 
   // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
-  const handleCompleteTraining = async (values: GenerateTrainingReportRequest) => {
+  const handleCompleteTraining = async (values: GenerateReportRequest) => {
     if (!training.sessionId) return;
     const sessionId = training.sessionId;
     let sessionEnded = hasEndedSession;

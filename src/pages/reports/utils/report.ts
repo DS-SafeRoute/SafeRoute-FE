@@ -1,4 +1,4 @@
-import type { TrainingReportResponse } from '@apis/reports/reportTypes';
+import type { ReportResponse } from '@apis/__generated__/data-contracts';
 
 import { formatDuration } from '@utils/format';
 
@@ -44,13 +44,13 @@ export const formatTrainingDate = (value?: string) => {
   }).format(date);
 };
 
-export const toReportSummary = (report: TrainingReportResponse): ReportSummary => ({
+export const toReportSummary = (report: ReportResponse): ReportSummary => ({
   grade: report.grade ?? '-',
   scoreText:
     report.overallScore === undefined ? '- / 100점' : `${report.overallScore.toFixed(1)} / 100점`,
 });
 
-export const toReportScores = (report: TrainingReportResponse): ReportScoreItem[] =>
+export const toReportScores = (report: ReportResponse): ReportScoreItem[] =>
   [
     toScoreItem('대피 완료율', '30%', report.survivalRate, 'success'),
     toScoreItem('평균 대피 시간', '25%', report.evacuationScore, 'primary'),
@@ -58,14 +58,14 @@ export const toReportScores = (report: TrainingReportResponse): ReportScoreItem[
     toScoreItem('경로 준수율', '15%', report.deviationScore, 'primary'),
   ].filter(isNotNull);
 
-export const toCumulativeEvacuation = (report: TrainingReportResponse): TrendPoint[] =>
+export const toCumulativeEvacuation = (report: ReportResponse): TrendPoint[] =>
   (report.charts?.cumulativeEvacuation ?? []).flatMap((point) =>
     point.elapsedSec === undefined || point.cumulativeCount === undefined
       ? []
       : [{ label: formatDuration(point.elapsedSec), value: point.cumulativeCount }],
   );
 
-export const toRecentEvacuationTimes = (report: TrainingReportResponse): TrendPoint[] =>
+export const toRecentEvacuationTimes = (report: ReportResponse): TrendPoint[] =>
   (report.charts?.recentEvacuationTimes ?? []).flatMap((point) =>
     point.ordinal === undefined || point.evacuationSec === undefined
       ? []
@@ -78,7 +78,7 @@ const priorityMap = {
   LOW: 'low',
 } as const;
 
-export const toRecommendations = (report: TrainingReportResponse): RecommendationItem[] =>
+export const toRecommendations = (report: ReportResponse): RecommendationItem[] =>
   (report.recommendations ?? []).flatMap((item, index) =>
     item.priority && item.title && item.description
       ? [

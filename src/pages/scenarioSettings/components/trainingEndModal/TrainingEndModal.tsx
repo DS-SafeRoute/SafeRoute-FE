@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
-import type { GenerateTrainingReportRequest } from '@apis/reports/reportTypes';
+import type { GenerateReportRequest } from '@apis/__generated__/data-contracts';
 
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
@@ -15,7 +15,7 @@ interface TrainingEndModalProps {
   isSubmitting: boolean;
   canClose: boolean;
   onClose: () => void;
-  onSubmit: (values: GenerateTrainingReportRequest) => Promise<void>;
+  onSubmit: (values: GenerateReportRequest) => Promise<void>;
   onHome: () => void;
   onReport: () => void;
 }

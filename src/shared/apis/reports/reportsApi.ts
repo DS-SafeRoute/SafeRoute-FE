@@ -1,14 +1,14 @@
+import type { GenerateReportRequest, ReportResponse } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-import type {
-  GenerateTrainingReportRequest,
-  GenerateTrainingReportVariables,
-  TrainingReportResponse,
-} from './reportTypes';
+interface GenerateTrainingReportVariables {
+  sessionId: string;
+  body: GenerateReportRequest;
+}
 
 export const postTrainingReport = ({ sessionId, body }: GenerateTrainingReportVariables) =>
-  request<TrainingReportResponse, GenerateTrainingReportRequest>({
+  request<ReportResponse, GenerateReportRequest>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.TRAINING_REPORTS.CREATE(sessionId),
     body,
@@ -16,7 +16,7 @@ export const postTrainingReport = ({ sessionId, body }: GenerateTrainingReportVa
   });
 
 export const getTrainingReport = (reportId: string, signal?: AbortSignal) =>
-  request<TrainingReportResponse>({
+  request<ReportResponse>({
     method: HTTP_METHOD.GET,
     url: API_ENDPOINTS.TRAINING_REPORTS.DETAIL(reportId),
     signal,
