@@ -275,6 +275,8 @@ export const deviceTypeChip = style({
   ...vars.typography.body14,
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray25 },
+    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+    '&:disabled:hover': { backgroundColor: vars.color.white },
   },
 });
 
@@ -578,6 +580,7 @@ export const zoneCardDot = style({
 export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
 export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
 export const zoneCardDotHallway = style({ backgroundColor: '#0891B2' });
+export const zoneCardDotStart = style({ backgroundColor: '#DB2777' });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 
 export const finalExitToggle = style({

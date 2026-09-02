@@ -141,8 +141,8 @@ const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway'>;
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
@@ -150,6 +150,7 @@ const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: str
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
   hallway: { label: '복도', color: '#0891b2' },
+  start: { label: '시작 노드', color: '#db2777' },
 };
 
 type AddedDevice = {
@@ -171,8 +172,9 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 문에서만 의미 있음(계단은 항상 false) */
-type StructureNodeType = 'door' | 'stair' | 'hallway';
+   isFinalExit은 문·계단에서만 의미 있음(시작 노드·복도는 항상 false — 시작 노드는 서버가
+   isExitTarget=false로 강제 저장함) */
+type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
 
 type StructureNode = {
   id: string;
@@ -186,6 +188,7 @@ const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   door: '문 · 출입구',
   stair: '계단',
   hallway: '복도',
+  start: '시작 노드',
 };
 
 // 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
@@ -198,18 +201,29 @@ const STRUCTURE_NODE_API_TYPE = {
   door: 'DOOR',
   stair: 'STAIR',
   hallway: 'HALLWAY',
+  start: 'START',
 } as const satisfies Record<StructureNodeType, MapNodeType>;
 
 const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   DOOR: 'door',
   STAIR: 'stair',
   HALLWAY: 'hallway',
+  START: 'start',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
   door: '#2563eb',
   stair: '#f97316',
   hallway: '#0891b2',
+  start: '#db2777',
+};
+
+// 우측 패널 구조 노드 카드의 점 색상 클래스 — 위 색상표를 그대로 벡터-엑스트랙트 클래스로 옮긴 것
+const ZONE_CARD_DOT_CLASS: Record<StructureNodeType, string> = {
+  door: styles.zoneCardDotDoor,
+  stair: styles.zoneCardDotStair,
+  hallway: styles.zoneCardDotHallway,
+  start: styles.zoneCardDotStart,
 };
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
@@ -1108,6 +1122,7 @@ const NodeAddPopup = ({
   stage,
   hasPosition,
   selectedCellCount,
+  hasStartNode,
   onCancel,
   onBack,
   onSubmitEntry,
@@ -1119,6 +1134,8 @@ const NodeAddPopup = ({
   stage: 'entry' | 'fov';
   hasPosition: boolean;
   selectedCellCount: number;
+  // 시작 노드는 층당 1개만 허용돼서, 이미 있으면 칩을 비활성화함
+  hasStartNode: boolean;
   onCancel: () => void;
   onBack: () => void;
   onSubmitEntry: (type: PlacingDeviceType, deviceId: string, location: string) => void;
@@ -1188,16 +1205,21 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
-              onClick={() => onTypeChange(t)}
-            >
-              {DEVICE_PLACE_CONFIG[t].label}
-            </button>
-          ))}
+          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => {
+            const disabled = t === 'start' && hasStartNode;
+            return (
+              <button
+                key={t}
+                type="button"
+                className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
+                disabled={disabled}
+                title={disabled ? '이 층에는 이미 시작 노드가 있어요' : undefined}
+                onClick={() => onTypeChange(t)}
+              >
+                {DEVICE_PLACE_CONFIG[t].label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -2064,7 +2086,7 @@ const FloorPlansDetailPage = () => {
   };
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    'cctv' | 'light' | 'door' | 'stair' | 'hallway' | null
+    'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start' | null
   >(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
@@ -2690,17 +2712,25 @@ const FloorPlansDetailPage = () => {
           setFireOriginDraftCellId(null);
         },
         onError: (error: unknown) => {
-          // 발화점은 시나리오당 한 번만 등록 가능(재등록 API 없음) — 이미 지정된 상태에서
-          // 다시 지정을 시도하면 서버가 409로 거절함. 원인을 구분해서 안내함
-          if (isAxiosError(error) && error.response?.status === 409) {
-            show({
-              title: '이미 발화점이 지정된 시나리오입니다.',
-              description: '발화점은 한 번 지정하면 변경할 수 없어요.',
-              variant: 'error',
-            });
-          } else {
-            show({ title: '발화점 지정에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+          // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 봄
+          // (CCTV 등록 실패 처리와 같은 패턴) — 409라고 전부 "이미 등록됨"은 아니라서
+          // 서버가 내려준 code/message를 그대로 확인해서 보여줌
+          const responseData = isAxiosError(error) ? error.response?.data : undefined;
+          const body =
+            responseData && typeof responseData === 'object'
+              ? (responseData as { code?: unknown; message?: unknown })
+              : undefined;
+          const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
+          const serverMessage =
+            error instanceof ApiError ? error.message : String(body?.message ?? '');
+          if (import.meta.env.DEV) {
+            console.error('[발화점 지정 실패]', serverCode, responseData ?? error);
           }
+          show({
+            title: serverMessage || '발화점 지정에 실패했습니다. 다시 시도해주세요.',
+            variant: 'error',
+            duration: 8000,
+          });
         },
       },
     );
@@ -2831,11 +2861,21 @@ const FloorPlansDetailPage = () => {
       x: node.x / CANVAS_W,
       y: node.y / canvasH,
       isExitTarget: nextIsFinalExit,
-    }).catch(() => {
+    }).catch((error: unknown) => {
       setStructureNodes((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
       );
-      show({ title: '최종 탈출구 지정에 실패했습니다.', variant: 'error' });
+      // 마지막 남은 탈출구는 해제할 수 없는 등 서버가 이유를 message로 내려주므로 그대로 보여줌
+      const responseData = isAxiosError(error) ? error.response?.data : undefined;
+      const body =
+        responseData && typeof responseData === 'object'
+          ? (responseData as { message?: unknown })
+          : undefined;
+      const serverMessage = error instanceof ApiError ? error.message : String(body?.message ?? '');
+      show({
+        title: serverMessage || '최종 탈출구 지정에 실패했습니다.',
+        variant: 'error',
+      });
     });
   };
 
@@ -3028,22 +3068,13 @@ const FloorPlansDetailPage = () => {
       >
         <div className={styles.zoneCardHeader}>
           <span className={styles.zoneCardTitleGroup}>
-            <span
-              className={clsx(
-                styles.zoneCardDot,
-                n.type === 'stair'
-                  ? styles.zoneCardDotStair
-                  : n.type === 'hallway'
-                    ? styles.zoneCardDotHallway
-                    : styles.zoneCardDotDoor,
-              )}
-            />
+            <span className={clsx(styles.zoneCardDot, ZONE_CARD_DOT_CLASS[n.type])} />
             <span className={styles.deviceCardName}>
               {STRUCTURE_NODE_LABEL[n.type]} {sameTypeIndex + 1}
             </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            {n.type === 'door' && (
+            {(n.type === 'door' || n.type === 'stair') && (
               <button
                 type="button"
                 className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
@@ -3663,6 +3694,7 @@ const FloorPlansDetailPage = () => {
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
                 selectedCellCount={cctvDraftCellIds.length}
+                hasStartNode={structureNodes.some((n) => n.type === 'start')}
                 onCancel={() => setNodeAddOpen(false)}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
@@ -3860,6 +3892,7 @@ const FloorPlansDetailPage = () => {
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
                       { key: 'hallway', label: '복도' },
+                      { key: 'start', label: '시작 노드' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
