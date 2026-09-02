@@ -25,6 +25,7 @@ import * as styles from './FloorPlansPage.css';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
+import { rememberPendingGridSize } from './utils/gridStorage';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
@@ -230,22 +231,10 @@ const FloorPlansPage = () => {
     uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
       .then(async (newFloor) => {
         // 그리드 배율을 지금 설정해도, 뒤이어 실행되는 AI 분석이 그리드 셀을 재생성하면서
-        // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 sessionStorage에 남겨두고
-        // (새로고침에도 살아남음) 상세 화면에서 분석 완료 후 한 번 더 PUT 하게 함
-        try {
-          // 분석이 끝난 뒤 상세 화면에서 다시 적용해야 하므로 pending으로 남기고,
-          // 값 자체도 기억해둬서 이후 CCTV 등록 때 사용자에게 다시 묻지 않게 함
-          localStorage.setItem(
-            `saferoute:pendingGridCellSize:${newFloor.id}`,
-            String(params.cellSizeMeter),
-          );
-          localStorage.setItem(
-            `saferoute:gridCellSize:${newFloor.id}`,
-            String(params.cellSizeMeter),
-          );
-        } catch {
-          // 스토리지 사용 불가 환경 — 무시하고 아래 즉시 설정에만 의존
-        }
+        // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 남겨두고(새로고침에도 살아남음)
+        // 상세 화면에서 분석 완료 후 한 번 더 PUT 하게 함 — pending으로 남기고 값 자체도
+        // 기억해둬서 이후 CCTV 등록 때 사용자에게 다시 묻지 않게 함
+        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
         // 상세 화면의 1회성 그리드 조회가 빈 결과를 캐싱하지 않도록, 이동 전에 한 번은 설정 시도
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);

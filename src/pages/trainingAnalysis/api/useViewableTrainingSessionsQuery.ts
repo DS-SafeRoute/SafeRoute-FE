@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { useQueries } from '@tanstack/react-query';
 
@@ -10,12 +10,14 @@ import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionC
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi';
 
+// 필수 필드가 누락된 세션 하나 때문에 목록 전체가 렌더링 중 throw로 죽지 않도록,
+// 예외 대신 null을 반환해 그 항목만 조용히 건너뜀
 const toTrainingSessionSummary = (
   response: TrainingSessionSummaryResponse,
-): TrainingSessionSummary => {
+): TrainingSessionSummary | null => {
   const { sessionId, scenarioName, buildingId, buildingName, status, startedAt } = response;
   if (!sessionId || !scenarioName || !buildingId || !buildingName || !status || !startedAt) {
-    throw new Error('훈련 세션 응답에 필수 필드가 누락되었습니다.');
+    return null;
   }
   return { sessionId, scenarioName, buildingId, buildingName, status, startedAt };
 };
@@ -26,6 +28,11 @@ const toTrainingSessionSummary = (
 // RUNNING 목록에서는 빠지는데 COMPLETED 목록은 옛 데이터라 세션이 어디에도 없는 순간이 생기고,
 // 상세 화면(카메라/프레임)이 "없는 세션"으로 판단해 목록으로 튕겨나감
 export const useViewableTrainingSessionsQuery = () => {
+  // RUNNING은 항상 감시해야 새로 시작된 훈련을 놓치지 않지만, 진행 중인 훈련이 하나도 없으면
+  // COMPLETED/FAILED는 정적인 과거 목록이라 5초마다 다시 조회할 이유가 없음(한 렌더 지연 허용 —
+  // 진행 중 훈련이 막 사라진 순간에도 최소 한 주기는 더 같이 갱신되어 기존 "빈틈" 문제는 그대로 방지됨)
+  const hasRunningRef = useRef(false);
+
   const [running, completed, failed] = useQueries({
     queries: [
       TRAINING_SESSION_STATUS.RUNNING,
@@ -34,9 +41,14 @@ export const useViewableTrainingSessionsQuery = () => {
     ].map((status) => ({
       queryKey: trainingSessionQueryKeys.list(status),
       queryFn: ({ signal }: { signal: AbortSignal }) => getTrainingSessions(status, signal),
-      refetchInterval: LIVE_SESSION_POLL_INTERVAL_MS,
+      refetchInterval:
+        status === TRAINING_SESSION_STATUS.RUNNING || hasRunningRef.current
+          ? LIVE_SESSION_POLL_INTERVAL_MS
+          : false,
     })),
   });
+
+  hasRunningRef.current = (running.data?.length ?? 0) > 0;
 
   // useQueries 결과 배열 자체는 매 렌더마다 새 참조라 useMemo 의존성으로 못 씀 —
   // 각 쿼리의 data만 뽑아서 의존성에 넣음(react-query가 data 참조는 안정적으로 유지해줌)
@@ -44,6 +56,7 @@ export const useViewableTrainingSessionsQuery = () => {
     () =>
       [...(running.data ?? []), ...(completed.data ?? []), ...(failed.data ?? [])]
         .map(toTrainingSessionSummary)
+        .filter((session): session is TrainingSessionSummary => session !== null)
         .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)),
     [running.data, completed.data, failed.data],
   );

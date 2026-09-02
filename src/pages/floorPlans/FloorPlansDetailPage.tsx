@@ -70,12 +70,19 @@ import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
+import {
+  GRID_SIZE_KEY,
+  PENDING_GRID_SIZE_KEY,
+  readStoredNumber,
+  rememberGridSize,
+  rememberPendingGridSize,
+} from './utils/gridStorage';
 
 import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
 import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
-import type { DeviceMarker, Floor, FloorBuilding } from './types/floorPlans';
+import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
 
@@ -89,6 +96,43 @@ type PanelItem = {
   statusOnline: boolean;
   zone: string;
   source: 'floor' | 'added';
+};
+
+// 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
+// 두 군데(패널 목록 만들 때, 지도 클릭으로 필터 이동할 때)에서 각각 다시 구현하면 인식 못하는
+// 값의 처리(fallback)가 서로 어긋날 수 있어 하나로 합침
+const deviceTypeToPlaceType = (type: DeviceType): PanelItem['type'] => {
+  if (type === 'cctv') return 'cctv';
+  if (type === 'iot') return 'light';
+  return 'general';
+};
+
+// deviceTypeFilter(하위 필터 칩)는 'general' 칩이 따로 없어서, 그 값은 필터 해제(null)로 흡수함 —
+// 위 매핑에서 파생시켜 fallback이 서로 다른 두 벌의 변환 로직으로 갈라지지 않게 함
+const deviceTypeToFilterChip = (type: DeviceType): 'cctv' | 'light' | null => {
+  const placeType = deviceTypeToPlaceType(type);
+  return placeType === 'general' ? null : placeType;
+};
+
+// 브라우저는 mousemove를 초당 수백 번까지도 쏘는데, 드래그 중 매번 상태를 갱신하면 프레임마다
+// 전체 도면(SVG 그래프·그리드·패널)이 재렌더됨 — 프레임당 최신 좌표 한 번만 반영되도록 묶어줌
+const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
+  let rafId: number | null = null;
+  let latestArgs: A | null = null;
+  const flush = () => {
+    rafId = null;
+    if (latestArgs) fn(...latestArgs);
+  };
+  const throttled = (...args: A) => {
+    latestArgs = args;
+    if (rafId === null) rafId = requestAnimationFrame(flush);
+  };
+  throttled.cancel = () => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    rafId = null;
+    latestArgs = null;
+  };
+  return throttled;
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
@@ -139,6 +183,11 @@ const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   hallway: '복도',
 };
 
+// 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
+// 이 판정만 따로 놓쳐서 어긋나는 일이 없게 함
+const isStructureNodeType = (type: string): type is StructureNodeType =>
+  type in STRUCTURE_NODE_LABEL;
+
 // 구조 노드 ↔ 맵그래프 노드 타입 매핑 (API MapNodeResponse.type)
 const STRUCTURE_NODE_API_TYPE = {
   door: 'DOOR',
@@ -175,32 +224,11 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
 // CCTV 등록(POST /cctvs)은 감시 면적 계산에 그리드 배율(cellSizeMeter)을 요구하는데(없으면 CCTV006),
-// 백엔드에 "이 층의 배율" 조회 API가 없다(PUT /grid만 있고 GET /grid 없음).
-// 그래서 배율을 아래 순서로 되찾고, 되찾으면 사용자에게 묻지 않고 조용히 다시 적용한다.
+// 배율 복원 순서(백엔드에 조회 API가 없어 브라우저에 기록해뒀다 되찾음):
 //   1) 이 브라우저에 기록해둔 값(업로드 때 입력했거나 이전에 설정한 값) — localStorage라 새로고침/재접속에도 유지
 //   2) 이 층에 이미 등록된 CCTV의 gridCellSizeMeter (한 대라도 있으면 그때 쓰인 배율을 알 수 있음)
 //   3) 위 둘 다 없을 때만 사용자에게 한 번 물어봄
-const GRID_SIZE_KEY = (floorId: string) => `saferoute:gridCellSize:${floorId}`;
-const PENDING_GRID_SIZE_KEY = (floorId: string) => `saferoute:pendingGridCellSize:${floorId}`;
-
-const readStoredNumber = (key: string): number | null => {
-  try {
-    const value = Number(localStorage.getItem(key) ?? sessionStorage.getItem(key));
-    return value > 0 ? value : null;
-  } catch {
-    return null;
-  }
-};
-
-const rememberGridSize = (floorId: string, cellSizeMeter: number) => {
-  try {
-    localStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeMeter));
-    localStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
-    sessionStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
-  } catch {
-    /* 스토리지 사용 불가 환경 — 기록만 생략 */
-  }
-};
+// 키 정의·읽기/쓰기 헬퍼는 FloorPlansPage(업로드 화면)도 같이 쓰므로 utils/gridStorage로 뺌
 
 // SVG 캔버스 폭은 560 고정, 높이는 도면 실제 비율(그리드 columns/rows 또는 이미지 비율)에 맞춰
 // 렌더 시점에 계산해서 넘김 — viewBox 비율 == 이미지 비율이므로 이미지를 늘리지 않고도
@@ -491,6 +519,8 @@ const MockFloorMap3F = ({
     const start = svgPoint(e.clientX, e.clientY, svgEl);
     dragStartRef.current = start;
     onZoneDraftChange({ x: start.x, y: start.y, w: 0, h: 0 });
+    let lastRect = { x: start.x, y: start.y, w: 0, h: 0 };
+    const applyRect = rafThrottle((rect: typeof lastRect) => onZoneDraftChange(rect));
 
     const onMove = (mv: MouseEvent) => {
       if (!dragStartRef.current) return;
@@ -499,10 +529,15 @@ const MockFloorMap3F = ({
       const y = Math.min(dragStartRef.current.y, cur.y);
       const w = Math.abs(cur.x - dragStartRef.current.x);
       const h = Math.abs(cur.y - dragStartRef.current.y);
-      onZoneDraftChange({ x, y, w, h });
+      lastRect = { x, y, w, h };
+      applyRect(lastRect);
     };
     const onUp = () => {
       dragStartRef.current = null;
+      // onZoneDragEnd가 마지막으로 반영된 사각형을 기준으로 셀을 계산하므로, 대기 중인 갱신을
+      // 취소하고 마지막 사각형을 먼저 동기 반영한 뒤에 종료 처리함
+      applyRect.cancel();
+      onZoneDraftChange(lastRect);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       onZoneDragEnd();
@@ -519,17 +554,22 @@ const MockFloorMap3F = ({
     const svgEl = e.currentTarget.ownerSVGElement;
     if (!svgEl) return;
     let lastPoint: { x: number; y: number } | null = null;
+    const applyMove = rafThrottle((x: number, y: number) => onStructureNodeMove(structureId, x, y));
 
     const onMove = (mv: MouseEvent) => {
       structureDragMovedRef.current = true;
       const point = svgPoint(mv.clientX, mv.clientY, svgEl);
       lastPoint = point;
-      onStructureNodeMove(structureId, point.x, point.y);
+      applyMove(point.x, point.y);
     };
     const onUp = () => {
+      applyMove.cancel();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (lastPoint) onStructureNodeMoveEnd(structureId, lastPoint.x, lastPoint.y);
+      if (lastPoint) {
+        onStructureNodeMove(structureId, lastPoint.x, lastPoint.y);
+        onStructureNodeMoveEnd(structureId, lastPoint.x, lastPoint.y);
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -896,6 +936,8 @@ const DevicePin = ({
 
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
+    let lastPoint: { x: number; y: number } | null = null;
+    const applyMove = rafThrottle((x: number, y: number) => onDragEnd(device.id, x, y));
 
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
@@ -905,11 +947,16 @@ const DevicePin = ({
       const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
       const clampedX = Math.max(0, Math.min(100, rawX));
       const clampedY = Math.max(0, Math.min(100, rawY));
-      onDragEnd(device.id, clampedX, clampedY);
+      lastPoint = { x: clampedX, y: clampedY };
+      applyMove(clampedX, clampedY);
     };
 
     const onUp = () => {
       isDragging.current = false;
+      // 마지막 프레임이 아직 예약된 상태로 끊기지 않도록, 대기 중이던 갱신은 취소하고
+      // 마지막 좌표를 바로 반영해 마우스를 뗀 위치와 어긋나지 않게 함
+      applyMove.cancel();
+      if (lastPoint) onDragEnd(device.id, lastPoint.x, lastPoint.y);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -986,6 +1033,7 @@ const AddedDevicePin = ({
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
     let lastPoint: { x: number; y: number } | null = null;
+    const applyMove = rafThrottle((x: number, y: number) => onDragEnd(device.id, x, y));
 
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
@@ -995,13 +1043,17 @@ const AddedDevicePin = ({
       const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
       const point = { x: Math.max(0, Math.min(100, rawX)), y: Math.max(0, Math.min(100, rawY)) };
       lastPoint = point;
-      onDragEnd(device.id, point.x, point.y);
+      applyMove(point.x, point.y);
     };
     const onUp = () => {
       isDragging.current = false;
+      applyMove.cancel();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (lastPoint) onDragMoveEnd(device.id, lastPoint.x, lastPoint.y);
+      if (lastPoint) {
+        onDragEnd(device.id, lastPoint.x, lastPoint.y);
+        onDragMoveEnd(device.id, lastPoint.x, lastPoint.y);
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1070,7 +1122,7 @@ const NodeAddPopup = ({
   const [deviceId, setDeviceId] = useState('');
   const [location, setLocation] = useState('');
 
-  const isStructureNode = type === 'door' || type === 'stair' || type === 'hallway';
+  const isStructureNode = isStructureNodeType(type);
   const isCctv = type === 'cctv';
   const totalSteps = isCctv ? 2 : 1;
   const stepNumber = stage === 'entry' ? 1 : totalSteps;
@@ -1688,6 +1740,9 @@ const FloorPlansDetailPage = () => {
     setAddedDevices([]);
     setRealCctvs([]);
     setIotLights([]);
+    // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
+    // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
+    setDevicePositions({});
     setZones([]);
     setFloorGridCells([]);
     setSelectedItem(null);
@@ -1729,12 +1784,20 @@ const FloorPlansDetailPage = () => {
   // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회해서 상태 전환을 감지
   useEffect(() => {
     if (!buildingId || !floorId || !isAnalyzing) return;
+    let cancelled = false;
     const timer = setInterval(() => {
       getFloorDetail(buildingId, floorId)
-        .then(setFloor)
+        .then((data) => {
+          // clearInterval은 다음 틱만 막아서, 층 전환 중 이미 보낸 요청이 늦게 응답하면
+          // 새 층 데이터를 이전 층 데이터로 덮어쓸 수 있음 — cancelled로 막음
+          if (!cancelled) setFloor(data);
+        })
         .catch(() => {});
     }, 4000);
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [buildingId, floorId, isAnalyzing]);
 
   // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
@@ -2028,17 +2091,24 @@ const FloorPlansDetailPage = () => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
 
-  // 드래그가 끝났을 때만 실제 위치를 저장
+  // 드래그가 끝났을 때만 실제 위치를 저장. devicePositions는 드래그 중 화면에 즉시 반영하기 위한
+  // 임시 오버레이라, 서버에 커밋되면 addedDevices의 x/y도 같이 맞춰줌 — 그래야 이후 addedDevices가
+  // 다른 이유로 재구성되어도 devicePositions 없이 최신 위치를 그대로 유지함
   const handleDeviceMoveEnd = (id: string, x: number, y: number) => {
     const device = addedDevices.find((d) => d.id === id);
     if (device?.placeType === 'light') {
-      updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
+      updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 })
+        .then(() => {
+          setAddedDevices((prev) => prev.map((d) => (d.id === id ? { ...d, x, y } : d)));
+        })
+        .catch(() => {});
       return;
     }
     if (device?.placeType === 'cctv') {
       updateCctv(id, { name: device.label, x: x / 100, y: y / 100 })
         .then((updated) => {
           setRealCctvs((prev) => prev.map((c) => (c.id === id ? updated : c)));
+          setAddedDevices((prev) => prev.map((d) => (d.id === id ? { ...d, x, y } : d)));
         })
         .catch(() => {});
     }
@@ -2286,12 +2356,7 @@ const FloorPlansDetailPage = () => {
         // 화면에서 먼저 비우고, AI 재분석이 끝나면 각 조회 effect가 새 데이터로 채운다
         resetFloorScopedState();
         // 초기 업로드 경로와 동일하게, AI 분석이 배율을 지우더라도 복원할 수 있도록 먼저 기록해둠
-        try {
-          localStorage.setItem(PENDING_GRID_SIZE_KEY(newFloor.id), String(params.cellSizeMeter));
-          localStorage.setItem(GRID_SIZE_KEY(newFloor.id), String(params.cellSizeMeter));
-        } catch {
-          /* 스토리지 사용 불가 환경 — 기록만 생략 */
-        }
+        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
           setFloorGridCells(await getFloorGridCells(newFloor.id));
@@ -2350,7 +2415,7 @@ const FloorPlansDetailPage = () => {
   ) => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
-    if (type === 'door' || type === 'stair' || type === 'hallway') {
+    if (isStructureNodeType(type)) {
       // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음). position은 0~100(%) 기준
       const ratioX = position.x / 100;
       const ratioY = position.y / 100;
@@ -2444,11 +2509,20 @@ const FloorPlansDetailPage = () => {
   const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
+      // ensureFloorGridCells 호출 전 상태를 기억해둠 — 이미 이번 세션에서 그리드를 확인했다면
+      // (cells가 새로 조회된 게 아니라 기존 state) 배율을 다시 PUT할 필요가 없음
+      const hadGridAlready = floorGridCells.length > 0;
       void ensureFloorGridCells().then((cells) => {
         const floorIdForGrid = currentFloor?.id;
         if (!floorIdForGrid || cells.length === 0) {
           setNodeAddStage('entry');
           openGridSetupPrompt('cctv');
+          return;
+        }
+        if (hadGridAlready) {
+          // 그리드가 이미 확인된 상태에서 무관한 CCTV를 하나 더 등록하는 경우 — 배율을 다시
+          // 적용하면 셀이 재생성될 수 있어(다른 CCTV·구역의 cellIds가 무효화됨) 건드리지 않음
+          setNodeAddStage('fov');
           return;
         }
         // 기억해둔 값 → 이미 등록된 CCTV가 쓰던 배율 순으로 되찾음
@@ -2996,61 +3070,69 @@ const FloorPlansDetailPage = () => {
     );
   };
 
-  const allPanelItems: PanelItem[] = [
-    ...(floor?.devices ?? []).map((d) => ({
-      id: d.id,
-      kind: 'device' as const,
-      // DeviceType('cctv'|'iot'|'fire') → 패널 필터 체계(placeType)로 변환
-      type:
-        d.type === 'cctv'
-          ? ('cctv' as const)
-          : d.type === 'iot'
-            ? ('light' as const)
-            : ('general' as const),
-      label: d.label,
-      statusText: d.status === 'online' ? '실시간' : '오프라인',
-      statusOnline: d.status === 'online',
-      zone: d.zone,
-      source: 'floor' as const,
-    })),
-    // 상태는 실제 CCTV/유도등의 enabled를 따라감 — 예전엔 '실시간'으로 고정돼 있어서
-    // 사용 불가로 바꿔도 카드에 반영되지 않았음
-    ...addedDevices.map((d) => {
-      const enabled =
-        realCctvs.find((c) => c.id === d.id)?.enabled ??
-        iotLights.find((l) => l.id === d.id)?.enabled ??
-        true;
-      return {
+  // 드래그(mousemove)마다 재렌더되는 컴포넌트라, 매 렌더 O(n·m) 재계산을 피하려고 useMemo로 감쌈
+  const allPanelItems: PanelItem[] = useMemo(
+    () => [
+      ...(floor?.devices ?? []).map((d) => ({
         id: d.id,
         kind: 'device' as const,
-        type: d.placeType,
+        type: deviceTypeToPlaceType(d.type),
         label: d.label,
-        statusText: enabled ? '사용 가능' : '사용 불가능',
-        statusOnline: enabled,
+        statusText: d.status === 'online' ? '실시간' : '오프라인',
+        statusOnline: d.status === 'online',
         zone: d.zone,
-        source: 'added' as const,
-      };
-    }),
-  ];
+        source: 'floor' as const,
+      })),
+      // 상태는 실제 CCTV/유도등의 enabled를 따라감 — 예전엔 '실시간'으로 고정돼 있어서
+      // 사용 불가로 바꿔도 카드에 반영되지 않았음
+      ...addedDevices.map((d) => {
+        const enabled =
+          realCctvs.find((c) => c.id === d.id)?.enabled ??
+          iotLights.find((l) => l.id === d.id)?.enabled ??
+          true;
+        return {
+          id: d.id,
+          kind: 'device' as const,
+          type: d.placeType,
+          label: d.label,
+          statusText: enabled ? '사용 가능' : '사용 불가능',
+          statusOnline: enabled,
+          zone: d.zone,
+          source: 'added' as const,
+        };
+      }),
+    ],
+    [floor?.devices, addedDevices, realCctvs, iotLights],
+  );
 
-  const panelItems = allPanelItems.filter((item) => {
-    if (deviceTypeFilter && item.type !== deviceTypeFilter) return false;
-    return true;
-  });
+  const panelItems = useMemo(
+    () => allPanelItems.filter((item) => !deviceTypeFilter || item.type === deviceTypeFilter),
+    [allPanelItems, deviceTypeFilter],
+  );
 
-  const visibleStructureNodes = structureNodes.filter(
-    (n) => !deviceTypeFilter || deviceTypeFilter === n.type,
+  const visibleStructureNodes = useMemo(
+    () => structureNodes.filter((n) => !deviceTypeFilter || deviceTypeFilter === n.type),
+    [structureNodes, deviceTypeFilter],
   );
 
   // 유도등 설정 모달의 판단 노드/엣지 드롭다운 목록
-  const lightNodeOptions = [
-    ...structureNodes.map((n) => ({ id: n.id, label: STRUCTURE_NODE_LABEL[n.type] })),
-    ...graphNodes.map((n) => ({ id: n.id, label: n.name })),
-  ];
-  const lightEdgeOptions = graphEdges.map((edge) => ({
-    id: edge.id,
-    label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
-  }));
+  const lightNodeOptions = useMemo(
+    () => [
+      ...structureNodes.map((n) => ({ id: n.id, label: STRUCTURE_NODE_LABEL[n.type] })),
+      ...graphNodes.map((n) => ({ id: n.id, label: n.name })),
+    ],
+    [structureNodes, graphNodes],
+  );
+  const lightEdgeOptions = useMemo(
+    () =>
+      graphEdges.map((edge) => ({
+        id: edge.id,
+        label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
+      })),
+    // getGraphNodeLabel은 structureNodes/graphNodes를 참조하는 클로저라 그 둘을 대신 의존성으로 둠
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graphEdges, structureNodes, graphNodes],
+  );
 
   const gridCellPxSize = useMemo(
     () => getGridCellPxSize(floorGridCells, canvasH),
@@ -3498,13 +3580,9 @@ const FloorPlansDetailPage = () => {
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
                   setSelectedZoneRef(null);
-                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동.
-                  // 도면 마커의 type은 DeviceType('cctv'|'iot')이고 패널 필터는 placeType('cctv'|'light')이라
-                  // 그대로 넘기면 유도등('iot')이 어떤 카드와도 안 맞아 전부 숨겨짐 — 여기서 변환해줌
+                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
                   setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
-                  setDeviceTypeFilter(
-                    d.type === 'cctv' ? 'cctv' : d.type === 'iot' ? 'light' : null,
-                  );
+                  setDeviceTypeFilter(deviceTypeToFilterChip(d.type));
                 }}
                 onMapClick={handleMapClick}
                 onBackgroundClick={() => {
