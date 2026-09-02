@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -38,27 +38,34 @@ export const useStartNodeDesignation = (floorId?: string) => {
   // 이 층에 이미 있는 시작 후보들 — 여러 개 허용되므로 더 이상 선택을 막는 데 쓰지 않고,
   // "몇 개 있는지" 참고용 정보로만 씀
   const graphQuery = useFloorGraphQuery(floorId);
-  const startNodes = graphQuery.data?.nodes.filter((n) => n.type === 'START') ?? [];
+  // filter 결과는 매 렌더 새 배열이라, 호출부가 이 값을 useEffect/useMemo 의존성에 넣으면 매번
+  // 다시 실행됨 — graphQuery.data가 바뀔 때만 새로 계산하도록 메모(코드래빗 리뷰 반영)
+  const startNodes = useMemo(
+    () => graphQuery.data?.nodes.filter((n) => n.type === 'START') ?? [],
+    [graphQuery.data],
+  );
 
   // 그리드 셀 클릭으로 고르는 배치 모드 — 켜져 있는 동안 호스트 페이지가 도면 클릭을
   // selectCell로 연결해야 함(useEvacuationSetupDesignation과 동일한 계약)
   const [isPlacing, setIsPlacing] = useState(false);
   const [draftCellId, setDraftCellId] = useState<string | null>(null);
 
-  const beginPlacing = () => {
+  // 아래 세 함수도 참조 안정성을 위해 useCallback으로 감쌈(코드래빗 리뷰 반영) — 의존성이 없어
+  // 참조 자체는 훅 생애주기 동안 고정됨
+  const beginPlacing = useCallback(() => {
     setIsPlacing(true);
     setDraftCellId(null);
-  };
+  }, []);
 
-  const cancel = () => {
+  const cancel = useCallback(() => {
     setIsPlacing(false);
     setDraftCellId(null);
-  };
+  }, []);
 
   // 같은 칸을 다시 누르면 선택 해제 — 한 층에 여러 개 허용되므로(팀 전달사항) 이미 있어도 막지 않음
-  const selectCell = (cellId: string) => {
+  const selectCell = useCallback((cellId: string) => {
     setDraftCellId((prev) => (prev === cellId ? null : cellId));
-  };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: ({ name, gridCells }: { name: string; gridCells: readonly FloorGridCell[] }) => {
@@ -92,7 +99,12 @@ export const useStartNodeDesignation = (floorId?: string) => {
         responseData && typeof responseData === 'object'
           ? (responseData as { message?: unknown })
           : undefined;
-      const serverMessage = error instanceof ApiError ? error.message : String(body?.message ?? '');
+      // 서버가 아니라 로컬 검증(예: 셀 미선택)에서 던진 일반 Error는 body?.message가 없어
+      // 여기서 빈 문자열이 되던 문제 — Error.message를 마지막 대체값으로 씀(코드래빗 리뷰 반영)
+      const serverMessage =
+        error instanceof ApiError
+          ? error.message
+          : String(body?.message ?? (error instanceof Error ? error.message : ''));
       if (import.meta.env.DEV) {
         console.error('[시작 노드 지정 실패]', responseData ?? error);
       }
@@ -116,8 +128,13 @@ export const useStartNodeDesignation = (floorId?: string) => {
     // gridCells를 여기서 넘기는 이유: 선택한 셀의 centerX/centerY를 구하는 데 필요한데,
     // 이 훅은 그리드 셀 목록을 직접 조회하지 않으므로(호스트가 이미 useFloorGridCellsQuery
     // 등으로 갖고 있을 값) 매번 인자로 받음 — 중복 조회를 피하기 위함
-    confirm: (name: string, gridCells: readonly FloorGridCell[]) =>
-      mutation.mutate({ name, gridCells }),
+    confirm: useCallback(
+      (name: string, gridCells: readonly FloorGridCell[]) => mutation.mutate({ name, gridCells }),
+      // mutation.mutate는 react-query가 렌더마다 다시 만들지 않는 안정적 참조라 이것만으로 충분함
+      // (mutation 객체 전체를 넣으면 매 렌더 새 참조라 메모이제이션 의미가 없어짐)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [mutation.mutate],
+    ),
     isConfirming: mutation.isPending,
   };
 };

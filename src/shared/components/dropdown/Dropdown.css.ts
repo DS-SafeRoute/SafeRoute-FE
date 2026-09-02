@@ -47,7 +47,9 @@ export const trigger = recipe({
       },
     },
     fullWidth: {
-      true: { width: '100%' },
+      // 기본 minWidth(14rem)가 그대로 남아있으면 컨테이너가 140px보다 좁을 때 트리거/패널이
+      // 넘침 — width:100%와 함께 minWidth도 풀어줌(코드래빗 리뷰 반영)
+      true: { width: '100%', minWidth: 0 },
     },
   },
 });

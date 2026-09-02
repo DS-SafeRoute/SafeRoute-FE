@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 
-import * as styles from '../FloorPlansDetailPage.css';
+import * as styles from './ReadinessChecklist.css';
 
 // 훈련 준비 — 시나리오를 재생하려면 이 층에 시작 노드(후보)·최종 탈출구가 있어야 함. 이 둘이
 // 노드추가 팝업 안 칩, 우측 패널 카드 토글로 흩어져 있어서 뭐가 필요한지 안 보이던 문제를

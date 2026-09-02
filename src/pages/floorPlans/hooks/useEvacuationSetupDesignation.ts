@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios';
 
 import { ApiError } from '@apis/errors/apiError';
 import {
-  useScenarioEvacuationSetupQuery,
+  useGetScenarioEvacuationSetupQuery,
   useSetEvacuationSetupMutation,
 } from '@apis/scenarios/evacuationSetupQueries';
 
@@ -34,7 +34,7 @@ export const useEvacuationSetupDesignation = (scenarioId?: string) => {
 
   // 재진입 시 이미 설정된 값 — 스웨거 설명 그대로("시나리오 설정 화면 재진입 시 발화점과
   // 훈련 시작점을 한 번에 조회")
-  const setupQuery = useScenarioEvacuationSetupQuery(scenarioId);
+  const setupQuery = useGetScenarioEvacuationSetupQuery(scenarioId);
   const evacuationSetup = setupQuery.data ?? null;
 
   const [draftFireOriginCellId, setDraftFireOriginCellId] = useState<string | null>(null);

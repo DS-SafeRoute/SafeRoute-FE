@@ -7,7 +7,9 @@ export const canvasWrap = style({
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.gray25,
-  overflow: 'hidden',
+  // 확대(최대 200%) 시 오른쪽·아래쪽이 hidden으로 잘려서 그 영역의 셀을 볼 수도 고를 수도
+  // 없던 문제 — 스크롤로 탐색 가능하게 auto로 바꿈(코드래빗 리뷰 반영)
+  overflow: 'auto',
 });
 
 // 확대/축소는 도면관리상세와 동일하게 CSS transform: scale — SVG viewBox 좌표계는 그대로 두고

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 
-import type { FloorGridCell } from '@apis/floors/floorGridApi';
-
-import * as styles from './GridCellPickerCanvas.css';
 import {
   CANVAS_W,
   buildZoneOutlinePath,
+  getCanvasHeight,
   getGridCellPxSize,
-  getGridDimensions,
   measureImageAspect,
-} from '../utils/gridGeometry';
+} from '@pages/floorPlans/utils/gridGeometry';
+
+import type { FloorGridCell } from '@apis/floors/floorGridApi';
+
+import * as styles from './GridCellPickerCanvas.css';
 
 const DEFAULT_CANVAS_H = 420;
 
@@ -70,14 +71,9 @@ const GridCellPickerCanvas = ({
     };
   }, [imageUrl]);
 
-  const canvasH = (() => {
-    if (gridCells.length > 0) {
-      const { cols, rows } = getGridDimensions(gridCells);
-      if (cols > 0 && rows > 0) return (CANVAS_W * rows) / cols;
-    }
-    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
-    return DEFAULT_CANVAS_H;
-  })();
+  // 도면관리상세 본 캔버스와 완전히 같은 계산(gridGeometry.ts 단일 소스) — 여기서 따로
+  // 다시 구현하면 그리드 행·열/이미지 비율 처리가 바뀔 때 한쪽만 갱신되어 좌표가 어긋날 수 있음
+  const canvasH = getCanvasHeight(gridCells, imageAspect, DEFAULT_CANVAS_H);
 
   const cellSize = getGridCellPxSize(gridCells, canvasH);
   const selectedCell = gridCells.find((c) => c.id === selectedCellId) ?? null;
@@ -121,7 +117,9 @@ const GridCellPickerCanvas = ({
               />
             )}
 
-            {/* 셀 클릭 판정 — 투명 히트영역. disabled면 아예 안 그려서 클릭 자체가 안 먹게 함 */}
+            {/* 셀 클릭 판정 — 투명 히트영역. disabled면 아예 안 그려서 클릭 자체가 안 먹게 함.
+                키보드 사용자도 선택할 수 있게 포커스 가능한 버튼 역할 + Enter/Space 처리를 붙임
+                (코드래빗 리뷰 반영) */}
             {!disabled &&
               onCellSelect &&
               gridCells.map((cell) => (
@@ -133,7 +131,16 @@ const GridCellPickerCanvas = ({
                   height={cellSize.h}
                   fill="transparent"
                   style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열 칸`}
+                  aria-pressed={cell.id === selectedCellId}
                   onClick={() => onCellSelect(cell.id)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    onCellSelect(cell.id);
+                  }}
                 />
               ))}
 
@@ -160,6 +167,7 @@ const GridCellPickerCanvas = ({
         <button
           type="button"
           className={styles.zoomButton}
+          aria-label="축소"
           onClick={() => setZoom((v) => Math.max(50, v - 10))}
           disabled={zoom <= 50}
         >
@@ -176,6 +184,7 @@ const GridCellPickerCanvas = ({
         <button
           type="button"
           className={styles.zoomButton}
+          aria-label="확대"
           onClick={() => setZoom((v) => Math.min(200, v + 10))}
           disabled={zoom >= 200}
         >

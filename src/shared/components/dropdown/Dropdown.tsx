@@ -30,6 +30,9 @@ export interface DropdownProps<T extends string = string> {
   // 트리거 버튼을 컨테이너 100% 너비로 늘림 — 켜면 목록 패널 너비도 같이 늘어남(패널 너비를
   // 트리거의 실제 렌더 너비에서 그대로 구해오기 때문)
   fullWidth?: boolean;
+  // 화면에 별도 <label>이 없는 사용처(카드 인라인 편집 등)를 위한 접근성 이름 — 스크린리더가
+  // 옆의 텍스트 라벨과 이 트리거의 연결을 알 수 없다는 코드래빗 리뷰 반영
+  ariaLabel?: string;
 }
 
 const Dropdown = <T extends string = string>({
@@ -41,6 +44,7 @@ const Dropdown = <T extends string = string>({
   className,
   shape = 'pill',
   fullWidth = false,
+  ariaLabel,
 }: DropdownProps<T>) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -100,6 +104,7 @@ const Dropdown = <T extends string = string>({
         className={styles.trigger({ disabled, shape, fullWidth })}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
       >

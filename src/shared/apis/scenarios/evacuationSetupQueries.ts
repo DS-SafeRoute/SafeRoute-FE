@@ -7,7 +7,7 @@ export const evacuationSetupQueryKeys = {
   detail: (scenarioId?: string) => [...evacuationSetupQueryKeys.all, scenarioId] as const,
 };
 
-export const useScenarioEvacuationSetupQuery = (scenarioId?: string, enabled = true) =>
+export const useGetScenarioEvacuationSetupQuery = (scenarioId?: string, enabled = true) =>
   useQuery({
     queryKey: evacuationSetupQueryKeys.detail(scenarioId),
     queryFn: ({ signal }) => {
