@@ -2486,7 +2486,26 @@ const FloorPlansDetailPage = () => {
               { id: newNode.id, type, x, y, isFinalExit: false },
             ]);
           })
-          .catch(() => {});
+          .catch((error: unknown) => {
+            // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
+            // 무시되던 자리라 원인을 알 수 있게 서버 메시지를 그대로 보여줌
+            const responseData = isAxiosError(error) ? error.response?.data : undefined;
+            const body =
+              responseData && typeof responseData === 'object'
+                ? (responseData as { code?: unknown; message?: unknown })
+                : undefined;
+            const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
+            const serverMessage =
+              error instanceof ApiError ? error.message : String(body?.message ?? '');
+            if (import.meta.env.DEV) {
+              console.error(`[${cfg.label} 노드 추가 실패]`, serverCode, responseData ?? error);
+            }
+            show({
+              title: serverMessage || `${cfg.label} 추가에 실패했습니다. 다시 시도해주세요.`,
+              variant: 'error',
+              duration: 8000,
+            });
+          });
       }
     } else if (type === 'light') {
       if (currentFloor) {

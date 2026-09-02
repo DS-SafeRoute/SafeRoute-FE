@@ -102,11 +102,16 @@ export async function deleteFloor(buildingId: string, floorId: string): Promise<
   });
 }
 
-// 세그멘테이션 요청 자체는 비동기로 처리되고 결과는 별도 폴링/조회로 반영되는 구조라 응답 바디를 쓰지 않음
+// 세그멘테이션 요청 자체는 비동기로 처리되고 결과는 별도 폴링/조회로 반영되는 구조라 응답 바디를 쓰지 않음.
+// 이미지 분석이 axios 기본 타임아웃(30초)보다 오래 걸리는 게 정상이라 — 백엔드는 계속 분석 중인데
+// 클라이언트가 먼저 포기하고 "실패"로 잘못 보여주는 문제가 있었음 — 넉넉하게 늘려서 요청함
+const ANALYZE_TIMEOUT_MS = 180_000; // 3분
+
 export async function analyzeFloor(floorId: string): Promise<void> {
   await apiRequest<unknown>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.FLOORS.ANALYZE(floorId),
+    timeout: ANALYZE_TIMEOUT_MS,
   });
 }
 
