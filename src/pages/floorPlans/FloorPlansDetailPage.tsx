@@ -1527,6 +1527,12 @@ const DeviceCard = ({
   // 가이던스·방향처럼 자주 안 건드리는 항목은 접어둬서, 수정 모드로 들어갈 때 카드가
   // 일반 모드보다 과하게 길어지는 걸 줄임
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // 방향은 서버가 현재값을 안 내려줘서(즉시 명령이라 조회 불가) 버튼 자체엔 "지금 상태"를
+  // 표시할 수 없음 — 대신 "방금 이 버튼을 눌렀다"는 걸 보이게 해서 클릭이 씹혔는지 헷갈리지
+  // 않게 함(카드가 다시 열리면 초기화되는, 이번에 누른 것만 기억하는 값)
+  const [lastClickedDirection, setLastClickedDirection] = useState<'LEFT' | 'RIGHT' | 'OFF' | null>(
+    null,
+  );
 
   return (
     <div
@@ -1595,36 +1601,52 @@ const DeviceCard = ({
       </div>
       <div className={styles.deviceCardRow}>
         <span className={styles.deviceCardKey}>설치 위치</span>
-        {editing ? (
+        {editing && item.type !== 'light' && (
           <input
             className={styles.deviceCardValueInput}
             value={editForm.zone}
             onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
             onClick={(e) => e.stopPropagation()}
           />
-        ) : (
-          <span className={styles.deviceCardValue}>{item.zone}</span>
         )}
+        {!editing && <span className={styles.deviceCardValue}>{item.zone}</span>}
       </div>
+      {/* 유도등은 필드가 많아서(설치 위치·담당 CCTV·가이던스) 값 칸 크기가 텍스트 입력·
+          드롭다운마다 제각각으로 보이지 않도록, 수정 중엔 전부 "라벨 위 · 값 아래(폭 전체)"
+          한 가지 모양으로 통일함 */}
+      {editing && item.type === 'light' && (
+        <input
+          className={styles.lightFieldFull}
+          value={editForm.zone}
+          onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="예: 3층 앞 복도"
+        />
+      )}
       {item.type === 'light' && (
         <>
           <div className={styles.deviceCardRow}>
             <span className={styles.deviceCardKey}>담당 CCTV</span>
-            {editing ? (
-              <div onClick={(e) => e.stopPropagation()}>
-                <Dropdown
-                  shape="rounded"
-                  options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
-                  value={editForm.cctvId}
-                  onChange={(v) => onEditFormChange({ ...editForm, cctvId: v })}
-                  placeholder="미지정"
-                />
-              </div>
-            ) : (
+            {!editing && (
               <span className={styles.deviceCardValue}>{item.cctvName ?? '미지정'}</span>
             )}
           </div>
-          <div className={styles.deviceCardRow}>
+          {editing && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Dropdown
+                shape="rounded"
+                fullWidth
+                options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
+                value={editForm.cctvId}
+                onChange={(v) => onEditFormChange({ ...editForm, cctvId: v })}
+                placeholder="미지정"
+              />
+            </div>
+          )}
+          <div
+            className={styles.deviceCardRow}
+            title="화재 시 이 유도등이 갈림길(판단 노드)에서 왼쪽/오른쪽 중 어느 통로로 사람들을 안내할지 정해요"
+          >
             <span className={styles.deviceCardKey}>가이던스</span>
             {editing ? (
               <button
@@ -1646,6 +1668,10 @@ const DeviceCard = ({
           </div>
           {editing && detailsOpen && (
             <>
+              <span className={styles.readinessHint}>
+                판단 노드는 경로가 갈리는 지점이에요. 화재 시 안전한 쪽 엣지를 골라 이 유도등이
+                왼쪽/오른쪽 중 그 방향을 가리키게 돼요.
+              </span>
               <div className={styles.lightFieldGroup} onClick={(e) => e.stopPropagation()}>
                 <Dropdown
                   shape="rounded"
@@ -1688,10 +1714,14 @@ const DeviceCard = ({
               <div className={styles.lightDirectionRow}>
                 <button
                   type="button"
-                  className={styles.lightDirectionBtn}
+                  className={clsx(
+                    styles.lightDirectionBtn,
+                    lastClickedDirection === 'LEFT' && styles.lightDirectionBtnActive,
+                  )}
                   disabled={!item.cctvName}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setLastClickedDirection('LEFT');
                     onLightDirectionChange(item, 'LEFT');
                   }}
                 >
@@ -1699,10 +1729,14 @@ const DeviceCard = ({
                 </button>
                 <button
                   type="button"
-                  className={styles.lightDirectionBtn}
+                  className={clsx(
+                    styles.lightDirectionBtn,
+                    lastClickedDirection === 'RIGHT' && styles.lightDirectionBtnActive,
+                  )}
                   disabled={!item.cctvName}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setLastClickedDirection('RIGHT');
                     onLightDirectionChange(item, 'RIGHT');
                   }}
                 >
@@ -1710,16 +1744,31 @@ const DeviceCard = ({
                 </button>
                 <button
                   type="button"
-                  className={styles.lightDirectionBtn}
+                  className={clsx(
+                    styles.lightDirectionBtn,
+                    lastClickedDirection === 'OFF' && styles.lightDirectionBtnActive,
+                  )}
                   disabled={!item.cctvName}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setLastClickedDirection('OFF');
                     onLightDirectionChange(item, 'OFF');
                   }}
                 >
                   끄기
                 </button>
               </div>
+              {lastClickedDirection && (
+                <span className={styles.readinessHint}>
+                  방금 &quot;
+                  {lastClickedDirection === 'LEFT'
+                    ? '왼쪽'
+                    : lastClickedDirection === 'RIGHT'
+                      ? '오른쪽'
+                      : '끄기'}
+                  &quot;을 눌렀어요. 실제로 켜지는 건 담당 CCTV(Pi)가 명령을 가져가서 처리한 뒤예요.
+                </span>
+              )}
             </>
           )}
         </>

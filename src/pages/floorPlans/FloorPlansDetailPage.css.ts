@@ -829,6 +829,23 @@ export const deviceCardFieldEditBtn = style({
   },
 });
 
+// 유도등 카드 수정 중 필드(설치 위치 입력)를 담당 CCTV·가이던스 Dropdown과 같은 박스 모양으로
+// 맞춤 — 텍스트 입력과 Dropdown이 서로 다른 크기·정렬로 보이던 문제를 셋 다 "라벨 위,
+// 폭 전체 값" 한 가지 모양으로 통일해서 해결함(치수는 Dropdown의 rounded+fullWidth와 동일)
+export const lightFieldFull = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
+  width: '100%',
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
 // 가이던스(판단 노드/좌우 엣지) Dropdown 3개를 세로로 쌓는 영역 — deviceCardRow 밑에 통째로 붙음
 export const lightFieldGroup = style({
   display: 'flex',
@@ -861,6 +878,14 @@ export const lightDirectionBtn = style({
       cursor: 'not-allowed',
     },
   },
+});
+
+// 방향은 서버가 현재 상태를 내려주지 않아 "지금 이 방향임"을 표시할 수 없음 — 대신 "방금 이걸
+// 눌렀다"는 클릭 자체를 눈에 보이게 남겨서, 눌렀는지 안 눌렀는지 헷갈리지 않게 함
+export const lightDirectionBtnActive = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
 });
 
 export const deviceCardActions = style({
