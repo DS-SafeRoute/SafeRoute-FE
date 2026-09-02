@@ -1,4 +1,8 @@
+import type { ScenarioResponse } from '@apis/__generated__/data-contracts';
+
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
+
+export type ScenarioStatus = NonNullable<ScenarioResponse['status']>;
 
 export const SCENARIO_STATUS = {
   DRAFT: 'DRAFT',
@@ -6,25 +10,28 @@ export const SCENARIO_STATUS = {
   IN_PROGRESS: 'IN_PROGRESS',
   COMPLETED: 'COMPLETED',
   ERROR: 'ERROR',
-} as const;
+} as const satisfies Record<string, ScenarioStatus>;
 
-export type ScenarioStatus = (typeof SCENARIO_STATUS)[keyof typeof SCENARIO_STATUS];
+type RequiredScenarioFields = Required<
+  Pick<
+    ScenarioResponse,
+    | 'id'
+    | 'name'
+    | 'buildingId'
+    | 'scheduledAt'
+    | 'expectedParticipants'
+    | 'status'
+    | 'deletable'
+    | 'fireSpreadSpeed'
+  >
+>;
 
-export interface ScenarioSummary {
-  id: string;
-  name: string;
-  buildingId: string;
-  scheduledAt: string;
-  expectedParticipants: number;
-  status: ScenarioStatus;
-  deletable: boolean;
-  reportId: string | null;
-}
+export type Scenario = RequiredScenarioFields & {
+  reportId: NonNullable<ScenarioResponse['reportId']> | null;
+  targetEvacuationSec: NonNullable<ScenarioResponse['targetEvacuationSec']> | null;
+};
 
-export interface Scenario extends ScenarioSummary {
-  fireSpreadSpeed: 'SLOW' | 'MEDIUM' | 'FAST';
-  targetEvacuationSec: number | null;
-}
+export type ScenarioSummary = Omit<Scenario, 'fireSpreadSpeed' | 'targetEvacuationSec'>;
 
 export const SCENARIO_STATUS_VIEW: Record<
   ScenarioStatus,
