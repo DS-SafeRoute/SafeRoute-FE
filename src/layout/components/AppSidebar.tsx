@@ -9,7 +9,7 @@ import useToast from '@components/toast/useToast';
 import { ROUTES } from '@constants/path';
 import { sidebarItems } from '@constants/sidebar';
 
-import { clearAccessToken } from '@shared/auth/tokenStorage';
+import { clearTokens } from '@shared/auth/tokenStorage';
 
 const AppSidebar = () => {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ const AppSidebar = () => {
         variant: 'error',
       });
     } finally {
-      clearAccessToken();
+      clearTokens();
       queryClient.clear();
       navigate(ROUTES.LOGIN, { replace: true });
     }
