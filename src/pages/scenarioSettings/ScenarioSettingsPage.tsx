@@ -366,8 +366,10 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
                   </p>
                 ) : null}
                 {isFireOriginRequired ? (
+                  // 발화점 등록 API가 도면관리에서 evacuation-setup 쪽으로 옮겨간 것으로 보여
+                  // (팀 전달사항, 2026-09-03) 더 이상 "도면 관리에서"라고 특정 위치를 안내하지 않음
                   <p className={styles.startRestrictionNotice}>
-                    도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.
+                    이 시나리오의 최초 발화점이 아직 지정되지 않았어요.
                   </p>
                 ) : null}
                 {canStartTraining ? (
