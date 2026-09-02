@@ -6,9 +6,6 @@ import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
-import PlayIcon from '@assets/icons/ic-play.svg?react';
-
-import { Button } from '@components/Button';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
@@ -20,44 +17,60 @@ import {
   useGetScenarioQuery,
   useUpdateScenarioMutation,
 } from './api/scenarioQueries';
-import TrainingPreviewCard from './components/cards/trainingPreviewCard/TrainingPreviewCard';
+import ScenarioActionPanel from './components/scenarioActionPanel/ScenarioActionPanel';
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
-import { PREVIEW_STATUS } from './constants/scenarioSettings';
 import { useScenarioFloorView } from './hooks/useScenarioFloorView';
 import { useScenarioForm } from './hooks/useScenarioForm';
 import { useScenarioTraining } from './hooks/useScenarioTraining';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
 
+import type { ScenarioActionMode } from './components/scenarioActionPanel/ScenarioActionPanel';
 import type { Scenario } from './types/scenarioList';
 
 interface ScenarioSettingsContentProps {
   scenario?: Scenario;
 }
 
+// 시나리오 작성·수정 화면과 훈련 진행 화면의 UI 흐름 조정
 const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
   const { show } = useToast();
+
+  // 폼 선택지와 요청에 필요한 사용자·건물 정보
   const { data: buildings = [] } = useGetBuildingsQuery();
   const { data: currentUser } = useMyProfileQuery();
+
+  // 시나리오 생성·수정 요청 상태
   const createScenarioMutation = useCreateScenarioMutation();
   const updateScenarioMutation = useUpdateScenarioMutation();
-  const isCreatePage = scenario === undefined;
-  const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
-  const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
-  const isRestartUnavailable =
-    scenario?.status === SCENARIO_STATUS.COMPLETED || scenario?.status === SCENARIO_STATUS.ERROR;
+
+  // 편집 여부와 훈련 종료 안내 모달은 서로 독립적인 UI 상태
   const [isEditing, setIsEditing] = useState(false);
-  const isEditable = isCreatePage || isDraft || isEditing;
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+
+  // 시나리오 상태에 따른 액션 패널 모드
+  const isCreatePage = scenario === undefined;
+  const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
+  const actionMode: ScenarioActionMode = isCreatePage
+    ? 'create'
+    : scenario.status === SCENARIO_STATUS.DRAFT || isEditing
+      ? 'edit'
+      : 'start';
+
+  // 입력 폼과 훈련 세션의 상태·동작을 도메인 단위로 관리
   const scenarioForm = useScenarioForm({ scenario, defaultBuildingId: buildings[0]?.id });
   const training = useScenarioTraining({ scenario, adminId: currentUser?.id });
+
+  // 건물 조회 결과를 대상 건물 선택 옵션으로 변환
   const buildingOptions = buildings.map((building) => ({
     label: building.name,
     value: building.id,
   }));
+
+  // 선택된 건물·훈련 경로에 맞는 도면과 발화 위치 조회
   const floorView = useScenarioFloorView({
     scenarioId: scenario?.id,
     buildingId: scenarioForm.selectedBuildingId,
@@ -65,13 +78,28 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     routeFloorId: training.route.routeFloorId,
     routeNodeIds: training.route.routeNodeIds,
   });
+
+  // 준비 상태와 발화점 조회 결과를 조합해 훈련 시작 가능 여부 결정
   const canStartTraining = isScenarioReady && floorView.hasFireOrigin;
   const isFireOriginRequired =
     isScenarioReady &&
     !floorView.isFireOriginPending &&
     !floorView.isFireOriginError &&
     !floorView.hasFireOrigin;
+  const startRestrictionMessage =
+    scenario?.status === SCENARIO_STATUS.COMPLETED || scenario?.status === SCENARIO_STATUS.ERROR
+      ? '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.'
+      : isFireOriginRequired
+        ? '도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.'
+        : undefined;
+  const isActionLoading =
+    actionMode === 'create'
+      ? createScenarioMutation.isPending || training.isScheduling
+      : actionMode === 'edit'
+        ? updateScenarioMutation.isPending
+        : training.isStarting;
 
+  // 예약 세션을 준비한 뒤 훈련 시작
   const handleStartTraining = async () => {
     if (training.areSessionsPending || !canStartTraining) return;
 
@@ -88,6 +116,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
+  // 진행 중인 훈련 종료 후 결과 이동 모달 표시
   const handleEndTraining = async () => {
     if (!training.isRunning) return;
 
@@ -99,6 +128,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
+  // 작성·수정에서 공통으로 사용할 검증 완료 payload 반환
   const getFormPayload = () => {
     const payload = scenarioForm.getPayload();
     if (!payload) {
@@ -107,6 +137,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     return payload;
   };
 
+  // 기존 시나리오의 수정 내용을 임시 저장
   const handleSaveDraft = async () => {
     if (!scenario) return;
     const payload = getFormPayload();
@@ -124,6 +155,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
+  // 시나리오 생성 후 연결된 훈련 일정까지 순서대로 등록
   const handleCreate = async () => {
     const payload = getFormPayload();
     if (!payload) return;
@@ -158,6 +190,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
+  // 실시간 경로 변경 제안 거부
   const handleRejectRouteProposal = async () => {
     try {
       await training.route.rejectRouteProposal();
@@ -166,6 +199,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
+  // 실시간 경로 변경 제안 승인
   const handleApplyRouteProposal = async () => {
     try {
       await training.route.approveRouteProposal();
@@ -177,13 +211,14 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   return (
     <div className={styles.container}>
       <div className={styles.contentGrid}>
+        {/* 기본 정보·화재 조건·발화 위치 입력 영역 */}
         <ScenarioSetupForm
           value={scenarioForm.value}
           buildingOptions={buildingOptions}
           floorMap={floorView.floorMap}
           mode={{
             isRunning: training.isRunning,
-            readOnly: !isEditable && !training.isRunning,
+            readOnly: actionMode === 'start' && !training.isRunning,
             buildingReadOnly: !isCreatePage,
           }}
           handlers={{
@@ -192,6 +227,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           }}
         />
 
+        {/* 훈련 중에는 제어 패널, 그 외에는 작성·저장·시작 액션 표시 */}
         {training.isRunning && training.startedAt !== null ? (
           <TrainingControlPanel
             startedAt={training.startedAt}
@@ -208,79 +244,28 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
             }}
           />
         ) : (
-          <aside className={styles.sideColumn}>
-            {isCreatePage ? (
-              <Button
-                type="button"
-                size="lg"
-                fullWidth
-                onClick={() => void handleCreate()}
-                isLoading={createScenarioMutation.isPending || training.isScheduling}
-              >
-                작성 완료
-              </Button>
-            ) : isDraft || isEditing ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                fullWidth
-                className={styles.draftButton}
-                onClick={() => void handleSaveDraft()}
-                isLoading={updateScenarioMutation.isPending}
-              >
-                임시 저장
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  size="lg"
-                  fullWidth
-                  leftIcon={<PlayIcon />}
-                  onClick={() => void handleStartTraining()}
-                  disabled={
-                    training.areSessionsPending ||
-                    floorView.isFireOriginPending ||
-                    !canStartTraining
-                  }
-                  isLoading={training.isStarting}
-                >
-                  시나리오 시작
-                </Button>
-                {isRestartUnavailable ? (
-                  <p className={styles.startRestrictionNotice}>
-                    완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를
-                    생성해 주세요.
-                  </p>
-                ) : null}
-                {isFireOriginRequired ? (
-                  // 발화점 등록 API가 도면관리에서 evacuation-setup 쪽으로 옮겨간 것으로 보여
-                  // (팀 전달사항, 2026-09-03) 더 이상 "도면 관리에서"라고 특정 위치를 안내하지 않음
-                  <p className={styles.startRestrictionNotice}>
-                    이 시나리오의 최초 발화점이 아직 지정되지 않았어요.
-                  </p>
-                ) : null}
-                {canStartTraining ? (
-                  <TrainingPreviewCard status={PREVIEW_STATUS} metrics={floorView.previewMetrics} />
-                ) : null}
-                {scenario?.status === SCENARIO_STATUS.READY ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="md"
-                    fullWidth
-                    onClick={() => setIsEditing(true)}
-                  >
-                    수정하기
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </aside>
+          <ScenarioActionPanel
+            mode={actionMode}
+            isLoading={isActionLoading}
+            startState={{
+              disabled:
+                training.areSessionsPending || floorView.isFireOriginPending || !canStartTraining,
+              restrictionMessage: startRestrictionMessage,
+              showPreview: canStartTraining,
+              canEdit: isScenarioReady,
+              metrics: floorView.previewMetrics,
+            }}
+            handlers={{
+              onCreate: () => void handleCreate(),
+              onSave: () => void handleSaveDraft(),
+              onStart: () => void handleStartTraining(),
+              onEdit: () => setIsEditing(true),
+            }}
+          />
         )}
       </div>
 
+      {/* 훈련 종료 후 홈 또는 보고서 이동 선택 */}
       <TrainingEndModal
         open={isEndModalOpen}
         onHome={() => void navigate(ROUTES.HOME)}
@@ -290,6 +275,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   );
 };
 
+// 상세 조회 상태를 처리하고 검증된 시나리오만 콘텐츠에 전달
 const ScenarioSettingsPage = () => {
   const { scenarioId } = useParams();
   const { data: scenario, isPending, isError } = useGetScenarioQuery(scenarioId);
