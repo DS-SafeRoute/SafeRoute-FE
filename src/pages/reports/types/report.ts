@@ -12,11 +12,11 @@ export interface TrendPoint {
   value: number;
 }
 
-export type DensityLevel = 'high' | 'medium' | 'low';
+export type RecommendationLevel = 'high' | 'medium' | 'low';
 
 export interface RecommendationItem {
   id: string;
-  level: DensityLevel;
+  level: RecommendationLevel;
   title: string;
   description: string;
 }
@@ -24,4 +24,9 @@ export interface RecommendationItem {
 export interface ReportSummary {
   grade: string;
   scoreText: string;
+}
+
+export interface ReportMetaItem {
+  label: string;
+  value: string;
 }

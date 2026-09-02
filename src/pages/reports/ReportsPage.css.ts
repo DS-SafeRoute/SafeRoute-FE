@@ -14,13 +14,6 @@ export const toolbar = style({
   justifyContent: 'flex-end',
 });
 
-export const stateMessage = style({
-  padding: vars.space.s12,
-  textAlign: 'center',
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
-
 export const pageState = style({
   minHeight: '32rem',
 });
