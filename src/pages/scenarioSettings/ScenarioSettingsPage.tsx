@@ -34,6 +34,42 @@ interface ScenarioSettingsContentProps {
   scenario?: Scenario;
 }
 
+const getScenarioActionMode = (
+  scenario: Scenario | undefined,
+  isEditing: boolean,
+): ScenarioActionMode => {
+  if (!scenario) return 'create';
+  if (scenario.status === SCENARIO_STATUS.DRAFT || isEditing) return 'edit';
+  return 'start';
+};
+
+const getStartRestrictionMessage = (
+  scenario: Scenario | undefined,
+  isFireOriginRequired: boolean,
+) => {
+  if (
+    scenario?.status === SCENARIO_STATUS.COMPLETED ||
+    scenario?.status === SCENARIO_STATUS.ERROR
+  ) {
+    return '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
+  }
+  if (isFireOriginRequired) {
+    return '도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.';
+  }
+  return undefined;
+};
+
+const getActionLoading = (
+  mode: ScenarioActionMode,
+  isCreating: boolean,
+  isSaving: boolean,
+  isStarting: boolean,
+) => {
+  if (mode === 'create') return isCreating;
+  if (mode === 'edit') return isSaving;
+  return isStarting;
+};
+
 // 시나리오 작성·수정 화면과 훈련 진행 화면의 UI 흐름 조정
 const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
@@ -54,12 +90,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   // 시나리오 상태에 따른 액션 패널 모드
   const isCreatePage = scenario === undefined;
   const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
-  let actionMode: ScenarioActionMode = 'start';
-  if (isCreatePage) {
-    actionMode = 'create';
-  } else if (scenario.status === SCENARIO_STATUS.DRAFT || isEditing) {
-    actionMode = 'edit';
-  }
+  const actionMode = getScenarioActionMode(scenario, isEditing);
 
   // 입력 폼과 훈련 세션의 상태·동작을 도메인 단위로 관리
   const scenarioForm = useScenarioForm({ scenario, defaultBuildingId: buildings[0]?.id });
@@ -87,23 +118,13 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     !floorView.isFireOriginPending &&
     !floorView.isFireOriginError &&
     !floorView.hasFireOrigin;
-  let startRestrictionMessage: string | undefined;
-  if (
-    scenario?.status === SCENARIO_STATUS.COMPLETED ||
-    scenario?.status === SCENARIO_STATUS.ERROR
-  ) {
-    startRestrictionMessage =
-      '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
-  } else if (isFireOriginRequired) {
-    startRestrictionMessage = '도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.';
-  }
-
-  let isActionLoading = training.isStarting;
-  if (actionMode === 'create') {
-    isActionLoading = createScenarioMutation.isPending || training.isScheduling;
-  } else if (actionMode === 'edit') {
-    isActionLoading = updateScenarioMutation.isPending;
-  }
+  const startRestrictionMessage = getStartRestrictionMessage(scenario, isFireOriginRequired);
+  const isActionLoading = getActionLoading(
+    actionMode,
+    createScenarioMutation.isPending || training.isScheduling,
+    updateScenarioMutation.isPending,
+    training.isStarting,
+  );
 
   // 예약 세션을 준비한 뒤 훈련 시작
   const handleStartTraining = async () => {

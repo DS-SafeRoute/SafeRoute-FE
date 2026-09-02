@@ -15,6 +15,7 @@ import {
   getLatestRecalculation,
 } from '@pages/scenarioSettings/utils/trainingRoutes';
 
+import type { CurrentRouteResponse } from '@apis/__generated__/data-contracts';
 import { floorQueryKeys } from '@apis/floors/floorQueries';
 import { fireZoneQueryKeys } from '@apis/scenarios/fireZoneQueries';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
@@ -26,6 +27,16 @@ interface UseTrainingRouteDataParams {
   sessionId?: string | null;
   enabled: boolean;
 }
+
+const getCurrentRouteMessage = (
+  route: CurrentRouteResponse | undefined,
+  isPending: boolean,
+  isError: boolean,
+) => {
+  if (isPending) return '현재 대피 경로를 불러오는 중...';
+  if (isError) return '현재 대피 경로를 불러오지 못했습니다.';
+  return formatCurrentRoute(route);
+};
 
 export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
@@ -46,13 +57,11 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   const approveMutation = useApproveRouteRecalculationMutation();
   const rejectMutation = useRejectRouteRecalculationMutation();
   const routeProposal = formatRouteProposal(detailQuery.data);
-
-  let currentRouteMessage = formatCurrentRoute(currentRouteQuery.data);
-  if (currentRouteQuery.isPending) {
-    currentRouteMessage = '현재 대피 경로를 불러오는 중...';
-  } else if (currentRouteQuery.isError) {
-    currentRouteMessage = '현재 대피 경로를 불러오지 못했습니다.';
-  }
+  const currentRouteMessage = getCurrentRouteMessage(
+    currentRouteQuery.data,
+    currentRouteQuery.isPending,
+    currentRouteQuery.isError,
+  );
 
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
