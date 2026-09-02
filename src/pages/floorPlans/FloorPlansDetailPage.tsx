@@ -1070,7 +1070,7 @@ const NodeAddPopup = ({
   const [deviceId, setDeviceId] = useState('');
   const [location, setLocation] = useState('');
 
-  const isStructureNode = type === 'door' || type === 'stair';
+  const isStructureNode = type === 'door' || type === 'stair' || type === 'hallway';
   const isCctv = type === 'cctv';
   const totalSteps = isCctv ? 2 : 1;
   const stepNumber = stage === 'entry' ? 1 : totalSteps;

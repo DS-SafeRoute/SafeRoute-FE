@@ -1,3 +1,5 @@
+import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
+
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 import {
   useFloorCctvsQuery,
@@ -11,8 +13,6 @@ import {
   useScenarioFireOriginQuery,
   useScenarioFireZonesQuery,
 } from '@apis/scenarios/fireZoneQueries';
-
-import type { PreviewMetric } from '../types/scenarioSettings';
 
 interface UseScenarioFloorViewParams {
   scenarioId?: string;
