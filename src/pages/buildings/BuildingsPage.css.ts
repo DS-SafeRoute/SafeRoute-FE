@@ -33,12 +33,6 @@ export const emptyState = style({
   minHeight: '36rem',
 });
 
-export const stateMessage = style({
-  padding: `${vars.space.s5} 0`,
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
-
 export const errorMessage = style({
   padding: `${vars.space.s5} 0`,
   color: vars.color.danger,

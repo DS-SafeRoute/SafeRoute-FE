@@ -99,11 +99,3 @@ export const pageState = style({
   justifyContent: 'center',
   padding: vars.space.s6,
 });
-
-export const stateMessage = style([
-  pageState,
-  {
-    color: vars.color.textLow,
-    ...vars.typography.body14,
-  },
-]);

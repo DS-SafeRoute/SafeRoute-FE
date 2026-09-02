@@ -10,6 +10,7 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import { Button } from '@components/Button';
 import Dropdown from '@components/dropdown';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES, getScenarioDetailPath } from '@constants/path';
@@ -101,7 +102,7 @@ const ScenarioListPage = () => {
         </div>
 
         {isPending ? (
-          <p className={styles.stateMessage}>불러오는 중...</p>
+          <LoadingState />
         ) : isError ? (
           <EmptyState
             className={styles.emptyState}

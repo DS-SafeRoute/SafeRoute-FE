@@ -18,6 +18,7 @@ import PlayIcon from '@assets/icons/ic-play.svg?react';
 
 import { Button } from '@components/Button';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES, getScenarioDetailPath } from '@constants/path';
@@ -406,7 +407,7 @@ const ScenarioSettingsPage = () => {
   const { data: scenario, isPending, isError } = useGetScenarioQuery(scenarioId);
 
   if (scenarioId && isPending) {
-    return <div className={styles.stateMessage}>시나리오를 불러오는 중...</div>;
+    return <LoadingState message="시나리오를 불러오는 중..." />;
   }
 
   if (scenarioId && (isError || !scenario)) {
