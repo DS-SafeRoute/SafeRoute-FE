@@ -1,4 +1,5 @@
 import type {
+  AssignCctvRequest,
   ChangeLightDirectionRequest,
   ConfigureGuidanceRequest,
   CreateIoTLightRequest,
@@ -102,6 +103,16 @@ export async function updateLightPiEndpoint(
     method: HTTP_METHOD.PATCH,
     url: API_ENDPOINTS.IOT_LIGHTS.PI_ENDPOINT(lightId),
     body: { piEndpoint },
+  });
+  return toIoTLight(light);
+}
+
+// 유도등이 대피 흐름을 참고할 담당 CCTV 배정 — 같은 층 CCTV만 유효(백엔드 검증)
+export async function assignLightCctv(lightId: string, cctvId: string): Promise<IoTLight> {
+  const light = await apiRequest<IoTLightResponse, AssignCctvRequest>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.IOT_LIGHTS.CCTV(lightId),
+    body: { cctvId },
   });
   return toIoTLight(light);
 }

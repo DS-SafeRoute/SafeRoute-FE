@@ -15,6 +15,8 @@ export interface IoTLight {
   leftEdgeId: string | null;
   rightEdgeId: string | null;
   piEndpoint: string | null;
+  /** 이 유도등이 대피 흐름을 참고할 담당 CCTV. 미배정이면 null */
+  cctvId: string | null;
 }
 
 export const toIoTLight = (response: IoTLightResponse): IoTLight => {
@@ -36,6 +38,7 @@ export const toIoTLight = (response: IoTLightResponse): IoTLight => {
     leftEdgeId: response.leftEdgeId ?? null,
     rightEdgeId: response.rightEdgeId ?? null,
     piEndpoint: response.piEndpoint ?? null,
+    cctvId: response.cctvId ?? null,
   };
 };
 

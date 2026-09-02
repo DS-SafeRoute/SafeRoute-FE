@@ -20,10 +20,12 @@ interface IoTLightSettingsModalProps {
   light: IoTLight;
   nodeOptions: SelectOption[];
   edgeOptions: SelectOption[];
-  onToggleEnabled: (enabled: boolean) => void;
+  /** 같은 층 CCTV 목록 — 담당 CCTV 배정 드롭다운에 사용 */
+  cctvOptions: SelectOption[];
   onDirectionChange: (direction: LightDirection) => void;
   onGuidanceSave: (decisionNodeId: string, leftEdgeId: string, rightEdgeId: string) => void;
   onPiEndpointSave: (piEndpoint: string) => void;
+  onCctvAssign: (cctvId: string) => void;
 }
 
 const IoTLightSettingsModal = ({
@@ -32,17 +34,20 @@ const IoTLightSettingsModal = ({
   light,
   nodeOptions,
   edgeOptions,
-  onToggleEnabled,
+  cctvOptions,
   onDirectionChange,
   onGuidanceSave,
   onPiEndpointSave,
+  onCctvAssign,
 }: IoTLightSettingsModalProps) => {
   const [decisionNodeId, setDecisionNodeId] = useState(light.decisionNodeId ?? '');
   const [leftEdgeId, setLeftEdgeId] = useState(light.leftEdgeId ?? '');
   const [rightEdgeId, setRightEdgeId] = useState(light.rightEdgeId ?? '');
   const [piEndpoint, setPiEndpoint] = useState(light.piEndpoint ?? '');
+  const [cctvId, setCctvId] = useState(light.cctvId ?? '');
 
   const canSaveGuidance = !!decisionNodeId && !!leftEdgeId && !!rightEdgeId;
+  const canSaveCctv = !!cctvId && cctvId !== (light.cctvId ?? '');
 
   return (
     <Modal
@@ -56,34 +61,6 @@ const IoTLightSettingsModal = ({
         </Button>
       }
     >
-      <div className={styles.section}>
-        <span className={styles.sectionTitle}>활성화 상태</span>
-        <div className={styles.rowButtons}>
-          <button
-            type="button"
-            className={
-              light.enabled
-                ? `${styles.toggleButton} ${styles.toggleButtonActive}`
-                : styles.toggleButton
-            }
-            onClick={() => onToggleEnabled(true)}
-          >
-            사용 가능
-          </button>
-          <button
-            type="button"
-            className={
-              !light.enabled
-                ? `${styles.toggleButton} ${styles.toggleButtonActive}`
-                : styles.toggleButton
-            }
-            onClick={() => onToggleEnabled(false)}
-          >
-            사용 불가능
-          </button>
-        </div>
-      </div>
-
       <div className={styles.section}>
         <span className={styles.sectionTitle}>방향</span>
         <div className={styles.rowButtons}>
@@ -108,6 +85,30 @@ const IoTLightSettingsModal = ({
           >
             끄기
           </button>
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        <span className={styles.sectionTitle}>담당 CCTV</span>
+        <span className={styles.hint}>
+          이 유도등이 대피 흐름(이탈률 계산 등)에 참고할 같은 층 CCTV를 지정합니다.
+        </span>
+        <select
+          className={styles.select}
+          value={cctvId}
+          onChange={(e) => setCctvId(e.target.value)}
+        >
+          <option value="">담당 CCTV 선택</option>
+          {cctvOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <div className={styles.saveRow}>
+          <Button size="sm" disabled={!canSaveCctv} onClick={() => onCctvAssign(cctvId)}>
+            담당 CCTV 저장
+          </Button>
         </div>
       </div>
 
