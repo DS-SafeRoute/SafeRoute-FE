@@ -965,6 +965,19 @@ export const stagedCameraMarker = style({
   },
 });
 
+// 발화점 지정 모드에서, 이 시나리오에 이미 등록된 발화점 위치를 표시
+export const existingFireOriginMarker = style({
+  position: 'absolute',
+  zIndex: 2,
+  transform: 'translate(-50%, -50%)',
+  border: `2px solid ${vars.color.danger}`,
+  borderRadius: '50%',
+  backgroundColor: 'rgba(239,68,68,0.25)',
+  pointerEvents: 'none',
+  width: '2rem',
+  height: '2rem',
+});
+
 /* ── Canvase placeholder ── */
 export const canvasPlaceholder = style({
   display: 'flex',

@@ -5,7 +5,10 @@ import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import { ApiError } from '@apis/errors/apiError';
-import { useCreateFireOriginMutation } from '@apis/scenarios/fireZoneQueries';
+import {
+  useCreateFireOriginMutation,
+  useScenarioFireOriginQuery,
+} from '@apis/scenarios/fireZoneQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -1528,6 +1531,7 @@ const FloorCanvas = ({
   gridCellPxSize,
   onGridCellToggle,
   stagedCameraPosition,
+  existingFireOriginPosition,
   devicePositions,
   addedDevices,
   onSelectDevice,
@@ -1569,6 +1573,7 @@ const FloorCanvas = ({
   gridCellPxSize: { w: number; h: number };
   onGridCellToggle: (cellId: string) => void;
   stagedCameraPosition: { x: number; y: number } | null;
+  existingFireOriginPosition: { x: number; y: number } | null;
   devicePositions: Record<string, { x: number; y: number }>;
   addedDevices: AddedDevice[];
   onSelectDevice: (d: DeviceMarker) => void;
@@ -1653,6 +1658,15 @@ const FloorCanvas = ({
         <div
           className={styles.stagedCameraMarker}
           style={{ left: `${stagedCameraPosition.x}%`, top: `${stagedCameraPosition.y}%` }}
+        />
+      )}
+      {existingFireOriginPosition && (
+        <div
+          className={styles.existingFireOriginMarker}
+          style={{
+            left: `${existingFireOriginPosition.x}%`,
+            top: `${existingFireOriginPosition.y}%`,
+          }}
         />
       )}
       {floor.devices.map((device) => {
@@ -2071,6 +2085,9 @@ const FloorPlansDetailPage = () => {
   const [fireOriginScenarioId, setFireOriginScenarioId] = useState<string | null>(null);
   const [fireOriginDraftCellId, setFireOriginDraftCellId] = useState<string | null>(null);
   const createFireOriginMutation = useCreateFireOriginMutation();
+  // 이미 지정된 발화점이 있으면 도면에 표시하고, 재지정 시 경고해줌
+  const existingFireOriginQuery = useScenarioFireOriginQuery(fireOriginScenarioId ?? undefined);
+  const existingFireOrigin = existingFireOriginQuery.data?.[0] ?? null;
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -3187,6 +3204,15 @@ const FloorPlansDetailPage = () => {
     [floorGridCells, canvasH],
   );
 
+  // 이 시나리오의 발화점이 이미 지정되어 있고, 그게 지금 보고 있는 층이면 도면에 표시함
+  const existingFireOriginCell =
+    existingFireOrigin && currentFloor && existingFireOrigin.floorId === currentFloor.id
+      ? (floorGridCells.find((c) => c.id === existingFireOrigin.gridCellId) ?? null)
+      : null;
+  const existingFireOriginOnOtherFloor = Boolean(
+    existingFireOrigin && currentFloor && existingFireOrigin.floorId !== currentFloor.id,
+  );
+
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
     editingCctvId ||
@@ -3524,7 +3550,11 @@ const FloorPlansDetailPage = () => {
                 <span className={styles.nodeAddHint}>
                   {fireOriginDraftCellId
                     ? '선택한 칸을 이 시나리오의 최초 발화점으로 지정합니다.'
-                    : '도면에서 발화점으로 지정할 칸을 클릭해주세요.'}
+                    : existingFireOriginCell
+                      ? '빨간 원이 현재 지정된 발화점이에요. 다른 칸을 클릭하면 그 칸으로 바뀝니다.'
+                      : existingFireOriginOnOtherFloor
+                        ? '이 시나리오의 발화점은 다른 층에 지정되어 있어요. 여기서 칸을 클릭해 지정하면 그 발화점을 대체합니다.'
+                        : '도면에서 발화점으로 지정할 칸을 클릭해주세요.'}
                 </span>
                 <div className={styles.nodeAddActions}>
                   <button
@@ -3676,6 +3706,14 @@ const FloorPlansDetailPage = () => {
                 gridCellPxSize={gridCellPxSize}
                 onGridCellToggle={handleGridCellToggle}
                 stagedCameraPosition={nodeStagedPosition}
+                existingFireOriginPosition={
+                  existingFireOriginCell
+                    ? {
+                        x: existingFireOriginCell.centerX * 100,
+                        y: existingFireOriginCell.centerY * 100,
+                      }
+                    : null
+                }
                 onSelectDevice={(d) => {
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
