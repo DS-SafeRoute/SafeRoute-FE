@@ -12,7 +12,7 @@ import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
 
-import { setAccessToken } from '@shared/auth/tokenStorage';
+import { setTokens } from '@shared/auth/tokenStorage';
 
 import { useLoginMutation } from './api/useLoginMutation';
 import { LOGIN_FEATURES } from './constants/login';
@@ -37,9 +37,9 @@ const LoginPage = () => {
 
   const handleLogin = handleSubmit(async (values) => {
     try {
-      const { accessToken } = await loginMutation.mutateAsync(values);
+      const { accessToken, refreshToken } = await loginMutation.mutateAsync(values);
 
-      setAccessToken(accessToken, isAutoLogin);
+      setTokens(accessToken, refreshToken, isAutoLogin);
       show({ title: '로그인되었습니다.', variant: 'success' });
       navigate(ROUTES.HOME, { replace: true });
     } catch {

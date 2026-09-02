@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: `${API_V1}/auth/login`,
     LOGOUT: `${API_V1}/auth/logout`,
+    REISSUE: `${API_V1}/auth/reissue`,
     SIGNUP: `${API_V1}/auth/signup`,
   },
 
