@@ -103,6 +103,9 @@ type PanelItem = {
   source: 'floor' | 'added';
   // CCTV 카드에서 감시 영역 현황을 바로 보여주기 위한 값 — CCTV가 아니면 없음
   monitoredArea?: { cellCount: number; areaM2: number };
+  // 서버가 자동 채번하는 장치 코드(예: CCTV_001) — id(내부 UUID)와 다른, 사람이 보는 식별자.
+  // 수정 API로도 바꿀 수 없는 값이라 CCTV가 아니면 없음
+  code?: string;
 };
 
 // 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
@@ -1474,7 +1477,11 @@ const DeviceCard = ({
   <div
     data-panel-id={item.id}
     className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
-    onClick={() => onSelect(item)}
+    // 수정 중엔 카드 배경 클릭이 선택 토글로 이어져서, 이미 선택된 카드를 다시 누르면
+    // editingItemId까지 같이 풀려버렸음(완료를 누른 것처럼 보이는 버그) — 수정 중엔 무시함
+    onClick={() => {
+      if (!editing) onSelect(item);
+    }}
   >
     {editing ? (
       <input
@@ -1487,22 +1494,42 @@ const DeviceCard = ({
       <span className={styles.deviceCardName}>{item.label}</span>
     )}
     <div className={styles.deviceCardRow}>
-      <span className={styles.deviceCardKey}>장치 ID</span>
-      <span className={styles.deviceCardValue}>{item.id.toUpperCase()}</span>
+      <span className={styles.deviceCardKey}>장치 코드</span>
+      <span
+        className={styles.deviceCardValue}
+        title={item.code ? '서버가 자동으로 부여하는 값이라 수정할 수 없어요' : undefined}
+      >
+        {item.code ?? item.id.toUpperCase()}
+      </span>
     </div>
     <div className={styles.deviceCardRow}>
       <span className={styles.deviceCardKey}>상태</span>
       {item.type === 'cctv' ? (
-        <button
-          type="button"
-          className={item.statusOnline ? styles.cctvEnabledBadge : styles.cctvEnabledToggle}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCctvEnabled(item);
-          }}
-        >
-          {item.statusOnline ? '사용 가능' : '사용 불가능'}
-        </button>
+        <span className={styles.cctvEnableRow}>
+          <span className={styles.deviceCardValue}>
+            {item.statusOnline ? '활성화' : '비활성화'}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={item.statusOnline}
+            aria-label={
+              item.statusOnline
+                ? '활성화됨 — 클릭하면 비활성화로 전환'
+                : '비활성화됨 — 클릭하면 활성화로 전환'
+            }
+            className={clsx(
+              styles.cctvEnableSwitch,
+              item.statusOnline && styles.cctvEnableSwitchOn,
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCctvEnabled(item);
+            }}
+          >
+            <span className={styles.cctvEnableSwitchThumb} />
+          </button>
+        </span>
       ) : (
         <StatusBadge label={item.statusText} color={item.statusOnline ? 'green' : 'neutral'} dot />
       )}
@@ -1520,12 +1547,32 @@ const DeviceCard = ({
         <span className={styles.deviceCardValue}>{item.zone}</span>
       )}
     </div>
-    {item.type === 'cctv' && item.monitoredArea && (
+    {item.type === 'cctv' && (
       <div className={styles.deviceCardRow}>
         <span className={styles.deviceCardKey}>감시 영역</span>
-        <span className={styles.deviceCardValue}>
-          {item.monitoredArea.cellCount}칸 · {item.monitoredArea.areaM2}㎡
-        </span>
+        {editing ? (
+          // 버튼 3개가 난잡해 보인다는 피드백으로, 별도 액션 버튼 대신 이 값 자체를
+          // 눌러서 재선택하도록 함 — "설치 위치"가 수정 중엔 입력창으로 바뀌는 것과 같은 결
+          <button
+            type="button"
+            className={styles.deviceCardFieldEditBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditCctvCells(item);
+            }}
+          >
+            {item.monitoredArea
+              ? `${item.monitoredArea.cellCount}칸 · ${item.monitoredArea.areaM2}㎡`
+              : '미지정'}{' '}
+            · 재선택
+          </button>
+        ) : (
+          <span className={styles.deviceCardValue}>
+            {item.monitoredArea
+              ? `${item.monitoredArea.cellCount}칸 · ${item.monitoredArea.areaM2}㎡`
+              : '미지정'}
+          </span>
+        )}
       </div>
     )}
     <div className={styles.deviceCardActions}>
@@ -1562,18 +1609,6 @@ const DeviceCard = ({
           }}
         >
           설정
-        </button>
-      )}
-      {item.type === 'cctv' && (
-        <button
-          type="button"
-          className={styles.deviceCardEditBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditCctvCells(item);
-          }}
-        >
-          감시영역 재선택
         </button>
       )}
       <button
@@ -2258,14 +2293,12 @@ const FloorPlansDetailPage = () => {
       .then((updated) => {
         setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
         show({
-          title: enabled
-            ? 'CCTV를 사용 가능으로 바꿨습니다.'
-            : 'CCTV를 사용 불가능으로 바꿨습니다.',
+          title: enabled ? 'CCTV를 활성화했습니다.' : 'CCTV를 비활성화했습니다.',
           variant: 'success',
         });
       })
       .catch(() => {
-        show({ title: 'CCTV 사용 여부 변경에 실패했습니다.', variant: 'error' });
+        show({ title: 'CCTV 활성화 여부 변경에 실패했습니다.', variant: 'error' });
       });
   };
 
@@ -3311,6 +3344,7 @@ const FloorPlansDetailPage = () => {
           monitoredArea: matchedCctv
             ? { cellCount: matchedCctv.monitoredGridCellCount, areaM2: matchedCctv.monitoredAreaM2 }
             : undefined,
+          code: matchedCctv?.code,
         };
       }),
     ],

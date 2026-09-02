@@ -718,10 +718,46 @@ export const finalExitBadge = style({
   ...vars.typography.caption,
 });
 
-/* CCTV 카드 안 사용가능/불가능 토글 — finalExit 토글과 같은 시각 언어(같은 성격의
-   on/off 지정 액션이라 카드 안에서 일관돼 보이게 함) */
-export const cctvEnabledToggle = finalExitToggle;
-export const cctvEnabledBadge = finalExitBadge;
+/* CCTV 카드의 사용가능/불가능 — 클릭 가능한 상태 칩처럼 보이던 걸(눌러보기 전까진 토글인지
+   알 수 없었음) iOS 스타일 on/off 스위치로 바꿔서 누르는 UI라는 게 바로 보이게 함 */
+export const cctvEnableRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const cctvEnableSwitch = style({
+  position: 'relative',
+  flexShrink: 0,
+  transition: 'background-color 0.15s ease',
+  border: 'none',
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray300,
+  cursor: 'pointer',
+  padding: '0.2rem',
+  width: '3.2rem',
+  height: '1.8rem',
+});
+
+export const cctvEnableSwitchOn = style({
+  backgroundColor: vars.color.success,
+});
+
+export const cctvEnableSwitchThumb = style({
+  display: 'block',
+  transform: 'translateX(0)',
+  transition: 'transform 0.15s ease',
+  borderRadius: '50%',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+  backgroundColor: vars.color.white,
+  width: '1.4rem',
+  height: '1.4rem',
+  selectors: {
+    [`${cctvEnableSwitchOn} &`]: {
+      transform: 'translateX(1.4rem)',
+    },
+  },
+});
 
 export const deviceCardName = style({
   overflow: 'hidden',
@@ -775,6 +811,22 @@ export const deviceCardKey = style({
 export const deviceCardValue = style({
   color: vars.color.textHigh,
   ...vars.typography.caption,
+});
+
+// 감시 영역처럼 "값 자체가 재선택 액션"인 필드 — 별도 버튼을 두지 않고 값 텍스트를
+// 눌러서 재선택하게 함. 링크처럼 보이되 캡션 크기는 deviceCardValue와 맞춤
+export const deviceCardFieldEditBtn = style({
+  border: 'none',
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  padding: 0,
+  textDecoration: 'underline',
+  color: vars.color.primary,
+  textUnderlineOffset: '0.2rem',
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { color: vars.color.primaryDark },
+  },
 });
 
 export const deviceCardActions = style({
