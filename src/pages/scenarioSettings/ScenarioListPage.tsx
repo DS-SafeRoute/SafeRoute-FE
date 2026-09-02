@@ -15,8 +15,7 @@ import useToast from '@components/toast/useToast';
 
 import { ROUTES, getScenarioDetailPath } from '@constants/path';
 
-import { useDeleteScenarioMutation } from './api/useDeleteScenarioMutation';
-import { useGetScenariosQuery } from './api/useScenariosQuery';
+import { useDeleteScenarioMutation, useGetScenariosQuery } from './api/scenarioQueries';
 import ScenarioDeleteModal from './components/scenarioDeleteModal/ScenarioDeleteModal';
 import ScenarioListRow from './components/scenarioList/ScenarioListRow';
 import { SCENARIO_STATUS_FILTER_OPTIONS } from './constants/scenarioSettings';
