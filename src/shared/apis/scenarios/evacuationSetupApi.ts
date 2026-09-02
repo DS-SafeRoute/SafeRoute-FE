@@ -4,10 +4,16 @@ import type { MapNodeType } from '@apis/floors/mapGraphApi';
 
 // 발화점 등록(POST /scenarios/{scenarioId}/fire-zones)이 제거되면서 그 자리를 대신하는
 // 엔드포인트(팀 전달사항, 2026-09-03 확인) — 발화점과 훈련 시작점을 한 요청으로 같이 저장함.
-// api:generate로 자동 생성해야 정석이지만 .env의 SWAGGER_URL이 지금 swagger-ui HTML 페이지를
-// 가리키고 있어(raw json이 아님) 생성기가 실패함 — 그래서 스웨거 원문을 보고 손으로 맞춰 씀.
-// SWAGGER_URL을 .../v3/api-docs로 고치고 재생성하면 이 파일의 타입 부분은 __generated__로
-// 옮겨도 됨
+//
+// 타입은 손으로 맞췄음(아래 참고) — .env의 SWAGGER_URL이 swagger-ui HTML 페이지를 가리키고
+// 있어서(raw json이 아님) `pnpm api:generate`가 원래 실패했는데, .../v3/api-docs로 고치면
+// 정상 동작함(확인함). 다만 그 상태로 그냥 돌리면 이 작업과 무관한 다른 팀 변경사항(예:
+// CreateScenarioRequest→CreateScenarioDraftRequest, CreateSessionRequest 필드 변경 등)까지
+// __generated__ 전체가 갈아끼워지면서 scenarioSettings 쪽 기존 코드가 깨짐 — 그건 이 PR
+// 범위 밖이라 재생성을 보류하고 이 파일에 타입을 직접 옮겨 적었음. 나중에 __generated__를
+// 갱신할 사람은 그 깨지는 부분들부터 먼저 정리하고 나서 이 파일의 아래 타입들을
+// data-contracts.ts import로 바꾸면 됨(필드는 이미 검증해서 일치함:
+// ScenarioEvacuationSetupResponse/FireOrigin/StartNode/CreateScenarioEvacuationSetupRequest)
 
 export interface EvacuationFireOrigin {
   fireZoneId: string;

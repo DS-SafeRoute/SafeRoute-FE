@@ -3783,8 +3783,8 @@ const FloorPlansDetailPage = () => {
               currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
             )}
           >
-            {/* 그리드 표시(뷰 토글)와 추가(노드/구역/엣지) — 발화점 지정은 좌측 "훈련 준비"
-                체크리스트로 옮김. 편집 도구를 한 곳에 묶어서 툴바를 5개에서 2개로 줄임 */}
+            {/* 그리드 표시(뷰 토글)와 추가(노드/구역/엣지) — 편집 도구를 한 곳에 묶어서
+                툴바를 5개에서 2개로 줄임 */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <div className={styles.canvasActionFloat}>
                 <button
@@ -3885,7 +3885,7 @@ const FloorPlansDetailPage = () => {
 
             {editingCctvId && (
               // 예전엔 좌측 상단에 raw 스타일로 떠서 눈에 잘 안 띄었음 — 다른 모든 "설정 중"
-              // 팝업(구역 설정, 발화점 지정 등)과 같은 자리·같은 스타일로 통일해서 찾기 쉽게 함
+              // 팝업(구역 설정 등)과 같은 자리·같은 스타일로 통일해서 찾기 쉽게 함
               <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.nodeAddHeader}>
                   <span className={styles.nodeAddTitle}>감시 영역 재선택</span>
