@@ -1,4 +1,5 @@
 import type {
+  CreateMapNodeRequest,
   FloorGraphResponse,
   MapEdgeResponse,
   MapNodeResponse,
@@ -60,4 +61,18 @@ export const getFloorGraph = async (floorId: string, signal?: AbortSignal): Prom
     nodes: (graph.nodes ?? []).map(toMapNode),
     edges: (graph.edges ?? []).map(toMapEdge),
   };
+};
+
+// 발화점 생성(fireZonesApi.ts)과 같은 이유로 여기 둠 — 도면관리상세뿐 아니라 시나리오설정에서도
+// 시작 노드를 만들 때 이 함수를 그대로 씀(useStartNodeDesignation)
+export const createMapNode = async (
+  floorId: string,
+  body: CreateMapNodeRequest,
+): Promise<MapNode> => {
+  const node = await request<MapNodeResponse, CreateMapNodeRequest>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.MAP_GRAPH.CREATE_NODE(floorId),
+    body,
+  });
+  return toMapNode(node);
 };
