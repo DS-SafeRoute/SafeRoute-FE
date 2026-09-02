@@ -813,19 +813,21 @@ export const deviceCardValue = style({
   ...vars.typography.caption,
 });
 
-// 감시 영역처럼 "값 자체가 재선택 액션"인 필드 — 별도 버튼을 두지 않고 값 텍스트를
-// 눌러서 재선택하게 함. 링크처럼 보이되 캡션 크기는 deviceCardValue와 맞춤
+// 감시 영역·구역 범위·가이던스처럼 "값 자체가 재선택/펼치기 액션"인 필드 — 별도 버튼을 두지
+// 않고 값 텍스트를 눌러서 처리함. 이전엔 밑줄 친 링크 모양이었는데 "왜 이게 클릭되는 건지
+// 모르겠다"는 피드백이 있어서, 카드 안 다른 작은 액션(훈련 준비 체크리스트의 readinessActionBtn)과
+// 같은 알약형 버튼 모양으로 통일함
 export const deviceCardFieldEditBtn = style({
-  border: 'none',
-  backgroundColor: 'transparent',
+  flexShrink: 0,
+  border: `1px solid ${vars.color.primary}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
   cursor: 'pointer',
-  padding: 0,
-  textDecoration: 'underline',
+  padding: `0.1rem ${vars.space.s3}`,
   color: vars.color.primary,
-  textUnderlineOffset: '0.2rem',
   ...vars.typography.caption,
   selectors: {
-    '&:hover': { color: vars.color.primaryDark },
+    '&:hover': { backgroundColor: vars.color.primaryLight2 },
   },
 });
 
