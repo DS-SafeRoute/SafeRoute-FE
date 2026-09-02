@@ -61,6 +61,7 @@ export const API_ENDPOINTS = {
     ROOT: `${API_V1}/scenarios`,
     DETAIL: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}`,
     FIRE_ORIGIN: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-origin`,
+    // GET(화재구역 전체 조회) · POST(최초 발화점 등록, 도면관리용) 공용
     FIRE_ZONES: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,
   },
 
@@ -149,10 +150,5 @@ export const API_ENDPOINTS = {
   REPORTS: {
     DETAIL: (reportId: string) => `${API_V1}/reports/${reportId}`,
     PDF: (reportId: string) => `${API_V1}/reports/${reportId}/pdf`,
-  },
-
-  // 시나리오 발화점(화재 확산 시작 격자)
-  FIRE_ZONES: {
-    ROOT: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,
   },
 } as const;

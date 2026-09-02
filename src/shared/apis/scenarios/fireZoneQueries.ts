@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getScenarioFireOrigin, getScenarioFireZones } from './fireZonesApi';
+import { createFireOrigin, getScenarioFireOrigin, getScenarioFireZones } from './fireZonesApi';
 
 export const fireZoneQueryKeys = {
   all: ['scenario-fire-zones'] as const,
@@ -29,3 +29,17 @@ export const useScenarioFireZonesQuery = (scenarioId?: string, enabled = true) =
     },
     enabled: enabled && Boolean(scenarioId),
   });
+
+export const useCreateFireOriginMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createFireOrigin,
+    onSuccess: (fireZone) => {
+      void queryClient.invalidateQueries({
+        queryKey: fireZoneQueryKeys.origin(fireZone.scenarioId),
+      });
+      void queryClient.invalidateQueries({ queryKey: fireZoneQueryKeys.list(fireZone.scenarioId) });
+    },
+  });
+};

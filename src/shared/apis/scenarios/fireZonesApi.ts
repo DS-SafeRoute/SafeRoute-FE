@@ -1,4 +1,4 @@
-import type { FireZoneResponse } from '@apis/__generated__/data-contracts';
+import type { CreateFireZoneRequest, FireZoneResponse } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
@@ -46,3 +46,23 @@ export const getScenarioFireOrigin = (scenarioId: string, signal?: AbortSignal) 
 
 export const getScenarioFireZones = (scenarioId: string, signal?: AbortSignal) =>
   getFireZoneList(API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId), signal);
+
+export interface CreateFireOriginVariables {
+  scenarioId: string;
+  gridCellId: string;
+}
+
+// 도면관리에서 도면 그리드 셀을 클릭해 이 시나리오의 최초 발화점으로 등록
+export const createFireOrigin = async ({
+  scenarioId,
+  gridCellId,
+}: CreateFireOriginVariables): Promise<FireZone> => {
+  const response = await request<FireZoneResponse, CreateFireZoneRequest>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId),
+    body: { gridCellId },
+    responseMode: 'raw',
+  });
+
+  return toFireZone(response);
+};
