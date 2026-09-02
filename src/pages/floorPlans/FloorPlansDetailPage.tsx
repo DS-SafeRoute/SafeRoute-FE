@@ -185,8 +185,10 @@ const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
+// 시작 노드(START)는 팀 논의에 따라 이 화면이 아니라 시나리오설정에서 다루기로 해서
+// 이 화면의 노드 추가/필터 UI에서는 제거함(useStartNodeDesignation 훅으로 이관)
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
@@ -194,7 +196,6 @@ const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: str
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
   hallway: { label: '복도', color: '#0891b2' },
-  start: { label: '시작 노드', color: '#db2777' },
 };
 
 type AddedDevice = {
@@ -216,9 +217,11 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 문·계단에서만 의미 있음(시작 노드·복도는 항상 false — 시작 노드는 서버가
-   isExitTarget=false로 강제 저장함) */
-type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
+   isFinalExit은 문·계단에서만 의미 있음(복도는 항상 false).
+   시작 노드(START)는 이 화면에서 다루지 않음 — useStartNodeDesignation/
+   useEvacuationSetupDesignation 훅으로 이관돼서 API 타입(MapNodeType)에는 여전히 START가
+   있지만 이 화면의 구조 노드 목록에는 포함하지 않음(API_TYPE_TO_STRUCTURE에 매핑 없음) */
+type StructureNodeType = 'door' | 'stair' | 'hallway';
 
 type StructureNode = {
   id: string;
@@ -232,7 +235,6 @@ const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   door: '문 · 출입구',
   stair: '계단',
   hallway: '복도',
-  start: '시작 노드',
 };
 
 // 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
@@ -245,21 +247,18 @@ const STRUCTURE_NODE_API_TYPE = {
   door: 'DOOR',
   stair: 'STAIR',
   hallway: 'HALLWAY',
-  start: 'START',
 } as const satisfies Record<StructureNodeType, MapNodeType>;
 
 const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   DOOR: 'door',
   STAIR: 'stair',
   HALLWAY: 'hallway',
-  START: 'start',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
   door: '#2563eb',
   stair: '#f97316',
   hallway: '#0891b2',
-  start: '#db2777',
 };
 
 // 우측 패널 구조 노드 카드의 점 색상 클래스 — 위 색상표를 그대로 벡터-엑스트랙트 클래스로 옮긴 것
@@ -267,7 +266,6 @@ const ZONE_CARD_DOT_CLASS: Record<StructureNodeType, string> = {
   door: styles.zoneCardDotDoor,
   stair: styles.zoneCardDotStair,
   hallway: styles.zoneCardDotHallway,
-  start: styles.zoneCardDotStart,
 };
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
@@ -1140,7 +1138,7 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => (
+          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -1444,16 +1442,27 @@ const DeviceCard = ({
   return (
     <div
       data-panel-id={item.id}
+      role="button"
+      tabIndex={0}
       className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
       // 수정 중엔 카드 배경 클릭이 선택 토글로 이어져서, 이미 선택된 카드를 다시 누르면
       // editingItemId까지 같이 풀려버렸음(완료를 누른 것처럼 보이는 버그) — 수정 중엔 무시함
       onClick={() => {
         if (!editing) onSelect(item);
       }}
+      // 카드 자체가 role="button"이라 키보드로도 선택할 수 있어야 함 — 다만 안쪽 입력·버튼이
+      // 이벤트를 버블링시킨 경우(e.target !== e.currentTarget)는 그쪽 자체 키 처리에 맡기고 무시
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        if (!editing) onSelect(item);
+      }}
     >
       {editing ? (
         <input
           className={styles.deviceCardNameInput}
+          aria-label="장치 이름"
           value={editForm.label}
           onChange={(e) => onEditFormChange({ ...editForm, label: e.target.value })}
           onClick={(e) => e.stopPropagation()}
@@ -1511,6 +1520,7 @@ const DeviceCard = ({
         {editing && item.type !== 'light' && (
           <input
             className={styles.deviceCardValueInput}
+            aria-label="설치 위치"
             value={editForm.zone}
             onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
             onClick={(e) => e.stopPropagation()}
@@ -1543,6 +1553,7 @@ const DeviceCard = ({
               <Dropdown
                 shape="rounded"
                 fullWidth
+                ariaLabel="담당 CCTV"
                 options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
                 value={editForm.cctvId}
                 onChange={(v) => onEditFormChange({ ...editForm, cctvId: v })}
@@ -1577,6 +1588,7 @@ const DeviceCard = ({
               <Dropdown
                 shape="rounded"
                 fullWidth
+                ariaLabel="판단 노드"
                 options={lightNodeOptions.map((n) => ({ value: n.id, label: n.label }))}
                 value={editForm.decisionNodeId}
                 onChange={(v) =>
@@ -1599,6 +1611,7 @@ const DeviceCard = ({
               <Dropdown
                 shape="rounded"
                 fullWidth
+                ariaLabel="왼쪽 가이던스 엣지"
                 disabled={!editForm.decisionNodeId}
                 options={lightEdgeOptions
                   .filter(
@@ -1615,6 +1628,7 @@ const DeviceCard = ({
               <Dropdown
                 shape="rounded"
                 fullWidth
+                ariaLabel="오른쪽 가이던스 엣지"
                 disabled={!editForm.decisionNodeId}
                 options={lightEdgeOptions
                   .filter(
@@ -2323,7 +2337,7 @@ const FloorPlansDetailPage = () => {
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   // 여러 칩을 동시에 켤 수 있는 다중 선택 필터 — 빈 배열이면 "전체"와 같음
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    Array<'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start'>
+    Array<'cctv' | 'light' | 'door' | 'stair' | 'hallway'>
   >([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<DeviceEditForm>(EMPTY_DEVICE_EDIT_FORM);
@@ -2672,16 +2686,9 @@ const FloorPlansDetailPage = () => {
           .catch((error: unknown) => {
             // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
             // 무시되던 자리라 원인을 알 수 있게 서버 메시지를 그대로 보여줌
-            const responseData = isAxiosError(error) ? error.response?.data : undefined;
-            const body =
-              responseData && typeof responseData === 'object'
-                ? (responseData as { code?: unknown; message?: unknown })
-                : undefined;
-            const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
-            const serverMessage =
-              error instanceof ApiError ? error.message : String(body?.message ?? '');
+            const { code: serverCode, message: serverMessage } = extractServerError(error);
             if (import.meta.env.DEV) {
-              console.error(`[${cfg.label} 노드 추가 실패]`, serverCode, responseData ?? error);
+              console.error(`[${cfg.label} 노드 추가 실패]`, serverCode, error);
             }
             show({
               title: serverMessage || `${cfg.label} 추가에 실패했습니다. 다시 시도해주세요.`,
@@ -2931,16 +2938,9 @@ const FloorPlansDetailPage = () => {
       })
       .catch((error: unknown) => {
         // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 본다
-        const responseData = isAxiosError(error) ? error.response?.data : undefined;
-        const body =
-          responseData && typeof responseData === 'object'
-            ? (responseData as { code?: unknown; message?: unknown })
-            : undefined;
-        const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
-        const serverMessage =
-          error instanceof ApiError ? error.message : String(body?.message ?? '');
+        const { code: serverCode, message: serverMessage } = extractServerError(error);
         if (import.meta.env.DEV) {
-          console.error('[CCTV 등록 실패]', serverCode, responseData ?? error);
+          console.error('[CCTV 등록 실패]', serverCode, error);
         }
         // CCTV006 = 이 층에 그리드 배율(cellSizeMeter)이 설정 안 됨.
         // 아는 배율이 있으면 조용히 재적용해서 사용자는 다시 드래그만 하면 되게 하고,
@@ -3010,12 +3010,7 @@ const FloorPlansDetailPage = () => {
         prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
       );
       // 마지막 남은 탈출구는 해제할 수 없는 등 서버가 이유를 message로 내려주므로 그대로 보여줌
-      const responseData = isAxiosError(error) ? error.response?.data : undefined;
-      const body =
-        responseData && typeof responseData === 'object'
-          ? (responseData as { message?: unknown })
-          : undefined;
-      const serverMessage = error instanceof ApiError ? error.message : String(body?.message ?? '');
+      const { message: serverMessage } = extractServerError(error);
       show({
         title: serverMessage || '최종 탈출구 지정에 실패했습니다.',
         variant: 'error',
@@ -3194,6 +3189,10 @@ const FloorPlansDetailPage = () => {
     const targetId = zoneResetTargetId;
     const nextCellIds = zoneDraftCellIds;
     const floorId = currentFloor.id;
+    // 삭제 전 원본을 남겨둠 — 삭제는 됐는데 생성만 실패했을 때 원래 이름·셀로 한 번 더
+    // 만들어보는 복구 시도에 씀(코드래빗 리뷰 반영: 복구 시도 없이 그냥 지워지기만 하면
+    // 사용자가 셀 목록을 기억해서 손으로 다시 만들어야 함)
+    const original = zones.find((z) => z.id === targetId);
     // 스웨거 확인 결과 구역 이름은 같은 층 안에서 유일해야 함 — 이름을 그대로 두고
     // 셀만 재설정하는 흔한 경우, 기존 구역을 먼저 안 지우면 "이름 중복"으로 새 구역
     // 생성이 거부됨(재설정할 때마다 매번 실패하던 원인). 그래서 삭제 → 생성 순서로 감:
@@ -3220,9 +3219,12 @@ const FloorPlansDetailPage = () => {
       })
       .catch((error: unknown) => {
         const { message } = extractServerError(error);
-        if (deleted) {
-          // 삭제는 됐는데 새 구역 생성만 실패 — 목록에서도 지워서 실제 상태와 맞추고
-          // 되돌릴 방법이 없으니 다시 만들어야 한다고 명확히 알려줌
+        if (!deleted) {
+          show({ title: message || '구역 재설정에 실패했습니다.', variant: 'error' });
+          return;
+        }
+        if (!original) {
+          // 원본 정보가 없으면(이론상 거의 없음) 복구를 시도할 수 없음 — 기존 안내로 대체
           setZones((prev) => prev.filter((z) => z.id !== targetId));
           show({
             title:
@@ -3230,9 +3232,36 @@ const FloorPlansDetailPage = () => {
             variant: 'error',
             duration: 10000,
           });
-        } else {
-          show({ title: message || '구역 재설정에 실패했습니다.', variant: 'error' });
+          return;
         }
+        // 삭제는 됐는데 새 구역 생성만 실패 — 원래 이름·셀로 한 번 더 복구를 시도해서
+        // 실패 범위를 줄임(이름만 바꾸는 흔한 경우 특히 유효)
+        createUserZone(floorId, { name: original.label, cellIds: original.cellIds })
+          .then((restored) => {
+            setZones((prev) => [
+              ...prev.filter((z) => z.id !== targetId),
+              {
+                id: restored.id,
+                type: 'general',
+                label: original.label,
+                cellIds: original.cellIds,
+              },
+            ]);
+            show({
+              title: message || '구역 재설정에 실패해 이전 상태로 되돌렸습니다.',
+              variant: 'error',
+              duration: 10000,
+            });
+          })
+          .catch(() => {
+            // 복구 재시도까지 실패한 경우에만 진짜로 사라짐 — 목록에서 지우고 명확히 알림
+            setZones((prev) => prev.filter((z) => z.id !== targetId));
+            show({
+              title: '기존 구역이 삭제됐고 복구에도 실패했습니다. 구역을 다시 만들어주세요.',
+              variant: 'error',
+              duration: 10000,
+            });
+          });
       });
   };
 
@@ -3374,6 +3403,7 @@ const FloorPlansDetailPage = () => {
             {isEditing ? (
               <input
                 className={styles.deviceCardNameInput}
+                aria-label="구역 이름"
                 value={zoneEditLabel}
                 onChange={(e) => setZoneEditLabel(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
@@ -4121,7 +4151,6 @@ const FloorPlansDetailPage = () => {
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
                       { key: 'hallway', label: '복도' },
-                      { key: 'start', label: '시작 노드' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
