@@ -11,9 +11,11 @@ import { ApiError } from '@apis/errors/apiError';
 import type { BaseResponse } from '@apis/types/baseResponse';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
+import BuildingIcon from '@assets/icons/ic-building.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
+import EmptyState from '@components/empty';
 import useToast from '@components/toast/useToast';
 
 import { BUILDINGS_QUERY_KEY, useGetBuildingsQuery } from './api/useBuildingsQuery';
@@ -204,7 +206,12 @@ const BuildingsPage = () => {
         {isError && <p className={styles.errorMessage}>건물 목록을 불러오지 못했습니다.</p>}
 
         {!isLoading && !isError && buildings.length === 0 && (
-          <p className={styles.stateMessage}>등록된 건물이 없습니다.</p>
+          <EmptyState
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="아직 등록된 건물이 없습니다."
+            description="건물을 추가하면 층별 도면과 장비를 관리할 수 있습니다."
+          />
         )}
 
         {!isLoading && !isError && buildings.length > 0 && (

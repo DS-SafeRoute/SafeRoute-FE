@@ -6,7 +6,6 @@ export const ROUTES = {
   SCENARIO_LIST: '/scenarioSettings',
   SCENARIO_CREATE: '/scenarioSettings/new',
   SCENARIO_DETAIL: '/scenarioSettings/:scenarioId',
-  MANAGEMENT: '/management',
   BUILDINGS: '/buildings',
   FLOOR_PLANS: '/floorPlans',
   FLOOR_PLANS_DETAIL: '/floorPlans/:buildingId/:floorId',

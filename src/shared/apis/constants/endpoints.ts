@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: `${API_V1}/auth/login`,
     LOGOUT: `${API_V1}/auth/logout`,
+    REISSUE: `${API_V1}/auth/reissue`,
     SIGNUP: `${API_V1}/auth/signup`,
   },
 
@@ -47,6 +48,7 @@ export const API_ENDPOINTS = {
     START: (sessionId: string) => `${API_V1}/sessions/${sessionId}/start`,
     END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/end`,
     FORCE_END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/force-end`,
+    CURRENT_ROUTE: (sessionId: string) => `${API_V1}/sessions/${sessionId}/current-route`,
     // 훈련분석(모니터링): 종료된 세션의 카메라별 최신 캡처/프레임 목록/이벤트 타임라인
     MONITORING_CAMERAS: (sessionId: string) => `${API_V1}/sessions/${sessionId}/monitoring/cameras`,
     MONITORING_FRAMES: (sessionId: string, cctvId: string) =>
@@ -58,6 +60,8 @@ export const API_ENDPOINTS = {
   SCENARIOS: {
     ROOT: `${API_V1}/scenarios`,
     DETAIL: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}`,
+    FIRE_ORIGIN: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-origin`,
+    FIRE_ZONES: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,
   },
 
   // 훈련 리포트
@@ -132,7 +136,7 @@ export const API_ENDPOINTS = {
       `${API_V1}/congestion-observations/${eventId}/image-url`,
   },
 
-  // 경로 재탐색 — 훈련 중 서버가 자동 생성한 요청을 조회하고 승인/거부
+  // 재탐색 — 훈련 중 서버가 자동 생성한 요청을 조회하고 승인/거부
   ROUTE_RECALCULATIONS: {
     ROOT: `${API_V1}/route-recalculations`,
     DETAIL: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}`,

@@ -64,13 +64,6 @@ const router = createBrowserRouter([
         lazy: loadScenarioSettingsPage,
       },
       {
-        path: ROUTES.MANAGEMENT,
-        lazy: async () => {
-          const { default: ManagementPage } = await import('@/pages/management/ManagementPage');
-          return { Component: ManagementPage };
-        },
-      },
-      {
         path: ROUTES.BUILDINGS,
         lazy: async () => {
           const { default: BuildingsPage } = await import('@/pages/buildings/BuildingsPage');
@@ -90,13 +83,6 @@ const router = createBrowserRouter([
           const { default: FloorPlansDetailPage } =
             await import('@/pages/floorPlans/FloorPlansDetailPage');
           return { Component: FloorPlansDetailPage };
-        },
-      },
-      {
-        path: ROUTES.CAMERAS,
-        lazy: async () => {
-          const { default: CamerasPage } = await import('@/pages/cameras/CamerasPage');
-          return { Component: CamerasPage };
         },
       },
       {

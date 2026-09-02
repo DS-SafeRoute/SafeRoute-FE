@@ -13,7 +13,7 @@ const DEFAULT_GNB_CONFIG = {
 
 const SCENARIO_SETTINGS_GNB_CONFIG = {
   title: '시나리오 설정',
-  description: '화재 발생 위치와 조건을 설정하고 시나리오를 시작합니다',
+  description: '화재 발생 위치를 확인하고 시나리오를 시작합니다',
 } as const satisfies GNBConfig;
 
 const GNB_CONFIGS = [
@@ -42,7 +42,7 @@ const GNB_CONFIGS = [
   {
     path: ROUTES.BUILDINGS,
     config: {
-      breadcrumbs: [{ label: '훈련 관리' }],
+      breadcrumbs: [{ label: '관리' }],
       title: '건물 관리',
       description: '등록된 건물과 시설을 관리합니다',
     },
@@ -61,14 +61,6 @@ const GNB_CONFIGS = [
       breadcrumbs: [{ label: '관리' }, { label: '도면 관리' }],
       title: '도면 관리 상세',
       description: '층별 도면을 확인하고 관리합니다',
-    },
-  },
-  {
-    path: ROUTES.CAMERAS,
-    config: {
-      breadcrumbs: [{ label: '관리' }],
-      title: '카메라 관리',
-      description: 'CCTV 카메라 등록 및 설정 관리',
     },
   },
   {
@@ -100,13 +92,6 @@ const GNB_CONFIGS = [
     config: {
       title: '분석 보고서',
       description: '훈련 분석 보고서를 확인합니다',
-    },
-  },
-  {
-    path: ROUTES.MANAGEMENT,
-    config: {
-      title: '관리',
-      description: '시스템 관리 항목을 확인합니다',
     },
   },
 ] as const satisfies readonly { path: string; config: GNBConfig }[];

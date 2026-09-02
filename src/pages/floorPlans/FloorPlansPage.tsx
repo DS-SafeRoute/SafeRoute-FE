@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { isAxiosError } from 'axios';
 import { useNavigate } from 'react-router';
 
+import BuildingIcon from '@assets/icons/ic-building.svg?react';
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
 import UploadIcon from '@assets/icons/ic-upload.svg?react';
 
+import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
+
+import { ROUTES } from '@constants/path';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
 
@@ -160,7 +164,7 @@ const FloorPlansPage = () => {
   const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
   const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
@@ -173,17 +177,21 @@ const FloorPlansPage = () => {
     };
   }, [pendingUpload]);
 
-  useEffect(() => {
+  const loadFloorBuildings = useCallback(() => {
     setLoading(true);
-    setIsError(false);
-    getFloorBuildings()
+    setHasLoadError(false);
+    return getFloorBuildings()
       .then(setBuildings)
       .catch(() => {
-        setIsError(true);
+        setHasLoadError(true);
         show({ title: '도면 목록을 불러오지 못했습니다.', variant: 'error' });
       })
       .finally(() => setLoading(false));
   }, [show]);
+
+  useEffect(() => {
+    void loadFloorBuildings();
+  }, [loadFloorBuildings]);
 
   const handleOpenFloorUpload = (target: FloorActionTarget) => {
     setUploadTarget({
@@ -287,29 +295,40 @@ const FloorPlansPage = () => {
       });
   };
 
+  const hasFloors = buildings.some((building) => building.floors.length > 0);
+
   return (
     <>
       <div className={styles.container}>
         {loading && <LoadingState />}
-
-        {!loading && isError && (
+        {!loading && hasLoadError ? (
           <EmptyState
-            icon={<MapIcon width={32} height={32} />}
-            title="도면 목록을 불러오지 못했습니다"
-            description="잠시 후 다시 시도해주세요"
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="도면 목록을 불러오지 못했습니다."
+            action={
+              <Button type="button" variant="ghost" onClick={() => void loadFloorBuildings()}>
+                다시 시도
+              </Button>
+            }
           />
-        )}
-
-        {!loading && !isError && buildings.length === 0 && (
+        ) : null}
+        {!loading && !hasLoadError && !hasFloors ? (
           <EmptyState
-            icon={<MapIcon width={32} height={32} />}
-            title="등록된 건물이 없습니다"
-            description="건물 관리에서 건물을 등록하면 층별 도면을 관리할 수 있습니다"
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="등록된 도면이 없습니다."
+            description="건물과 층 정보를 등록한 뒤 도면을 업로드해 주세요."
+            action={
+              <Button type="button" onClick={() => void navigate(ROUTES.BUILDINGS)}>
+                건물 등록하러 가기
+              </Button>
+            }
           />
-        )}
-
+        ) : null}
         {!loading &&
-          !isError &&
+          !hasLoadError &&
+          hasFloors &&
           buildings.map((building) => (
             <section key={building.id} className={styles.buildingSection}>
               <div className={styles.buildingHeader}>

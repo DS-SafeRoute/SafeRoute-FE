@@ -9,4 +9,10 @@ export const trainingSessionQueryKeys = {
   lists: () => [...trainingSessionQueryKeys.all, 'list'] as const,
   // 특정 상태의 세션 목록 쿼리키
   list: (status: TrainingSessionStatus) => [...trainingSessionQueryKeys.lists(), status] as const,
+
+  // 현재 유효 대피 경로 쿼리의 공통 키
+  currentRoutes: () => [...trainingSessionQueryKeys.all, 'current-route'] as const,
+  // 특정 세션의 현재 유효 대피 경로 쿼리키
+  currentRoute: (sessionId?: string) =>
+    [...trainingSessionQueryKeys.currentRoutes(), sessionId] as const,
 };

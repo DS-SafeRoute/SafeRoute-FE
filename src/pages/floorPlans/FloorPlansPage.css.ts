@@ -4,10 +4,26 @@ import { vars } from '@styles/global.css';
 
 export const container = style({
   display: 'flex',
+  flex: 1,
   flexDirection: 'column',
   gap: vars.space.s8,
   padding: vars.space.s8,
+  minHeight: '100%',
   overflowY: 'auto',
+});
+
+export const stateMessage = style({
+  padding: `${vars.space.s5} 0`,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
+export const emptyState = style({
+  flex: 1,
+  border: `1px dashed ${vars.color.gray200}`,
+  borderRadius: vars.radius.lg,
+  backgroundColor: vars.color.white,
+  minHeight: '36rem',
 });
 
 export const buildingSection = style({

@@ -1,5 +1,6 @@
 import type {
   CreateSessionRequest,
+  CurrentRouteResponse,
   TrainingSessionResponse,
   TrainingSessionSummaryResponse,
 } from '@apis/__generated__/data-contracts';
@@ -54,4 +55,12 @@ export const postForceEndTrainingSession = (sessionId: string) =>
   request<TrainingSessionResponse>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.TRAINING_SESSIONS.FORCE_END(sessionId),
+  });
+
+// 훈련 세션에서 현재 안내 중인 대피 경로 조회
+export const getCurrentTrainingRoute = (sessionId: string, signal?: AbortSignal) =>
+  request<CurrentRouteResponse>({
+    method: HTTP_METHOD.GET,
+    url: API_ENDPOINTS.TRAINING_SESSIONS.CURRENT_ROUTE(sessionId),
+    signal,
   });
