@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { useQueries } from '@tanstack/react-query';
 
@@ -48,7 +48,11 @@ export const useViewableTrainingSessionsQuery = () => {
     })),
   });
 
-  hasRunningRef.current = (running.data?.length ?? 0) > 0;
+  // 렌더 도중이 아니라 커밋 이후(effect)에 갱신 — StrictMode의 렌더 2회 호출이나 중단된
+  // 렌더 패스가 ref 값을 오염시키지 않도록 함
+  useEffect(() => {
+    hasRunningRef.current = (running.data?.length ?? 0) > 0;
+  }, [running.data]);
 
   // useQueries 결과 배열 자체는 매 렌더마다 새 참조라 useMemo 의존성으로 못 씀 —
   // 각 쿼리의 data만 뽑아서 의존성에 넣음(react-query가 data 참조는 안정적으로 유지해줌)
