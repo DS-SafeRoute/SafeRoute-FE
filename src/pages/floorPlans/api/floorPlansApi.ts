@@ -1,13 +1,25 @@
 import { getBuildings } from '@pages/buildings/api/buildingsApi';
 
-import type { FloorImageUrlResponse, FloorResponse } from '@apis/__generated__/data-contracts';
+import type { FloorResponse } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
+import {
+  getBuildingFloors as getSharedBuildingFloors,
+  getFloorImageUrl,
+} from '@apis/floors/floorsApi';
 
 import type { Floor, FloorBuilding } from '../types/floorPlans';
 
 // devices/pois는 CCTV·IoT·맵그래프 API 연동 전까지 빈 배열로 둠 (다음 단위에서 채울 예정)
-export const toFloor = (response: FloorResponse, buildingId: string): Floor => {
+interface FloorSource {
+  id?: string;
+  floorNum?: number;
+  segmentationStatus?: FloorResponse['segmentationStatus'];
+  processedAt?: string | null;
+  mapImageKey?: string | null;
+}
+
+export const toFloor = (response: FloorSource, buildingId: string): Floor => {
   const { id, floorNum, segmentationStatus, processedAt, mapImageKey } = response;
   if (!id || floorNum === undefined || !segmentationStatus) {
     throw new Error('층 응답에 필수 필드가 누락되었습니다.');
@@ -28,10 +40,7 @@ export const toFloor = (response: FloorResponse, buildingId: string): Floor => {
 };
 
 export async function getBuildingFloors(buildingId: string): Promise<Floor[]> {
-  const floors = await apiRequest<FloorResponse[]>({
-    method: HTTP_METHOD.GET,
-    url: API_ENDPOINTS.FLOORS.ROOT(buildingId),
-  });
+  const floors = await getSharedBuildingFloors(buildingId);
   return floors.map((f) => toFloor(f, buildingId));
 }
 
@@ -101,24 +110,5 @@ export async function analyzeFloor(floorId: string): Promise<void> {
   });
 }
 
-export interface FloorImageUrl {
-  imageUrl: string;
-  expiresAt: string;
-}
-
-// 실제 캔버스에 그릴 도면 이미지의 presigned URL — 상세페이지에서 조회 중인 층 하나에 대해서만 호출
-// (목록 페이지에서 도면마다 미리 다 발급받으면 낭비라 getBuildingFloors/toFloor에는 안 넣음)
-export async function getFloorImageUrl(
-  buildingId: string,
-  floorId: string,
-): Promise<FloorImageUrl> {
-  const response = await apiRequest<FloorImageUrlResponse>({
-    method: HTTP_METHOD.GET,
-    url: API_ENDPOINTS.FLOORS.IMAGE_URL(buildingId, floorId),
-  });
-  const { imageUrl, expiresAt } = response;
-  if (!imageUrl || !expiresAt) {
-    throw new Error('도면 이미지 URL 응답에 필수 필드가 누락되었습니다.');
-  }
-  return { imageUrl, expiresAt };
-}
+export { getFloorImageUrl };
+export type { FloorImageUrl } from '@apis/floors/floorsApi';

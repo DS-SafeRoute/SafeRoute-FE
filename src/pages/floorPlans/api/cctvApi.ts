@@ -1,5 +1,4 @@
 import type {
-  CctvGridCellResponse,
   CctvRegistrationResponse,
   CctvResponse,
   ConfigureCctvGridCellsRequest,
@@ -8,72 +7,11 @@ import type {
 } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
+import { toCctv } from '@apis/floors/cctvApi';
+import type { Cctv } from '@apis/floors/cctvApi';
 
-export interface CctvGridCell {
-  id: string;
-  rowIndex: number;
-  columnIndex: number;
-  centerX: number;
-  centerY: number;
-  walkable: boolean;
-}
-
-export interface Cctv {
-  id: string;
-  code: string;
-  name: string;
-  floorId: string;
-  /** 0~1 비율 좌표 */
-  x: number;
-  /** 0~1 비율 좌표 */
-  y: number;
-  enabled: boolean;
-  monitoredGridCellCount: number;
-  monitoredAreaM2: number;
-  gridCells: CctvGridCell[];
-}
-
-const toCctvGridCell = (response: CctvGridCellResponse): CctvGridCell => {
-  const { id, rowIndex, columnIndex, centerX, centerY } = response;
-  if (
-    !id ||
-    rowIndex === undefined ||
-    columnIndex === undefined ||
-    centerX === undefined ||
-    centerY === undefined
-  ) {
-    throw new Error('CCTV 그리드 셀 응답에 필수 필드가 누락되었습니다.');
-  }
-  return { id, rowIndex, columnIndex, centerX, centerY, walkable: response.walkable ?? true };
-};
-
-const toCctv = (response: CctvResponse): Cctv => {
-  const { id, code, name, floorId, x, y } = response;
-  if (!id || !code || !name || !floorId || x === undefined || y === undefined) {
-    throw new Error('CCTV 응답에 필수 필드가 누락되었습니다.');
-  }
-  return {
-    id,
-    code,
-    name,
-    floorId,
-    x,
-    y,
-    enabled: response.enabled ?? false,
-    monitoredGridCellCount: response.monitoredGridCellCount ?? 0,
-    monitoredAreaM2: response.monitoredAreaM2 ?? 0,
-    gridCells: (response.gridCells ?? []).map(toCctvGridCell),
-  };
-};
-
-export async function getFloorCctvs(floorId: string): Promise<Cctv[]> {
-  const cctvs = await apiRequest<CctvResponse[]>({
-    method: HTTP_METHOD.GET,
-    url: API_ENDPOINTS.CCTV.ROOT,
-    query: { floorId },
-  });
-  return cctvs.map(toCctv);
-}
+export { getFloorCctvs } from '@apis/floors/cctvApi';
+export type { Cctv, CctvGridCell } from '@apis/floors/cctvApi';
 
 export async function createCctv(body: CreateCctvRequest): Promise<Cctv> {
   const registration = await apiRequest<CctvRegistrationResponse, CreateCctvRequest>({

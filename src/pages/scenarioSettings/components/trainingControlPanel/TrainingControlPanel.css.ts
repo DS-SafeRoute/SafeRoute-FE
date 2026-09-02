@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 
 import { sectionCardBase } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 
@@ -77,6 +77,30 @@ export const proposalMessage = style({
   minHeight: '3.6rem',
   color: vars.color.textMid,
   ...vars.typography.body14,
+});
+
+export const routeComparison = style({
+  display: 'grid',
+  gap: vars.space.s2,
+  marginTop: vars.space.s3,
+  marginBottom: 0,
+});
+
+globalStyle(`${routeComparison} > div`, {
+  display: 'grid',
+  gridTemplateColumns: '3.2rem 1fr',
+  gap: vars.space.s2,
+});
+
+globalStyle(`${routeComparison} dt`, {
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+globalStyle(`${routeComparison} dd`, {
+  margin: 0,
+  color: vars.color.textMid,
+  ...vars.typography.caption,
 });
 
 export const proposalActions = style({

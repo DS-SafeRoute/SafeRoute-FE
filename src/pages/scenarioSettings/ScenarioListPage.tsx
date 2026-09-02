@@ -29,7 +29,7 @@ const ScenarioListPage = () => {
   const navigate = useNavigate();
   const { show } = useToast();
   const { data: scenarios = [], isPending, isError, refetch } = useGetScenariosQuery();
-  const { data: buildings = [] } = useGetBuildingsQuery();
+  const { data: buildings = [], isPending: areBuildingsPending } = useGetBuildingsQuery();
   const deleteScenarioMutation = useDeleteScenarioMutation();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [deleteTarget, setDeleteTarget] = useState<ScenarioSummary | null>(null);
@@ -39,7 +39,18 @@ const ScenarioListPage = () => {
     (scenario) => statusFilter === 'ALL' || scenario.status === statusFilter,
   );
 
-  const navigateToCreate = () => void navigate(ROUTES.SCENARIO_CREATE);
+  const navigateToCreate = () => {
+    if (buildings.length === 0) {
+      show({
+        title: '건물을 먼저 등록해 주세요.',
+        description: '시나리오를 추가하려면 대상 건물이 필요합니다.',
+        variant: 'default',
+      });
+      return;
+    }
+
+    void navigate(ROUTES.SCENARIO_CREATE);
+  };
 
   const handleOpen = (scenario: ScenarioSummary) => {
     void navigate(getScenarioDetailPath(scenario.id));
@@ -83,6 +94,7 @@ const ScenarioListPage = () => {
             className={styles.addButton}
             leftIcon={<PlusIcon />}
             onClick={navigateToCreate}
+            disabled={areBuildingsPending}
           >
             시나리오 추가
           </Button>

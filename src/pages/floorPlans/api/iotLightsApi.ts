@@ -9,53 +9,11 @@ import type {
 } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
+import { toIoTLight } from '@apis/floors/iotLightsApi';
+import type { IoTLight } from '@apis/floors/iotLightsApi';
 
-export interface IoTLight {
-  id: string;
-  code: string;
-  name: string;
-  floorId: string;
-  /** 0~1 비율 좌표 */
-  x: number;
-  /** 0~1 비율 좌표 */
-  y: number;
-  enabled: boolean;
-  guidanceConfigured: boolean;
-  decisionNodeId: string | null;
-  leftEdgeId: string | null;
-  rightEdgeId: string | null;
-  piEndpoint: string | null;
-}
-
-const toIoTLight = (response: IoTLightResponse): IoTLight => {
-  const { id, code, name, floorId, x, y } = response;
-  if (!id || !code || !name || !floorId || x === undefined || y === undefined) {
-    throw new Error('유도등 응답에 필수 필드가 누락되었습니다.');
-  }
-  return {
-    id,
-    code,
-    name,
-    floorId,
-    x,
-    y,
-    enabled: response.enabled ?? false,
-    guidanceConfigured: response.guidanceConfigured ?? false,
-    decisionNodeId: response.decisionNodeId ?? null,
-    leftEdgeId: response.leftEdgeId ?? null,
-    rightEdgeId: response.rightEdgeId ?? null,
-    piEndpoint: response.piEndpoint ?? null,
-  };
-};
-
-export async function getFloorLights(floorId: string): Promise<IoTLight[]> {
-  const lights = await apiRequest<IoTLightResponse[]>({
-    method: HTTP_METHOD.GET,
-    url: API_ENDPOINTS.IOT_LIGHTS.ROOT,
-    query: { floorId },
-  });
-  return lights.map(toIoTLight);
-}
+export { getFloorLights } from '@apis/floors/iotLightsApi';
+export type { IoTLight } from '@apis/floors/iotLightsApi';
 
 export async function createIoTLight(body: CreateIoTLightRequest): Promise<IoTLight> {
   const light = await apiRequest<IoTLightResponse, CreateIoTLightRequest>({

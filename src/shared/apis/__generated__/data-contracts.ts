@@ -10,6 +10,13 @@
  * ---------------------------------------------------------------
  */
 
+export type AckData = LightCommandAckResponse;
+
+export interface AckLightCommandRequest {
+  failReason?: string;
+  success: boolean;
+}
+
 export interface AllUserZoneResponse {
   userzones?: UserZoneResponse[];
 }
@@ -49,6 +56,13 @@ export interface ApiResponseCongestionImageUrlResponse {
   isSuccess?: boolean;
   message?: string;
   result?: CongestionImageUrlResponse;
+}
+
+export interface ApiResponseCurrentRouteResponse {
+  code?: string;
+  isSuccess?: boolean;
+  message?: string;
+  result?: CurrentRouteResponse;
 }
 
 export interface ApiResponseDashboardStatsResponse {
@@ -269,6 +283,13 @@ export interface ApiResponseVoid {
 }
 
 export type ApproveData = ApiResponseRouteRecalculationResponse;
+
+export type AssignCctvData = ApiResponseIoTLightResponse;
+
+export interface AssignCctvRequest {
+  /** @format uuid */
+  cctvId: string;
+}
 
 export interface BuildingResponse {
   address?: string;
@@ -516,7 +537,7 @@ export interface CreateMapNodeRequest {
   isExitTarget?: boolean;
   /** @minLength 1 */
   name: string;
-  type: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "CUSTOM";
+  type: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "START" | "CUSTOM";
   /** @format double */
   x: number;
   /** @format double */
@@ -556,23 +577,6 @@ export interface CreatePresignedImageUrlRequest {
 
 export type CreatePresignedUrlData = PresignedImageUrlResponse;
 
-export type CreateReportData = ReportResponse;
-
-export interface CreateReportRequest {
-  /** @minLength 1 */
-  aiRecommendations: string;
-  /** @format int32 */
-  avgEvacuationSec: number;
-  grade: "A" | "B" | "C" | "D" | "F";
-  /** @format int32 */
-  participantCount: number;
-  /** @minLength 1 */
-  pdfUrl: string;
-  /** @format double */
-  riskIndex: number;
-  survivalRate: number;
-}
-
 export type CreateScenarioData = ScenarioResponse;
 
 export interface CreateScenarioRequest {
@@ -591,8 +595,8 @@ export interface CreateScenarioRequest {
   name: string;
   /** @format date-time */
   scheduledAt: string;
-  /** @format uuid */
-  startNodeId: string;
+  /** @format int32 */
+  targetEvacuationSec?: number;
 }
 
 export interface CreateSessionRequest {
@@ -612,6 +616,32 @@ export interface CreateSessionRequest {
 export type CreateTrainingSessionData = TrainingSessionResponse;
 
 export type CreateUserZoneData = ApiResponseUserZoneResponse;
+
+export interface CumulativeEvacuationPointResponse {
+  /** @format int32 */
+  cumulativeCount?: number;
+  /** @format int32 */
+  elapsedSec?: number;
+}
+
+export interface CurrentRouteResponse {
+  /** @format uuid */
+  buildingId?: string;
+  /** @format uuid */
+  floorId?: string;
+  path?: NodePoint[];
+  /** @format uuid */
+  scenarioId?: string;
+  /** @format uuid */
+  sessionId?: string;
+  source?: "INITIAL" | "RECALCULATED";
+  /** @format uuid */
+  startNodeId?: string;
+  /** @format double */
+  totalWeight?: number;
+  /** @format date-time */
+  updatedAt?: string;
+}
 
 export interface DashboardStatsResponse {
   /** @format double */
@@ -649,6 +679,9 @@ export interface DeviceTokenIssueResponse {
 export type DisableCctvData = ApiResponseCctvResponse;
 
 export type DisableLightData = ApiResponseIoTLightResponse;
+
+/** @format byte */
+export type DownloadReportPdfData = Blob;
 
 export type EnableCctvData = ApiResponseCctvResponse;
 
@@ -697,11 +730,21 @@ export interface FloorGraphResponse {
 }
 
 export interface FloorGridCellPageResponse {
+  /** @format double */
+  cellSizeMeter?: number;
+  /** @format int32 */
+  columns?: number;
   content?: FloorGridCellResponse[];
   first?: boolean;
   last?: boolean;
   /** @format int32 */
   page?: number;
+  /** @format double */
+  realHeight?: number;
+  /** @format double */
+  realWidth?: number;
+  /** @format int32 */
+  rows?: number;
   /** @format int32 */
   size?: number;
   /** @format int64 */
@@ -759,6 +802,15 @@ export interface FloorResponse {
 
 export type ForceEndTrainingSessionData = ApiResponseTrainingSessionResponse;
 
+export type GenerateReportData = ReportResponse;
+
+export interface GenerateReportRequest {
+  /** @format int32 */
+  participantCount: number;
+  /** @format int32 */
+  survivorCount: number;
+}
+
 export type GetBuildingData = ApiResponseBuildingResponse;
 
 export type GetBuildingsData = ApiResponseListBuildingResponse;
@@ -771,11 +823,17 @@ export type GetCctvsData = ApiResponseListCctvResponse;
 
 export type GetConfigData = CongestionConfigQueryResponse;
 
+export type GetCurrentRouteData = ApiResponseCurrentRouteResponse;
+
 export type GetDeviationRateData = ApiResponseRouteDeviationResponse;
 
 export type GetEventImageUrlData = ApiResponseCongestionImageUrlResponse;
 
 export type GetEventsData = MonitoringEventListApiResponse;
+
+export type GetFireOriginData = FireZoneResponse[];
+
+export type GetFireZonesData = FireZoneResponse[];
 
 export type GetFloorData = ApiResponseFloorResponse;
 
@@ -822,6 +880,8 @@ export type GetStatsData = ApiResponseDashboardStatsResponse;
 export type GetTrainingStatusData = ApiResponseTrainingStatusResponse;
 
 export interface IoTLightResponse {
+  /** @format uuid */
+  cctvId?: string;
   code?: string;
   /** @format uuid */
   decisionNodeId?: string;
@@ -844,6 +904,23 @@ export interface IoTLightResponse {
 }
 
 export type IssueDeviceTokenData = ApiResponseDeviceTokenIssueResponse;
+
+export interface LightCommandAckResponse {
+  /** @format uuid */
+  commandId?: string;
+  status?: "PENDING" | "SENT" | "ACKED" | "FAILED" | "TIMED_OUT" | "SUPERSEDED";
+}
+
+export interface LightCommandListResponse {
+  commands?: LightCommandResponse[];
+}
+
+export interface LightCommandResponse {
+  /** @format uuid */
+  commandId?: string;
+  direction?: "LEFT" | "RIGHT" | "BOTH" | "OFF";
+  lightCode?: string;
+}
 
 export interface LightDirectionResponse {
   direction?: "LEFT" | "RIGHT" | "BOTH" | "OFF";
@@ -897,7 +974,7 @@ export interface MapNodeResponse {
   id?: string;
   isExitTarget?: boolean;
   name?: string;
-  type?: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "CUSTOM";
+  type?: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "START" | "CUSTOM";
   /** @format double */
   x?: number;
   /** @format double */
@@ -1152,6 +1229,17 @@ export interface MonitoringFrameResponse {
   urlExpiresAt?: number;
 }
 
+export interface NodePoint {
+  name?: string;
+  /** @format uuid */
+  nodeId?: string;
+  type?: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "START" | "CUSTOM";
+  /** @format double */
+  x?: number;
+  /** @format double */
+  y?: number;
+}
+
 export interface ObservationResponse {
   /** @format double */
   avgHeadcount?: number;
@@ -1178,11 +1266,20 @@ export interface ObservationResponse {
   windowStart?: number;
 }
 
+export type PollCommandsData = LightCommandListResponse;
+
 export interface PresignedImageUrlResponse {
   /** @format int64 */
   expiresAt?: number;
   objectKey?: string;
   uploadUrl?: string;
+}
+
+export interface RecentEvacuationResponse {
+  /** @format int32 */
+  evacuationSec?: number;
+  /** @format int32 */
+  ordinal?: number;
 }
 
 export interface RecentTrainingReportResponse {
@@ -1195,6 +1292,12 @@ export interface RecentTrainingReportResponse {
   /** @format date-time */
   startedAt?: string;
   survivalRate?: number;
+}
+
+export interface RecommendationResponse {
+  description?: string;
+  priority?: "HIGH" | "MEDIUM" | "LOW";
+  title?: string;
 }
 
 export type ReissueData = ApiResponseReissueResponse;
@@ -1216,6 +1319,12 @@ export type RejectData = ApiResponseRouteRecalculationResponse;
 
 export interface RejectRouteRecalculationRequest {
   reason?: string;
+}
+
+export interface ReportChartsResponse {
+  cumulativeEvacuation?: CumulativeEvacuationPointResponse[];
+  recentEvacuationTimes?: RecentEvacuationResponse[];
+  zoneDensities?: ZoneDensityResponse[];
 }
 
 export type ReportCongestionEventData = CongestionEventResponse;
@@ -1269,17 +1378,33 @@ export interface ReportObservationRequest {
 }
 
 export interface ReportResponse {
-  aiRecommendations?: string;
   /** @format int32 */
   avgEvacuationSec?: number;
+  /** @format int32 */
+  bottleneckCount?: number;
+  /** @format int32 */
+  bottleneckScore?: number;
+  charts?: ReportChartsResponse;
+  /** @format double */
+  deviationRate?: number;
+  /** @format int32 */
+  deviationScore?: number;
+  /** @format int32 */
+  evacuationScore?: number;
   grade?: "A" | "B" | "C" | "D" | "F";
+  /** @format double */
+  overallScore?: number;
   /** @format int32 */
   participantCount?: number;
   pdfUrl?: string;
+  recommendations?: RecommendationResponse[];
   reportId?: string;
   /** @format double */
   riskIndex?: number;
+  summaryText?: string;
   survivalRate?: number;
+  /** @format int32 */
+  survivorCount?: number;
 }
 
 export interface RouteDeviationResponse {
@@ -1302,6 +1427,12 @@ export interface RouteRecalculationDetailResponse {
   congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
   /** @format double */
   density?: number;
+  densityUnit?: "PERSON_PER_SQUARE_METER";
+  /** @format uuid */
+  floorId?: string;
+  /** @format int32 */
+  floorNum?: number;
+  locationName?: string;
   previousRoute?: RouteSegment;
   /** @format uuid */
   recalculationId?: string;
@@ -1344,6 +1475,12 @@ export interface RouteRecalculationSummaryResponse {
   congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
   /** @format double */
   density?: number;
+  densityUnit?: "PERSON_PER_SQUARE_METER";
+  /** @format uuid */
+  floorId?: string;
+  /** @format int32 */
+  floorNum?: number;
+  locationName?: string;
   /** @format uuid */
   recalculationId?: string;
   /** @format date-time */
@@ -1392,6 +1529,8 @@ export interface ScenarioResponse {
   /** @format uuid */
   startNodeId?: string;
   status?: "DRAFT" | "READY" | "IN_PROGRESS" | "COMPLETED" | "ERROR";
+  /** @format int32 */
+  targetEvacuationSec?: number;
   /** @format date-time */
   updatedAt?: string;
 }
@@ -1580,6 +1719,7 @@ export type UpdateLightData = ApiResponseIoTLightResponse;
 
 export interface UpdateMapNodePositionRequest {
   isExitTarget?: boolean;
+  type?: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "START" | "CUSTOM";
   /** @format double */
   x: number;
   /** @format double */
@@ -1607,8 +1747,8 @@ export interface UpdateScenarioRequest {
   name?: string;
   /** @format date-time */
   scheduledAt?: string;
-  /** @format uuid */
-  startNodeId?: string;
+  /** @format int32 */
+  targetEvacuationSec?: number;
 }
 
 export interface UpdateUserProfileRequest {
@@ -1679,4 +1819,10 @@ export interface UserZoneResponse {
   /** @format uuid */
   userZoneId?: string;
   userZoneName?: string;
+}
+
+export interface ZoneDensityResponse {
+  /** @format double */
+  avgDensityPercent?: number;
+  zoneName?: string;
 }

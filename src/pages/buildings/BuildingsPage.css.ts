@@ -26,6 +26,13 @@ export const grid = style({
   gap: vars.space.s4,
 });
 
+export const emptyState = style({
+  border: `1px dashed ${vars.color.gray200}`,
+  borderRadius: vars.radius.lg,
+  backgroundColor: vars.color.white,
+  minHeight: '36rem',
+});
+
 export const stateMessage = style({
   padding: `${vars.space.s5} 0`,
   color: vars.color.textLow,

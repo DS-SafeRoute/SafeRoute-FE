@@ -43,12 +43,15 @@ export const API_ENDPOINTS = {
     START: (sessionId: string) => `${API_V1}/sessions/${sessionId}/start`,
     END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/end`,
     FORCE_END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/force-end`,
+    CURRENT_ROUTE: (sessionId: string) => `${API_V1}/sessions/${sessionId}/current-route`,
   },
 
   // 훈련 시나리오
   SCENARIOS: {
     ROOT: `${API_V1}/scenarios`,
     DETAIL: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}`,
+    FIRE_ORIGIN: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-origin`,
+    FIRE_ZONES: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,
   },
 
   // 훈련 리포트
@@ -116,8 +119,10 @@ export const API_ENDPOINTS = {
     ROOT: `${API_V1}/congestion-events`,
   },
 
-  // 재탐색 승인
+  // 재탐색
   ROUTE_RECALCULATIONS: {
+    ROOT: `${API_V1}/route-recalculations`,
+    DETAIL: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}`,
     APPROVE: (recalculationId: string) =>
       `${API_V1}/route-recalculations/${recalculationId}/approve`,
     REJECT: (recalculationId: string) => `${API_V1}/route-recalculations/${recalculationId}/reject`,
