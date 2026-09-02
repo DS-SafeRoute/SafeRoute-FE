@@ -15,7 +15,7 @@ import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
 
 import useToast from '@components/toast/useToast';
 
-import { ROUTES } from '@constants/path';
+import { getTrainingCamerasPath } from '@constants/path';
 
 import { useGetDashboardStatsQuery } from './api/useDashboardStatsQuery';
 import { useGetDashboardTrainingsQuery } from './api/useDashboardTrainingsQuery';
@@ -62,7 +62,9 @@ const HomePage = () => {
     if (!training) return;
 
     if (training.status === TRAINING_SESSION_STATUS.RUNNING) {
-      void navigate(ROUTES.TRAINING_MONITORING);
+      // 훈련분석 개편으로 실시간 모니터링(TRAINING_MONITORING) 라우트는 제거됐지만,
+      // 훈련분석의 카메라 목록·프레임 화면이 RUNNING 세션의 라이브 열람을 지원하므로 그쪽으로 보냄
+      void navigate(getTrainingCamerasPath(training.id));
       return;
     }
 

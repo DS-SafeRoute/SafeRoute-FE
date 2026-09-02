@@ -2,25 +2,25 @@ import { useCallback } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
-import { floorQueryKeys } from '@apis/floors/floorQueries';
-import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
-import { useGetCurrentTrainingRouteQuery } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
-import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
-import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trainingSessionEvents';
-
-import { fireZoneQueryKeys } from '../api/fireZones/fireZoneQueries';
 import {
   routeRecalculationQueryKeys,
   useApproveRouteRecalculationMutation,
   useRejectRouteRecalculationMutation,
   useRouteRecalculationDetailQuery,
   useRouteRecalculationsQuery,
-} from '../api/routeRecalculations/routeRecalculationQueries';
+} from '@pages/scenarioSettings/api/routeRecalculations/routeRecalculationQueries';
 import {
   formatCurrentRoute,
   formatRouteProposal,
   getLatestRecalculation,
-} from '../utils/trainingRoutes';
+} from '@pages/scenarioSettings/utils/trainingRoutes';
+
+import { floorQueryKeys } from '@apis/floors/floorQueries';
+import { fireZoneQueryKeys } from '@apis/scenarios/fireZoneQueries';
+import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
+import { useGetCurrentTrainingRouteQuery } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
+import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
+import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trainingSessionEvents';
 
 interface UseTrainingRouteDataParams {
   sessionId?: string | null;

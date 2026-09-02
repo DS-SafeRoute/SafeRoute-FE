@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { isAxiosError } from 'axios';
 import { useNavigate } from 'react-router';
 
 import BuildingIcon from '@assets/icons/ic-building.svg?react';
@@ -11,6 +12,7 @@ import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
@@ -23,6 +25,7 @@ import * as styles from './FloorPlansPage.css';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
+import { rememberPendingGridSize } from './utils/gridStorage';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
@@ -227,14 +230,18 @@ const FloorPlansPage = () => {
     setIsUploading(true);
     uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
       .then(async (newFloor) => {
-        // 그리드 생성을 기다리지 않고 바로 상세 화면으로 넘어가면, 상세 화면의 1회성 그리드 조회가
-        // 그리드가 채 만들어지기 전에 실행돼 빈 결과를 캐싱해버릴 수 있음 — 성공/실패와 무관하게 완료까지 대기
+        // 그리드 배율을 지금 설정해도, 뒤이어 실행되는 AI 분석이 그리드 셀을 재생성하면서
+        // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 남겨두고(새로고침에도 살아남음)
+        // 상세 화면에서 분석 완료 후 한 번 더 PUT 하게 함 — pending으로 남기고 값 자체도
+        // 기억해둬서 이후 CCTV 등록 때 사용자에게 다시 묻지 않게 함
+        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
+        // 상세 화면의 1회성 그리드 조회가 빈 결과를 캐싱하지 않도록, 이동 전에 한 번은 설정 시도
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
         } catch {
           show({
-            title: '그리드 설정에 실패했습니다. 상세 화면에서 다시 설정해주세요.',
-            variant: 'error',
+            title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
+            variant: 'warning',
           });
         }
         setBuildings((prev) =>
@@ -251,15 +258,23 @@ const FloorPlansPage = () => {
         );
         show({
           title: '도면이 업로드되었습니다.',
-          description: `${buildingName} · ${formatFloor(floorNum)} 도면이 등록되었습니다.`,
+          description: `${buildingName} · ${formatFloor(floorNum)} AI 분석이 진행 중입니다. 완료되면 상세 화면에 자동으로 반영됩니다.`,
           variant: 'success',
         });
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsUploading(false);
         void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
-        analyzeFloor(newFloor.id).catch(() => {
-          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        // 분석 요청은 서버에서 오래 걸려 타임아웃될 수 있는데, 타임아웃은 '분석이 시작됐다'는 증거가
+        // 아니므로 성공으로 넘기지 않는다. 상세 화면이 상태를 폴링하니 그쪽에서 확인하도록 안내만 구분
+        analyzeFloor(newFloor.id).catch((error: unknown) => {
+          const timedOut = isAxiosError(error) && error.code === 'ECONNABORTED';
+          show({
+            title: timedOut
+              ? '분석 요청 응답이 지연되고 있습니다. 상세 화면에서 진행 상태를 확인해주세요.'
+              : '도면 분석 요청에 실패했습니다. 상세 화면에서 다시 시도해주세요.',
+            variant: 'warning',
+          });
         });
       })
       .catch(() => {
@@ -274,7 +289,7 @@ const FloorPlansPage = () => {
   return (
     <>
       <div className={styles.container}>
-        {loading && <p className={styles.stateMessage}>불러오는 중...</p>}
+        {loading && <LoadingState />}
         {!loading && hasLoadError ? (
           <EmptyState
             className={styles.emptyState}

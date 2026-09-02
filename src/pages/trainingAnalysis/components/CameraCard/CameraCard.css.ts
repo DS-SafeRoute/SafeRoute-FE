@@ -5,83 +5,54 @@ import { vars } from '@styles/global.css';
 export const card = style({
   display: 'flex',
   flexDirection: 'column',
+  transition: 'box-shadow 0.15s',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   cursor: 'pointer',
-  padding: 0,
-  width: '100%',
   overflow: 'hidden',
   textAlign: 'left',
   selectors: {
-    '&:hover': {
-      borderColor: vars.color.primary,
+    '&:hover:not(:disabled)': {
+      boxShadow: vars.shadow.md,
+    },
+    '&:disabled': {
+      cursor: 'default',
     },
   },
 });
 
-export const video = style({
-  aspectRatio: '16/9',
+export const thumb = style({
+  aspectRatio: '16 / 9',
   position: 'relative',
-  backgroundColor: '#0a0f1a',
-});
-
-export const badgeRow = style({
-  position: 'absolute',
-  top: vars.space.s2,
-  right: vars.space.s2,
-  left: vars.space.s2,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-});
-
-export const liveBadge = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s1,
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.danger,
-  padding: '0.15rem 0.6rem',
-  color: vars.color.white,
-  ...vars.typography.caption,
-  fontWeight: vars.fontWeight.semibold,
-});
-
-export const liveDot = style({
-  borderRadius: '50%',
-  backgroundColor: vars.color.white,
-  width: '0.5rem',
-  height: '0.5rem',
-});
-
-export const offlineBadge = style({
-  display: 'flex',
-  alignItems: 'center',
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  padding: '0.15rem 0.6rem',
-  color: 'rgba(255,255,255,0.6)',
-  ...vars.typography.caption,
-});
-
-export const personCount = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.3rem',
-  borderRadius: vars.radius.sm,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  padding: '0.15rem 0.6rem',
-  color: vars.color.white,
-  ...vars.typography.caption,
-});
-
-export const offlineOverlay = style({
-  position: 'absolute',
-  inset: 0,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
+  backgroundColor: vars.color.gray900,
+});
+
+export const thumbImg = style({
+  objectFit: 'cover',
+  width: '100%',
+  height: '100%',
+});
+
+export const thumbPlaceholder = style({
+  borderRadius: vars.radius.sm,
+  backgroundColor: 'rgba(255,255,255,0.15)',
+  width: '15%',
+  height: '25%',
+});
+
+export const timeBadge = style({
+  position: 'absolute',
+  top: vars.space.s2,
+  right: vars.space.s2,
+  color: 'rgba(255,255,255,0.75)',
+  ...vars.typography.caption,
+});
+
+export const noFrame = style({
   color: 'rgba(255,255,255,0.4)',
   ...vars.typography.captionBold,
 });
@@ -90,21 +61,31 @@ export const info = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: `${vars.space.s2} ${vars.space.s3}`,
+  gap: vars.space.s2,
+  padding: vars.space.s4,
 });
 
 export const name = style({
   color: vars.color.textHigh,
-  ...vars.typography.captionBold,
+  ...vars.typography.body14Bold,
 });
 
-export const zone = style({
+export const location = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
 
-export const meta = style({
-  textAlign: 'right',
-  ...vars.typography.caption,
+export const link = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  gap: '0.2rem',
+  color: vars.color.primary,
+  ...vars.typography.body14Bold,
+});
+
+export const linkDisabled = style({
+  flexShrink: 0,
   color: vars.color.textLow,
+  ...vars.typography.caption,
 });

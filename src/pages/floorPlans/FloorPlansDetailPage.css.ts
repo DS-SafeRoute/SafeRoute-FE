@@ -545,8 +545,10 @@ export const zoneCardHeader = style({
 
 export const zoneCardTitleGroup = style({
   display: 'flex',
+  flex: 1,
   alignItems: 'center',
   gap: vars.space.s2,
+  minWidth: 0,
 });
 
 export const zoneCardDot = style({
@@ -558,6 +560,7 @@ export const zoneCardDot = style({
 
 export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
 export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
+export const zoneCardDotHallway = style({ backgroundColor: '#0891B2' });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 
 export const finalExitToggle = style({
@@ -586,6 +589,9 @@ export const finalExitBadge = style({
 });
 
 export const deviceCardName = style({
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
 });
@@ -596,6 +602,8 @@ export const deviceCardNameInput = style({
   borderRadius: vars.radius.sm,
   backgroundColor: vars.color.white,
   padding: `${vars.space.s1} ${vars.space.s2}`,
+  width: '100%',
+  minWidth: 0,
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
   selectors: {
@@ -956,6 +964,11 @@ export const canvasPlaceholder = style({
 export const canvasPlaceholderTitle = style({
   color: vars.color.textMid,
   ...vars.typography.body14Medium,
+});
+
+export const canvasPlaceholderText = style({
+  margin: 0,
+  color: 'inherit',
 });
 
 /* ── 줌 리셋 ── */

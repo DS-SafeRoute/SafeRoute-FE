@@ -1,19 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
+
+import { ApiError } from '@apis/errors/apiError';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
-import LayersIcon from '@assets/icons/ic-layers.svg?react';
+import EyeOffIcon from '@assets/icons/ic-eye-off.svg?react';
+import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
@@ -65,52 +70,81 @@ import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
+import {
+  GRID_SIZE_KEY,
+  PENDING_GRID_SIZE_KEY,
+  readStoredNumber,
+  rememberGridSize,
+  rememberPendingGridSize,
+} from './utils/gridStorage';
 
 import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
-import type { MapEdge, MapNode } from './api/mapGraphApi';
-import type {
-  AiLayer,
-  DeviceMarker,
-  EditMode,
-  Floor,
-  FloorBuilding,
-  PoiMarker,
-} from './types/floorPlans';
+import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
+import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
-type SelectedItem = { kind: 'device'; data: DeviceMarker } | { kind: 'poi'; data: PoiMarker };
+type SelectedItem = { kind: 'device'; data: DeviceMarker };
 
 type PanelItem = {
   id: string;
-  kind: 'device' | 'poi';
-  type: 'cctv' | 'iot' | 'light' | 'general';
+  kind: 'device';
+  /** 우측 패널 필터 기준 — AddedDevice.placeType과 같은 체계(유도등은 'light') */
+  type: 'cctv' | 'light' | 'general';
   label: string;
   statusText: string;
   statusOnline: boolean;
   zone: string;
-  source: 'floor' | 'added' | 'poi';
+  source: 'floor' | 'added';
 };
 
-type PoiType = 'exit' | 'stair' | 'extinguisher' | 'assembly' | 'firstaid';
-
-const POI_TYPE_CONFIG: Record<PoiType, { label: string; color: string; icon: string }> = {
-  exit: { label: '비상구', color: '#16a34a', icon: 'E' },
-  stair: { label: '계단', color: '#2563eb', icon: '▲' },
-  extinguisher: { label: '소화기', color: '#dc2626', icon: 'F' },
-  assembly: { label: '집결지', color: '#7c3aed', icon: 'A' },
-  firstaid: { label: '구급함', color: '#0891b2', icon: '+' },
+// 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
+// 두 군데(패널 목록 만들 때, 지도 클릭으로 필터 이동할 때)에서 각각 다시 구현하면 인식 못하는
+// 값의 처리(fallback)가 서로 어긋날 수 있어 하나로 합침
+const deviceTypeToPlaceType = (type: DeviceType): PanelItem['type'] => {
+  if (type === 'cctv') return 'cctv';
+  if (type === 'iot') return 'light';
+  return 'general';
 };
 
-type PlacingDeviceType = 'cctv' | 'iot' | 'light' | 'door' | 'stair';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair'>;
+// deviceTypeFilter(하위 필터 칩)는 'general' 칩이 따로 없어서, 그 값은 필터 해제(null)로 흡수함 —
+// 위 매핑에서 파생시켜 fallback이 서로 다른 두 벌의 변환 로직으로 갈라지지 않게 함
+const deviceTypeToFilterChip = (type: DeviceType): 'cctv' | 'light' | null => {
+  const placeType = deviceTypeToPlaceType(type);
+  return placeType === 'general' ? null : placeType;
+};
+
+// 브라우저는 mousemove를 초당 수백 번까지도 쏘는데, 드래그 중 매번 상태를 갱신하면 프레임마다
+// 전체 도면(SVG 그래프·그리드·패널)이 재렌더됨 — 프레임당 최신 좌표 한 번만 반영되도록 묶어줌
+const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
+  let rafId: number | null = null;
+  let latestArgs: A | null = null;
+  const flush = () => {
+    rafId = null;
+    if (latestArgs) fn(...latestArgs);
+  };
+  const throttled = (...args: A) => {
+    latestArgs = args;
+    if (rafId === null) rafId = requestAnimationFrame(flush);
+  };
+  throttled.cancel = () => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    rafId = null;
+    latestArgs = null;
+  };
+  return throttled;
+};
+
+// 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
-  iot: { label: 'IoT', color: '#16a34a' },
   light: { label: '유도등', color: '#d97706' },
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
+  hallway: { label: '복도', color: '#0891b2' },
 };
 
 type AddedDevice = {
@@ -133,7 +167,7 @@ type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] 
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
    isFinalExit은 문에서만 의미 있음(계단은 항상 false) */
-type StructureNodeType = 'door' | 'stair';
+type StructureNodeType = 'door' | 'stair' | 'hallway';
 
 type StructureNode = {
   id: string;
@@ -146,6 +180,31 @@ type StructureNode = {
 const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   door: '문 · 출입구',
   stair: '계단',
+  hallway: '복도',
+};
+
+// 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
+// 이 판정만 따로 놓쳐서 어긋나는 일이 없게 함
+const isStructureNodeType = (type: string): type is StructureNodeType =>
+  type in STRUCTURE_NODE_LABEL;
+
+// 구조 노드 ↔ 맵그래프 노드 타입 매핑 (API MapNodeResponse.type)
+const STRUCTURE_NODE_API_TYPE = {
+  door: 'DOOR',
+  stair: 'STAIR',
+  hallway: 'HALLWAY',
+} as const satisfies Record<StructureNodeType, MapNodeType>;
+
+const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
+  DOOR: 'door',
+  STAIR: 'stair',
+  HALLWAY: 'hallway',
+};
+
+const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
+  door: '#2563eb',
+  stair: '#f97316',
+  hallway: '#0891b2',
 };
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
@@ -158,23 +217,208 @@ const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> =
 
 type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
-const GRID_SIZE = 20;
+// 그리드(PUT /floors/{id}/grid, GET /floors/{id}/grid/cells)는 두 가지 용도로만 존재함:
+//  1) 사용자 구역(user-zone): 구역 = 그리드 셀 id의 집합(UserZoneCreateRequest.cellIds). 셀 단위로만 선택 가능
+//  2) 화재 구역(fire-zone): 초기 발화 셀 = 그리드 셀 id 하나(CreateFireZoneRequest.gridCellId), 화재 확산 시뮬레이션 기준
+// 반면 맵그래프 노드/엣지의 좌표(x,y)는 0~1 정규화 double로 자유 좌표이고 그리드와 무관함 —
+// 노드 배치/이동은 클릭한 지점 그대로 저장한다(격자 스냅 없음).
 
-// 그리드 셀 하나의 SVG 픽셀 크기 — 실제로는 정사각형 셀인데, 캔버스(560x420)가 4:3 고정 박스라
-// 가로/세로를 각각 컬럼/로우 수로 나누면 실제 도면 가로세로 비율에 따라 눌린 직사각형이 됨.
-// 두 값 중 더 작은 쪽으로 통일해서 항상 정사각형으로 보이게 함
-const getGridCellPxSize = (cells: FloorGridCell[]): { w: number; h: number } => {
+// CCTV 등록(POST /cctvs)은 감시 면적 계산에 그리드 배율(cellSizeMeter)을 요구하는데(없으면 CCTV006),
+// 배율 복원 순서(백엔드에 조회 API가 없어 브라우저에 기록해뒀다 되찾음):
+//   1) 이 브라우저에 기록해둔 값(업로드 때 입력했거나 이전에 설정한 값) — localStorage라 새로고침/재접속에도 유지
+//   2) 이 층에 이미 등록된 CCTV의 gridCellSizeMeter (한 대라도 있으면 그때 쓰인 배율을 알 수 있음)
+//   3) 위 둘 다 없을 때만 사용자에게 한 번 물어봄
+// 키 정의·읽기/쓰기 헬퍼는 FloorPlansPage(업로드 화면)도 같이 쓰므로 utils/gridStorage로 뺌
+
+// SVG 캔버스 폭은 560 고정, 높이는 도면 실제 비율(그리드 columns/rows 또는 이미지 비율)에 맞춰
+// 렌더 시점에 계산해서 넘김 — viewBox 비율 == 이미지 비율이므로 이미지를 늘리지 않고도
+// 그리드·노드·드래그 좌표가 전부 같은 0~1 ↔ 0~(560,canvasH) 공간에 정확히 맞물림
+const CANVAS_W = 560;
+const DEFAULT_CANVAS_H = 420;
+
+// AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
+const GRAPH_RETRY_LIMIT = 5;
+const GRAPH_RETRY_INTERVAL_MS = 2000;
+
+// 그리드 행·열 수 — 셀이 수십만 개까지 갈 수 있어서 Math.max(...spread) 대신 순회로 구함
+// (스프레드는 인자 개수 한계로 RangeError: Maximum call stack size exceeded가 날 수 있음)
+const getGridDimensions = (cells: FloorGridCell[]): { cols: number; rows: number } => {
+  let maxCol = 0;
+  let maxRow = 0;
+  for (const cell of cells) {
+    if (cell.columnIndex > maxCol) maxCol = cell.columnIndex;
+    if (cell.rowIndex > maxRow) maxRow = cell.rowIndex;
+  }
+  return { cols: maxCol + 1, rows: maxRow + 1 };
+};
+
+// 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560 x canvasH)를 열/행 수로 그대로 나눔.
+// 셀 rect가 캔버스를 정확히 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함
+const getGridCellPxSize = (cells: FloorGridCell[], canvasH: number): { w: number; h: number } => {
   if (cells.length === 0) return { w: 20, h: 20 };
-  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
-  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
-  const size = Math.min(560 / (maxCol + 1), 420 / (maxRow + 1));
-  return { w: size, h: size };
+  const { cols, rows } = getGridDimensions(cells);
+  return { w: CANVAS_W / cols, h: canvasH / rows };
+};
+
+// 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
+// 드래그 미리보기와 실제 잡히는 셀이 일치하도록 드래그 중/드래그 종료 양쪽에서 같은 로직을 씀
+const cellIdsIntersectingRect = (
+  cells: FloorGridCell[],
+  rect: { x: number; y: number; w: number; h: number },
+  size: { w: number; h: number },
+  canvasH: number,
+): string[] =>
+  cells
+    .filter((cell) => {
+      const left = cell.centerX * CANVAS_W - size.w / 2;
+      const top = cell.centerY * canvasH - size.h / 2;
+      return (
+        left < rect.x + rect.w &&
+        left + size.w > rect.x &&
+        top < rect.y + rect.h &&
+        top + size.h > rect.y
+      );
+    })
+    .map((cell) => cell.id);
+
+// 셀의 (row,col) 인덱스만으로 픽셀 좌표를 뽑을 수 있도록 그리드 원점(0,0 셀의 좌상단)을 역산.
+// 셀마다 제각각인 centerX/centerY(부동소수) 대신 원점+인덱스로 좌표를 계산하면 인접 셀의
+// 공유 모서리 좌표가 정확히 일치해서, 경계선/격자선에 미세한 어긋남이나 이중선이 안 생김
+const getGridPxOrigin = (
+  cells: FloorGridCell[],
+  size: { w: number; h: number },
+  canvasH: number,
+): { x: number; y: number } => {
+  const ref = cells[0];
+  if (!ref) return { x: 0, y: 0 };
+  return {
+    x: ref.centerX * CANVAS_W - size.w / 2 - ref.columnIndex * size.w,
+    y: ref.centerY * canvasH - size.h / 2 - ref.rowIndex * size.h,
+  };
+};
+
+// 셀 집합의 바깥 윤곽선을 하나의 SVG path(d)로. 셀별 rect를 이어 붙이면 반투명 채움 사이에
+// 이음매가 보여 "직사각형의 집합"처럼 보이므로, 합집합 윤곽을 구해 단일 도형으로 그림.
+const buildZoneOutlinePath = (
+  cells: FloorGridCell[],
+  size: { w: number; h: number },
+  canvasH: number,
+): string => {
+  const origin = getGridPxOrigin(cells, size, canvasH);
+  const cellKey = (col: number, row: number) => `${col},${row}`;
+  const inZone = new Set(cells.map((c) => cellKey(c.columnIndex, c.rowIndex)));
+  const cornerX = (col: number) => origin.x + col * size.w;
+  const cornerY = (row: number) => origin.y + row * size.h;
+  const ptKey = (x: number, y: number) => `${x},${y}`;
+
+  // 이웃이 없는 변만 방향성 있게 수집(셀 기준 시계방향) → 이어 붙이면 닫힌 윤곽이 됨
+  const nextByStart = new Map<string, { x: number; y: number }>();
+  cells.forEach((c) => {
+    const { columnIndex: col, rowIndex: row } = c;
+    const tl = { x: cornerX(col), y: cornerY(row) };
+    const tr = { x: cornerX(col + 1), y: cornerY(row) };
+    const br = { x: cornerX(col + 1), y: cornerY(row + 1) };
+    const bl = { x: cornerX(col), y: cornerY(row + 1) };
+    if (!inZone.has(cellKey(col, row - 1))) nextByStart.set(ptKey(tl.x, tl.y), tr);
+    if (!inZone.has(cellKey(col + 1, row))) nextByStart.set(ptKey(tr.x, tr.y), br);
+    if (!inZone.has(cellKey(col, row + 1))) nextByStart.set(ptKey(br.x, br.y), bl);
+    if (!inZone.has(cellKey(col - 1, row))) nextByStart.set(ptKey(bl.x, bl.y), tl);
+  });
+
+  let d = '';
+  const visited = new Set<string>();
+  for (const startKey of nextByStart.keys()) {
+    if (visited.has(startKey)) continue;
+    const [sx, sy] = startKey.split(',').map(Number);
+    d += `M${sx} ${sy}`;
+    let curKey = startKey;
+    while (true) {
+      const next = nextByStart.get(curKey);
+      if (!next) break;
+      visited.add(curKey);
+      d += `L${next.x} ${next.y}`;
+      const nextKey = ptKey(next.x, next.y);
+      if (nextKey === startKey) {
+        d += 'Z';
+        break;
+      }
+      if (visited.has(nextKey)) break;
+      curKey = nextKey;
+    }
+  }
+  return d;
+};
+
+// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 캔버스(560x420) 전체를
+// 가로지르는 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰.
+// 선 위치는 실제 그리드 원점에 위상만 맞추고, 셀 범위를 넘어 캔버스 가장자리까지 채움
+const GridOverlayLines = ({
+  cells,
+  size,
+  canvasH,
+}: {
+  cells: FloorGridCell[];
+  size: { w: number; h: number };
+  canvasH: number;
+}) => {
+  if (cells.length === 0) return null;
+  const CANVAS_H = canvasH;
+
+  // 위상(offset)은 각 셀 왼쪽/위쪽 변을 셀 크기로 나눈 나머지의 중앙값으로 구함 —
+  // 특정 셀 하나의 부동소수 오차에 흔들리지 않고, 격자선이 실제 셀 경계에 맞음.
+  // 그 위상에서 0부터 캔버스 끝까지 셀 간격으로 선을 반복해 전체를 덮음
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)] ?? 0;
+  };
+  const phaseX = median(
+    cells.map((c) => {
+      const left = c.centerX * CANVAS_W - size.w / 2;
+      return ((left % size.w) + size.w) % size.w;
+    }),
+  );
+  const phaseY = median(
+    cells.map((c) => {
+      const top = c.centerY * CANVAS_H - size.h / 2;
+      return ((top % size.h) + size.h) % size.h;
+    }),
+  );
+  const verticalXs: number[] = [];
+  for (let x = phaseX; x <= CANVAS_W + 0.001; x += size.w) verticalXs.push(x);
+  const horizontalYs: number[] = [];
+  for (let y = phaseY; y <= CANVAS_H + 0.001; y += size.h) horizontalYs.push(y);
+
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      {verticalXs.map((x) => (
+        <line
+          key={`v${x}`}
+          x1={x}
+          y1={0}
+          x2={x}
+          y2={CANVAS_H}
+          stroke="rgba(107,114,128,0.22)"
+          strokeWidth="0.6"
+        />
+      ))}
+      {horizontalYs.map((y) => (
+        <line
+          key={`h${y}`}
+          x1={0}
+          y1={y}
+          x2={CANVAS_W}
+          y2={y}
+          stroke="rgba(107,114,128,0.22)"
+          strokeWidth="0.6"
+        />
+      ))}
+    </g>
+  );
 };
 
 const MockFloorMap3F = ({
   mapImageUrl,
-  aiLayers,
-  editMode,
+  canvasH,
   placingActive,
   zoneAddActive,
   zoneDraftRect,
@@ -199,15 +443,11 @@ const MockFloorMap3F = ({
   selectedGridCellIds,
   gridCellPxSize,
   onGridCellToggle,
-  poiMarkers,
-  relocatingPoiId,
   onMapClick,
-  onPoiClick,
   onBackgroundClick,
 }: {
   mapImageUrl: string | null;
-  aiLayers: Record<string, boolean>;
-  editMode: EditMode;
+  canvasH: number;
   placingActive: boolean;
   zoneAddActive: boolean;
   zoneDraftRect: ZoneRect | null;
@@ -232,10 +472,7 @@ const MockFloorMap3F = ({
   selectedGridCellIds: string[];
   gridCellPxSize: { w: number; h: number };
   onGridCellToggle: (cellId: string) => void;
-  poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
-  relocatingPoiId: string | null;
   onMapClick: (x: number, y: number) => void;
-  onPoiClick: (id: string) => void;
   onBackgroundClick: () => void;
 }) => {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -244,13 +481,18 @@ const MockFloorMap3F = ({
   // 엣지(선) 양 끝 좌표를 찾기 위한 노드 id → SVG 좌표 조회 (구조 노드 + 그 외 그래프 노드 통합)
   const nodePositionById = new Map<string, { x: number; y: number }>();
   structureNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x, y: n.y }));
-  graphNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x * 560, y: n.y * 420 }));
+  graphNodes.forEach((n) => nodePositionById.set(n.id, { x: n.x * CANVAS_W, y: n.y * canvasH }));
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * 560);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * 420);
-    if (editMode === 'poi' || placingActive) {
+    // 캔버스 경계 밖 클릭이 0~1 범위를 벗어난 좌표로 저장되지 않도록 클램프 (백엔드 x,y 검증: 0~1)
+    const x = Math.round(
+      Math.max(0, Math.min(CANVAS_W, ((e.clientX - rect.left) / rect.width) * CANVAS_W)),
+    );
+    const y = Math.round(
+      Math.max(0, Math.min(canvasH, ((e.clientY - rect.top) / rect.height) * canvasH)),
+    );
+    if (placingActive) {
       onMapClick(x, y);
       return;
     }
@@ -258,13 +500,15 @@ const MockFloorMap3F = ({
     onBackgroundClick();
   };
 
+  // 클릭/드래그 지점을 캔버스(560 x canvasH) 좌표로 그대로 변환 — 격자 스냅 없이 포인터를 정확히 따라감.
+  // 구역 드래그는 이 사각형과 겹치는 실제 그리드 셀이 선택되고(handleZoneDragEnd), 노드는 이 좌표에 그대로 배치됨
   const svgPoint = (clientX: number, clientY: number, svgEl: SVGSVGElement) => {
     const rect = svgEl.getBoundingClientRect();
-    const rawX = ((clientX - rect.left) / rect.width) * 560;
-    const rawY = ((clientY - rect.top) / rect.height) * 420;
+    const rawX = ((clientX - rect.left) / rect.width) * CANVAS_W;
+    const rawY = ((clientY - rect.top) / rect.height) * canvasH;
     return {
-      x: Math.max(0, Math.min(560, Math.round(rawX / GRID_SIZE) * GRID_SIZE)),
-      y: Math.max(0, Math.min(420, Math.round(rawY / GRID_SIZE) * GRID_SIZE)),
+      x: Math.max(0, Math.min(CANVAS_W, rawX)),
+      y: Math.max(0, Math.min(canvasH, rawY)),
     };
   };
 
@@ -275,6 +519,8 @@ const MockFloorMap3F = ({
     const start = svgPoint(e.clientX, e.clientY, svgEl);
     dragStartRef.current = start;
     onZoneDraftChange({ x: start.x, y: start.y, w: 0, h: 0 });
+    let lastRect = { x: start.x, y: start.y, w: 0, h: 0 };
+    const applyRect = rafThrottle((rect: typeof lastRect) => onZoneDraftChange(rect));
 
     const onMove = (mv: MouseEvent) => {
       if (!dragStartRef.current) return;
@@ -283,10 +529,15 @@ const MockFloorMap3F = ({
       const y = Math.min(dragStartRef.current.y, cur.y);
       const w = Math.abs(cur.x - dragStartRef.current.x);
       const h = Math.abs(cur.y - dragStartRef.current.y);
-      onZoneDraftChange({ x, y, w, h });
+      lastRect = { x, y, w, h };
+      applyRect(lastRect);
     };
     const onUp = () => {
       dragStartRef.current = null;
+      // onZoneDragEnd가 마지막으로 반영된 사각형을 기준으로 셀을 계산하므로, 대기 중인 갱신을
+      // 취소하고 마지막 사각형을 먼저 동기 반영한 뒤에 종료 처리함
+      applyRect.cancel();
+      onZoneDraftChange(lastRect);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       onZoneDragEnd();
@@ -303,232 +554,234 @@ const MockFloorMap3F = ({
     const svgEl = e.currentTarget.ownerSVGElement;
     if (!svgEl) return;
     let lastPoint: { x: number; y: number } | null = null;
+    const applyMove = rafThrottle((x: number, y: number) => onStructureNodeMove(structureId, x, y));
 
     const onMove = (mv: MouseEvent) => {
       structureDragMovedRef.current = true;
       const point = svgPoint(mv.clientX, mv.clientY, svgEl);
       lastPoint = point;
-      onStructureNodeMove(structureId, point.x, point.y);
+      applyMove(point.x, point.y);
     };
     const onUp = () => {
+      applyMove.cancel();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (lastPoint) onStructureNodeMoveEnd(structureId, lastPoint.x, lastPoint.y);
+      if (lastPoint) {
+        onStructureNodeMove(structureId, lastPoint.x, lastPoint.y);
+        onStructureNodeMoveEnd(structureId, lastPoint.x, lastPoint.y);
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   };
 
-  const svgCursor =
-    relocatingPoiId || editMode === 'poi' || placingActive || zoneAddActive || edgeAddActive
-      ? 'crosshair'
-      : 'default';
+  const svgCursor = placingActive || zoneAddActive || edgeAddActive ? 'crosshair' : 'default';
 
   return (
     <svg
-      viewBox="0 0 560 420"
-      width="700"
-      height="525"
+      viewBox={`0 0 ${CANVAS_W} ${canvasH}`}
+      width={700}
+      height={(700 * canvasH) / CANVAS_W}
       xmlns="http://www.w3.org/2000/svg"
       style={{ cursor: svgCursor }}
       onClick={handleSvgClick}
       onMouseDown={handleSvgMouseDown}
     >
-      {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음 */}
-      <rect width="560" height="420" fill="#f8f9fa" />
+      {/* 배경 — 실제 업로드된 도면 원본 이미지. 벽은 별도 데이터가 아니라 이 이미지 자체에 포함되어 있음.
+          viewBox 높이(canvasH)를 도면 실제 비율에 맞춰 잡으므로, 이미지를 preserveAspectRatio="none"로
+          꽉 채워도 늘어나지 않고 격자·노드·드래그 좌표(0~1 정규화)와 정확히 일치함 */}
+      <rect width={CANVAS_W} height={canvasH} fill="#f8f9fa" />
       {mapImageUrl && (
         <image
           href={mapImageUrl}
           x={0}
           y={0}
-          width={560}
-          height={420}
-          preserveAspectRatio="xMidYMid meet"
+          width={CANVAS_W}
+          height={canvasH}
+          preserveAspectRatio="none"
         />
       )}
 
       {/* 맵그래프 엣지 — 편집모드 아닐 땐 클릭해서 선택 후 삭제 가능 */}
-      {aiLayers.room &&
-        graphEdges.map((edge) => {
-          const from = nodePositionById.get(edge.fromNodeId);
-          const to = nodePositionById.get(edge.toNodeId);
-          if (!from || !to) return null;
-          const isSelected = selectedEdgeId === edge.id;
-          const canSelect = !edgeAddActive && !placingActive && !zoneAddActive;
-          const midX = (from.x + to.x) / 2;
-          const midY = (from.y + to.y) / 2;
-          return (
-            <g key={edge.id}>
-              <line
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
-                stroke="transparent"
-                strokeWidth="10"
-                style={{
-                  cursor: canSelect ? 'pointer' : 'default',
-                  pointerEvents: canSelect ? 'stroke' : 'none',
-                }}
+      {graphEdges.map((edge) => {
+        const from = nodePositionById.get(edge.fromNodeId);
+        const to = nodePositionById.get(edge.toNodeId);
+        if (!from || !to) return null;
+        const isSelected = selectedEdgeId === edge.id;
+        const canSelect = !edgeAddActive && !placingActive && !zoneAddActive;
+        const midX = (from.x + to.x) / 2;
+        const midY = (from.y + to.y) / 2;
+        return (
+          <g key={edge.id}>
+            <line
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke="transparent"
+              strokeWidth="10"
+              style={{
+                cursor: canSelect ? 'pointer' : 'default',
+                pointerEvents: canSelect ? 'stroke' : 'none',
+              }}
+              onClick={(e) => {
+                if (!canSelect) return;
+                e.stopPropagation();
+                onEdgeSelect(edge.id);
+              }}
+            />
+            <line
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke={isSelected ? '#2563eb' : '#9ca3af'}
+              strokeWidth={isSelected ? '2.5' : '1.5'}
+              strokeDasharray="3 3"
+              style={{ pointerEvents: 'none' }}
+            />
+            {isSelected && (
+              <g
+                style={{ cursor: 'pointer' }}
                 onClick={(e) => {
-                  if (!canSelect) return;
                   e.stopPropagation();
-                  onEdgeSelect(edge.id);
+                  onEdgeDelete(edge.id);
                 }}
-              />
-              <line
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
-                stroke={isSelected ? '#2563eb' : '#9ca3af'}
-                strokeWidth={isSelected ? '2.5' : '1.5'}
-                strokeDasharray="3 3"
-                style={{ pointerEvents: 'none' }}
-              />
-              {isSelected && (
-                <g
-                  style={{ cursor: 'pointer' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdgeDelete(edge.id);
-                  }}
-                >
-                  <circle cx={midX} cy={midY} r="8" fill="#ef4444" />
-                  <text
-                    x={midX}
-                    y={midY + 3}
-                    textAnchor="middle"
-                    fontSize="11"
-                    fontWeight="700"
-                    fill="white"
-                    fontFamily="sans-serif"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    ×
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
-          ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
-          평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
-      {aiLayers.room &&
-        graphNodes.map((n) => {
-          const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
-          if (isRoomOrHallway && !edgeAddActive) return null;
-          const x = n.x * 560;
-          const y = n.y * 420;
-          const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
-          return (
-            <g
-              key={n.id}
-              style={{ pointerEvents: edgeAddActive ? 'auto' : 'none', cursor: 'pointer' }}
-              onClick={(e) => {
-                if (!edgeAddActive) return;
-                e.stopPropagation();
-                onNodeClickForEdge(n.id);
-              }}
-            >
-              <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
-              {n.type === 'EXIT' && (
+              >
+                <circle cx={midX} cy={midY} r="8" fill="#ef4444" />
                 <text
-                  x={x}
-                  y={y - 12}
+                  x={midX}
+                  y={midY + 3}
                   textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="700"
-                  fill={color}
-                  fontFamily="sans-serif"
-                >
-                  {n.name}
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-      {/* 구조 노드 — 계단 · 문/출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
-      {aiLayers.room &&
-        structureNodes.map((n) => {
-          const isEditingThis = n.id === editingStructureId;
-          const isSelected = selectedZoneRef?.kind === 'node' && selectedZoneRef.id === n.id;
-          const isStair = n.type === 'stair';
-          const baseColor = isStair ? '#f97316' : '#2563eb';
-          return (
-            <g
-              key={n.id}
-              onMouseDown={(e) => handleStructureMouseDown(e, n.id)}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (edgeAddActive) {
-                  onNodeClickForEdge(n.id);
-                  return;
-                }
-                if (structureDragMovedRef.current) {
-                  structureDragMovedRef.current = false;
-                  return;
-                }
-                if (editingStructureId) return;
-                onZoneRefSelect({ kind: 'node', id: n.id });
-              }}
-              style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
-            >
-              {isSelected && (
-                <circle
-                  cx={n.x}
-                  cy={n.y}
-                  r={(n.isFinalExit ? 7 : isStair ? 6 : 4) + 5}
-                  fill="none"
-                  stroke="#2563eb"
-                  strokeWidth="2"
-                  strokeDasharray="3 2"
-                />
-              )}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
-                fill={n.isFinalExit ? '#16a34a' : baseColor}
-                stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
-                strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
-              />
-              {isStair && (
-                <text
-                  x={n.x}
-                  y={n.y + 3}
-                  textAnchor="middle"
-                  fontSize="8"
+                  fontSize="11"
                   fontWeight="700"
                   fill="white"
                   fontFamily="sans-serif"
                   style={{ pointerEvents: 'none' }}
                 >
-                  ▲
+                  ×
                 </text>
-              )}
-              {n.isFinalExit && (
-                <text
-                  x={n.x}
-                  y={n.y - 14}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fontWeight="700"
-                  fill="#16a34a"
-                  fontFamily="sans-serif"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  최종 탈출구
-                </text>
-              )}
-            </g>
-          );
-        })}
+              </g>
+            )}
+          </g>
+        );
+      })}
 
-      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라 셀을 이어붙여서 표시.
+      {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
+          ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
+          평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
+      {graphNodes.map((n) => {
+        const isRoomOrHallway = n.type === 'ROOM' || n.type === 'HALLWAY';
+        if (isRoomOrHallway && !edgeAddActive) return null;
+        const x = n.x * CANVAS_W;
+        const y = n.y * canvasH;
+        const color = GRAPH_NODE_COLOR[n.type as 'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM'];
+        return (
+          <g
+            key={n.id}
+            style={{ pointerEvents: edgeAddActive ? 'auto' : 'none', cursor: 'pointer' }}
+            onClick={(e) => {
+              if (!edgeAddActive) return;
+              e.stopPropagation();
+              onNodeClickForEdge(n.id);
+            }}
+          >
+            <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
+            {n.type === 'EXIT' && (
+              <text
+                x={x}
+                y={y - 12}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill={color}
+                fontFamily="sans-serif"
+              >
+                {n.name}
+              </text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* 구조 노드 — 계단 · 문/출입구 (AI 세그멘테이션 결과, 사용자가 위치 보정 가능 · 최종 탈출구 지정은 우측 패널에서만) */}
+      {structureNodes.map((n) => {
+        const isEditingThis = n.id === editingStructureId;
+        const isSelected = selectedZoneRef?.kind === 'node' && selectedZoneRef.id === n.id;
+        const isStair = n.type === 'stair';
+        const baseColor = STRUCTURE_NODE_COLOR[n.type];
+        return (
+          <g
+            key={n.id}
+            onMouseDown={(e) => handleStructureMouseDown(e, n.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (edgeAddActive) {
+                onNodeClickForEdge(n.id);
+                return;
+              }
+              if (structureDragMovedRef.current) {
+                structureDragMovedRef.current = false;
+                return;
+              }
+              if (editingStructureId) return;
+              onZoneRefSelect({ kind: 'node', id: n.id });
+            }}
+            style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
+          >
+            {isSelected && (
+              <circle
+                cx={n.x}
+                cy={n.y}
+                r={(n.isFinalExit ? 7 : isStair ? 6 : 4) + 5}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="2"
+                strokeDasharray="3 2"
+              />
+            )}
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
+              fill={n.isFinalExit ? '#16a34a' : baseColor}
+              stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
+              strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
+            />
+            {isStair && (
+              <text
+                x={n.x}
+                y={n.y + 3}
+                textAnchor="middle"
+                fontSize="8"
+                fontWeight="700"
+                fill="white"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                ▲
+              </text>
+            )}
+            {n.isFinalExit && (
+              <text
+                x={n.x}
+                y={n.y - 14}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill="#16a34a"
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                최종 탈출구
+              </text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* 저장된 일반 구역 — 백엔드 저장 단위가 그리드 셀 집합이라, 셀들의 합집합 윤곽을
+          단일 path로 그려 하나의 면적으로 보이게 함(내부 격자선·이음매 없음).
           구역마다 매번 floorGridCells를 선형 탐색하지 않도록 id→셀 매핑을 한 번만 만들어 재사용 */}
       {(() => {
         const floorGridCellById = new Map(floorGridCells.map((c) => [c.id, c]));
@@ -538,10 +791,11 @@ const MockFloorMap3F = ({
             .filter((c): c is FloorGridCell => !!c);
           if (cells.length === 0) return null;
           const isSelected = selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === z.id;
-          const xs = cells.map((c) => c.centerX * 560);
-          const ys = cells.map((c) => c.centerY * 420);
+          const xs = cells.map((c) => c.centerX * CANVAS_W);
+          const ys = cells.map((c) => c.centerY * canvasH);
           const labelX = (Math.min(...xs) + Math.max(...xs)) / 2;
           const labelY = (Math.min(...ys) + Math.max(...ys)) / 2;
+
           return (
             <g
               key={z.id}
@@ -552,18 +806,13 @@ const MockFloorMap3F = ({
               }}
               style={{ cursor: zoneAddActive ? 'inherit' : 'pointer' }}
             >
-              {cells.map((cell) => (
-                <rect
-                  key={cell.id}
-                  x={cell.centerX * 560 - gridCellPxSize.w / 2}
-                  y={cell.centerY * 420 - gridCellPxSize.h / 2}
-                  width={gridCellPxSize.w}
-                  height={gridCellPxSize.h}
-                  fill="rgba(107,114,128,0.15)"
-                  stroke={isSelected ? '#2563eb' : '#6b7280'}
-                  strokeWidth={isSelected ? '2' : '1'}
-                />
-              ))}
+              <path
+                d={buildZoneOutlinePath(cells, gridCellPxSize, canvasH)}
+                fillRule="evenodd"
+                fill="rgba(107,114,128,0.15)"
+                stroke={isSelected ? '#2563eb' : '#6b7280'}
+                strokeWidth={isSelected ? '2' : '1'}
+              />
               <text
                 x={labelX}
                 y={labelY + 3}
@@ -580,43 +829,53 @@ const MockFloorMap3F = ({
         });
       })()}
 
-      {/* 그리드 셀 — CCTV 신규 등록 중(선택 가능), 선택된 기존 CCTV의 감시 영역(조회 전용),
-          또는 그리드 표시 토글이 켜진 경우(전체 조회 전용) */}
-      {cctvGridCellsMode !== 'hidden' &&
-        floorGridCells.map((cell) => {
-          const cx = cell.centerX * 560;
-          const cy = cell.centerY * 420;
-          const isSelected = selectedGridCellIds.includes(cell.id);
-          if (cctvGridCellsMode === 'viewing' && !isSelected) return null;
-          const isBrowsing = cctvGridCellsMode === 'browsing';
-          return (
-            <rect
-              key={cell.id}
-              x={cx - gridCellPxSize.w / 2}
-              y={cy - gridCellPxSize.h / 2}
-              width={gridCellPxSize.w}
-              height={gridCellPxSize.h}
-              fill={
-                isSelected
-                  ? 'rgba(139,92,246,0.35)'
-                  : isBrowsing
-                    ? 'rgba(107,114,128,0.05)'
-                    : 'rgba(139,92,246,0.04)'
-              }
-              stroke={isBrowsing ? 'rgba(107,114,128,0.35)' : '#8b5cf6'}
-              strokeWidth={isSelected ? '1.5' : isBrowsing ? '1' : '0.5'}
-              style={{
-                cursor: cctvGridCellsMode === 'selecting' ? 'pointer' : 'default',
-                pointerEvents: cctvGridCellsMode === 'selecting' ? 'auto' : 'none',
-              }}
-              onClick={(e) => {
-                if (cctvGridCellsMode !== 'selecting') return;
-                e.stopPropagation();
-                onGridCellToggle(cell.id);
-              }}
-            />
-          );
-        })}
+      {/* 그리드 표시 토글 — 도면 위에 얹는 균일한 모눈종이 격자선(선만, 채움 없음) */}
+      {cctvGridCellsMode === 'browsing' && (
+        <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} canvasH={canvasH} />
+      )}
+
+      {/* 그리드 셀 선택 — CCTV 신규 등록 중(선택 가능) 또는 기존 CCTV 감시 영역(조회 전용).
+          셀마다 테두리를 그리면 원고지처럼 보여서, 얇은 균일 격자선 위에 선택된 셀만
+          하나의 면적(채움+외곽선)으로 표시하고, 클릭 판정은 투명 히트영역이 담당함 */}
+      {(cctvGridCellsMode === 'selecting' || cctvGridCellsMode === 'viewing') && (
+        <>
+          {cctvGridCellsMode === 'selecting' && (
+            <GridOverlayLines cells={floorGridCells} size={gridCellPxSize} canvasH={canvasH} />
+          )}
+
+          {(() => {
+            const selectedCells = floorGridCells.filter((c) => selectedGridCellIds.includes(c.id));
+            if (selectedCells.length === 0) return null;
+            return (
+              <path
+                d={buildZoneOutlinePath(selectedCells, gridCellPxSize, canvasH)}
+                fillRule="evenodd"
+                fill="rgba(139,92,246,0.3)"
+                stroke="#8b5cf6"
+                strokeWidth="1.5"
+                style={{ pointerEvents: 'none' }}
+              />
+            );
+          })()}
+
+          {cctvGridCellsMode === 'selecting' &&
+            floorGridCells.map((cell) => (
+              <rect
+                key={cell.id}
+                x={cell.centerX * CANVAS_W - gridCellPxSize.w / 2}
+                y={cell.centerY * canvasH - gridCellPxSize.h / 2}
+                width={gridCellPxSize.w}
+                height={gridCellPxSize.h}
+                fill="transparent"
+                style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onGridCellToggle(cell.id);
+                }}
+              />
+            ))}
+        </>
+      )}
 
       {/* 구역 추가 드래그 선택 영역 */}
       {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
@@ -632,54 +891,6 @@ const MockFloorMap3F = ({
           style={{ pointerEvents: 'none' }}
         />
       )}
-
-      {/* POI 마커 */}
-      {poiMarkers.map((m) => {
-        const isRelocating = relocatingPoiId === m.id;
-        const cfg = POI_TYPE_CONFIG[m.poiType as PoiType] ?? POI_TYPE_CONFIG.exit;
-        const fill = isRelocating ? '#f59e0b' : cfg.color;
-        return (
-          <g key={m.id}>
-            <circle
-              cx={m.x}
-              cy={m.y}
-              r="14"
-              fill={fill}
-              stroke="white"
-              strokeWidth="2"
-              style={{ cursor: editMode === 'poi' ? 'pointer' : 'default' }}
-              onClick={(e) => {
-                if (editMode !== 'poi') return;
-                e.stopPropagation();
-                onPoiClick(m.id);
-              }}
-            />
-            <text
-              x={m.x}
-              y={m.y + 5}
-              textAnchor="middle"
-              fill="white"
-              fontSize="10"
-              fontWeight="bold"
-              fontFamily="sans-serif"
-              style={{ pointerEvents: 'none' }}
-            >
-              {isRelocating ? '↖' : cfg.icon}
-            </text>
-            <text
-              x={m.x}
-              y={m.y + 26}
-              textAnchor="middle"
-              fill={fill}
-              fontSize="9"
-              fontFamily="sans-serif"
-              style={{ pointerEvents: 'none' }}
-            >
-              {isRelocating ? '클릭해서 이동' : m.label}
-            </text>
-          </g>
-        );
-      })}
     </svg>
   );
 };
@@ -725,6 +936,8 @@ const DevicePin = ({
 
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
+    let lastPoint: { x: number; y: number } | null = null;
+    const applyMove = rafThrottle((x: number, y: number) => onDragEnd(device.id, x, y));
 
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
@@ -734,11 +947,16 @@ const DevicePin = ({
       const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
       const clampedX = Math.max(0, Math.min(100, rawX));
       const clampedY = Math.max(0, Math.min(100, rawY));
-      onDragEnd(device.id, clampedX, clampedY);
+      lastPoint = { x: clampedX, y: clampedY };
+      applyMove(clampedX, clampedY);
     };
 
     const onUp = () => {
       isDragging.current = false;
+      // 마지막 프레임이 아직 예약된 상태로 끊기지 않도록, 대기 중이던 갱신은 취소하고
+      // 마지막 좌표를 바로 반영해 마우스를 뗀 위치와 어긋나지 않게 함
+      applyMove.cancel();
+      if (lastPoint) onDragEnd(device.id, lastPoint.x, lastPoint.y);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -815,6 +1033,7 @@ const AddedDevicePin = ({
     const container = (e.currentTarget as HTMLElement).parentElement;
     if (!container) return;
     let lastPoint: { x: number; y: number } | null = null;
+    const applyMove = rafThrottle((x: number, y: number) => onDragEnd(device.id, x, y));
 
     const onMove = (mv: MouseEvent) => {
       if (!isDragging.current) return;
@@ -824,13 +1043,17 @@ const AddedDevicePin = ({
       const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
       const point = { x: Math.max(0, Math.min(100, rawX)), y: Math.max(0, Math.min(100, rawY)) };
       lastPoint = point;
-      onDragEnd(device.id, point.x, point.y);
+      applyMove(point.x, point.y);
     };
     const onUp = () => {
       isDragging.current = false;
+      applyMove.cancel();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      if (lastPoint) onDragMoveEnd(device.id, lastPoint.x, lastPoint.y);
+      if (lastPoint) {
+        onDragEnd(device.id, lastPoint.x, lastPoint.y);
+        onDragMoveEnd(device.id, lastPoint.x, lastPoint.y);
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -899,7 +1122,7 @@ const NodeAddPopup = ({
   const [deviceId, setDeviceId] = useState('');
   const [location, setLocation] = useState('');
 
-  const isStructureNode = type === 'door' || type === 'stair';
+  const isStructureNode = isStructureNodeType(type);
   const isCctv = type === 'cctv';
   const totalSteps = isCctv ? 2 : 1;
   const stepNumber = stage === 'entry' ? 1 : totalSteps;
@@ -917,7 +1140,7 @@ const NodeAddPopup = ({
         </div>
         <span className={styles.nodeAddHint}>
           {selectedCellCount > 0
-            ? `${selectedCellCount}칸 선택됨. 도면을 드래그하면 겹치는 칸이 추가되고, 선택된 칸을 클릭하면 해제돼요.`
+            ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡히고, 칸을 클릭하면 하나씩 켜고 끌 수 있어요.`
             : '도면을 드래그해서 카메라 시야 구역에 해당하는 칸을 선택해주세요'}
         </span>
 
@@ -960,7 +1183,7 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'iot', 'light', 'door', 'stair'] as const).map((t) => (
+          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -1041,7 +1264,7 @@ const ZoneAddPopup = ({
       </div>
       <span className={styles.nodeAddHint}>
         {hasSelectedCells
-          ? `${selectedCellCount}칸 선택됨. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
+          ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡혀요. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
           : '이름을 입력하거나 도면을 드래그해서 영역에 해당하는 칸을 선택해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
       </span>
 
@@ -1204,30 +1427,8 @@ const DeviceCard = ({
       )}
     </div>
     <div className={styles.deviceCardActions}>
-      {editing ? (
-        <button
-          type="button"
-          className={styles.deviceCardDoneBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSaveEdit(item);
-          }}
-        >
-          완료
-        </button>
-      ) : (
-        <button
-          type="button"
-          className={styles.deviceCardEditBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onStartEdit(item);
-          }}
-        >
-          수정
-        </button>
-      )}
-      {(item.type === 'light' || item.type === 'cctv') && (
+      {/* CCTV는 이름 수정·활성화·감시영역을 한 모달에서 처리하므로 버튼을 "수정" 하나로 합침 */}
+      {item.type === 'cctv' ? (
         <button
           type="button"
           className={styles.deviceCardEditBtn}
@@ -1236,8 +1437,46 @@ const DeviceCard = ({
             onOpenSettings(item);
           }}
         >
-          설정
+          수정
         </button>
+      ) : (
+        <>
+          {editing ? (
+            <button
+              type="button"
+              className={styles.deviceCardDoneBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSaveEdit(item);
+              }}
+            >
+              완료
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.deviceCardEditBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartEdit(item);
+              }}
+            >
+              수정
+            </button>
+          )}
+          {item.type === 'light' && (
+            <button
+              type="button"
+              className={styles.deviceCardEditBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSettings(item);
+              }}
+            >
+              설정
+            </button>
+          )}
+        </>
       )}
       <button
         type="button"
@@ -1258,10 +1497,9 @@ const FloorCanvas = ({
   mapWrapRef,
   floor,
   resolvedImageUrl,
+  canvasH,
   selected,
-  aiLayers,
   zoom,
-  editMode,
   editingItemId,
   placingActive,
   zoneAddActive,
@@ -1288,18 +1526,10 @@ const FloorCanvas = ({
   gridCellPxSize,
   onGridCellToggle,
   stagedCameraPosition,
-  poiMarkers,
-  editingPoiId,
-  relocatingPoiId,
   devicePositions,
   addedDevices,
   onSelectDevice,
   onMapClick,
-  onPoiClick,
-  onPoiLabelChange,
-  onPoiDelete,
-  onPoiRelocate,
-  onPoiPopoverClose,
   onDeviceMoved,
   onDeviceMoveEnd,
   onUpload,
@@ -1308,10 +1538,9 @@ const FloorCanvas = ({
   mapWrapRef: React.RefObject<HTMLDivElement>;
   floor: Floor;
   resolvedImageUrl: string | null;
+  canvasH: number;
   selected: SelectedItem | null;
-  aiLayers: Record<string, boolean>;
   zoom: number;
-  editMode: EditMode;
   editingItemId: string | null;
   placingActive: boolean;
   zoneAddActive: boolean;
@@ -1338,18 +1567,10 @@ const FloorCanvas = ({
   gridCellPxSize: { w: number; h: number };
   onGridCellToggle: (cellId: string) => void;
   stagedCameraPosition: { x: number; y: number } | null;
-  poiMarkers: Array<{ id: string; x: number; y: number; label: string; poiType: string }>;
-  editingPoiId: string | null;
-  relocatingPoiId: string | null;
   devicePositions: Record<string, { x: number; y: number }>;
   addedDevices: AddedDevice[];
   onSelectDevice: (d: DeviceMarker) => void;
   onMapClick: (x: number, y: number) => void;
-  onPoiClick: (id: string) => void;
-  onPoiLabelChange: (id: string, label: string) => void;
-  onPoiDelete: (id: string) => void;
-  onPoiRelocate: (id: string) => void;
-  onPoiPopoverClose: () => void;
   onDeviceMoved: (id: string, x: number, y: number) => void;
   onDeviceMoveEnd: (id: string, x: number, y: number) => void;
   onUpload: () => void;
@@ -1358,15 +1579,36 @@ const FloorCanvas = ({
   const hasFloorPlan = floor.segmentationStatus === 'DONE';
 
   if (!hasFloorPlan) {
+    // 이미지가 올라온 층만 "분석 중"으로 취급 — 업로드 전 층은 기존 안내를 보여줌
+    const isAnalyzing =
+      !!floor.mapImageUrl &&
+      (floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING');
+    const isAnalysisFailed = floor.segmentationStatus === 'FAILED';
+
     return (
       <div className={styles.canvasPlaceholder}>
-        <span className={styles.canvasPlaceholderTitle}>등록된 도면이 없습니다</span>
-        <p style={{ color: 'inherit', margin: 0 }}>
-          도면을 업로드하거나 AI 영역 분할을 실행해 주세요
-        </p>
-        <Button variant="primary" size="sm" onClick={onUpload}>
-          도면 업로드
-        </Button>
+        {isAnalyzing ? (
+          <>
+            <LoadingState size="md" message="AI가 도면을 분석하고 있습니다" />
+            <p className={styles.canvasPlaceholderText}>
+              완료되면 이 화면에 도면과 노드가 자동으로 표시됩니다
+            </p>
+          </>
+        ) : (
+          <>
+            <span className={styles.canvasPlaceholderTitle}>
+              {isAnalysisFailed ? '도면 분석에 실패했습니다' : '등록된 도면이 없습니다'}
+            </span>
+            <p className={styles.canvasPlaceholderText}>
+              {isAnalysisFailed
+                ? '도면을 다시 업로드해 주세요'
+                : '도면을 업로드하거나 AI 영역 분할을 실행해 주세요'}
+            </p>
+            <Button variant="primary" size="sm" onClick={onUpload}>
+              도면 {isAnalysisFailed ? '다시 ' : ''}업로드
+            </Button>
+          </>
+        )}
       </div>
     );
   }
@@ -1377,8 +1619,7 @@ const FloorCanvas = ({
     <div ref={mapWrapRef} className={styles.mapWrap} style={{ transform: `scale(${scale})` }}>
       <MockFloorMap3F
         mapImageUrl={resolvedImageUrl}
-        aiLayers={aiLayers}
-        editMode={editMode}
+        canvasH={canvasH}
         placingActive={placingActive}
         zoneAddActive={zoneAddActive}
         zoneDraftRect={zoneDraftRect}
@@ -1403,10 +1644,7 @@ const FloorCanvas = ({
         selectedGridCellIds={selectedGridCellIds}
         gridCellPxSize={gridCellPxSize}
         onGridCellToggle={onGridCellToggle}
-        poiMarkers={poiMarkers}
-        relocatingPoiId={relocatingPoiId}
         onMapClick={onMapClick}
-        onPoiClick={onPoiClick}
         onBackgroundClick={onBackgroundClick}
       />
       {stagedCameraPosition && (
@@ -1448,115 +1686,6 @@ const FloorCanvas = ({
           />
         );
       })}
-
-      {/* POI 편집 팝오버 — SVG 바깥 절대 위치 (잘림 없음) */}
-      {editingPoiId &&
-        (() => {
-          const poi = poiMarkers.find((m) => m.id === editingPoiId);
-          if (!poi) return null;
-          const cfg = POI_TYPE_CONFIG[poi.poiType as PoiType] ?? POI_TYPE_CONFIG.exit;
-          const left = poi.x + 20 > 400 ? poi.x - 180 : poi.x + 20;
-          const top = poi.y - 20;
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left,
-                top,
-                zIndex: 20,
-                background: 'white',
-                border: `1px solid ${cfg.color}40`,
-                borderRadius: '8px',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                padding: '10px',
-                width: '170px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-              >
-                <span style={{ fontSize: '11px', color: cfg.color, fontWeight: 700 }}>
-                  {cfg.icon} {cfg.label} 편집
-                </span>
-                <button
-                  type="button"
-                  onClick={onPoiPopoverClose}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#9ca3af',
-                    fontSize: '14px',
-                    lineHeight: 1,
-                    padding: '0 2px',
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-              <input
-                type="text"
-                value={poi.label}
-                onChange={(e) => onPoiLabelChange(poi.id, e.target.value)}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  padding: '4px 6px',
-                  fontSize: '11px',
-                  width: '100%',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = cfg.color;
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db';
-                }}
-              />
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => onPoiRelocate(poi.id)}
-                  style={{
-                    flex: 1,
-                    border: `1px solid ${cfg.color}`,
-                    borderRadius: '4px',
-                    background: 'white',
-                    color: cfg.color,
-                    fontSize: '10px',
-                    padding: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  위치 변경
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onPoiDelete(poi.id)}
-                  style={{
-                    flex: 1,
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: '#ef4444',
-                    color: 'white',
-                    fontSize: '10px',
-                    padding: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          );
-        })()}
     </div>
   );
 };
@@ -1571,6 +1700,29 @@ const FloorPlansDetailPage = () => {
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
+  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
+
+  // SVG viewBox 높이 — 폭 CANVAS_W(560)은 고정, 높이만 도면 실제 비율에 맞춤.
+  // 이미지 원본 비율을 우선(가장 직접적), 없으면 그리드 columns/rows, 그것도 없으면 4:3.
+  // viewBox 비율 == 이미지 비율이라 preserveAspectRatio="none"으로 채워도 이미지가 안 늘어남
+  const canvasH = useMemo(() => {
+    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
+    if (floorGridCells.length > 0) {
+      const { cols, rows } = getGridDimensions(floorGridCells);
+      if (cols > 0 && rows > 0) return (CANVAS_W * rows) / cols;
+    }
+    return DEFAULT_CANVAS_H;
+  }, [imageAspect, floorGridCells]);
+
+  // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
+  // 이미지가 올라온 층에서 DONE/FAILED가 아니면 "분석 중"으로 보고(업로드 전 층은 제외),
+  // 완료로 바뀌는 순간 화면을 자동 새로고침함
+  const isFloorReady = floor?.segmentationStatus === 'DONE';
+  const isAnalysisSettled =
+    floor?.segmentationStatus === 'DONE' || floor?.segmentationStatus === 'FAILED';
+  const isAnalyzing = Boolean(floor?.mapImageUrl) && !isAnalysisSettled;
 
   // 빌딩 목록 (사이드바 셀렉터용)
   useEffect(() => {
@@ -1579,11 +1731,42 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   }, []);
 
+  // 층이 바뀌거나 도면을 다시 올렸을 때, 이전 도면 기준으로 만들어진 노드·장비·구역이
+  // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
+  const resetFloorScopedState = useCallback(() => {
+    setStructureNodes([]);
+    setGraphNodes([]);
+    setGraphEdges([]);
+    setAddedDevices([]);
+    setRealCctvs([]);
+    setIotLights([]);
+    // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
+    // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
+    setDevicePositions({});
+    setZones([]);
+    setFloorGridCells([]);
+    setSelectedItem(null);
+    setSelectedZoneRef(null);
+    setSelectedEdgeId(null);
+    setEditingItemId(null);
+    setEditingStructureId(null);
+    setEditingZoneId(null);
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEdgeAddOpen(false);
+    setEditingCctvId(null);
+    setCctvDraftCellIds([]);
+    setZoneDraftCellIds([]);
+    setNodeStagedPosition(null);
+    setShowGridOverlay(false);
+  }, []);
+
   // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
   useEffect(() => {
     if (!buildingId || !floorId) return;
     let cancelled = false;
     setFloor(null);
+    resetFloorScopedState();
     setLoadingFloor(true);
     getFloorDetail(buildingId, floorId)
       .then((data) => {
@@ -1596,7 +1779,29 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [buildingId, floorId]);
+  }, [buildingId, floorId, resetFloorScopedState]);
+
+  // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회해서 상태 전환을 감지
+  useEffect(() => {
+    if (!buildingId || !floorId || !isAnalyzing) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      getFloorDetail(buildingId, floorId)
+        .then((data) => {
+          // clearInterval은 다음 틱만 막아서, 층 전환 중 이미 보낸 요청이 늦게 응답하면
+          // 새 층 데이터를 이전 층 데이터로 덮어쓸 수 있음 — cancelled로 막음
+          if (!cancelled) setFloor(data);
+        })
+        .catch(() => {});
+    }, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [buildingId, floorId, isAnalyzing]);
+
+  // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
+  // 그리드 셀은 배율 재적용 effect가 다시 받아온다 — 별도의 페이지 새로고침은 필요 없음
 
   // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
   useEffect(() => {
@@ -1613,31 +1818,104 @@ const FloorPlansDetailPage = () => {
     };
   }, [buildingId, floorId, floor?.mapImageUrl]);
 
-  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관
+  // 도면 이미지 원본 비율 측정 — 그리드가 없을 때 canvasH 계산의 기준으로 씀
   useEffect(() => {
-    if (!floorId) return;
+    setImageAspect(null);
+    if (!resolvedMapImageUrl) return;
     let cancelled = false;
-    getFloorGraph(floorId)
-      .then((graph) => {
-        if (cancelled) return;
-        const structureFromGraph: StructureNode[] = graph.nodes
-          .filter((n) => n.type === 'DOOR' || n.type === 'STAIR')
-          .map((n) => ({
-            id: n.id,
-            type: n.type === 'DOOR' ? 'door' : 'stair',
-            x: Math.round(n.x * 560),
-            y: Math.round(n.y * 420),
-            isFinalExit: n.isExitTarget,
-          }));
-        setStructureNodes(structureFromGraph);
-        setGraphNodes(graph.nodes.filter((n) => n.type !== 'DOOR' && n.type !== 'STAIR'));
-        setGraphEdges(graph.edges);
-      })
-      .catch(() => {});
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled && img.naturalHeight > 0) {
+        setImageAspect(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.src = resolvedMapImageUrl;
     return () => {
       cancelled = true;
     };
-  }, [floorId]);
+  }, [resolvedMapImageUrl]);
+
+  // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
+  // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
+  useEffect(() => {
+    if (!floorId || !isFloorReady) return;
+    const cellSizeMeter = readStoredNumber(PENDING_GRID_SIZE_KEY(floorId));
+    if (!cellSizeMeter) return;
+    let cancelled = false;
+    setFloorGrid(floorId, cellSizeMeter)
+      .then(() => getFloorGridCells(floorId))
+      .then((cells) => {
+        if (cancelled) return;
+        setFloorGridCells(cells);
+        rememberGridSize(floorId, cellSizeMeter);
+        show({
+          title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
+          variant: 'success',
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const msg = isAxiosError<{ message?: string }>(error)
+          ? (error.response?.data?.message ?? '')
+          : '';
+        show({
+          title: `그리드 배율 자동 적용 실패${msg ? ` (${msg})` : ''} — 그리드 설정에서 직접 지정해주세요.`,
+          variant: 'error',
+          duration: 8000,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [floorId, isFloorReady, show]);
+
+  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
+  // 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기 전이라 빈 그래프가 올 수 있어서,
+  // 비어 있으면 짧은 간격으로 몇 번 더 조회한다. (예전에는 이 자리에서 페이지를 통째로
+  // 새로고침했는데, 편집 중이던 상태가 날아가고 깜빡임이 커서 재조회 방식으로 바꿈)
+  useEffect(() => {
+    if (!floorId || !isFloorReady) return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const load = () => {
+      getFloorGraph(floorId)
+        .then((graph) => {
+          if (cancelled) return;
+          const structureFromGraph: StructureNode[] = graph.nodes.flatMap((n) => {
+            const structureType = API_TYPE_TO_STRUCTURE[n.type];
+            if (!structureType) return [];
+            return [
+              {
+                id: n.id,
+                type: structureType,
+                x: n.x * CANVAS_W,
+                y: n.y * canvasH,
+                isFinalExit: n.isExitTarget,
+              },
+            ];
+          });
+          setStructureNodes(structureFromGraph);
+          setGraphNodes(graph.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]));
+          setGraphEdges(graph.edges);
+
+          // 분석 직후 아직 노드가 안 만들어졌으면 잠시 뒤 다시 시도(최대 GRAPH_RETRY_LIMIT회)
+          if (graph.nodes.length === 0 && attempts < GRAPH_RETRY_LIMIT) {
+            attempts += 1;
+            timer = setTimeout(load, GRAPH_RETRY_INTERVAL_MS);
+          }
+        })
+        .catch(() => {});
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+    // canvasH가 확정되면(그리드/이미지 로드) 구조 노드 px 좌표를 그 기준으로 다시 계산해야 함
+  }, [floorId, isFloorReady, canvasH]);
 
   // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
   useEffect(() => {
@@ -1738,14 +2016,6 @@ const FloorPlansDetailPage = () => {
 
   const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
-  const [editMode] = useState<EditMode>('view');
-  const [aiLayers] = useState<Record<AiLayer, boolean>>({
-    wall: true,
-    corridor: true,
-    stairwell: true,
-    exit: true,
-    room: true,
-  });
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
@@ -1778,17 +2048,13 @@ const FloorPlansDetailPage = () => {
   };
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    'cctv' | 'iot' | 'light' | 'door' | 'stair' | null
+    'cctv' | 'light' | 'door' | 'stair' | 'hallway' | null
   >(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
     label: '',
     zone: '',
   });
-  const [poiMarkers, setPoiMarkers] = useState<
-    Array<{ id: string; x: number; y: number; label: string; poiType: PoiType }>
-  >([]);
-  const [selectedPoiType] = useState<PoiType>('exit');
   const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
@@ -1797,12 +2063,12 @@ const FloorPlansDetailPage = () => {
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
   const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
   const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
+  const [isSavingCctv, setIsSavingCctv] = useState(false);
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
-  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
   const [showGridOverlay, setShowGridOverlay] = useState(false);
   // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
@@ -1817,8 +2083,6 @@ const FloorPlansDetailPage = () => {
   const [nodeStagedPosition, setNodeStagedPosition] = useState<{ x: number; y: number } | null>(
     null,
   );
-  const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
-  const [relocatingPoiId, setRelocatingPoiId] = useState<string | null>(null);
   const [devicePositions, setDevicePositions] = useState<Record<string, { x: number; y: number }>>(
     {},
   );
@@ -1827,17 +2091,24 @@ const FloorPlansDetailPage = () => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
 
-  // 드래그가 끝났을 때만 실제 위치를 저장
+  // 드래그가 끝났을 때만 실제 위치를 저장. devicePositions는 드래그 중 화면에 즉시 반영하기 위한
+  // 임시 오버레이라, 서버에 커밋되면 addedDevices의 x/y도 같이 맞춰줌 — 그래야 이후 addedDevices가
+  // 다른 이유로 재구성되어도 devicePositions 없이 최신 위치를 그대로 유지함
   const handleDeviceMoveEnd = (id: string, x: number, y: number) => {
     const device = addedDevices.find((d) => d.id === id);
     if (device?.placeType === 'light') {
-      updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 }).catch(() => {});
+      updateIoTLight(id, { name: device.label, x: x / 100, y: y / 100 })
+        .then(() => {
+          setAddedDevices((prev) => prev.map((d) => (d.id === id ? { ...d, x, y } : d)));
+        })
+        .catch(() => {});
       return;
     }
     if (device?.placeType === 'cctv') {
       updateCctv(id, { name: device.label, x: x / 100, y: y / 100 })
         .then((updated) => {
           setRealCctvs((prev) => prev.map((c) => (c.id === id ? updated : c)));
+          setAddedDevices((prev) => prev.map((d) => (d.id === id ? { ...d, x, y } : d)));
         })
         .catch(() => {});
     }
@@ -1854,14 +2125,45 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleCctvToggleEnabled = (enabled: boolean) => {
-    if (!cctvSettingsTarget) return;
+    if (!cctvSettingsTarget || cctvSettingsTarget.enabled === enabled) return;
     const request = enabled ? enableCctv : disableCctv;
     request(cctvSettingsTarget.id)
       .then((updated) => {
         setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
         setCctvSettingsTarget(updated);
+        show({
+          title: enabled
+            ? 'CCTV를 사용 가능으로 바꿨습니다.'
+            : 'CCTV를 사용 불가능으로 바꿨습니다.',
+          variant: 'success',
+        });
       })
-      .catch(() => {});
+      .catch(() => {
+        show({ title: 'CCTV 사용 여부 변경에 실패했습니다.', variant: 'error' });
+      });
+  };
+
+  // 통합 모달에서 이름만 저장 — 위치(x,y)는 도면 드래그로 바꾸므로 기존 값을 그대로 보냄
+  const handleCctvSaveName = (name: string) => {
+    if (!cctvSettingsTarget || isSavingCctv) return;
+    setIsSavingCctv(true);
+    updateCctv(cctvSettingsTarget.id, {
+      name,
+      x: cctvSettingsTarget.x,
+      y: cctvSettingsTarget.y,
+    })
+      .then((updated) => {
+        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setCctvSettingsTarget(updated);
+        setAddedDevices((prev) =>
+          prev.map((d) => (d.id === updated.id ? { ...d, label: updated.name } : d)),
+        );
+        show({ title: 'CCTV 정보가 수정되었습니다.', variant: 'success' });
+      })
+      .catch(() => {
+        show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
+      })
+      .finally(() => setIsSavingCctv(false));
   };
 
   const handleStartEditCctvCells = () => {
@@ -1959,9 +2261,7 @@ const FloorPlansDetailPage = () => {
 
   // 선택된 카드를 상단에 고정하지 않는 대신, 리스트 안에서 스크롤로 한 번 보여줌 (하이퍼링크 이동과 동일한 느낌)
   const focusedPanelId =
-    selectedItem?.kind === 'device' || selectedItem?.kind === 'poi'
-      ? selectedItem.data.id
-      : (selectedZoneRef?.id ?? null);
+    selectedItem?.kind === 'device' ? selectedItem.data.id : (selectedZoneRef?.id ?? null);
 
   useEffect(() => {
     if (!focusedPanelId) return;
@@ -2052,13 +2352,18 @@ const FloorPlansDetailPage = () => {
       params.realHeight,
     )
       .then(async (newFloor) => {
+        // 도면이 바뀌면 이전 도면 기준으로 만들어진 노드·엣지·장비·구역은 더 이상 유효하지 않으므로
+        // 화면에서 먼저 비우고, AI 재분석이 끝나면 각 조회 effect가 새 데이터로 채운다
+        resetFloorScopedState();
+        // 초기 업로드 경로와 동일하게, AI 분석이 배율을 지우더라도 복원할 수 있도록 먼저 기록해둠
+        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
           setFloorGridCells(await getFloorGridCells(newFloor.id));
         } catch {
           show({
-            title: '그리드 설정에 실패했습니다. "그리드 표시" 토글에서 다시 설정해주세요.',
-            variant: 'error',
+            title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
+            variant: 'warning',
           });
         }
         setFloorBuildings((prev) =>
@@ -2072,8 +2377,15 @@ const FloorPlansDetailPage = () => {
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
-        analyzeFloor(newFloor.id).catch(() => {
-          show({ title: '도면 분석 요청에 실패했습니다.', variant: 'error' });
+        // 타임아웃은 '분석이 시작됐다'는 증거가 아니므로 성공으로 넘기지 않고 구분해서 안내한다
+        analyzeFloor(newFloor.id).catch((error: unknown) => {
+          const timedOut = isAxiosError(error) && error.code === 'ECONNABORTED';
+          show({
+            title: timedOut
+              ? '분석 요청 응답이 지연되고 있습니다. 잠시 후 진행 상태를 확인해주세요.'
+              : '도면 분석 요청에 실패했습니다. 다시 시도해주세요.',
+            variant: 'warning',
+          });
         });
       })
       .catch(() => {
@@ -2083,33 +2395,11 @@ const FloorPlansDetailPage = () => {
       });
   };
 
+  // 장치 배치 모드 — 정보 입력과 같은 단계에서 클릭으로 위치 지정. 다시 클릭하면 위치를 옮길 수 있음
+  // (CCTV 시야 구역 드래그 단계에서는 클릭이 다른 용도이므로 위치를 덮어쓰지 않음)
   const handleMapClick = (x: number, y: number) => {
-    if (relocatingPoiId) {
-      setPoiMarkers((prev) => prev.map((m) => (m.id === relocatingPoiId ? { ...m, x, y } : m)));
-      setRelocatingPoiId(null);
-      return;
-    }
-    // 장치 배치 모드 — 정보 입력과 같은 단계에서 클릭으로 위치 지정. 다시 클릭하면 위치를 옮길 수 있음
-    // (CCTV 시야 구역 드래그 단계에서는 클릭이 다른 용도이므로 위치를 덮어쓰지 않음)
-    if (nodeAddOpen) {
-      if (nodeAddStage === 'entry') {
-        const pctX = (x / 560) * 100;
-        const pctY = (y / 420) * 100;
-        setNodeStagedPosition({ x: pctX, y: pctY });
-      }
-      return;
-    }
-    // POI 배치
-    setPoiMarkers((prev) => [
-      ...prev,
-      {
-        id: `poi-${Date.now()}`,
-        x,
-        y,
-        label: `${(POI_TYPE_CONFIG[selectedPoiType] ?? POI_TYPE_CONFIG.exit).label} ${prev.filter((m) => m.poiType === selectedPoiType).length + 1}`,
-        poiType: selectedPoiType,
-      },
-    ]);
+    if (!nodeAddOpen || nodeAddStage !== 'entry') return;
+    setNodeStagedPosition({ x: (x / CANVAS_W) * 100, y: (y / canvasH) * 100 });
   };
 
   const handleAddedDeviceDelete = (id: string) => {
@@ -2125,18 +2415,21 @@ const FloorPlansDetailPage = () => {
   ) => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
-    if (type === 'door' || type === 'stair') {
-      const x = Math.round(((position.x / 100) * 560) / GRID_SIZE) * GRID_SIZE;
-      const y = Math.round(((position.y / 100) * 420) / GRID_SIZE) * GRID_SIZE;
+    if (isStructureNodeType(type)) {
+      // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음). position은 0~100(%) 기준
+      const ratioX = position.x / 100;
+      const ratioY = position.y / 100;
+      const x = ratioX * CANVAS_W;
+      const y = ratioY * canvasH;
       if (currentFloor) {
-        const apiType = type === 'door' ? 'DOOR' : 'STAIR';
+        const apiType = STRUCTURE_NODE_API_TYPE[type];
         const count = structureNodes.filter((n) => n.type === type).length + 1;
         createMapNode(currentFloor.id, {
           code: `${apiType}-${Date.now()}`,
           type: apiType,
           name: `${cfg.label} ${count}`,
-          x: x / 560,
-          y: y / 420,
+          x: ratioX,
+          y: ratioY,
           isExitTarget: false,
         })
           .then((newNode) => {
@@ -2158,6 +2451,8 @@ const FloorPlansDetailPage = () => {
           y: position.y / 100,
         })
           .then((newLight) => {
+            // 설정 모달·활성화 표시가 iotLights를 참조하므로 여기에도 반영해야 함
+            setIotLights((prev) => [...prev, newLight]);
             setAddedDevices((prev) => [
               ...prev,
               {
@@ -2172,23 +2467,10 @@ const FloorPlansDetailPage = () => {
               },
             ]);
           })
-          .catch(() => {});
+          .catch(() => {
+            show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+          });
       }
-    } else {
-      const count = addedDevices.filter((d) => d.type === 'iot').length + 1;
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id: `added-${type}-${Date.now()}`,
-          type: 'iot',
-          placeType: type,
-          label: deviceId || `${cfg.label}-${String(count).padStart(2, '0')}`,
-          x: position.x,
-          y: position.y,
-          status: 'online',
-          zone: location || '사용자 등록',
-        },
-      ]);
     }
 
     setNodeAddStage('entry');
@@ -2212,17 +2494,64 @@ const FloorPlansDetailPage = () => {
 
   const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
     setGridSetupIntent(intent);
-    setGridSizeMeterInput('1');
+    // 업로드 때 정했던 값이 남아 있으면 다시 입력하지 않도록 채워둠
+    const remembered = currentFloor
+      ? (readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
+        readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)))
+      : null;
+    setGridSizeMeterInput(String(remembered ?? 1));
     setGridSetupPromptOpen(true);
   };
 
-  // 입력 단계 제출 — CCTV는 그리드 유무에 따라 그리드설정/시야구역 단계로, 나머지는 바로 확정
+  // 입력 단계 제출 — CCTV는 서버가 배율(cellSizeMeter) 없이는 등록을 거부(CCTV006)하는데
+  // 배율 조회 API가 없어서, 아는 값이 있으면 조용히 다시 적용하고 정말 모를 때만 사용자에게 묻는다.
+  // (드래그를 다 끝낸 뒤에 실패하지 않도록 시야 선택 단계로 넘어가기 전에 처리)
   const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
-      ensureFloorGridCells().then((cells) => {
-        setNodeAddStage(cells.length > 0 ? 'fov' : 'entry');
-        if (cells.length === 0) openGridSetupPrompt('cctv');
+      // ensureFloorGridCells 호출 전 상태를 기억해둠 — 이미 이번 세션에서 그리드를 확인했다면
+      // (cells가 새로 조회된 게 아니라 기존 state) 배율을 다시 PUT할 필요가 없음
+      const hadGridAlready = floorGridCells.length > 0;
+      void ensureFloorGridCells().then((cells) => {
+        const floorIdForGrid = currentFloor?.id;
+        if (!floorIdForGrid || cells.length === 0) {
+          setNodeAddStage('entry');
+          openGridSetupPrompt('cctv');
+          return;
+        }
+        if (hadGridAlready) {
+          // 그리드가 이미 확인된 상태에서 무관한 CCTV를 하나 더 등록하는 경우 — 배율을 다시
+          // 적용하면 셀이 재생성될 수 있어(다른 CCTV·구역의 cellIds가 무효화됨) 건드리지 않음
+          setNodeAddStage('fov');
+          return;
+        }
+        // 기억해둔 값 → 이미 등록된 CCTV가 쓰던 배율 순으로 되찾음
+        const knownSize =
+          readStoredNumber(GRID_SIZE_KEY(floorIdForGrid)) ??
+          realCctvs.find((c) => c.floorId === floorIdForGrid && c.gridCellSizeMeter)
+            ?.gridCellSizeMeter ??
+          null;
+
+        if (!knownSize) {
+          setNodeAddStage('entry');
+          openGridSetupPrompt('cctv');
+          return;
+        }
+
+        // 배율을 알고 있으면 사용자를 막지 않고 조용히 재적용(PUT은 create-or-update라 안전).
+        // 셀이 재생성될 수 있으므로 적용 후 셀을 다시 받아온 뒤에 시야 선택 단계로 넘어감
+        setFloorGrid(floorIdForGrid, knownSize)
+          .then(() => getFloorGridCells(floorIdForGrid))
+          .then((refreshed) => {
+            setFloorGridCells(refreshed);
+            rememberGridSize(floorIdForGrid, knownSize);
+            setNodeAddStage('fov');
+          })
+          .catch(() => {
+            // 재적용이 실패하면 그때 사용자에게 물어봄
+            setNodeAddStage('entry');
+            openGridSetupPrompt('cctv');
+          });
       });
       return;
     }
@@ -2261,10 +2590,12 @@ const FloorPlansDetailPage = () => {
     if (!currentFloor) return;
     const cellSizeMeter = Number(gridSizeMeterInput);
     if (!(cellSizeMeter > 0)) return;
-    setFloorGrid(currentFloor.id, cellSizeMeter)
-      .then(() => getFloorGridCells(currentFloor.id))
+    const floorIdForGrid = currentFloor.id;
+    setFloorGrid(floorIdForGrid, cellSizeMeter)
+      .then(() => getFloorGridCells(floorIdForGrid))
       .then((cells) => {
         setFloorGridCells(cells);
+        rememberGridSize(floorIdForGrid, cellSizeMeter);
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
           setNodeAddStage('fov');
@@ -2275,7 +2606,16 @@ const FloorPlansDetailPage = () => {
         }
         setGridSetupIntent(null);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        const msg = isAxiosError<{ message?: string }>(error)
+          ? (error.response?.data?.message ?? '')
+          : '';
+        show({
+          title: `그리드 설정에 실패했습니다${msg ? ` (${msg})` : ''}`,
+          variant: 'error',
+          duration: 8000,
+        });
+      });
   };
 
   // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
@@ -2291,14 +2631,31 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleFinalizeFov = (deviceId: string) => {
-    if (!nodeStagedPosition || !currentFloor || cctvDraftCellIds.length === 0) return;
+    // 조용히 return하지 않고 어디서 막혔는지 알려줌
+    if (!nodeStagedPosition) {
+      show({ title: '도면에서 카메라 위치를 먼저 지정해주세요.', variant: 'warning' });
+      return;
+    }
+    if (!currentFloor) {
+      show({
+        title: '층 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (cctvDraftCellIds.length === 0) {
+      show({ title: '도면을 드래그해서 감시 구역(칸)을 먼저 선택해주세요.', variant: 'warning' });
+      return;
+    }
     const count = addedDevices.filter((d) => d.type === 'cctv').length + 1;
     const label = deviceId || `CCTV-${String(count).padStart(2, '0')}`;
+    // x,y는 0~1 정규화 값이어야 함 — 캔버스 경계 밖 클릭 등으로 살짝 벗어나는 경우 클램프
+    const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
     createCctv({
       floorId: currentFloor.id,
       name: label,
-      x: nodeStagedPosition.x / 100,
-      y: nodeStagedPosition.y / 100,
+      x: clamp01(nodeStagedPosition.x / 100),
+      y: clamp01(nodeStagedPosition.y / 100),
       gridCellIds: cctvDraftCellIds,
     })
       .then((newCctv) => {
@@ -2322,7 +2679,53 @@ const FloorPlansDetailPage = () => {
         setCctvDraftCellIds([]);
         setNodeAddOpen(false);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 본다
+        const responseData = isAxiosError(error) ? error.response?.data : undefined;
+        const body =
+          responseData && typeof responseData === 'object'
+            ? (responseData as { code?: unknown; message?: unknown })
+            : undefined;
+        const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
+        const serverMessage =
+          error instanceof ApiError ? error.message : String(body?.message ?? '');
+        if (import.meta.env.DEV) {
+          console.error('[CCTV 등록 실패]', serverCode, responseData ?? error);
+        }
+        // CCTV006 = 이 층에 그리드 배율(cellSizeMeter)이 설정 안 됨.
+        // 아는 배율이 있으면 조용히 재적용해서 사용자는 다시 드래그만 하면 되게 하고,
+        // 정말 모를 때만 설정 팝업을 띄운다. (배율 재적용 시 셀이 바뀌므로 선택은 초기화)
+        if (serverCode === 'CCTV006' || /GridCell 크기|cellSizeMeter/i.test(serverMessage)) {
+          setCctvDraftCellIds([]);
+          const knownSize = readStoredNumber(GRID_SIZE_KEY(currentFloor.id));
+          if (knownSize) {
+            setFloorGrid(currentFloor.id, knownSize)
+              .then(() => getFloorGridCells(currentFloor.id))
+              .then((refreshed) => {
+                setFloorGridCells(refreshed);
+                show({
+                  title: `그리드 배율(${knownSize}m)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
+                  variant: 'warning',
+                  duration: 7000,
+                });
+              })
+              .catch(() => openGridSetupPrompt('cctv'));
+            return;
+          }
+          openGridSetupPrompt('cctv');
+          show({
+            title:
+              '이 층의 그리드 배율(m)을 먼저 설정해야 합니다. 설정 후 감시 구역을 다시 드래그해주세요.',
+            variant: 'warning',
+            duration: 7000,
+          });
+          return;
+        }
+        show({
+          title: `CCTV 등록에 실패했습니다.${serverMessage ? ` (${serverMessage})` : ''}`,
+          variant: 'error',
+        });
+      });
   };
 
   const handleZoneDragEnd = () => {
@@ -2331,13 +2734,9 @@ const FloorPlansDetailPage = () => {
       (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || !!editingCctvId;
     if (cctvCellSelecting || zoneAddOpen) {
       if (rect && rect.w > 0 && rect.h > 0) {
-        const overlapping = floorGridCells.filter((cell) => {
-          const cx = cell.centerX * 560;
-          const cy = cell.centerY * 420;
-          return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
-        });
-        setActiveDraftCellIds((prev) =>
-          Array.from(new Set([...prev, ...overlapping.map((c) => c.id)])),
+        // 새 드래그가 이전 선택을 대체함(여러 번 드래그해도 마지막 것만 유효). 미세 조정은 셀 클릭 토글로
+        setActiveDraftCellIds(
+          cellIdsIntersectingRect(floorGridCells, rect, gridCellPxSize, canvasH),
         );
       }
       setZoneDraftRect(null);
@@ -2353,8 +2752,8 @@ const FloorPlansDetailPage = () => {
       prev.map((n) => (n.id === id ? { ...n, isFinalExit: nextIsFinalExit } : n)),
     );
     updateMapNodePosition(id, {
-      x: node.x / 560,
-      y: node.y / 420,
+      x: node.x / CANVAS_W,
+      y: node.y / canvasH,
       isExitTarget: nextIsFinalExit,
     }).catch(() => {
       setStructureNodes((prev) =>
@@ -2374,14 +2773,20 @@ const FloorPlansDetailPage = () => {
     setSelectedZoneRef((prev) => (isSameZoneRef(prev, ref) ? null : ref));
   };
 
-  // 도면 클릭 — 선택한 항목이 필터에 가려져 있을 수 있으므로 패널에 드러나도록 필터를 초기화
+  // 도면에서 항목을 클릭하면, 그 카드가 지금 필터에 가려져 있어도 우측 패널에 드러나서
+  // 포커싱(스크롤)되도록 상위/하위 필터를 그 항목에 맞게 이동시킴
   const handleZoneRefSelectFromMap = (ref: ZoneRefSelection) => {
     handleZoneRefSelect(ref);
     if (ref.kind === 'zone') {
       setTopFilter((prev) => (prev === 'device' ? 'all' : prev));
-    } else {
-      setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+      return;
     }
+    setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+    // 문/계단 노드면 해당 하위 칩으로 이동, 그 외(방·복도 등)는 하위 필터 해제
+    const structureType = structureNodes.find((n) => n.id === ref.id)?.type;
+    setDeviceTypeFilter(
+      structureType === 'door' || structureType === 'stair' ? structureType : null,
+    );
   };
 
   // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
@@ -2390,7 +2795,7 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
-    updateMapNodePosition(id, { x: x / 560, y: y / 420 }).catch(() => {});
+    updateMapNodePosition(id, { x: x / CANVAS_W, y: y / canvasH }).catch(() => {});
   };
 
   const handleStructureNodeDelete = (id: string) => {
@@ -2533,7 +2938,6 @@ const FloorPlansDetailPage = () => {
     selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id;
 
   const renderStructureCard = (n: StructureNode) => {
-    const isStair = n.type === 'stair';
     const sameTypeIndex = structureNodes
       .filter((x) => x.type === n.type)
       .findIndex((x) => x.id === n.id);
@@ -2550,7 +2954,11 @@ const FloorPlansDetailPage = () => {
             <span
               className={clsx(
                 styles.zoneCardDot,
-                isStair ? styles.zoneCardDotStair : styles.zoneCardDotDoor,
+                n.type === 'stair'
+                  ? styles.zoneCardDotStair
+                  : n.type === 'hallway'
+                    ? styles.zoneCardDotHallway
+                    : styles.zoneCardDotDoor,
               )}
             />
             <span className={styles.deviceCardName}>
@@ -2558,7 +2966,7 @@ const FloorPlansDetailPage = () => {
             </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            {!isStair && (
+            {n.type === 'door' && (
               <button
                 type="button"
                 className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
@@ -2662,59 +3070,74 @@ const FloorPlansDetailPage = () => {
     );
   };
 
-  const allPanelItems: PanelItem[] = [
-    ...(floor?.devices ?? []).map((d) => ({
-      id: d.id,
-      kind: 'device' as const,
-      type: d.type as 'cctv' | 'iot',
-      label: d.label,
-      statusText: d.status === 'online' ? '실시간' : '오프라인',
-      statusOnline: d.status === 'online',
-      zone: d.zone,
-      source: 'floor' as const,
-    })),
-    ...addedDevices.map((d) => ({
-      id: d.id,
-      kind: 'device' as const,
-      type: d.placeType,
-      label: d.label,
-      statusText: '실시간',
-      statusOnline: true,
-      zone: d.zone,
-      source: 'added' as const,
-    })),
-    ...poiMarkers.map((p) => ({
-      id: p.id,
-      kind: 'poi' as const,
-      type: 'general' as const,
-      label: p.label,
-      statusText: '등록됨',
-      statusOnline: true,
-      zone: '-',
-      source: 'poi' as const,
-    })),
-  ];
+  // 드래그(mousemove)마다 재렌더되는 컴포넌트라, 매 렌더 O(n·m) 재계산을 피하려고 useMemo로 감쌈
+  const allPanelItems: PanelItem[] = useMemo(
+    () => [
+      ...(floor?.devices ?? []).map((d) => ({
+        id: d.id,
+        kind: 'device' as const,
+        type: deviceTypeToPlaceType(d.type),
+        label: d.label,
+        statusText: d.status === 'online' ? '실시간' : '오프라인',
+        statusOnline: d.status === 'online',
+        zone: d.zone,
+        source: 'floor' as const,
+      })),
+      // 상태는 실제 CCTV/유도등의 enabled를 따라감 — 예전엔 '실시간'으로 고정돼 있어서
+      // 사용 불가로 바꿔도 카드에 반영되지 않았음
+      ...addedDevices.map((d) => {
+        const enabled =
+          realCctvs.find((c) => c.id === d.id)?.enabled ??
+          iotLights.find((l) => l.id === d.id)?.enabled ??
+          true;
+        return {
+          id: d.id,
+          kind: 'device' as const,
+          type: d.placeType,
+          label: d.label,
+          statusText: enabled ? '사용 가능' : '사용 불가능',
+          statusOnline: enabled,
+          zone: d.zone,
+          source: 'added' as const,
+        };
+      }),
+    ],
+    [floor?.devices, addedDevices, realCctvs, iotLights],
+  );
 
-  const panelItems = allPanelItems.filter((item) => {
-    if (deviceTypeFilter && item.type !== deviceTypeFilter) return false;
-    return true;
-  });
+  const panelItems = useMemo(
+    () => allPanelItems.filter((item) => !deviceTypeFilter || item.type === deviceTypeFilter),
+    [allPanelItems, deviceTypeFilter],
+  );
 
-  const visibleStructureNodes = structureNodes.filter(
-    (n) => !deviceTypeFilter || deviceTypeFilter === n.type,
+  const visibleStructureNodes = useMemo(
+    () => structureNodes.filter((n) => !deviceTypeFilter || deviceTypeFilter === n.type),
+    [structureNodes, deviceTypeFilter],
   );
 
   // 유도등 설정 모달의 판단 노드/엣지 드롭다운 목록
-  const lightNodeOptions = [
-    ...structureNodes.map((n) => ({ id: n.id, label: STRUCTURE_NODE_LABEL[n.type] })),
-    ...graphNodes.map((n) => ({ id: n.id, label: n.name })),
-  ];
-  const lightEdgeOptions = graphEdges.map((edge) => ({
-    id: edge.id,
-    label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
-  }));
+  const lightNodeOptions = useMemo(
+    () => [
+      ...structureNodes.map((n) => ({ id: n.id, label: STRUCTURE_NODE_LABEL[n.type] })),
+      ...graphNodes.map((n) => ({ id: n.id, label: n.name })),
+    ],
+    [structureNodes, graphNodes],
+  );
+  const lightEdgeOptions = useMemo(
+    () =>
+      graphEdges.map((edge) => ({
+        id: edge.id,
+        label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
+      })),
+    // getGraphNodeLabel은 structureNodes/graphNodes를 참조하는 클로저라 그 둘을 대신 의존성으로 둠
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graphEdges, structureNodes, graphNodes],
+  );
 
-  const gridCellPxSize = getGridCellPxSize(floorGridCells);
+  const gridCellPxSize = useMemo(
+    () => getGridCellPxSize(floorGridCells, canvasH),
+    [floorGridCells, canvasH],
+  );
 
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
@@ -2727,19 +3150,20 @@ const FloorPlansDetailPage = () => {
           ? 'browsing'
           : 'hidden';
 
+  // 드래그 중에는 미리보기로 "겹치는 셀"을 실시간 표시 → 손을 떼면 그대로 확정됨
+  const dragPreviewCellIds =
+    cctvGridCellsMode === 'selecting' && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0
+      ? cellIdsIntersectingRect(floorGridCells, zoneDraftRect, gridCellPxSize, canvasH)
+      : null;
+
   const selectedGridCellIds =
     cctvGridCellsMode === 'selecting'
-      ? activeDraftCellIds
+      ? (dragPreviewCellIds ?? activeDraftCellIds)
       : cctvGridCellsMode === 'viewing' && selectedItem?.kind === 'device'
         ? (realCctvs.find((c) => c.id === selectedItem.data.id)?.gridCells.map((c) => c.id) ?? [])
         : [];
 
-  const isPanelItemSelected = (item: PanelItem) =>
-    selectedItem?.kind === 'device'
-      ? item.kind === 'device' && selectedItem.data.id === item.id
-      : selectedItem?.kind === 'poi'
-        ? item.kind === 'poi' && selectedItem.data.id === item.id
-        : false;
+  const isPanelItemSelected = (item: PanelItem) => selectedItem?.data.id === item.id;
 
   const handlePanelItemSelect = (item: PanelItem) => {
     if (item.kind !== 'device') return;
@@ -2827,11 +3251,6 @@ const FloorPlansDetailPage = () => {
     const item = deleteConfirmTarget;
     if (!item || isDeletingItem) return;
     if (editingItemId === item.id) setEditingItemId(null);
-    if (item.kind === 'poi') {
-      handlePoiDelete(item.id);
-      setDeleteConfirmTarget(null);
-      return;
-    }
     if (item.source === 'added') {
       if (item.type === 'light') {
         // 서버에서 이 유도등이 붙어있던 노드·엣지까지 cascade로 함께 삭제됨
@@ -2859,24 +3278,6 @@ const FloorPlansDetailPage = () => {
       setSelectedItem(null);
     }
     setDeleteConfirmTarget(null);
-  };
-
-  const handlePoiClick = (id: string) => {
-    setEditingPoiId((prev) => (prev === id ? null : id));
-  };
-
-  const handlePoiLabelChange = (id: string, label: string) => {
-    setPoiMarkers((prev) => prev.map((m) => (m.id === id ? { ...m, label } : m)));
-  };
-
-  const handlePoiDelete = (id: string) => {
-    setPoiMarkers((prev) => prev.filter((m) => m.id !== id));
-    setEditingPoiId(null);
-  };
-
-  const handlePoiRelocate = (id: string) => {
-    setRelocatingPoiId(id);
-    setEditingPoiId(null);
   };
 
   return (
@@ -2954,7 +3355,11 @@ const FloorPlansDetailPage = () => {
                   aria-pressed={showGridOverlay}
                   onClick={handleToggleGridOverlay}
                 >
-                  <LayersIcon width={14} height={14} />
+                  {showGridOverlay ? (
+                    <EyeOffIcon width={14} height={14} />
+                  ) : (
+                    <EyeIcon width={14} height={14} />
+                  )}
                   그리드 표시
                 </button>
                 <button
@@ -3132,18 +3537,15 @@ const FloorPlansDetailPage = () => {
             )}
 
             {loadingFloor ? (
-              <div style={{ padding: '4rem', color: '#6b7280', fontSize: '1.4rem' }}>
-                도면을 불러오는 중...
-              </div>
+              <LoadingState message="도면을 불러오는 중..." />
             ) : currentFloor ? (
               <FloorCanvas
                 mapWrapRef={mapWrapRef}
                 floor={floor ?? currentFloor}
                 resolvedImageUrl={resolvedMapImageUrl}
+                canvasH={canvasH}
                 selected={selectedItem}
-                aiLayers={aiLayers}
                 zoom={zoom}
-                editMode={editMode}
                 editingItemId={editingItemId}
                 placingActive={nodeAddOpen}
                 zoneAddActive={
@@ -3174,22 +3576,15 @@ const FloorPlansDetailPage = () => {
                 gridCellPxSize={gridCellPxSize}
                 onGridCellToggle={handleGridCellToggle}
                 stagedCameraPosition={nodeStagedPosition}
-                poiMarkers={poiMarkers}
-                editingPoiId={editingPoiId}
-                relocatingPoiId={relocatingPoiId}
                 onSelectDevice={(d) => {
-                  if (editMode === 'poi') return;
                   const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
                   setSelectedZoneRef(null);
+                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
                   setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+                  setDeviceTypeFilter(deviceTypeToFilterChip(d.type));
                 }}
                 onMapClick={handleMapClick}
-                onPoiClick={handlePoiClick}
-                onPoiLabelChange={handlePoiLabelChange}
-                onPoiDelete={handlePoiDelete}
-                onPoiRelocate={handlePoiRelocate}
-                onPoiPopoverClose={() => setEditingPoiId(null)}
                 onBackgroundClick={() => {
                   setSelectedItem(null);
                   setSelectedZoneRef(null);
@@ -3310,10 +3705,10 @@ const FloorPlansDetailPage = () => {
                   {(
                     [
                       { key: 'cctv', label: 'CCTV' },
-                      { key: 'iot', label: 'IoT' },
                       { key: 'light', label: '유도등' },
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
+                      { key: 'hallway', label: '복도' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
@@ -3425,6 +3820,8 @@ const FloorPlansDetailPage = () => {
           open
           onClose={() => setCctvSettingsTarget(null)}
           cctv={cctvSettingsTarget}
+          isSaving={isSavingCctv}
+          onSaveName={handleCctvSaveName}
           onToggleEnabled={handleCctvToggleEnabled}
           onEditCells={handleStartEditCctvCells}
         />

@@ -12,6 +12,8 @@ export interface FloorGridCell {
   centerX: number;
   centerY: number;
   walkable: boolean;
+  /** 화재 확산 시뮬레이션에서 이 셀이 불에 탄 상태인지 (훈련 중에만 true가 됨) */
+  fired: boolean;
 }
 
 export const toFloorGridCell = (response: FloorGridCellResponse): FloorGridCell => {
@@ -26,7 +28,15 @@ export const toFloorGridCell = (response: FloorGridCellResponse): FloorGridCell 
     throw new Error('그리드 셀 응답에 필수 필드가 누락되었습니다.');
   }
 
-  return { id, rowIndex, columnIndex, centerX, centerY, walkable: response.walkable ?? false };
+  return {
+    id,
+    rowIndex,
+    columnIndex,
+    centerX,
+    centerY,
+    walkable: response.walkable ?? false,
+    fired: response.fired ?? false,
+  };
 };
 
 const GRID_CELLS_PAGE_SIZE = 2000;

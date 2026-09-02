@@ -19,6 +19,8 @@ export interface Cctv {
   x: number;
   y: number;
   enabled: boolean;
+  /** 이 CCTV가 등록될 때 층에 설정돼 있던 그리드 배율(m). 층 배율 조회 API가 없어서 이 값으로 역추적함 */
+  gridCellSizeMeter: number | null;
   monitoredGridCellCount: number;
   monitoredAreaM2: number;
   gridCells: CctvGridCell[];
@@ -53,6 +55,7 @@ export const toCctv = (response: CctvResponse): Cctv => {
     x,
     y,
     enabled: response.enabled ?? false,
+    gridCellSizeMeter: response.gridCellSizeMeter ?? null,
     monitoredGridCellCount: response.monitoredGridCellCount ?? 0,
     monitoredAreaM2: response.monitoredAreaM2 ?? 0,
     gridCells: (response.gridCells ?? []).map(toCctvGridCell),
