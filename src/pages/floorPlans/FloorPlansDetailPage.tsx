@@ -70,7 +70,6 @@ import {
   getUserZoneDetail,
 } from './api/userZoneApi';
 import * as styles from './FloorPlansDetailPage.css';
-import CctvSettingsModal from './modals/CctvSettingsModal';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FireOriginScenarioModal from './modals/FireOriginScenarioModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -102,6 +101,8 @@ type PanelItem = {
   statusOnline: boolean;
   zone: string;
   source: 'floor' | 'added';
+  // CCTV 카드에서 감시 영역 현황을 바로 보여주기 위한 값 — CCTV가 아니면 없음
+  monitoredArea?: { cellCount: number; areaM2: number };
 };
 
 // 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
@@ -441,7 +442,6 @@ const MockFloorMap3F = ({
   canvasH,
   placingActive,
   zoneAddActive,
-  zoneDraftRect,
   onZoneDraftChange,
   onZoneDragEnd,
   savedZones,
@@ -470,7 +470,6 @@ const MockFloorMap3F = ({
   canvasH: number;
   placingActive: boolean;
   zoneAddActive: boolean;
-  zoneDraftRect: ZoneRect | null;
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
@@ -895,21 +894,6 @@ const MockFloorMap3F = ({
               />
             ))}
         </>
-      )}
-
-      {/* 구역 추가 드래그 선택 영역 */}
-      {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
-        <rect
-          x={zoneDraftRect.x}
-          y={zoneDraftRect.y}
-          width={zoneDraftRect.w}
-          height={zoneDraftRect.h}
-          fill="rgba(37,99,235,0.18)"
-          stroke="#2563eb"
-          strokeWidth="1.5"
-          strokeDasharray="4 3"
-          style={{ pointerEvents: 'none' }}
-        />
       )}
     </svg>
   );
@@ -1471,6 +1455,8 @@ const DeviceCard = ({
   onSaveEdit,
   onDelete,
   onOpenSettings,
+  onToggleCctvEnabled,
+  onEditCctvCells,
 }: {
   item: PanelItem;
   selected: boolean;
@@ -1482,6 +1468,8 @@ const DeviceCard = ({
   onSaveEdit: (item: PanelItem) => void;
   onDelete: (item: PanelItem) => void;
   onOpenSettings: (item: PanelItem) => void;
+  onToggleCctvEnabled: (item: PanelItem) => void;
+  onEditCctvCells: (item: PanelItem) => void;
 }) => (
   <div
     data-panel-id={item.id}
@@ -1504,7 +1492,20 @@ const DeviceCard = ({
     </div>
     <div className={styles.deviceCardRow}>
       <span className={styles.deviceCardKey}>상태</span>
-      <StatusBadge label={item.statusText} color={item.statusOnline ? 'green' : 'neutral'} dot />
+      {item.type === 'cctv' ? (
+        <button
+          type="button"
+          className={item.statusOnline ? styles.cctvEnabledBadge : styles.cctvEnabledToggle}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCctvEnabled(item);
+          }}
+        >
+          {item.statusOnline ? '사용 가능' : '사용 불가능'}
+        </button>
+      ) : (
+        <StatusBadge label={item.statusText} color={item.statusOnline ? 'green' : 'neutral'} dot />
+      )}
     </div>
     <div className={styles.deviceCardRow}>
       <span className={styles.deviceCardKey}>설치 위치</span>
@@ -1519,9 +1520,39 @@ const DeviceCard = ({
         <span className={styles.deviceCardValue}>{item.zone}</span>
       )}
     </div>
+    {item.type === 'cctv' && item.monitoredArea && (
+      <div className={styles.deviceCardRow}>
+        <span className={styles.deviceCardKey}>감시 영역</span>
+        <span className={styles.deviceCardValue}>
+          {item.monitoredArea.cellCount}칸 · {item.monitoredArea.areaM2}㎡
+        </span>
+      </div>
+    )}
     <div className={styles.deviceCardActions}>
-      {/* CCTV는 이름 수정·활성화·감시영역을 한 모달에서 처리하므로 버튼을 "수정" 하나로 합침 */}
-      {item.type === 'cctv' ? (
+      {editing ? (
+        <button
+          type="button"
+          className={styles.deviceCardDoneBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSaveEdit(item);
+          }}
+        >
+          완료
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={styles.deviceCardEditBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit(item);
+          }}
+        >
+          수정
+        </button>
+      )}
+      {item.type === 'light' && (
         <button
           type="button"
           className={styles.deviceCardEditBtn}
@@ -1530,46 +1561,20 @@ const DeviceCard = ({
             onOpenSettings(item);
           }}
         >
-          수정
+          설정
         </button>
-      ) : (
-        <>
-          {editing ? (
-            <button
-              type="button"
-              className={styles.deviceCardDoneBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSaveEdit(item);
-              }}
-            >
-              완료
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.deviceCardEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartEdit(item);
-              }}
-            >
-              수정
-            </button>
-          )}
-          {item.type === 'light' && (
-            <button
-              type="button"
-              className={styles.deviceCardEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenSettings(item);
-              }}
-            >
-              설정
-            </button>
-          )}
-        </>
+      )}
+      {item.type === 'cctv' && (
+        <button
+          type="button"
+          className={styles.deviceCardEditBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditCctvCells(item);
+          }}
+        >
+          감시영역 재선택
+        </button>
       )}
       <button
         type="button"
@@ -1596,7 +1601,6 @@ const FloorCanvas = ({
   editingItemId,
   placingActive,
   zoneAddActive,
-  zoneDraftRect,
   onZoneDraftChange,
   onZoneDragEnd,
   savedZones,
@@ -1638,7 +1642,6 @@ const FloorCanvas = ({
   editingItemId: string | null;
   placingActive: boolean;
   zoneAddActive: boolean;
-  zoneDraftRect: ZoneRect | null;
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
@@ -1717,7 +1720,6 @@ const FloorCanvas = ({
         canvasH={canvasH}
         placingActive={placingActive}
         zoneAddActive={zoneAddActive}
-        zoneDraftRect={zoneDraftRect}
         onZoneDraftChange={onZoneDraftChange}
         onZoneDragEnd={onZoneDragEnd}
         savedZones={savedZones}
@@ -1755,7 +1757,11 @@ const FloorCanvas = ({
             left: `${existingFireOriginPosition.x}%`,
             top: `${existingFireOriginPosition.y}%`,
           }}
-        />
+          title="발화점"
+          aria-hidden="true"
+        >
+          🔥
+        </div>
       )}
       {floor.devices.map((device) => {
         const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
@@ -2170,15 +2176,18 @@ const FloorPlansDetailPage = () => {
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
   const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
-  const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
-  const [isSavingCctv, setIsSavingCctv] = useState(false);
   const [fireOriginModalOpen, setFireOriginModalOpen] = useState(false);
   // 발화점 지정 모드 — 시나리오를 고르고 나면 도면 그리드 클릭으로 셀을 지정할 수 있게 됨
   const [fireOriginScenarioId, setFireOriginScenarioId] = useState<string | null>(null);
   const [fireOriginDraftCellId, setFireOriginDraftCellId] = useState<string | null>(null);
   const createFireOriginMutation = useCreateFireOriginMutation();
+  // 마지막으로 다룬 시나리오 — 지정 모드가 끝나도(성공/취소) 유지해서, 도면 위 발화점 표시와
+  // 훈련 준비 체크리스트가 새로고침 없이 "방금 지정한 결과"를 계속 보여주게 함
+  const [fireOriginStatusScenarioId, setFireOriginStatusScenarioId] = useState<string | null>(null);
   // 이미 지정된 발화점이 있으면 도면에 표시하고, 재지정 시 경고해줌
-  const existingFireOriginQuery = useScenarioFireOriginQuery(fireOriginScenarioId ?? undefined);
+  const existingFireOriginQuery = useScenarioFireOriginQuery(
+    fireOriginStatusScenarioId ?? undefined,
+  );
   const existingFireOrigin = existingFireOriginQuery.data?.[0] ?? null;
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
@@ -2232,23 +2241,22 @@ const FloorPlansDetailPage = () => {
     }
   };
 
+  // CCTV는 이름·상태·감시영역을 전부 카드 안에서 처리해서 모달이 따로 없음(유도등만
+  // 판단노드·엣지 등 설정할 게 많아 모달을 씀)
   const handleOpenDeviceSettings = (item: PanelItem) => {
-    if (item.type === 'light') {
-      const light = iotLights.find((l) => l.id === item.id);
-      if (light) setLightSettingsTarget(light);
-    } else if (item.type === 'cctv') {
-      const cctv = realCctvs.find((c) => c.id === item.id);
-      if (cctv) setCctvSettingsTarget(cctv);
-    }
+    if (item.type !== 'light') return;
+    const light = iotLights.find((l) => l.id === item.id);
+    if (light) setLightSettingsTarget(light);
   };
 
-  const handleCctvToggleEnabled = (enabled: boolean) => {
-    if (!cctvSettingsTarget || cctvSettingsTarget.enabled === enabled) return;
+  const handleCctvToggleEnabled = (item: PanelItem) => {
+    const cctv = realCctvs.find((c) => c.id === item.id);
+    if (!cctv) return;
+    const enabled = !cctv.enabled;
     const request = enabled ? enableCctv : disableCctv;
-    request(cctvSettingsTarget.id)
+    request(cctv.id)
       .then((updated) => {
         setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        setCctvSettingsTarget(updated);
         show({
           title: enabled
             ? 'CCTV를 사용 가능으로 바꿨습니다.'
@@ -2261,37 +2269,14 @@ const FloorPlansDetailPage = () => {
       });
   };
 
-  // 통합 모달에서 이름만 저장 — 위치(x,y)는 도면 드래그로 바꾸므로 기존 값을 그대로 보냄
-  const handleCctvSaveName = (name: string) => {
-    if (!cctvSettingsTarget || isSavingCctv) return;
-    setIsSavingCctv(true);
-    updateCctv(cctvSettingsTarget.id, {
-      name,
-      x: cctvSettingsTarget.x,
-      y: cctvSettingsTarget.y,
-    })
-      .then((updated) => {
-        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        setCctvSettingsTarget(updated);
-        setAddedDevices((prev) =>
-          prev.map((d) => (d.id === updated.id ? { ...d, label: updated.name } : d)),
-        );
-        show({ title: 'CCTV 정보가 수정되었습니다.', variant: 'success' });
-      })
-      .catch(() => {
-        show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setIsSavingCctv(false));
-  };
-
-  const handleStartEditCctvCells = () => {
-    if (!cctvSettingsTarget) return;
+  const handleStartEditCctvCells = (item: PanelItem) => {
+    const cctv = realCctvs.find((c) => c.id === item.id);
+    if (!cctv) return;
     setNodeAddOpen(false);
     setZoneAddOpen(false);
     setEdgeAddOpen(false);
-    setEditingCctvId(cctvSettingsTarget.id);
-    setCctvDraftCellIds(cctvSettingsTarget.gridCells.map((c) => c.id));
-    setCctvSettingsTarget(null);
+    setEditingCctvId(cctv.id);
+    setCctvDraftCellIds(cctv.gridCells.map((c) => c.id));
   };
 
   const handleCancelEditCctvCells = () => {
@@ -3311,10 +3296,9 @@ const FloorPlansDetailPage = () => {
       // 상태는 실제 CCTV/유도등의 enabled를 따라감 — 예전엔 '실시간'으로 고정돼 있어서
       // 사용 불가로 바꿔도 카드에 반영되지 않았음
       ...addedDevices.map((d) => {
+        const matchedCctv = realCctvs.find((c) => c.id === d.id);
         const enabled =
-          realCctvs.find((c) => c.id === d.id)?.enabled ??
-          iotLights.find((l) => l.id === d.id)?.enabled ??
-          true;
+          matchedCctv?.enabled ?? iotLights.find((l) => l.id === d.id)?.enabled ?? true;
         return {
           id: d.id,
           kind: 'device' as const,
@@ -3324,6 +3308,9 @@ const FloorPlansDetailPage = () => {
           statusOnline: enabled,
           zone: d.zone,
           source: 'added' as const,
+          monitoredArea: matchedCctv
+            ? { cellCount: matchedCctv.monitoredGridCellCount, areaM2: matchedCctv.monitoredAreaM2 }
+            : undefined,
         };
       }),
     ],
@@ -3523,6 +3510,33 @@ const FloorPlansDetailPage = () => {
         {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner} style={{ padding: '2rem 2rem 2.4rem' }}>
+            {/* 층 목록 */}
+            <div className={styles.floorNavCard}>
+              <div className={styles.floorNavHeader}>층 목록</div>
+              <div className={styles.floorNavList}>
+                {[...(currentBuilding?.floors ?? [])]
+                  .sort((a, b) => b.floorNum - a.floorNum)
+                  .map((f) => {
+                    const isCurrent = f.id === selectedFloorId;
+                    const isNone = !hasFloorPlan(f);
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className={clsx(
+                          styles.floorNavItem,
+                          isCurrent && styles.floorNavItemActive,
+                        )}
+                        onClick={() => handleFloorChange(f.id)}
+                      >
+                        <span>{formatFloor(f.floorNum)}</span>
+                        {isNone && <StatusBadge label="미등록" color="neutral" />}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
             {/* 훈련 준비 — 시나리오를 재생하려면 이 층에 시작 노드·최종 탈출구가 있어야 하고,
                 (시나리오별로) 발화점도 지정되어 있어야 함. 이 셋이 노드추가 팝업 안 칩,
                 우측 패널 카드 토글, 별도 모달로 흩어져 있어서 뭐가 필요한지 안 보이던 문제를
@@ -3587,7 +3601,12 @@ const FloorPlansDetailPage = () => {
 
                 <div className={styles.readinessItem}>
                   <div className={styles.readinessItemLabel}>
-                    <span className={styles.readinessDot} />
+                    <span
+                      className={clsx(
+                        styles.readinessDot,
+                        existingFireOriginCell && styles.readinessDotDone,
+                      )}
+                    />
                     발화점
                   </div>
                   <button
@@ -3595,41 +3614,16 @@ const FloorPlansDetailPage = () => {
                     className={styles.readinessActionBtn}
                     onClick={handleOpenFireOrigin}
                   >
-                    지정하기
+                    {existingFireOriginCell ? '다른 시나리오 지정' : '지정하기'}
                   </button>
                 </div>
                 <span className={styles.readinessHint}>
-                  발화점은 시나리오마다 따로 지정해요 — 여기서는 지정 화면으로만 이동해요
+                  {existingFireOriginCell
+                    ? '방금 지정한 시나리오의 발화점이 도면에 표시돼요. 시나리오마다 따로 지정해요.'
+                    : '발화점은 시나리오마다 따로 지정해요 — 여기서는 지정 화면으로만 이동해요'}
                 </span>
               </div>
             )}
-
-            {/* 층 목록 */}
-            <div className={styles.floorNavCard}>
-              <div className={styles.floorNavHeader}>층 목록</div>
-              <div className={styles.floorNavList}>
-                {[...(currentBuilding?.floors ?? [])]
-                  .sort((a, b) => b.floorNum - a.floorNum)
-                  .map((f) => {
-                    const isCurrent = f.id === selectedFloorId;
-                    const isNone = !hasFloorPlan(f);
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        className={clsx(
-                          styles.floorNavItem,
-                          isCurrent && styles.floorNavItemActive,
-                        )}
-                        onClick={() => handleFloorChange(f.id)}
-                      >
-                        <span>{formatFloor(f.floorNum)}</span>
-                        {isNone && <StatusBadge label="미등록" color="neutral" />}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
           </div>
         </aside>
 
@@ -3876,7 +3870,6 @@ const FloorPlansDetailPage = () => {
                   (nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
                   !!editingCctvId
                 }
-                zoneDraftRect={zoneDraftRect}
                 onZoneDraftChange={setZoneDraftRect}
                 onZoneDragEnd={handleZoneDragEnd}
                 savedZones={zones}
@@ -4077,6 +4070,8 @@ const FloorPlansDetailPage = () => {
                       onSaveEdit={handleSaveEdit}
                       onDelete={handlePanelItemDelete}
                       onOpenSettings={handleOpenDeviceSettings}
+                      onToggleCctvEnabled={handleCctvToggleEnabled}
+                      onEditCctvCells={handleStartEditCctvCells}
                     />
                   ))}
 
@@ -4147,18 +4142,6 @@ const FloorPlansDetailPage = () => {
         />
       )}
 
-      {cctvSettingsTarget && (
-        <CctvSettingsModal
-          open
-          onClose={() => setCctvSettingsTarget(null)}
-          cctv={cctvSettingsTarget}
-          isSaving={isSavingCctv}
-          onSaveName={handleCctvSaveName}
-          onToggleEnabled={handleCctvToggleEnabled}
-          onEditCells={handleStartEditCctvCells}
-        />
-      )}
-
       {buildingId && (
         <FireOriginScenarioModal
           open={fireOriginModalOpen}
@@ -4166,6 +4149,7 @@ const FloorPlansDetailPage = () => {
           buildingId={buildingId}
           onSelect={(scenarioId) => {
             setFireOriginModalOpen(false);
+            setFireOriginStatusScenarioId(scenarioId);
             // CCTV 등록과 같은 이유로 그리드가 있어야 셀을 지정할 수 있음 — 없으면 먼저 만들게 함
             void ensureFloorGridCells().then((cells) => {
               setFireOriginScenarioId(scenarioId);

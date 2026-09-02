@@ -718,6 +718,11 @@ export const finalExitBadge = style({
   ...vars.typography.caption,
 });
 
+/* CCTV 카드 안 사용가능/불가능 토글 — finalExit 토글과 같은 시각 언어(같은 성격의
+   on/off 지정 액션이라 카드 안에서 일관돼 보이게 함) */
+export const cctvEnabledToggle = finalExitToggle;
+export const cctvEnabledBadge = finalExitBadge;
+
 export const deviceCardName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -1078,17 +1083,31 @@ export const stagedCameraMarker = style({
   },
 });
 
-// 발화점 지정 모드에서, 이 시나리오에 이미 등록된 발화점 위치를 표시
+// 발화점 지정 모드에서, 이 시나리오에 이미 등록된 발화점 위치를 표시 — 다른 마커(CCTV·유도등·
+// 구조노드 점)들 사이에서 묻히기 쉬워서, 색 원 하나가 아니라 🔥 이모지 + 펄스 애니메이션으로
+// 눈에 확 띄게 함
 export const existingFireOriginMarker = style({
   position: 'absolute',
-  zIndex: 2,
+  zIndex: 3,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   transform: 'translate(-50%, -50%)',
   border: `2px solid ${vars.color.danger}`,
   borderRadius: '50%',
-  backgroundColor: 'rgba(239,68,68,0.25)',
+  boxShadow: '0 0 0 4px rgba(239,68,68,0.2)',
+  backgroundColor: vars.color.white,
   pointerEvents: 'none',
-  width: '2rem',
-  height: '2rem',
+  width: '2.8rem',
+  height: '2.8rem',
+  animation: `${pulse} 1.4s ease-in-out infinite`,
+  lineHeight: 1,
+  fontSize: '1.6rem',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
 });
 
 /* ── Canvase placeholder ── */
