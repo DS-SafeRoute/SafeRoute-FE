@@ -67,6 +67,7 @@ import {
 import * as styles from './FloorPlansDetailPage.css';
 import CctvSettingsModal from './modals/CctvSettingsModal';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
+import FireOriginScenarioModal from './modals/FireOriginScenarioModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
@@ -2064,6 +2065,9 @@ const FloorPlansDetailPage = () => {
   const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
   const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
   const [isSavingCctv, setIsSavingCctv] = useState(false);
+  const [fireOriginModalOpen, setFireOriginModalOpen] = useState(false);
+  // 발화점 지정 모드 — 시나리오를 고르고 나면 도면 그리드 클릭으로 셀을 지정할 수 있게 됨
+  const [fireOriginScenarioId, setFireOriginScenarioId] = useState<string | null>(null);
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -3400,6 +3404,18 @@ const FloorPlansDetailPage = () => {
                   <PlusIcon width={14} height={14} />
                   엣지 연결
                 </button>
+                <button
+                  type="button"
+                  className={clsx(
+                    styles.canvasActionButton,
+                    fireOriginScenarioId && styles.canvasActionButtonActive,
+                  )}
+                  aria-pressed={Boolean(fireOriginScenarioId)}
+                  onClick={() => setFireOriginModalOpen(true)}
+                >
+                  <PlusIcon width={14} height={14} />
+                  발화점 지정
+                </button>
               </div>
             )}
 
@@ -3824,6 +3840,18 @@ const FloorPlansDetailPage = () => {
           onSaveName={handleCctvSaveName}
           onToggleEnabled={handleCctvToggleEnabled}
           onEditCells={handleStartEditCctvCells}
+        />
+      )}
+
+      {buildingId && (
+        <FireOriginScenarioModal
+          open={fireOriginModalOpen}
+          onClose={() => setFireOriginModalOpen(false)}
+          buildingId={buildingId}
+          onSelect={(scenarioId) => {
+            setFireOriginScenarioId(scenarioId);
+            setFireOriginModalOpen(false);
+          }}
         />
       )}
     </>
