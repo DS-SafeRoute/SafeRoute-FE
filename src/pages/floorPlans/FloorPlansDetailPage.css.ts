@@ -90,6 +90,75 @@ export const floorNavItemActive = style({
   color: vars.color.primary,
 });
 
+/* ── 훈련 준비 체크리스트 ── */
+export const readinessCard = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.lg,
+  padding: vars.space.s4,
+});
+
+export const readinessHeader = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const readinessHint = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const readinessItem = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+  borderTop: `1px solid ${vars.color.gray50}`,
+  paddingTop: vars.space.s2,
+});
+
+export const readinessItemLabel = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+});
+
+export const readinessDot = style({
+  flexShrink: 0,
+  borderRadius: '50%',
+  backgroundColor: vars.color.gray300,
+  width: '0.7rem',
+  height: '0.7rem',
+});
+
+export const readinessDotDone = style({
+  backgroundColor: vars.color.success,
+});
+
+export const readinessDoneText = style({
+  flexShrink: 0,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const readinessActionBtn = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.primary}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `0.2rem ${vars.space.s3}`,
+  color: vars.color.primary,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.primaryLight2 },
+  },
+});
+
 /* ── 장비/구역 추가 ── */
 export const canvasActionFloat = style({
   position: 'absolute',
@@ -121,6 +190,45 @@ export const canvasActionButtonActive = style({
   borderColor: vars.color.primary,
   backgroundColor: vars.color.primaryLight2,
   color: vars.color.primary,
+});
+
+/* ── 툴바 "+ 추가" 메뉴 ── */
+export const addMenuContainer = style({
+  position: 'relative',
+});
+
+export const addMenuChevron = style({
+  color: vars.color.textLow,
+});
+
+export const addMenuPanel = style({
+  position: 'absolute',
+  zIndex: 20,
+  top: 'calc(100% + 0.4rem)',
+  right: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  boxShadow: vars.shadow.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s2,
+  width: '12rem',
+});
+
+export const addMenuItem = style({
+  border: 'none',
+  borderRadius: vars.radius.sm,
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '100%',
+  textAlign: 'left',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
 });
 
 export const gridSizeLabelRow = style({

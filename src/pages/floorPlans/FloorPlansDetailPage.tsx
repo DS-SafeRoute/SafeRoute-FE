@@ -12,6 +12,7 @@ import {
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
+import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
 import EyeOffIcon from '@assets/icons/ic-eye-off.svg?react';
@@ -1389,6 +1390,71 @@ const EdgeAddPopup = ({
           추가
         </button>
       </div>
+    </div>
+  );
+};
+
+/* ── 툴바 "+ 추가" 메뉴 — 노드/구역/엣지 추가를 각각 버튼으로 늘어놓지 않고 하나로 묶음 ── */
+const AddActionMenu = ({
+  onAddNode,
+  onAddZone,
+  onAddEdge,
+}: {
+  onAddNode: () => void;
+  onAddZone: () => void;
+  onAddEdge: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  const items = [
+    { label: '노드 추가', onClick: onAddNode },
+    { label: '구역 추가', onClick: onAddZone },
+    { label: '엣지 연결', onClick: onAddEdge },
+  ];
+
+  return (
+    <div ref={containerRef} className={styles.addMenuContainer}>
+      <button
+        type="button"
+        className={styles.canvasActionButton}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <PlusIcon width={14} height={14} />
+        추가
+        <ChevronDownIcon width={14} height={14} className={styles.addMenuChevron} />
+      </button>
+      {open && (
+        <div className={styles.addMenuPanel} role="menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={styles.addMenuItem}
+              onClick={() => {
+                item.onClick();
+                setOpen(false);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -3050,6 +3116,34 @@ const FloorPlansDetailPage = () => {
     });
   };
 
+  // 툴바 "+ 추가" 메뉴·훈련 준비 체크리스트가 같이 쓰는 진입점 — 다른 배치 모드를 정리하고 엶.
+  // presetType을 주면 노드 종류 칩까지 미리 골라둠(예: 체크리스트의 "시작 노드 지정하기")
+  const handleOpenNodeAdd = (presetType?: PlacingDeviceType) => {
+    setZoneAddOpen(false);
+    handleCancelFireOrigin();
+    if (presetType) setNodeAddType(presetType);
+    setNodeAddOpen(true);
+  };
+
+  const handleOpenEdgeAdd = () => {
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    handleCancelFireOrigin();
+    setSelectedEdgeId(null);
+    setEdgeAddOpen(true);
+  };
+
+  const handleOpenFireOrigin = () => {
+    // 다른 배치 모드와 동시에 켜지면 그리드 클릭 결과가 어느 쪽으로 가는지 헷갈리므로,
+    // 발화점 지정을 시작할 때 나머지 모드는 먼저 정리함
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setEdgeAddOpen(false);
+    setEditingCctvId(null);
+    setEditingStructureId(null);
+    setFireOriginModalOpen(true);
+  };
+
   // 다른 삭제(장비/POI)는 전부 확인 모달을 거치는데 구역만 클릭 즉시 삭제되고 있어서 맞춤
   const handleZoneDeleteRequest = (zone: ZoneEntry) => setZoneDeleteTarget(zone);
   const handleZoneDeleteCancel = () => setZoneDeleteTarget(null);
@@ -3270,6 +3364,11 @@ const FloorPlansDetailPage = () => {
     [floorGridCells, canvasH],
   );
 
+  // 좌측 "훈련 준비" 체크리스트가 쓰는 상태 — 시나리오 재생 전 이 층에 필요한 3가지
+  const hasStartNode = structureNodes.some((n) => n.type === 'start');
+  const hasFinalExit = structureNodes.some((n) => n.isFinalExit);
+  const hasDoorOrStair = structureNodes.some((n) => n.type === 'door' || n.type === 'stair');
+
   // 이 시나리오의 발화점이 이미 지정되어 있고, 그게 지금 보고 있는 층이면 도면에 표시함
   const existingFireOriginCell =
     existingFireOrigin && currentFloor && existingFireOrigin.floorId === currentFloor.id
@@ -3424,6 +3523,87 @@ const FloorPlansDetailPage = () => {
         {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner} style={{ padding: '2rem 2rem 2.4rem' }}>
+            {/* 훈련 준비 — 시나리오를 재생하려면 이 층에 시작 노드·최종 탈출구가 있어야 하고,
+                (시나리오별로) 발화점도 지정되어 있어야 함. 이 셋이 노드추가 팝업 안 칩,
+                우측 패널 카드 토글, 별도 모달로 흩어져 있어서 뭐가 필요한지 안 보이던 문제를
+                여기 한 곳에 모아서 해결함 */}
+            {currentFloor?.segmentationStatus === 'DONE' && (
+              <div className={styles.readinessCard}>
+                <div className={styles.readinessHeader}>훈련 준비</div>
+                <span className={styles.readinessHint}>
+                  시나리오를 재생하려면 이 층에 아래 항목이 필요해요
+                </span>
+
+                <div className={styles.readinessItem}>
+                  <div className={styles.readinessItemLabel}>
+                    <span
+                      className={clsx(styles.readinessDot, hasStartNode && styles.readinessDotDone)}
+                    />
+                    시작 노드
+                  </div>
+                  {hasStartNode ? (
+                    <span className={styles.readinessDoneText}>완료</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.readinessActionBtn}
+                      onClick={() => handleOpenNodeAdd('start')}
+                    >
+                      지정하기
+                    </button>
+                  )}
+                </div>
+
+                <div className={styles.readinessItem}>
+                  <div className={styles.readinessItemLabel}>
+                    <span
+                      className={clsx(styles.readinessDot, hasFinalExit && styles.readinessDotDone)}
+                    />
+                    최종 탈출구
+                  </div>
+                  {hasFinalExit ? (
+                    <span className={styles.readinessDoneText}>완료</span>
+                  ) : !hasDoorOrStair ? (
+                    <button
+                      type="button"
+                      className={styles.readinessActionBtn}
+                      onClick={() => handleOpenNodeAdd('door')}
+                    >
+                      문 추가하기
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.readinessActionBtn}
+                      onClick={() => {
+                        setTopFilter('device');
+                        setDeviceTypeFilter(null);
+                      }}
+                    >
+                      카드에서 지정
+                    </button>
+                  )}
+                </div>
+
+                <div className={styles.readinessItem}>
+                  <div className={styles.readinessItemLabel}>
+                    <span className={styles.readinessDot} />
+                    발화점
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.readinessActionBtn}
+                    onClick={handleOpenFireOrigin}
+                  >
+                    지정하기
+                  </button>
+                </div>
+                <span className={styles.readinessHint}>
+                  발화점은 시나리오마다 따로 지정해요 — 여기서는 지정 화면으로만 이동해요
+                </span>
+              </div>
+            )}
+
             {/* 층 목록 */}
             <div className={styles.floorNavCard}>
               <div className={styles.floorNavHeader}>층 목록</div>
@@ -3481,7 +3661,8 @@ const FloorPlansDetailPage = () => {
               currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
             )}
           >
-            {/* 장비 추가 / 구역 추가 */}
+            {/* 그리드 표시(뷰 토글)와 추가(노드/구역/엣지) — 발화점 지정은 좌측 "훈련 준비"
+                체크리스트로 옮김. 편집 도구를 한 곳에 묶어서 툴바를 5개에서 2개로 줄임 */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <div className={styles.canvasActionFloat}>
                 <button
@@ -3500,67 +3681,11 @@ const FloorPlansDetailPage = () => {
                   )}
                   그리드 표시
                 </button>
-                <button
-                  type="button"
-                  className={styles.canvasActionButton}
-                  onClick={() => {
-                    setZoneAddOpen(false);
-                    handleCancelFireOrigin();
-                    setNodeAddOpen((v) => !v);
-                  }}
-                >
-                  <PlusIcon width={14} height={14} />
-                  노드 추가
-                </button>
-                <button
-                  type="button"
-                  className={styles.canvasActionButton}
-                  onClick={handleToggleZoneAdd}
-                >
-                  <PlusIcon width={14} height={14} />
-                  구역 추가
-                </button>
-                <button
-                  type="button"
-                  className={styles.canvasActionButton}
-                  onClick={() => {
-                    setNodeAddOpen(false);
-                    setZoneAddOpen(false);
-                    handleCancelFireOrigin();
-                    setSelectedEdgeId(null);
-                    setEdgeAddOpen((v) => {
-                      if (v) {
-                        setEdgeDraftFromId(null);
-                        setEdgeDraftToId(null);
-                      }
-                      return !v;
-                    });
-                  }}
-                >
-                  <PlusIcon width={14} height={14} />
-                  엣지 연결
-                </button>
-                <button
-                  type="button"
-                  className={clsx(
-                    styles.canvasActionButton,
-                    fireOriginScenarioId && styles.canvasActionButtonActive,
-                  )}
-                  aria-pressed={Boolean(fireOriginScenarioId)}
-                  onClick={() => {
-                    // 다른 배치 모드와 동시에 켜지면 그리드 클릭 결과가 어느 쪽으로 가는지
-                    // 헷갈리므로, 발화점 지정을 시작할 때 나머지 모드는 먼저 정리함
-                    setNodeAddOpen(false);
-                    setZoneAddOpen(false);
-                    setEdgeAddOpen(false);
-                    setEditingCctvId(null);
-                    setEditingStructureId(null);
-                    setFireOriginModalOpen(true);
-                  }}
-                >
-                  <PlusIcon width={14} height={14} />
-                  발화점 지정
-                </button>
+                <AddActionMenu
+                  onAddNode={() => handleOpenNodeAdd()}
+                  onAddZone={handleToggleZoneAdd}
+                  onAddEdge={handleOpenEdgeAdd}
+                />
               </div>
             )}
 
@@ -3717,7 +3842,7 @@ const FloorPlansDetailPage = () => {
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
                 selectedCellCount={cctvDraftCellIds.length}
-                hasStartNode={structureNodes.some((n) => n.type === 'start')}
+                hasStartNode={hasStartNode}
                 onCancel={() => setNodeAddOpen(false)}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
