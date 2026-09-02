@@ -18,9 +18,26 @@ import {
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const REQUEST_TIMEOUT_MS: number = 30_000; // 30초
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// 로컬 실행을 제외한 운영 환경에서 인증 토큰이 HTTP로 전송되지 않도록 차단
+const validateSecureApiUrl = () => {
+  if (!import.meta.env.PROD || LOCAL_HOSTNAMES.has(window.location.hostname)) {
+    return;
+  }
+
+  const apiUrl = new URL(API_BASE_URL || window.location.origin, window.location.origin);
+
+  if (window.location.protocol !== 'https:' || apiUrl.protocol !== 'https:') {
+    throw new Error('운영 환경에서는 HTTPS API만 사용할 수 있습니다.');
+  }
+};
+
+validateSecureApiUrl();
 
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
   timeout: REQUEST_TIMEOUT_MS,
   withCredentials: true,
 });
@@ -33,9 +50,15 @@ const PUBLIC_AUTH_ENDPOINTS: readonly string[] = [
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
+  _sessionRefreshToken?: string;
 };
 
-let reissuePromise: Promise<string> | null = null;
+interface ReissueTask {
+  refreshToken: string;
+  promise: Promise<string>;
+}
+
+let reissueTask: ReissueTask | null = null;
 
 // 공개 인증 API 확인 (로그인, 토큰 재발급, 회원가입)
 const isPublicAuthEndpoint = (url?: string) => {
@@ -53,13 +76,7 @@ const clearSession = () => {
 };
 
 // token을 재발급하고 기존 저장 방식으로 갱신
-const reissueAccessToken = async () => {
-  const refreshToken = getRefreshToken();
-
-  if (!refreshToken) {
-    throw new Error('refresh token이 없습니다.');
-  }
-
+const reissueAccessToken = async (refreshToken: string) => {
   const isPersistent = isTokenPersistent();
   const { data } = await axiosInstance.post<BaseResponse<ReissueResponse>>(
     API_ENDPOINTS.AUTH.REISSUE,
@@ -76,18 +93,27 @@ const reissueAccessToken = async () => {
     throw new Error('토큰 재발급 응답에 인증 토큰이 없습니다.');
   }
 
+  if (getRefreshToken() !== refreshToken) {
+    throw new Error('토큰 재발급 중 인증 세션이 변경되었습니다.');
+  }
+
   setTokens(accessToken, rotatedRefreshToken, isPersistent);
   return accessToken;
 };
 
-const getReissuedAccessToken = () => {
-  if (!reissuePromise) {
-    reissuePromise = reissueAccessToken().finally(() => {
-      reissuePromise = null;
-    });
+const getReissuedAccessToken = (refreshToken: string) => {
+  if (reissueTask?.refreshToken === refreshToken) {
+    return reissueTask.promise;
   }
 
-  return reissuePromise;
+  const promise = reissueAccessToken(refreshToken).finally(() => {
+    if (reissueTask?.promise === promise) {
+      reissueTask = null;
+    }
+  });
+
+  reissueTask = { refreshToken, promise };
+  return promise;
 };
 
 // access token 추가
@@ -117,32 +143,44 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const requestAuthorization = requestConfig.headers.get('Authorization');
+
     if (requestConfig._retry) {
-      clearSession();
+      if (requestConfig._sessionRefreshToken === getRefreshToken()) {
+        clearSession();
+      }
+
       return Promise.reject(error);
     }
 
     const currentAccessToken = getAccessToken();
-    const requestAuthorization = requestConfig.headers.get('Authorization');
+    const currentRefreshToken = getRefreshToken();
 
-    if (!currentAccessToken || !requestAuthorization) {
-      clearSession();
+    if (!currentAccessToken || !currentRefreshToken || !requestAuthorization) {
+      if (!currentAccessToken) {
+        clearSession();
+      }
+
       return Promise.reject(error);
     }
 
     requestConfig._retry = true;
+    requestConfig._sessionRefreshToken = currentRefreshToken;
 
     try {
       // 대기 중 다른 요청이 이미 토큰을 갱신했다면 추가 재발급 없이 최신 토큰 사용
       const accessToken =
         requestAuthorization === `Bearer ${currentAccessToken}`
-          ? await getReissuedAccessToken()
+          ? await getReissuedAccessToken(currentRefreshToken)
           : currentAccessToken;
 
       requestConfig.headers.set('Authorization', `Bearer ${accessToken}`);
       return axiosInstance(requestConfig);
     } catch (reissueError: unknown) {
-      clearSession();
+      if (getRefreshToken() === currentRefreshToken) {
+        clearSession();
+      }
+
       return Promise.reject(reissueError);
     }
   },
