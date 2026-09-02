@@ -2,9 +2,11 @@ import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-/* 도면 상 구역 의미 색상 — 문·출입구/계단 표시에서 반복 사용되므로 한 곳에서만 정의 */
+/* 도면 상 구역 의미 색상 — 문·출입구/계단/시작 후보 표시에서 반복 사용되므로 한 곳에서만 정의
+   (코드래빗 리뷰 반영 — 시작 후보 색상도 하드코딩 대신 이 파일 안에서 단일 소스로 관리) */
 const zoneDoorColor = '#2563EB';
 const zoneStairColor = '#F97316';
+const zoneStartColor = '#DB2777';
 
 /* ── 전체 레이아웃 ── */
 export const layout = style({
@@ -606,6 +608,7 @@ export const zoneCardDot = style({
 export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
 export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
 export const zoneCardDotHallway = style({ backgroundColor: '#0891B2' });
+export const zoneCardDotStart = style({ backgroundColor: zoneStartColor });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 
 export const finalExitToggle = style({

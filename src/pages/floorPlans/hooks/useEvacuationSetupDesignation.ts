@@ -20,10 +20,12 @@ import useToast from '@components/toast/useToast';
  * (스웨거 확인, 둘 다 required) 발화점만 따로 등록할 방법이 이제 없음 — 그래서 이 훅은
  * 발화점 선택 + 시작점 선택을 같이 들고 있다가 한 번에 확정함.
  *
- * 시작 노드 "후보"를 새로 만드는 것(도면에 START 타입 노드 추가)은 이 훅의 역할이 아니고
- * useStartNodeDesignation의 역할임 — 그 훅이 만든 후보들 중 하나를 여기서 startNodeId로
- * 고르는 것뿐. 시나리오설정 화면에서는 보통 이 둘을 같이 씀:
- *   const startNode = useStartNodeDesignation(floorId);       // 후보 목록 조회·새로 만들기
+ * 시작 후보를 새로 만드는 것(도면에 START 타입 노드 추가)은 이 훅의 역할이 아님 — 그건
+ * 도면편집(FloorPlansDetailPage)에서 다른 구조 노드와 같은 방식으로 만들고, useStartNodeDesignation은
+ * 그렇게 만들어진 후보들을 조회함(스웨거 재확인 결과 START는 층 단위로 등록해두는 후보라
+ * 도면을 다루는 화면에서 만드는 게 맞는 걸로 정정함). 이 훅은 그 후보들 중 하나를 여기서
+ * startNodeId로 고르는 것뿐. 시나리오설정 화면에서는 보통 이 둘을 같이 씀:
+ *   const startNode = useStartNodeDesignation(floorId);       // 후보 목록 조회(필요하면 생성도 가능)
  *   const evacuation = useEvacuationSetupDesignation(scenarioId); // 후보 중 하나 + 발화점 셀 확정
  *
  * 발화점 셀 선택은 useFireOriginDesignation과 동일하게 draftFireOriginCellId/selectFireOriginCell

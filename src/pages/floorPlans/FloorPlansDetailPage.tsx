@@ -185,10 +185,13 @@ const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-// 시작 노드(START)는 팀 논의에 따라 이 화면이 아니라 시나리오설정에서 다루기로 해서
-// 이 화면의 노드 추가/필터 UI에서는 제거함(useStartNodeDesignation 훅으로 이관)
-type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway'>;
+// 시작 후보(START) 노드 생성은 이 화면(도면편집) 몫이 맞음 — 스웨거 재확인 결과 START는
+// "특정 시나리오에 귀속되지 않는, 층 단위로 등록해두는 훈련 시작점 후보"라 도면을 다루는
+// 이 화면에서 다른 구조 노드(문/계단/복도)와 똑같이 만드는 게 자연스러움. 실제로 그중 어떤
+// 후보를 "이 시나리오의 시작점"으로 쓸지 고르는 건 시나리오설정 몫(useEvacuationSetupDesignation이
+// useStartNodeDesignation이 만든 후보 목록 중 하나 + 발화점 셀을 같이 확정함)
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
@@ -196,6 +199,8 @@ const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: str
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
   hallway: { label: '복도', color: '#0891b2' },
+  // "시작 노드"가 아니라 "시작 후보"로 부름 — 실제 훈련 시작점 확정은 시나리오설정에서 함
+  start: { label: '시작 후보', color: '#db2777' },
 };
 
 type AddedDevice = {
@@ -217,11 +222,11 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 문·계단에서만 의미 있음(복도는 항상 false).
-   시작 노드(START)는 이 화면에서 다루지 않음 — useStartNodeDesignation/
-   useEvacuationSetupDesignation 훅으로 이관돼서 API 타입(MapNodeType)에는 여전히 START가
-   있지만 이 화면의 구조 노드 목록에는 포함하지 않음(API_TYPE_TO_STRUCTURE에 매핑 없음) */
-type StructureNodeType = 'door' | 'stair' | 'hallway';
+   isFinalExit은 문·계단에서만 의미 있음(시작 후보·복도는 항상 false — 시작 후보는 서버가
+   isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
+   에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
+   시작점" 확정은 시나리오설정에서 useEvacuationSetupDesignation으로 함(발화점 셀과 함께) */
+type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
 
 type StructureNode = {
   id: string;
@@ -235,6 +240,7 @@ const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   door: '문 · 출입구',
   stair: '계단',
   hallway: '복도',
+  start: '시작 후보',
 };
 
 // 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
@@ -247,18 +253,21 @@ const STRUCTURE_NODE_API_TYPE = {
   door: 'DOOR',
   stair: 'STAIR',
   hallway: 'HALLWAY',
+  start: 'START',
 } as const satisfies Record<StructureNodeType, MapNodeType>;
 
 const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   DOOR: 'door',
   STAIR: 'stair',
   HALLWAY: 'hallway',
+  START: 'start',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
   door: '#2563eb',
   stair: '#f97316',
   hallway: '#0891b2',
+  start: '#db2777',
 };
 
 // 우측 패널 구조 노드 카드의 점 색상 클래스 — 위 색상표를 그대로 벡터-엑스트랙트 클래스로 옮긴 것
@@ -266,6 +275,7 @@ const ZONE_CARD_DOT_CLASS: Record<StructureNodeType, string> = {
   door: styles.zoneCardDotDoor,
   stair: styles.zoneCardDotStair,
   hallway: styles.zoneCardDotHallway,
+  start: styles.zoneCardDotStart,
 };
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
@@ -1138,7 +1148,7 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
+          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -2337,7 +2347,7 @@ const FloorPlansDetailPage = () => {
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   // 여러 칩을 동시에 켤 수 있는 다중 선택 필터 — 빈 배열이면 "전체"와 같음
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    Array<'cctv' | 'light' | 'door' | 'stair' | 'hallway'>
+    Array<'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start'>
   >([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<DeviceEditForm>(EMPTY_DEVICE_EDIT_FORM);
@@ -4151,6 +4161,7 @@ const FloorPlansDetailPage = () => {
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
                       { key: 'hallway', label: '복도' },
+                      { key: 'start', label: '시작 후보' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
