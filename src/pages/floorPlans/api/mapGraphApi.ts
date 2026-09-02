@@ -1,6 +1,5 @@
 import type {
   CreateMapEdgeRequest,
-  CreateMapNodeRequest,
   MapEdgeResponse,
   MapNodeResponse,
   UpdateMapNodePositionRequest,
@@ -10,17 +9,8 @@ import { API_ENDPOINTS } from '@apis/constants/endpoints';
 import { toMapEdge, toMapNode } from '@apis/floors/mapGraphApi';
 import type { MapEdge, MapNode } from '@apis/floors/mapGraphApi';
 
-export { getFloorGraph } from '@apis/floors/mapGraphApi';
+export { createMapNode, getFloorGraph } from '@apis/floors/mapGraphApi';
 export type { FloorGraph, MapEdge, MapNode, MapNodeType } from '@apis/floors/mapGraphApi';
-
-export async function createMapNode(floorId: string, body: CreateMapNodeRequest): Promise<MapNode> {
-  const node = await apiRequest<MapNodeResponse, CreateMapNodeRequest>({
-    method: HTTP_METHOD.POST,
-    url: API_ENDPOINTS.MAP_GRAPH.CREATE_NODE(floorId),
-    body,
-  });
-  return toMapNode(node);
-}
 
 export async function updateMapNodePosition(
   nodeId: string,

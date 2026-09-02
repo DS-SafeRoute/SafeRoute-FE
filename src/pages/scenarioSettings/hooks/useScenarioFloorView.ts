@@ -88,15 +88,19 @@ export const useScenarioFloorView = ({
     Boolean(floorId) &&
     (floorImageQuery.isPending || floorGraphQuery.isPending || floorGridQuery.isPending);
 
+  // 발화점 등록(POST /scenarios/{scenarioId}/fire-zones)이 백엔드에서 제거되면서(팀 전달사항,
+  // 2026-09-03) 도면관리상세 쪽 등록 화면도 같이 없앴음 — "도면 관리에서 지정하세요"라는 예전
+  // 안내는 이제 실제로 갈 곳이 없는 말이라 지움. evacuation-setup 기반의 새 등록 플로우가
+  // 이 페이지에 생기면 그 화면을 가리키도록 다시 채워야 함
   let statusMessage: string | undefined;
   if (!scenarioId) {
-    statusMessage = '시나리오 등록 후 도면 관리에서 발화점을 지정해 주세요.';
+    statusMessage = '시나리오 등록 후 최초 발화점을 지정해 주세요.';
   } else if (isFireZonePending) {
     statusMessage = '발화점 정보를 불러오는 중...';
   } else if (fireOriginQuery.isError || (isRunning && fireZonesQuery.isError)) {
     statusMessage = '화재구역 정보를 불러오지 못했습니다.';
   } else if (!floorId) {
-    statusMessage = '도면 관리에서 발화점을 지정해 주세요.';
+    statusMessage = '최초 발화점을 지정해 주세요.';
   } else if (isFloorVisualPending) {
     statusMessage = '도면을 불러오는 중...';
   } else if (floorImageQuery.isError) {

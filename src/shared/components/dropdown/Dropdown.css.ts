@@ -8,6 +8,11 @@ export const container = style({
   display: 'inline-block',
 });
 
+export const containerFullWidth = style({
+  display: 'block',
+  width: '100%',
+});
+
 export const trigger = recipe({
   base: {
     position: 'relative',
@@ -41,6 +46,11 @@ export const trigger = recipe({
         },
       },
     },
+    fullWidth: {
+      // 기본 minWidth(14rem)가 그대로 남아있으면 컨테이너가 140px보다 좁을 때 트리거/패널이
+      // 넘침 — width:100%와 함께 minWidth도 풀어줌(코드래빗 리뷰 반영)
+      true: { width: '100%', minWidth: 0 },
+    },
   },
 });
 
@@ -54,7 +64,9 @@ export const chevron = style({
 });
 
 export const panel = style({
-  position: 'absolute',
+  // document.body에 포탈로 렌더링되고 top/left/width는 인라인 스타일(뷰포트 좌표)로 정해짐 —
+  // 모달 등 overflow: hidden 조상 안에서 열려도 잘리지 않게 함
+  position: 'fixed',
   zIndex: 200,
   borderRadius: vars.radius.lg,
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.12)',

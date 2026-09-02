@@ -2,9 +2,11 @@ import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-/* 도면 상 구역 의미 색상 — 문·출입구/계단 표시에서 반복 사용되므로 한 곳에서만 정의 */
+/* 도면 상 구역 의미 색상 — 문·출입구/계단/시작 후보 표시에서 반복 사용되므로 한 곳에서만 정의
+   (코드래빗 리뷰 반영 — 시작 후보 색상도 하드코딩 대신 이 파일 안에서 단일 소스로 관리) */
 const zoneDoorColor = '#2563EB';
 const zoneStairColor = '#F97316';
+const zoneStartColor = '#DB2777';
 
 /* ── 전체 레이아웃 ── */
 export const layout = style({
@@ -90,6 +92,10 @@ export const floorNavItemActive = style({
   color: vars.color.primary,
 });
 
+// 훈련 준비 체크리스트(readiness*) 클래스는 components/ReadinessChecklist.css.ts로 옮김
+// (코드래빗 리뷰 반영 — 컴포넌트 스타일을 페이지 스타일 파일에 두면 컴포넌트를 다른 위치로
+// 옮길 때 스타일이 따라오지 않음)
+
 /* ── 장비/구역 추가 ── */
 export const canvasActionFloat = style({
   position: 'absolute',
@@ -121,6 +127,45 @@ export const canvasActionButtonActive = style({
   borderColor: vars.color.primary,
   backgroundColor: vars.color.primaryLight2,
   color: vars.color.primary,
+});
+
+/* ── 툴바 "+ 추가" 메뉴 ── */
+export const addMenuContainer = style({
+  position: 'relative',
+});
+
+export const addMenuChevron = style({
+  color: vars.color.textLow,
+});
+
+export const addMenuPanel = style({
+  position: 'absolute',
+  zIndex: 20,
+  top: 'calc(100% + 0.4rem)',
+  right: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  boxShadow: vars.shadow.lg,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s2,
+  width: '12rem',
+});
+
+export const addMenuItem = style({
+  border: 'none',
+  borderRadius: vars.radius.sm,
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '100%',
+  textAlign: 'left',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+  },
 });
 
 export const gridSizeLabelRow = style({
@@ -258,6 +303,8 @@ export const deviceTypeChip = style({
   ...vars.typography.body14,
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray25 },
+    '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+    '&:disabled:hover': { backgroundColor: vars.color.white },
   },
 });
 
@@ -561,6 +608,7 @@ export const zoneCardDot = style({
 export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
 export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
 export const zoneCardDotHallway = style({ backgroundColor: '#0891B2' });
+export const zoneCardDotStart = style({ backgroundColor: zoneStartColor });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 
 export const finalExitToggle = style({
@@ -586,6 +634,47 @@ export const finalExitBadge = style({
   padding: `0.1rem ${vars.space.s2}`,
   color: vars.color.successText,
   ...vars.typography.caption,
+});
+
+/* CCTV 카드의 사용가능/불가능 — 클릭 가능한 상태 칩처럼 보이던 걸(눌러보기 전까진 토글인지
+   알 수 없었음) iOS 스타일 on/off 스위치로 바꿔서 누르는 UI라는 게 바로 보이게 함 */
+export const cctvEnableRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const cctvEnableSwitch = style({
+  position: 'relative',
+  flexShrink: 0,
+  transition: 'background-color 0.15s ease',
+  border: 'none',
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray300,
+  cursor: 'pointer',
+  padding: '0.2rem',
+  width: '3.2rem',
+  height: '1.8rem',
+});
+
+export const cctvEnableSwitchOn = style({
+  backgroundColor: vars.color.success,
+});
+
+export const cctvEnableSwitchThumb = style({
+  display: 'block',
+  transform: 'translateX(0)',
+  transition: 'transform 0.15s ease',
+  borderRadius: '50%',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+  backgroundColor: vars.color.white,
+  width: '1.4rem',
+  height: '1.4rem',
+  selectors: {
+    [`${cctvEnableSwitchOn} &`]: {
+      transform: 'translateX(1.4rem)',
+    },
+  },
 });
 
 export const deviceCardName = style({
@@ -640,6 +729,83 @@ export const deviceCardKey = style({
 export const deviceCardValue = style({
   color: vars.color.textHigh,
   ...vars.typography.caption,
+});
+
+// 감시 영역·구역 범위·가이던스처럼 "값 자체가 재선택/펼치기 액션"인 필드 — 별도 버튼을 두지
+// 않고 값 텍스트를 눌러서 처리함. 이전엔 밑줄 친 링크 모양이었는데 "왜 이게 클릭되는 건지
+// 모르겠다"는 피드백이 있어서, 카드 안 다른 작은 액션(훈련 준비 체크리스트의 readinessActionBtn)과
+// 같은 알약형 버튼 모양으로 통일함
+export const deviceCardFieldEditBtn = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.primary}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `0.1rem ${vars.space.s3}`,
+  color: vars.color.primary,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.primaryLight2 },
+  },
+});
+
+// 유도등 카드 수정 중 필드(설치 위치 입력)를 담당 CCTV·가이던스 Dropdown과 같은 박스 모양으로
+// 맞춤 — 텍스트 입력과 Dropdown이 서로 다른 크기·정렬로 보이던 문제를 셋 다 "라벨 위,
+// 폭 전체 값" 한 가지 모양으로 통일해서 해결함(치수는 Dropdown의 rounded+fullWidth와 동일)
+export const lightFieldFull = style({
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
+  width: '100%',
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+// 가이던스(판단 노드/좌우 엣지) Dropdown 3개를 세로로 쌓는 영역 — deviceCardRow 밑에 통째로 붙음
+export const lightFieldGroup = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+});
+
+// 카드 폭에 맞춰 버튼 3개가 한 줄에 다 들어가도록 폭 전체를 씀 — deviceCardRow의
+// space-between 안에 끼워 넣으면 "방향"라벨에 밀려 좁아져서 글자가 줄바꿈되던 문제가 있었음
+export const lightDirectionRow = style({
+  display: 'flex',
+  gap: vars.space.s1,
+});
+
+export const lightDirectionBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s1} 0`,
+  whiteSpace: 'nowrap',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+    '&:disabled': {
+      opacity: 0.4,
+      backgroundColor: vars.color.white,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+// 방향은 서버가 현재 상태를 내려주지 않아 "지금 이 방향임"을 표시할 수 없음 — 대신 "방금 이걸
+// 눌렀다"는 클릭 자체를 눈에 보이게 남겨서, 눌렀는지 안 눌렀는지 헷갈리지 않게 함
+export const lightDirectionBtnActive = style({
+  borderColor: vars.color.primary,
+  backgroundColor: vars.color.primaryLight2,
+  color: vars.color.primary,
 });
 
 export const deviceCardActions = style({

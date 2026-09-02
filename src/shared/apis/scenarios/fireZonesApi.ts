@@ -46,3 +46,11 @@ export const getScenarioFireOrigin = (scenarioId: string, signal?: AbortSignal) 
 
 export const getScenarioFireZones = (scenarioId: string, signal?: AbortSignal) =>
   getFireZoneList(API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId), signal);
+
+// 발화점 등록(POST /scenarios/{scenarioId}/fire-zones)은 백엔드에서 완전히 제거됨(팀 전달사항,
+// 2026-09-03) — 대신 POST /scenarios/{scenarioId}/evacuation-setup로 통합됨(스웨거 확인, 화재
+// 설정이 그쪽에 포함됨). 여기 있던 createFireOrigin/useCreateFireOriginMutation은 이제 존재하지
+// 않는 엔드포인트를 호출하던 코드라 지움 — 새 등록 플로우는 evacuationSetupApi.ts의
+// setScenarioEvacuationSetup/useSetEvacuationSetupMutation, 그리고 이를 감싸는
+// src/pages/floorPlans/hooks/useEvacuationSetupDesignation.ts로 이미 옮겨감(재구현 필요 없음,
+// 도면관리 화면에서만 사용을 뺐을 뿐). 조회(GET fire-origin/fire-zones)는 그대로 살아있어 안 건드림

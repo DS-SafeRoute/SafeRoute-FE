@@ -8,6 +8,7 @@ import { ApiError } from '@apis/errors/apiError';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
+import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
 import EyeOffIcon from '@assets/icons/ic-eye-off.svg?react';
@@ -18,6 +19,7 @@ import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
+import Dropdown from '@components/dropdown';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
@@ -40,6 +42,7 @@ import {
   uploadFloor,
 } from './api/floorPlansApi';
 import {
+  assignLightCctv,
   changeLightDirection,
   configureLightGuidance,
   createIoTLight,
@@ -48,7 +51,6 @@ import {
   enableIoTLight,
   getFloorLights,
   updateIoTLight,
-  updateLightPiEndpoint,
 } from './api/iotLightsApi';
 import {
   createMapEdge,
@@ -65,11 +67,15 @@ import {
   getUserZoneDetail,
 } from './api/userZoneApi';
 import * as styles from './FloorPlansDetailPage.css';
-import CctvSettingsModal from './modals/CctvSettingsModal';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
-import IoTLightSettingsModal from './modals/IoTLightSettingsModal';
+import {
+  CANVAS_W,
+  buildZoneOutlinePath,
+  getGridCellPxSize,
+  getGridDimensions,
+} from './utils/gridGeometry';
 import {
   GRID_SIZE_KEY,
   PENDING_GRID_SIZE_KEY,
@@ -84,6 +90,19 @@ import type { IoTLight } from './api/iotLightsApi';
 import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
+// 서버 에러 메시지 추출 — 200+isSuccess:false는 ApiError로, HTTP 4xx는 AxiosError로 서로 다르게
+// 올라오므로 한 곳에서 통일해서 꺼냄
+const extractServerError = (error: unknown): { code: string; message: string } => {
+  const responseData = isAxiosError(error) ? error.response?.data : undefined;
+  const body =
+    responseData && typeof responseData === 'object'
+      ? (responseData as { code?: unknown; message?: unknown })
+      : undefined;
+  const code = error instanceof ApiError ? error.code : String(body?.code ?? '');
+  const message = error instanceof ApiError ? error.message : String(body?.message ?? '');
+  return { code, message };
+};
+
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
 
 type PanelItem = {
@@ -96,6 +115,36 @@ type PanelItem = {
   statusOnline: boolean;
   zone: string;
   source: 'floor' | 'added';
+  // CCTV 카드에서 감시 영역 현황을 바로 보여주기 위한 값 — CCTV가 아니면 없음
+  monitoredArea?: { cellCount: number; areaM2: number };
+  // 서버가 자동 채번하는 장치 코드(예: CCTV_001) — id(내부 UUID)와 다른, 사람이 보는 식별자.
+  // 수정 API로도 바꿀 수 없는 값이라 CCTV가 아니면 없음
+  code?: string;
+  // 유도등 카드의 가이던스 현황 표시용 — 유도등이 아니면 없음
+  guidanceConfigured?: boolean;
+  // 유도등 카드에서 담당 CCTV를 바로 보여주기 위한 값 — 유도등이 아니거나 미배정이면 없음
+  cctvName?: string;
+};
+
+// 장비 카드의 "수정" 편집 폼 — CCTV는 label/zone만 쓰고, 유도등은 설정 모달에 있던
+// 가이던스·담당 CCTV까지 전부 이 폼으로 흡수함(모달 없이 카드 안에서 편집). Pi 엔드포인트는
+// 스웨거상 "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 안 쓰인다"고 명시되어 있어 뺐음
+interface DeviceEditForm {
+  label: string;
+  zone: string;
+  decisionNodeId: string;
+  leftEdgeId: string;
+  rightEdgeId: string;
+  cctvId: string;
+}
+
+const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
+  label: '',
+  zone: '',
+  decisionNodeId: '',
+  leftEdgeId: '',
+  rightEdgeId: '',
+  cctvId: '',
 };
 
 // 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
@@ -136,8 +185,13 @@ const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
 };
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway'>;
+// 시작 후보(START) 노드 생성은 이 화면(도면편집) 몫이 맞음 — 스웨거 재확인 결과 START는
+// "특정 시나리오에 귀속되지 않는, 층 단위로 등록해두는 훈련 시작점 후보"라 도면을 다루는
+// 이 화면에서 다른 구조 노드(문/계단/복도)와 똑같이 만드는 게 자연스러움. 실제로 그중 어떤
+// 후보를 "이 시나리오의 시작점"으로 쓸지 고르는 건 시나리오설정 몫(useEvacuationSetupDesignation이
+// useStartNodeDesignation이 만든 후보 목록 중 하나 + 발화점 셀을 같이 확정함)
+type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
+type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
@@ -145,6 +199,8 @@ const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: str
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
   hallway: { label: '복도', color: '#0891b2' },
+  // "시작 노드"가 아니라 "시작 후보"로 부름 — 실제 훈련 시작점 확정은 시나리오설정에서 함
+  start: { label: '시작 후보', color: '#db2777' },
 };
 
 type AddedDevice = {
@@ -166,8 +222,11 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 문에서만 의미 있음(계단은 항상 false) */
-type StructureNodeType = 'door' | 'stair' | 'hallway';
+   isFinalExit은 문·계단에서만 의미 있음(시작 후보·복도는 항상 false — 시작 후보는 서버가
+   isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
+   에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
+   시작점" 확정은 시나리오설정에서 useEvacuationSetupDesignation으로 함(발화점 셀과 함께) */
+type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
 
 type StructureNode = {
   id: string;
@@ -181,6 +240,7 @@ const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
   door: '문 · 출입구',
   stair: '계단',
   hallway: '복도',
+  start: '시작 후보',
 };
 
 // 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
@@ -193,18 +253,29 @@ const STRUCTURE_NODE_API_TYPE = {
   door: 'DOOR',
   stair: 'STAIR',
   hallway: 'HALLWAY',
+  start: 'START',
 } as const satisfies Record<StructureNodeType, MapNodeType>;
 
 const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   DOOR: 'door',
   STAIR: 'stair',
   HALLWAY: 'hallway',
+  START: 'start',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
   door: '#2563eb',
   stair: '#f97316',
   hallway: '#0891b2',
+  start: '#db2777',
+};
+
+// 우측 패널 구조 노드 카드의 점 색상 클래스 — 위 색상표를 그대로 벡터-엑스트랙트 클래스로 옮긴 것
+const ZONE_CARD_DOT_CLASS: Record<StructureNodeType, string> = {
+  door: styles.zoneCardDotDoor,
+  stair: styles.zoneCardDotStair,
+  hallway: styles.zoneCardDotHallway,
+  start: styles.zoneCardDotStart,
 };
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
@@ -230,35 +301,14 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 //   3) 위 둘 다 없을 때만 사용자에게 한 번 물어봄
 // 키 정의·읽기/쓰기 헬퍼는 FloorPlansPage(업로드 화면)도 같이 쓰므로 utils/gridStorage로 뺌
 
-// SVG 캔버스 폭은 560 고정, 높이는 도면 실제 비율(그리드 columns/rows 또는 이미지 비율)에 맞춰
-// 렌더 시점에 계산해서 넘김 — viewBox 비율 == 이미지 비율이므로 이미지를 늘리지 않고도
-// 그리드·노드·드래그 좌표가 전부 같은 0~1 ↔ 0~(560,canvasH) 공간에 정확히 맞물림
-const CANVAS_W = 560;
+// 그리드 좌표계 기준값·순수 계산 함수는 utils/gridGeometry로 뽑아서 GridCellPickerCanvas(시나리오
+// 설정 페이지용으로 새로 만든 셀 선택 캔버스)와 여기가 같은 걸 참조하게 함 — 두 곳에 복사돼
+// 있으면 나중에 한쪽만 고쳐서 셀 경계가 어긋나는 버그가 생기기 쉬움
 const DEFAULT_CANVAS_H = 420;
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
 const GRAPH_RETRY_INTERVAL_MS = 2000;
-
-// 그리드 행·열 수 — 셀이 수십만 개까지 갈 수 있어서 Math.max(...spread) 대신 순회로 구함
-// (스프레드는 인자 개수 한계로 RangeError: Maximum call stack size exceeded가 날 수 있음)
-const getGridDimensions = (cells: FloorGridCell[]): { cols: number; rows: number } => {
-  let maxCol = 0;
-  let maxRow = 0;
-  for (const cell of cells) {
-    if (cell.columnIndex > maxCol) maxCol = cell.columnIndex;
-    if (cell.rowIndex > maxRow) maxRow = cell.rowIndex;
-  }
-  return { cols: maxCol + 1, rows: maxRow + 1 };
-};
-
-// 그리드 셀 하나의 SVG 픽셀 크기 — 캔버스(560 x canvasH)를 열/행 수로 그대로 나눔.
-// 셀 rect가 캔버스를 정확히 타일링하고 `centerX*560 - w/2`가 실제 셀 왼쪽 변과 일치함
-const getGridCellPxSize = (cells: FloorGridCell[], canvasH: number): { w: number; h: number } => {
-  if (cells.length === 0) return { w: 20, h: 20 };
-  const { cols, rows } = getGridDimensions(cells);
-  return { w: CANVAS_W / cols, h: canvasH / rows };
-};
 
 // 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
 // 드래그 미리보기와 실제 잡히는 셀이 일치하도록 드래그 중/드래그 종료 양쪽에서 같은 로직을 씀
@@ -280,74 +330,6 @@ const cellIdsIntersectingRect = (
       );
     })
     .map((cell) => cell.id);
-
-// 셀의 (row,col) 인덱스만으로 픽셀 좌표를 뽑을 수 있도록 그리드 원점(0,0 셀의 좌상단)을 역산.
-// 셀마다 제각각인 centerX/centerY(부동소수) 대신 원점+인덱스로 좌표를 계산하면 인접 셀의
-// 공유 모서리 좌표가 정확히 일치해서, 경계선/격자선에 미세한 어긋남이나 이중선이 안 생김
-const getGridPxOrigin = (
-  cells: FloorGridCell[],
-  size: { w: number; h: number },
-  canvasH: number,
-): { x: number; y: number } => {
-  const ref = cells[0];
-  if (!ref) return { x: 0, y: 0 };
-  return {
-    x: ref.centerX * CANVAS_W - size.w / 2 - ref.columnIndex * size.w,
-    y: ref.centerY * canvasH - size.h / 2 - ref.rowIndex * size.h,
-  };
-};
-
-// 셀 집합의 바깥 윤곽선을 하나의 SVG path(d)로. 셀별 rect를 이어 붙이면 반투명 채움 사이에
-// 이음매가 보여 "직사각형의 집합"처럼 보이므로, 합집합 윤곽을 구해 단일 도형으로 그림.
-const buildZoneOutlinePath = (
-  cells: FloorGridCell[],
-  size: { w: number; h: number },
-  canvasH: number,
-): string => {
-  const origin = getGridPxOrigin(cells, size, canvasH);
-  const cellKey = (col: number, row: number) => `${col},${row}`;
-  const inZone = new Set(cells.map((c) => cellKey(c.columnIndex, c.rowIndex)));
-  const cornerX = (col: number) => origin.x + col * size.w;
-  const cornerY = (row: number) => origin.y + row * size.h;
-  const ptKey = (x: number, y: number) => `${x},${y}`;
-
-  // 이웃이 없는 변만 방향성 있게 수집(셀 기준 시계방향) → 이어 붙이면 닫힌 윤곽이 됨
-  const nextByStart = new Map<string, { x: number; y: number }>();
-  cells.forEach((c) => {
-    const { columnIndex: col, rowIndex: row } = c;
-    const tl = { x: cornerX(col), y: cornerY(row) };
-    const tr = { x: cornerX(col + 1), y: cornerY(row) };
-    const br = { x: cornerX(col + 1), y: cornerY(row + 1) };
-    const bl = { x: cornerX(col), y: cornerY(row + 1) };
-    if (!inZone.has(cellKey(col, row - 1))) nextByStart.set(ptKey(tl.x, tl.y), tr);
-    if (!inZone.has(cellKey(col + 1, row))) nextByStart.set(ptKey(tr.x, tr.y), br);
-    if (!inZone.has(cellKey(col, row + 1))) nextByStart.set(ptKey(br.x, br.y), bl);
-    if (!inZone.has(cellKey(col - 1, row))) nextByStart.set(ptKey(bl.x, bl.y), tl);
-  });
-
-  let d = '';
-  const visited = new Set<string>();
-  for (const startKey of nextByStart.keys()) {
-    if (visited.has(startKey)) continue;
-    const [sx, sy] = startKey.split(',').map(Number);
-    d += `M${sx} ${sy}`;
-    let curKey = startKey;
-    while (true) {
-      const next = nextByStart.get(curKey);
-      if (!next) break;
-      visited.add(curKey);
-      d += `L${next.x} ${next.y}`;
-      const nextKey = ptKey(next.x, next.y);
-      if (nextKey === startKey) {
-        d += 'Z';
-        break;
-      }
-      if (visited.has(nextKey)) break;
-      curKey = nextKey;
-    }
-  }
-  return d;
-};
 
 // 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 캔버스(560x420) 전체를
 // 가로지르는 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰.
@@ -421,7 +403,6 @@ const MockFloorMap3F = ({
   canvasH,
   placingActive,
   zoneAddActive,
-  zoneDraftRect,
   onZoneDraftChange,
   onZoneDragEnd,
   savedZones,
@@ -450,7 +431,6 @@ const MockFloorMap3F = ({
   canvasH: number;
   placingActive: boolean;
   zoneAddActive: boolean;
-  zoneDraftRect: ZoneRect | null;
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
@@ -876,21 +856,6 @@ const MockFloorMap3F = ({
             ))}
         </>
       )}
-
-      {/* 구역 추가 드래그 선택 영역 */}
-      {zoneAddActive && zoneDraftRect && zoneDraftRect.w > 0 && zoneDraftRect.h > 0 && (
-        <rect
-          x={zoneDraftRect.x}
-          y={zoneDraftRect.y}
-          width={zoneDraftRect.w}
-          height={zoneDraftRect.h}
-          fill="rgba(37,99,235,0.18)"
-          stroke="#2563eb"
-          strokeWidth="1.5"
-          strokeDasharray="4 3"
-          style={{ pointerEvents: 'none' }}
-        />
-      )}
     </svg>
   );
 };
@@ -1183,7 +1148,7 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
+          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -1237,19 +1202,28 @@ const NodeAddPopup = ({
   );
 };
 
-/* ── 구역 설정 팝업 — 백엔드 저장 단위가 그리드 셀 집합이라 드래그는 겹치는 셀을 고르는 용도로 씀 ── */
+/* ── 구역 설정 팝업 — 백엔드 저장 단위가 그리드 셀 집합이라 드래그는 겹치는 셀을 고르는 용도로 씀.
+   구역 재설정(재드래그)에도 그대로 재사용함 — 구역은 수정 API가 없어 새로 만들고 기존 걸
+   지우는 방식으로만 "재설정"할 수 있는데, 이 팝업이 이름+셀 선택을 같이 받는 유일한 곳이라
+   재설정 흐름도 다시 "새 구역 만들기"와 같은 절차를 타면 됨 ── */
 const ZoneAddPopup = ({
   containerRef,
   selectedCellCount,
+  initialName = '',
+  title = '구역 설정',
+  submitLabel = '추가',
   onCancel,
   onSave,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
   selectedCellCount: number;
+  initialName?: string;
+  title?: string;
+  submitLabel?: string;
   onCancel: () => void;
   onSave: (label: string) => void;
 }) => {
-  const [zoneName, setZoneName] = useState('');
+  const [zoneName, setZoneName] = useState(initialName);
   const hasSelectedCells = selectedCellCount > 0;
 
   const handleSave = () => {
@@ -1259,12 +1233,12 @@ const ZoneAddPopup = ({
   return (
     <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <div className={styles.nodeAddHeader}>
-        <span className={styles.nodeAddTitle}>구역 설정</span>
+        <span className={styles.nodeAddTitle}>{title}</span>
         <span className={styles.nodeAddStepBadge}>{hasSelectedCells ? '2/2' : '1/2'}</span>
       </div>
       <span className={styles.nodeAddHint}>
         {hasSelectedCells
-          ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡혀요. 이름을 입력하고 추가 버튼을 누르면 저장됩니다.`
+          ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡혀요. 이름을 입력하고 ${submitLabel} 버튼을 누르면 저장됩니다.`
           : '이름을 입력하거나 도면을 드래그해서 영역에 해당하는 칸을 선택해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
       </span>
 
@@ -1288,7 +1262,7 @@ const ZoneAddPopup = ({
           disabled={!zoneName.trim() || !hasSelectedCells}
           onClick={handleSave}
         >
-          추가
+          {submitLabel}
         </button>
       </div>
     </div>
@@ -1366,6 +1340,71 @@ const EdgeAddPopup = ({
   );
 };
 
+/* ── 툴바 "+ 추가" 메뉴 — 노드/구역/엣지 추가를 각각 버튼으로 늘어놓지 않고 하나로 묶음 ── */
+const AddActionMenu = ({
+  onAddNode,
+  onAddZone,
+  onAddEdge,
+}: {
+  onAddNode: () => void;
+  onAddZone: () => void;
+  onAddEdge: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  const items = [
+    { label: '노드 추가', onClick: onAddNode },
+    { label: '구역 추가', onClick: onAddZone },
+    { label: '엣지 연결', onClick: onAddEdge },
+  ];
+
+  return (
+    <div ref={containerRef} className={styles.addMenuContainer}>
+      <button
+        type="button"
+        className={styles.canvasActionButton}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <PlusIcon width={14} height={14} />
+        추가
+        <ChevronDownIcon width={14} height={14} className={styles.addMenuChevron} />
+      </button>
+      {open && (
+        <div className={styles.addMenuPanel} role="menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={styles.addMenuItem}
+              onClick={() => {
+                item.onClick();
+                setOpen(false);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ── 장비 카드 ── */
 const DeviceCard = ({
   item,
@@ -1377,120 +1416,375 @@ const DeviceCard = ({
   onStartEdit,
   onSaveEdit,
   onDelete,
-  onOpenSettings,
+  onToggleEnabled,
+  onEditCctvCells,
+  onLightDirectionChange,
+  lightNodeOptions,
+  lightEdgeOptions,
+  lightCctvOptions,
 }: {
   item: PanelItem;
   selected: boolean;
   editing: boolean;
-  editForm: { label: string; zone: string };
-  onEditFormChange: (form: { label: string; zone: string }) => void;
+  editForm: DeviceEditForm;
+  onEditFormChange: (form: DeviceEditForm) => void;
   onSelect: (item: PanelItem) => void;
   onStartEdit: (item: PanelItem) => void;
   onSaveEdit: (item: PanelItem) => void;
   onDelete: (item: PanelItem) => void;
-  onOpenSettings: (item: PanelItem) => void;
-}) => (
-  <div
-    data-panel-id={item.id}
-    className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
-    onClick={() => onSelect(item)}
-  >
-    {editing ? (
-      <input
-        className={styles.deviceCardNameInput}
-        value={editForm.label}
-        onChange={(e) => onEditFormChange({ ...editForm, label: e.target.value })}
-        onClick={(e) => e.stopPropagation()}
-      />
-    ) : (
-      <span className={styles.deviceCardName}>{item.label}</span>
-    )}
-    <div className={styles.deviceCardRow}>
-      <span className={styles.deviceCardKey}>장치 ID</span>
-      <span className={styles.deviceCardValue}>{item.id.toUpperCase()}</span>
-    </div>
-    <div className={styles.deviceCardRow}>
-      <span className={styles.deviceCardKey}>상태</span>
-      <StatusBadge label={item.statusText} color={item.statusOnline ? 'green' : 'neutral'} dot />
-    </div>
-    <div className={styles.deviceCardRow}>
-      <span className={styles.deviceCardKey}>설치 위치</span>
+  onToggleEnabled: (item: PanelItem) => void;
+  onEditCctvCells: (item: PanelItem) => void;
+  onLightDirectionChange: (item: PanelItem, direction: 'LEFT' | 'RIGHT' | 'OFF') => void;
+  lightNodeOptions: { id: string; label: string }[];
+  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
+  lightCctvOptions: { id: string; label: string }[];
+}) => {
+  // 가이던스·방향처럼 자주 안 건드리는 항목은 접어둬서, 수정 모드로 들어갈 때 카드가
+  // 일반 모드보다 과하게 길어지는 걸 줄임
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  // 방향은 서버가 현재값을 안 내려줘서(즉시 명령이라 조회 불가) 버튼 자체엔 "지금 상태"를
+  // 표시할 수 없음 — 대신 "방금 이 버튼을 눌렀다"는 걸 보이게 해서 클릭이 씹혔는지 헷갈리지
+  // 않게 함(카드가 다시 열리면 초기화되는, 이번에 누른 것만 기억하는 값)
+  const [lastClickedDirection, setLastClickedDirection] = useState<'LEFT' | 'RIGHT' | 'OFF' | null>(
+    null,
+  );
+
+  return (
+    <div
+      data-panel-id={item.id}
+      role="button"
+      tabIndex={0}
+      className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
+      // 수정 중엔 카드 배경 클릭이 선택 토글로 이어져서, 이미 선택된 카드를 다시 누르면
+      // editingItemId까지 같이 풀려버렸음(완료를 누른 것처럼 보이는 버그) — 수정 중엔 무시함
+      onClick={() => {
+        if (!editing) onSelect(item);
+      }}
+      // 카드 자체가 role="button"이라 키보드로도 선택할 수 있어야 함 — 다만 안쪽 입력·버튼이
+      // 이벤트를 버블링시킨 경우(e.target !== e.currentTarget)는 그쪽 자체 키 처리에 맡기고 무시
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
+        if (!editing) onSelect(item);
+      }}
+    >
       {editing ? (
         <input
-          className={styles.deviceCardValueInput}
-          value={editForm.zone}
-          onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
+          className={styles.deviceCardNameInput}
+          aria-label="장치 이름"
+          value={editForm.label}
+          onChange={(e) => onEditFormChange({ ...editForm, label: e.target.value })}
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className={styles.deviceCardValue}>{item.zone}</span>
+        <span className={styles.deviceCardName}>{item.label}</span>
       )}
-    </div>
-    <div className={styles.deviceCardActions}>
-      {/* CCTV는 이름 수정·활성화·감시영역을 한 모달에서 처리하므로 버튼을 "수정" 하나로 합침 */}
-      {item.type === 'cctv' ? (
-        <button
-          type="button"
-          className={styles.deviceCardEditBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenSettings(item);
-          }}
+      <div className={styles.deviceCardRow}>
+        <span className={styles.deviceCardKey}>장치 코드</span>
+        <span
+          className={styles.deviceCardValue}
+          title={item.code ? '서버가 자동으로 부여하는 값이라 수정할 수 없어요' : undefined}
         >
-          수정
-        </button>
-      ) : (
+          {item.code ?? item.id.toUpperCase()}
+        </span>
+      </div>
+      <div className={styles.deviceCardRow}>
+        <span className={styles.deviceCardKey}>상태</span>
+        {item.type === 'cctv' || item.type === 'light' ? (
+          <span className={styles.cctvEnableRow}>
+            <span className={styles.deviceCardValue}>
+              {item.statusOnline ? '활성화' : '비활성화'}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={item.statusOnline}
+              aria-label={
+                item.statusOnline
+                  ? '활성화됨 — 클릭하면 비활성화로 전환'
+                  : '비활성화됨 — 클릭하면 활성화로 전환'
+              }
+              className={clsx(
+                styles.cctvEnableSwitch,
+                item.statusOnline && styles.cctvEnableSwitchOn,
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleEnabled(item);
+              }}
+            >
+              <span className={styles.cctvEnableSwitchThumb} />
+            </button>
+          </span>
+        ) : (
+          <StatusBadge
+            label={item.statusText}
+            color={item.statusOnline ? 'green' : 'neutral'}
+            dot
+          />
+        )}
+      </div>
+      <div className={styles.deviceCardRow}>
+        <span className={styles.deviceCardKey}>설치 위치</span>
+        {editing && item.type !== 'light' && (
+          <input
+            className={styles.deviceCardValueInput}
+            aria-label="설치 위치"
+            value={editForm.zone}
+            onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        {!editing && <span className={styles.deviceCardValue}>{item.zone}</span>}
+      </div>
+      {/* 유도등은 필드가 많아서(설치 위치·담당 CCTV·가이던스) 값 칸 크기가 텍스트 입력·
+          드롭다운마다 제각각으로 보이지 않도록, 수정 중엔 전부 "라벨 위 · 값 아래(폭 전체)"
+          한 가지 모양으로 통일함 */}
+      {editing && item.type === 'light' && (
+        <input
+          className={styles.lightFieldFull}
+          value={editForm.zone}
+          onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="예: 3층 앞 복도"
+        />
+      )}
+      {item.type === 'light' && (
         <>
-          {editing ? (
-            <button
-              type="button"
-              className={styles.deviceCardDoneBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSaveEdit(item);
-              }}
-            >
-              완료
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.deviceCardEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartEdit(item);
-              }}
-            >
-              수정
-            </button>
+          <div className={styles.deviceCardRow}>
+            <span className={styles.deviceCardKey}>담당 CCTV</span>
+            {!editing && (
+              <span className={styles.deviceCardValue}>{item.cctvName ?? '미지정'}</span>
+            )}
+          </div>
+          {editing && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Dropdown
+                shape="rounded"
+                fullWidth
+                ariaLabel="담당 CCTV"
+                options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
+                value={editForm.cctvId}
+                onChange={(v) => onEditFormChange({ ...editForm, cctvId: v })}
+                placeholder="미지정"
+              />
+            </div>
           )}
-          {item.type === 'light' && (
-            <button
-              type="button"
-              className={styles.deviceCardEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenSettings(item);
-              }}
-            >
-              설정
-            </button>
+          <div
+            className={styles.deviceCardRow}
+            title="화재 시 이 유도등이 갈림길(판단 노드)에서 왼쪽/오른쪽 중 어느 통로로 사람들을 안내할지 정해요"
+          >
+            <span className={styles.deviceCardKey}>가이던스 · 방향</span>
+            {editing ? (
+              <button
+                type="button"
+                className={styles.deviceCardFieldEditBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDetailsOpen((v) => !v);
+                }}
+              >
+                {item.guidanceConfigured ? '설정됨' : '미설정'} · {detailsOpen ? '접기' : '펼치기'}
+              </button>
+            ) : (
+              <span className={styles.deviceCardValue}>
+                {item.guidanceConfigured ? '설정됨' : '미설정'}
+              </span>
+            )}
+          </div>
+          {editing && detailsOpen && (
+            <div className={styles.lightFieldGroup} onClick={(e) => e.stopPropagation()}>
+              <Dropdown
+                shape="rounded"
+                fullWidth
+                ariaLabel="판단 노드"
+                options={lightNodeOptions.map((n) => ({ value: n.id, label: n.label }))}
+                value={editForm.decisionNodeId}
+                onChange={(v) =>
+                  // 판단 노드를 바꾸면 이전 노드에 연결돼 있던 좌/우 엣지 선택은 더 이상
+                  // 유효하지 않을 수 있어(연결 안 된 엣지를 저장 시점에야 서버가 거부하던 문제의
+                  // 원인이었음) 같이 비움
+                  onEditFormChange({
+                    ...editForm,
+                    decisionNodeId: v,
+                    leftEdgeId: '',
+                    rightEdgeId: '',
+                  })
+                }
+                placeholder="판단 노드 선택"
+              />
+              {/* 판단 노드에 실제로 연결된 엣지만 후보로 보여줌 — 그 외 엣지를 고르면 저장할 때
+                  서버가 거부해서(leftEdgeId/rightEdgeId는 decisionNodeId에 연결돼 있어야 함)
+                  헷갈리던 문제를 아예 고를 수 없게 만들어 없앰. 좌/우도 서로 같은 엣지를
+                  고르지 못하게 상대가 고른 걸 후보에서 뺌 */}
+              <Dropdown
+                shape="rounded"
+                fullWidth
+                ariaLabel="왼쪽 가이던스 엣지"
+                disabled={!editForm.decisionNodeId}
+                options={lightEdgeOptions
+                  .filter(
+                    (e) =>
+                      (e.fromNodeId === editForm.decisionNodeId ||
+                        e.toNodeId === editForm.decisionNodeId) &&
+                      e.id !== editForm.rightEdgeId,
+                  )
+                  .map((e) => ({ value: e.id, label: e.label }))}
+                value={editForm.leftEdgeId}
+                onChange={(v) => onEditFormChange({ ...editForm, leftEdgeId: v })}
+                placeholder={editForm.decisionNodeId ? '왼쪽 엣지 선택' : '판단 노드를 먼저 선택'}
+              />
+              <Dropdown
+                shape="rounded"
+                fullWidth
+                ariaLabel="오른쪽 가이던스 엣지"
+                disabled={!editForm.decisionNodeId}
+                options={lightEdgeOptions
+                  .filter(
+                    (e) =>
+                      (e.fromNodeId === editForm.decisionNodeId ||
+                        e.toNodeId === editForm.decisionNodeId) &&
+                      e.id !== editForm.leftEdgeId,
+                  )
+                  .map((e) => ({ value: e.id, label: e.label }))}
+                value={editForm.rightEdgeId}
+                onChange={(v) => onEditFormChange({ ...editForm, rightEdgeId: v })}
+                placeholder={editForm.decisionNodeId ? '오른쪽 엣지 선택' : '판단 노드를 먼저 선택'}
+              />
+
+              <div className={styles.lightDirectionRow}>
+                <button
+                  type="button"
+                  className={clsx(
+                    styles.lightDirectionBtn,
+                    lastClickedDirection === 'LEFT' && styles.lightDirectionBtnActive,
+                  )}
+                  disabled={!item.cctvName}
+                  title={
+                    item.cctvName
+                      ? '저장 없이 누르면 바로 적용돼요'
+                      : '담당 CCTV를 먼저 지정해야 동작해요'
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLastClickedDirection('LEFT');
+                    onLightDirectionChange(item, 'LEFT');
+                  }}
+                >
+                  왼쪽
+                </button>
+                <button
+                  type="button"
+                  className={clsx(
+                    styles.lightDirectionBtn,
+                    lastClickedDirection === 'RIGHT' && styles.lightDirectionBtnActive,
+                  )}
+                  disabled={!item.cctvName}
+                  title={
+                    item.cctvName
+                      ? '저장 없이 누르면 바로 적용돼요'
+                      : '담당 CCTV를 먼저 지정해야 동작해요'
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLastClickedDirection('RIGHT');
+                    onLightDirectionChange(item, 'RIGHT');
+                  }}
+                >
+                  오른쪽
+                </button>
+                <button
+                  type="button"
+                  className={clsx(
+                    styles.lightDirectionBtn,
+                    lastClickedDirection === 'OFF' && styles.lightDirectionBtnActive,
+                  )}
+                  disabled={!item.cctvName}
+                  title={
+                    item.cctvName
+                      ? '저장 없이 누르면 바로 적용돼요'
+                      : '담당 CCTV를 먼저 지정해야 동작해요'
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLastClickedDirection('OFF');
+                    onLightDirectionChange(item, 'OFF');
+                  }}
+                >
+                  끄기
+                </button>
+              </div>
+            </div>
           )}
         </>
       )}
-      <button
-        type="button"
-        className={styles.deviceCardDeleteBtn}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(item);
-        }}
-      >
-        삭제
-      </button>
+      {item.type === 'cctv' && (
+        <div className={styles.deviceCardRow}>
+          <span className={styles.deviceCardKey}>감시 영역</span>
+          {editing ? (
+            // 버튼 3개가 난잡해 보인다는 피드백으로, 별도 액션 버튼 대신 이 값 자체를
+            // 눌러서 재선택하도록 함 — "설치 위치"가 수정 중엔 입력창으로 바뀌는 것과 같은 결
+            <button
+              type="button"
+              className={styles.deviceCardFieldEditBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditCctvCells(item);
+              }}
+            >
+              {item.monitoredArea
+                ? `${item.monitoredArea.cellCount}칸 · ${item.monitoredArea.areaM2}㎡`
+                : '미지정'}{' '}
+              · 재선택
+            </button>
+          ) : (
+            <span className={styles.deviceCardValue}>
+              {item.monitoredArea
+                ? `${item.monitoredArea.cellCount}칸 · ${item.monitoredArea.areaM2}㎡`
+                : '미지정'}
+            </span>
+          )}
+        </div>
+      )}
+      <div className={styles.deviceCardActions}>
+        {editing ? (
+          <button
+            type="button"
+            className={styles.deviceCardDoneBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSaveEdit(item);
+            }}
+          >
+            완료
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.deviceCardEditBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartEdit(item);
+            }}
+          >
+            수정
+          </button>
+        )}
+        <button
+          type="button"
+          className={styles.deviceCardDeleteBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(item);
+          }}
+        >
+          삭제
+        </button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ── 도면 캔버스 ── */
 const FloorCanvas = ({
@@ -1503,7 +1797,6 @@ const FloorCanvas = ({
   editingItemId,
   placingActive,
   zoneAddActive,
-  zoneDraftRect,
   onZoneDraftChange,
   onZoneDragEnd,
   savedZones,
@@ -1544,7 +1837,6 @@ const FloorCanvas = ({
   editingItemId: string | null;
   placingActive: boolean;
   zoneAddActive: boolean;
-  zoneDraftRect: ZoneRect | null;
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
   savedZones: ZoneEntry[];
@@ -1622,7 +1914,6 @@ const FloorCanvas = ({
         canvasH={canvasH}
         placingActive={placingActive}
         zoneAddActive={zoneAddActive}
-        zoneDraftRect={zoneDraftRect}
         onZoneDraftChange={onZoneDraftChange}
         onZoneDragEnd={onZoneDragEnd}
         savedZones={savedZones}
@@ -1705,14 +1996,18 @@ const FloorPlansDetailPage = () => {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
 
   // SVG viewBox 높이 — 폭 CANVAS_W(560)은 고정, 높이만 도면 실제 비율에 맞춤.
-  // 이미지 원본 비율을 우선(가장 직접적), 없으면 그리드 columns/rows, 그것도 없으면 4:3.
-  // viewBox 비율 == 이미지 비율이라 preserveAspectRatio="none"으로 채워도 이미지가 안 늘어남
+  // 그리드 columns/rows 비율을 우선으로 씀 — 셀 크기는 CANVAS_W/cols × canvasH/rows로 계산되므로
+  // (getGridCellPxSize) 이 값이 이미지의 원본 픽셀 비율과 어긋나면 정사각형이어야 할 셀이
+  // 직사각형으로 보임. 스캔·촬영한 도면은 실측 비율과 이미지 픽셀 비율이 딱 맞아떨어지지
+  // 않는 경우가 많아, 그리드가 아직 없을 때(분석 전)만 이미지 비율로 대체하고 그것도
+  // 없으면 4:3. viewBox 비율이 이미지와 살짝 어긋나면 배경 이미지가 미세하게 늘어날 수
+  // 있지만, 셀을 정확히 클릭·드래그해야 하는 그리드 쪽이 더 중요해서 이 쪽을 우선함
   const canvasH = useMemo(() => {
-    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
     if (floorGridCells.length > 0) {
       const { cols, rows } = getGridDimensions(floorGridCells);
       if (cols > 0 && rows > 0) return (CANVAS_W * rows) / cols;
     }
+    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
     return DEFAULT_CANVAS_H;
   }, [imageAspect, floorGridCells]);
 
@@ -2040,6 +2335,9 @@ const FloorPlansDetailPage = () => {
   const [edgeDraftToId, setEdgeDraftToId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneEntry[]>([]);
+  // 구역 재설정(재드래그) 중인 기존 구역 id — null이면 zoneAddOpen은 "새 구역 추가" 흐름.
+  // 구역은 PATCH가 없어 새로 만들고 기존 걸 지우는 방식으로만 "수정"할 수 있음(스웨거 확인)
+  const [zoneResetTargetId, setZoneResetTargetId] = useState<string | null>(null);
   const [zoneDraftRect, setZoneDraftRectState] = useState<ZoneRect | null>(null);
   const zoneDraftRectRef = useRef<ZoneRect | null>(null);
   const setZoneDraftRect = (rect: ZoneRect | null) => {
@@ -2047,23 +2345,18 @@ const FloorPlansDetailPage = () => {
     setZoneDraftRectState(rect);
   };
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
+  // 여러 칩을 동시에 켤 수 있는 다중 선택 필터 — 빈 배열이면 "전체"와 같음
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
-    'cctv' | 'light' | 'door' | 'stair' | 'hallway' | null
-  >(null);
+    Array<'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start'>
+  >([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ label: string; zone: string }>({
-    label: '',
-    zone: '',
-  });
+  const [editForm, setEditForm] = useState<DeviceEditForm>(EMPTY_DEVICE_EDIT_FORM);
   const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
   const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
-  const [lightSettingsTarget, setLightSettingsTarget] = useState<IoTLight | null>(null);
-  const [cctvSettingsTarget, setCctvSettingsTarget] = useState<Cctv | null>(null);
-  const [isSavingCctv, setIsSavingCctv] = useState(false);
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -2114,66 +2407,54 @@ const FloorPlansDetailPage = () => {
     }
   };
 
-  const handleOpenDeviceSettings = (item: PanelItem) => {
+  // CCTV/유도등 카드의 활성화 스위치 — 둘 다 enabled 필드와 활성화/비활성화 PATCH API 모양이
+  // 같아서 한 핸들러에서 타입만 보고 갈라 처리함
+  const handleToggleEnabled = (item: PanelItem) => {
+    if (item.type === 'cctv') {
+      const cctv = realCctvs.find((c) => c.id === item.id);
+      if (!cctv) return;
+      const enabled = !cctv.enabled;
+      const request = enabled ? enableCctv : disableCctv;
+      request(cctv.id)
+        .then((updated) => {
+          setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          show({
+            title: enabled ? 'CCTV를 활성화했습니다.' : 'CCTV를 비활성화했습니다.',
+            variant: 'success',
+          });
+        })
+        .catch(() => {
+          show({ title: 'CCTV 활성화 여부 변경에 실패했습니다.', variant: 'error' });
+        });
+      return;
+    }
     if (item.type === 'light') {
       const light = iotLights.find((l) => l.id === item.id);
-      if (light) setLightSettingsTarget(light);
-    } else if (item.type === 'cctv') {
-      const cctv = realCctvs.find((c) => c.id === item.id);
-      if (cctv) setCctvSettingsTarget(cctv);
+      if (!light) return;
+      const enabled = !light.enabled;
+      const request = enabled ? enableIoTLight : disableIoTLight;
+      request(light.id)
+        .then((updated) => {
+          setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          show({
+            title: enabled ? '유도등을 활성화했습니다.' : '유도등을 비활성화했습니다.',
+            variant: 'success',
+          });
+        })
+        .catch(() => {
+          show({ title: '유도등 활성화 여부 변경에 실패했습니다.', variant: 'error' });
+        });
     }
   };
 
-  const handleCctvToggleEnabled = (enabled: boolean) => {
-    if (!cctvSettingsTarget || cctvSettingsTarget.enabled === enabled) return;
-    const request = enabled ? enableCctv : disableCctv;
-    request(cctvSettingsTarget.id)
-      .then((updated) => {
-        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        setCctvSettingsTarget(updated);
-        show({
-          title: enabled
-            ? 'CCTV를 사용 가능으로 바꿨습니다.'
-            : 'CCTV를 사용 불가능으로 바꿨습니다.',
-          variant: 'success',
-        });
-      })
-      .catch(() => {
-        show({ title: 'CCTV 사용 여부 변경에 실패했습니다.', variant: 'error' });
-      });
-  };
-
-  // 통합 모달에서 이름만 저장 — 위치(x,y)는 도면 드래그로 바꾸므로 기존 값을 그대로 보냄
-  const handleCctvSaveName = (name: string) => {
-    if (!cctvSettingsTarget || isSavingCctv) return;
-    setIsSavingCctv(true);
-    updateCctv(cctvSettingsTarget.id, {
-      name,
-      x: cctvSettingsTarget.x,
-      y: cctvSettingsTarget.y,
-    })
-      .then((updated) => {
-        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        setCctvSettingsTarget(updated);
-        setAddedDevices((prev) =>
-          prev.map((d) => (d.id === updated.id ? { ...d, label: updated.name } : d)),
-        );
-        show({ title: 'CCTV 정보가 수정되었습니다.', variant: 'success' });
-      })
-      .catch(() => {
-        show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setIsSavingCctv(false));
-  };
-
-  const handleStartEditCctvCells = () => {
-    if (!cctvSettingsTarget) return;
+  const handleStartEditCctvCells = (item: PanelItem) => {
+    const cctv = realCctvs.find((c) => c.id === item.id);
+    if (!cctv) return;
     setNodeAddOpen(false);
     setZoneAddOpen(false);
     setEdgeAddOpen(false);
-    setEditingCctvId(cctvSettingsTarget.id);
-    setCctvDraftCellIds(cctvSettingsTarget.gridCells.map((c) => c.id));
-    setCctvSettingsTarget(null);
+    setEditingCctvId(cctv.id);
+    setCctvDraftCellIds(cctv.gridCells.map((c) => c.id));
   };
 
   const handleCancelEditCctvCells = () => {
@@ -2202,44 +2483,15 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   };
 
-  const handleLightToggleEnabled = (enabled: boolean) => {
-    if (!lightSettingsTarget) return;
-    const request = enabled ? enableIoTLight : disableIoTLight;
-    request(lightSettingsTarget.id)
-      .then((updated) => {
-        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
-        setLightSettingsTarget(updated);
-      })
-      .catch(() => {});
-  };
-
-  const handleLightDirectionChange = (direction: 'LEFT' | 'RIGHT' | 'OFF') => {
-    if (!lightSettingsTarget) return;
-    changeLightDirection(lightSettingsTarget.id, direction).catch(() => {});
-  };
-
-  const handleLightGuidanceSave = (
-    decisionNodeId: string,
-    leftEdgeId: string,
-    rightEdgeId: string,
-  ) => {
-    if (!lightSettingsTarget) return;
-    configureLightGuidance(lightSettingsTarget.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-      .then((updated) => {
-        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
-        setLightSettingsTarget(updated);
-      })
-      .catch(() => {});
-  };
-
-  const handleLightPiEndpointSave = (piEndpoint: string) => {
-    if (!lightSettingsTarget) return;
-    updateLightPiEndpoint(lightSettingsTarget.id, piEndpoint)
-      .then((updated) => {
-        setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
-        setLightSettingsTarget(updated);
-      })
-      .catch(() => {});
+  // 방향은 저장 개념이 없는 즉시 적용 명령이라(서버도 현재값을 GET에 내려주지 않음) 카드에서
+  // 누르면 바로 호출함 — "수정 → 완료"로 묶인 다른 필드들과 달리 그 자체가 액션임
+  const handleLightDirectionChange = (item: PanelItem, direction: 'LEFT' | 'RIGHT' | 'OFF') => {
+    changeLightDirection(item.id, direction)
+      .then(() => show({ title: '유도등 방향을 변경했습니다.', variant: 'success' }))
+      .catch((error: unknown) => {
+        const { message } = extractServerError(error);
+        show({ title: message || '유도등 방향 변경에 실패했습니다.', variant: 'error' });
+      });
   };
   const [toastMsg] = useState<string | null>(null);
   const [toastFading] = useState(false);
@@ -2293,9 +2545,11 @@ const FloorPlansDetailPage = () => {
   }, [nodeAddOpen]);
 
   // 구역 설정 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 드래그는 구역 선택으로 처리)
-  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함.
+  // 기존 구역을 수정 중(zoneResetTargetId)일 때도 마찬가지 — 카드의 완료를 눌러야만
+  // 끝나게 하고, 다른 곳을 잘못 눌러서 조용히 편집이 날아가지 않게 함
   useEffect(() => {
-    if (!zoneAddOpen || zoneDraftCellIds.length > 0) return;
+    if (!zoneAddOpen || zoneResetTargetId || zoneDraftCellIds.length > 0) return;
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (zonePopupRef.current?.contains(target)) return;
@@ -2304,13 +2558,14 @@ const FloorPlansDetailPage = () => {
     };
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
-  }, [zoneAddOpen, zoneDraftCellIds]);
+  }, [zoneAddOpen, zoneResetTargetId, zoneDraftCellIds]);
 
-  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역/셀도 초기화
+  // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역/셀과 재설정 대상도 함께 초기화
   useEffect(() => {
     if (!zoneAddOpen) {
       setZoneDraftRect(null);
       setZoneDraftCellIds([]);
+      setZoneResetTargetId(null);
     }
   }, [zoneAddOpen]);
 
@@ -2438,7 +2693,19 @@ const FloorPlansDetailPage = () => {
               { id: newNode.id, type, x, y, isFinalExit: false },
             ]);
           })
-          .catch(() => {});
+          .catch((error: unknown) => {
+            // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
+            // 무시되던 자리라 원인을 알 수 있게 서버 메시지를 그대로 보여줌
+            const { code: serverCode, message: serverMessage } = extractServerError(error);
+            if (import.meta.env.DEV) {
+              console.error(`[${cfg.label} 노드 추가 실패]`, serverCode, error);
+            }
+            show({
+              title: serverMessage || `${cfg.label} 추가에 실패했습니다. 다시 시도해주세요.`,
+              variant: 'error',
+              duration: 8000,
+            });
+          });
       }
     } else if (type === 'light') {
       if (currentFloor) {
@@ -2618,9 +2885,9 @@ const FloorPlansDetailPage = () => {
       });
   };
 
-  // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
-  // 그중 CCTV/구역 두 플로우는 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에
-  // 담아두고 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀
+  // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가/수정 세 곳에서
+  // 공유함 — 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에 담아두고
+  // 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀
   const activeDraftCellIds = zoneAddOpen ? zoneDraftCellIds : cctvDraftCellIds;
   const setActiveDraftCellIds = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
 
@@ -2681,16 +2948,9 @@ const FloorPlansDetailPage = () => {
       })
       .catch((error: unknown) => {
         // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 본다
-        const responseData = isAxiosError(error) ? error.response?.data : undefined;
-        const body =
-          responseData && typeof responseData === 'object'
-            ? (responseData as { code?: unknown; message?: unknown })
-            : undefined;
-        const serverCode = error instanceof ApiError ? error.code : String(body?.code ?? '');
-        const serverMessage =
-          error instanceof ApiError ? error.message : String(body?.message ?? '');
+        const { code: serverCode, message: serverMessage } = extractServerError(error);
         if (import.meta.env.DEV) {
-          console.error('[CCTV 등록 실패]', serverCode, responseData ?? error);
+          console.error('[CCTV 등록 실패]', serverCode, error);
         }
         // CCTV006 = 이 층에 그리드 배율(cellSizeMeter)이 설정 안 됨.
         // 아는 배율이 있으면 조용히 재적용해서 사용자는 다시 드래그만 하면 되게 하고,
@@ -2755,11 +3015,16 @@ const FloorPlansDetailPage = () => {
       x: node.x / CANVAS_W,
       y: node.y / canvasH,
       isExitTarget: nextIsFinalExit,
-    }).catch(() => {
+    }).catch((error: unknown) => {
       setStructureNodes((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
       );
-      show({ title: '최종 탈출구 지정에 실패했습니다.', variant: 'error' });
+      // 마지막 남은 탈출구는 해제할 수 없는 등 서버가 이유를 message로 내려주므로 그대로 보여줌
+      const { message: serverMessage } = extractServerError(error);
+      show({
+        title: serverMessage || '최종 탈출구 지정에 실패했습니다.',
+        variant: 'error',
+      });
     });
   };
 
@@ -2782,10 +3047,10 @@ const FloorPlansDetailPage = () => {
       return;
     }
     setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
-    // 문/계단 노드면 해당 하위 칩으로 이동, 그 외(방·복도 등)는 하위 필터 해제
+    // 문/계단 노드면 해당 하위 칩으로 이동(다른 칩은 정리), 그 외(방·복도 등)는 하위 필터 해제
     const structureType = structureNodes.find((n) => n.id === ref.id)?.type;
     setDeviceTypeFilter(
-      structureType === 'door' || structureType === 'stair' ? structureType : null,
+      structureType === 'door' || structureType === 'stair' ? [structureType] : [],
     );
   };
 
@@ -2858,13 +3123,26 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   };
 
+  // 카드 수정은 한 번에 하나만 — 다른 종류의 카드를 수정 중이었다면 여기서 정리함
   const handleStartEditStructure = (id: string) => {
     setNodeAddOpen(false);
     setZoneAddOpen(false);
+    setEditingItemId(null);
+    setEditingZoneId(null);
+    handleCancelEditCctvCells();
     setEditingStructureId((prev) => (prev === id ? null : id));
   };
 
+  // "수정"을 누르면 이름 입력뿐 아니라 도면 그리드 셀 선택도 바로 켬 — 재설정을 위해 별도
+  // 버튼·팝업을 한 번 더 거치게 했더니 클릭이 너무 많다는 피드백으로, CCTV 감시영역과 같은
+  // 결로 통일함(수정 중엔 도면을 드래그하면 바로 영역이 다시 잡힘)
   const handleStartEditZone = (zone: ZoneEntry) => {
+    setEditingItemId(null);
+    setEditingStructureId(null);
+    handleCancelEditCctvCells();
+    setZoneResetTargetId(zone.id);
+    setZoneDraftCellIds(zone.cellIds);
+    setZoneAddOpen(true);
     setEditingZoneId(zone.id);
     setZoneEditLabel(zone.label);
   };
@@ -2872,6 +3150,25 @@ const FloorPlansDetailPage = () => {
   // 이름 수정 API가 아직 없어서 로컬에만 반영됨 — 새로고침하면 원래 이름으로 돌아감
   const handleSaveZoneLabel = (id: string) => {
     const trimmed = zoneEditLabel.trim();
+    if (zoneResetTargetId === id) {
+      const original = zones.find((z) => z.id === id);
+      const cellsChanged =
+        !original ||
+        original.cellIds.length !== zoneDraftCellIds.length ||
+        !original.cellIds.every((c) => zoneDraftCellIds.includes(c));
+      const nameChanged = !!trimmed && !!original && trimmed !== original.label;
+      // 아무것도 안 바꿨으면(이름도 그대로, 도면도 안 건드림) 굳이 삭제→생성을 왕복하지 않고
+      // 그냥 수정 모드만 닫음
+      if (!cellsChanged && !nameChanged) {
+        setZoneAddOpen(false);
+        setZoneDraftCellIds([]);
+        setZoneResetTargetId(null);
+        setEditingZoneId(null);
+        return;
+      }
+      if (trimmed) handleConfirmZoneReset(trimmed);
+      return;
+    }
     if (trimmed) {
       setZones((prev) => prev.map((z) => (z.id === id ? { ...z, label: trimmed } : z)));
     }
@@ -2894,6 +3191,90 @@ const FloorPlansDetailPage = () => {
       });
   };
 
+  // 구역은 PATCH가 없어(스웨거 확인) 새로 만들고 기존 걸 지우는 방식으로 "재설정"함 —
+  // handleStartEditZone이 이미 zoneDraftCellIds를 기존 셀로 채워두고 도면 드래그를 켜뒀으므로
+  // 여기서는 그 결과(zoneDraftCellIds)를 그대로 저장만 함
+  const handleConfirmZoneReset = (label: string) => {
+    if (!currentFloor || !zoneResetTargetId || zoneDraftCellIds.length === 0) return;
+    const targetId = zoneResetTargetId;
+    const nextCellIds = zoneDraftCellIds;
+    const floorId = currentFloor.id;
+    // 삭제 전 원본을 남겨둠 — 삭제는 됐는데 생성만 실패했을 때 원래 이름·셀로 한 번 더
+    // 만들어보는 복구 시도에 씀(코드래빗 리뷰 반영: 복구 시도 없이 그냥 지워지기만 하면
+    // 사용자가 셀 목록을 기억해서 손으로 다시 만들어야 함)
+    const original = zones.find((z) => z.id === targetId);
+    // 스웨거 확인 결과 구역 이름은 같은 층 안에서 유일해야 함 — 이름을 그대로 두고
+    // 셀만 재설정하는 흔한 경우, 기존 구역을 먼저 안 지우면 "이름 중복"으로 새 구역
+    // 생성이 거부됨(재설정할 때마다 매번 실패하던 원인). 그래서 삭제 → 생성 순서로 감:
+    // 셀 겹침은 스웨거상 문제없음(기존 구역에서 자동으로 빠짐)이라 안전하지만, 생성이
+    // 실패하면 기존 구역은 이미 사라진 상태로 남는 트레이드오프가 있음 — 아래에서 그 경우도 처리함
+    let deleted = false;
+    deleteUserZone(floorId, targetId)
+      .then(() => {
+        deleted = true;
+        return createUserZone(floorId, { name: label, cellIds: nextCellIds });
+      })
+      .then((zone) => {
+        setZones((prev) => [
+          ...prev.filter((z) => z.id !== targetId),
+          { id: zone.id, type: 'general', label: zone.name, cellIds: nextCellIds },
+        ]);
+        if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === targetId) {
+          setSelectedZoneRef(null);
+        }
+        setZoneAddOpen(false);
+        setZoneDraftCellIds([]);
+        setEditingZoneId(null);
+        show({ title: '구역을 다시 설정했습니다.', variant: 'success' });
+      })
+      .catch((error: unknown) => {
+        const { message } = extractServerError(error);
+        if (!deleted) {
+          show({ title: message || '구역 재설정에 실패했습니다.', variant: 'error' });
+          return;
+        }
+        if (!original) {
+          // 원본 정보가 없으면(이론상 거의 없음) 복구를 시도할 수 없음 — 기존 안내로 대체
+          setZones((prev) => prev.filter((z) => z.id !== targetId));
+          show({
+            title:
+              message || '기존 구역은 삭제됐지만 새 구역 생성에 실패했습니다. 다시 만들어주세요.',
+            variant: 'error',
+            duration: 10000,
+          });
+          return;
+        }
+        // 삭제는 됐는데 새 구역 생성만 실패 — 원래 이름·셀로 한 번 더 복구를 시도해서
+        // 실패 범위를 줄임(이름만 바꾸는 흔한 경우 특히 유효)
+        createUserZone(floorId, { name: original.label, cellIds: original.cellIds })
+          .then((restored) => {
+            setZones((prev) => [
+              ...prev.filter((z) => z.id !== targetId),
+              {
+                id: restored.id,
+                type: 'general',
+                label: original.label,
+                cellIds: original.cellIds,
+              },
+            ]);
+            show({
+              title: message || '구역 재설정에 실패해 이전 상태로 되돌렸습니다.',
+              variant: 'error',
+              duration: 10000,
+            });
+          })
+          .catch(() => {
+            // 복구 재시도까지 실패한 경우에만 진짜로 사라짐 — 목록에서 지우고 명확히 알림
+            setZones((prev) => prev.filter((z) => z.id !== targetId));
+            show({
+              title: '기존 구역이 삭제됐고 복구에도 실패했습니다. 구역을 다시 만들어주세요.',
+              variant: 'error',
+              duration: 10000,
+            });
+          });
+      });
+  };
+
   // 구역 추가 버튼 — 그리드가 있어야 셀을 선택할 수 있어서, 없으면 설정 팝업부터 띄움
   const handleToggleZoneAdd = () => {
     setNodeAddOpen(false);
@@ -2901,6 +3282,7 @@ const FloorPlansDetailPage = () => {
       setZoneAddOpen(false);
       return;
     }
+    setZoneResetTargetId(null);
     ensureFloorGridCells().then((cells) => {
       if (cells.length > 0) {
         setZoneAddOpen(true);
@@ -2908,6 +3290,21 @@ const FloorPlansDetailPage = () => {
       }
       openGridSetupPrompt('zone');
     });
+  };
+
+  // 툴바 "+ 추가" 메뉴·훈련 준비 체크리스트가 같이 쓰는 진입점 — 다른 배치 모드를 정리하고 엶.
+  // presetType을 주면 노드 종류 칩까지 미리 골라둠(예: 체크리스트의 "시작 노드 지정하기")
+  const handleOpenNodeAdd = (presetType?: PlacingDeviceType) => {
+    setZoneAddOpen(false);
+    if (presetType) setNodeAddType(presetType);
+    setNodeAddOpen(true);
+  };
+
+  const handleOpenEdgeAdd = () => {
+    setNodeAddOpen(false);
+    setZoneAddOpen(false);
+    setSelectedEdgeId(null);
+    setEdgeAddOpen(true);
   };
 
   // 다른 삭제(장비/POI)는 전부 확인 모달을 거치는데 구역만 클릭 즉시 삭제되고 있어서 맞춤
@@ -2951,22 +3348,13 @@ const FloorPlansDetailPage = () => {
       >
         <div className={styles.zoneCardHeader}>
           <span className={styles.zoneCardTitleGroup}>
-            <span
-              className={clsx(
-                styles.zoneCardDot,
-                n.type === 'stair'
-                  ? styles.zoneCardDotStair
-                  : n.type === 'hallway'
-                    ? styles.zoneCardDotHallway
-                    : styles.zoneCardDotDoor,
-              )}
-            />
+            <span className={clsx(styles.zoneCardDot, ZONE_CARD_DOT_CLASS[n.type])} />
             <span className={styles.deviceCardName}>
               {STRUCTURE_NODE_LABEL[n.type]} {sameTypeIndex + 1}
             </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            {n.type === 'door' && (
+            {(n.type === 'door' || n.type === 'stair') && (
               <button
                 type="button"
                 className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
@@ -3025,6 +3413,7 @@ const FloorPlansDetailPage = () => {
             {isEditing ? (
               <input
                 className={styles.deviceCardNameInput}
+                aria-label="구역 이름"
                 value={zoneEditLabel}
                 onChange={(e) => setZoneEditLabel(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
@@ -3066,6 +3455,21 @@ const FloorPlansDetailPage = () => {
             </button>
           </span>
         </div>
+        {/* 감시 영역(CCTV 카드)과 같은 자리·같은 모양 — 수정 중이 아닐 때도 정보를 보여줘서
+            수정 모드로 들어갈 때 카드 규격이 갑자기 늘어나 보이지 않게 함. 수정을 누르면 바로
+            도면 드래그가 켜지므로(handleStartEditZone) 별도 "재설정" 버튼 없이 여기는
+            지금 고른 칸 수만 실시간으로 보여줌 */}
+        <div
+          className={styles.deviceCardRow}
+          title={isEditing ? '도면에서 칸을 클릭하거나 드래그하면 영역이 바로 바뀌어요' : undefined}
+        >
+          <span className={styles.deviceCardKey}>구역 범위</span>
+          {isEditing ? (
+            <span className={styles.deviceCardValue}>{zoneDraftCellIds.length}칸</span>
+          ) : (
+            <span className={styles.deviceCardValue}>{z.cellIds.length}칸</span>
+          )}
+        </div>
       </div>
     );
   };
@@ -3086,19 +3490,26 @@ const FloorPlansDetailPage = () => {
       // 상태는 실제 CCTV/유도등의 enabled를 따라감 — 예전엔 '실시간'으로 고정돼 있어서
       // 사용 불가로 바꿔도 카드에 반영되지 않았음
       ...addedDevices.map((d) => {
-        const enabled =
-          realCctvs.find((c) => c.id === d.id)?.enabled ??
-          iotLights.find((l) => l.id === d.id)?.enabled ??
-          true;
+        const matchedCctv = realCctvs.find((c) => c.id === d.id);
+        const matchedLight = iotLights.find((l) => l.id === d.id);
+        const enabled = matchedCctv?.enabled ?? matchedLight?.enabled ?? true;
         return {
           id: d.id,
           kind: 'device' as const,
           type: d.placeType,
           label: d.label,
-          statusText: enabled ? '사용 가능' : '사용 불가능',
+          statusText: enabled ? '활성화' : '비활성화',
           statusOnline: enabled,
           zone: d.zone,
           source: 'added' as const,
+          monitoredArea: matchedCctv
+            ? { cellCount: matchedCctv.monitoredGridCellCount, areaM2: matchedCctv.monitoredAreaM2 }
+            : undefined,
+          code: matchedCctv?.code ?? matchedLight?.code,
+          cctvName: matchedLight?.cctvId
+            ? (realCctvs.find((c) => c.id === matchedLight.cctvId)?.name ?? '알 수 없는 CCTV')
+            : undefined,
+          guidanceConfigured: matchedLight?.guidanceConfigured,
         };
       }),
     ],
@@ -3106,12 +3517,18 @@ const FloorPlansDetailPage = () => {
   );
 
   const panelItems = useMemo(
-    () => allPanelItems.filter((item) => !deviceTypeFilter || item.type === deviceTypeFilter),
+    () =>
+      allPanelItems.filter(
+        (item) => deviceTypeFilter.length === 0 || deviceTypeFilter.some((t) => t === item.type),
+      ),
     [allPanelItems, deviceTypeFilter],
   );
 
   const visibleStructureNodes = useMemo(
-    () => structureNodes.filter((n) => !deviceTypeFilter || deviceTypeFilter === n.type),
+    () =>
+      structureNodes.filter(
+        (n) => deviceTypeFilter.length === 0 || deviceTypeFilter.some((t) => t === n.type),
+      ),
     [structureNodes, deviceTypeFilter],
   );
 
@@ -3123,15 +3540,24 @@ const FloorPlansDetailPage = () => {
     ],
     [structureNodes, graphNodes],
   );
+  // fromNodeId/toNodeId도 같이 내려줌 — 판단 노드에 실제로 연결된 엣지만 좌/우 후보로 걸러내는 데 씀
+  // (판단 노드와 무관한 엣지를 골라도 UI는 막지 않고 저장 시점에야 서버가 거부해서 헷갈리던 문제)
   const lightEdgeOptions = useMemo(
     () =>
       graphEdges.map((edge) => ({
         id: edge.id,
         label: `${getGraphNodeLabel(edge.fromNodeId)} → ${getGraphNodeLabel(edge.toNodeId)} (${edge.distance}m)`,
+        fromNodeId: edge.fromNodeId,
+        toNodeId: edge.toNodeId,
       })),
     // getGraphNodeLabel은 structureNodes/graphNodes를 참조하는 클로저라 그 둘을 대신 의존성으로 둠
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [graphEdges, structureNodes, graphNodes],
+  );
+  // 담당 CCTV 배정 드롭다운 목록 — realCctvs는 이미 이 층 floorId로만 조회됨
+  const lightCctvOptions = useMemo(
+    () => realCctvs.map((c) => ({ id: c.id, label: c.code ? `${c.name} (${c.code})` : c.name })),
+    [realCctvs],
   );
 
   const gridCellPxSize = useMemo(
@@ -3184,14 +3610,32 @@ const FloorPlansDetailPage = () => {
 
   const handleStartEdit = (item: PanelItem) => {
     if (item.kind !== 'device') return;
+    // 카드 수정은 한 번에 하나만 — 다른 카드 종류의 수정이나 CCTV 감시영역 재선택이
+    // 남아있으면 여기서 정리함
+    setEditingStructureId(null);
+    setEditingZoneId(null);
+    if (zoneAddOpen) setZoneAddOpen(false);
+    if (editingCctvId && editingCctvId !== item.id) handleCancelEditCctvCells();
     if (selectedItem?.kind !== 'device' || selectedItem.data.id !== item.id) {
       handlePanelItemSelect(item);
     }
-    setEditForm({ label: item.label, zone: item.zone });
+    // 유도등은 예전 설정 모달에 있던 필드까지 이 폼에 같이 채워서, 카드 하나에서 전부 편집함
+    const light = item.type === 'light' ? iotLights.find((l) => l.id === item.id) : undefined;
+    setEditForm({
+      label: item.label,
+      zone: item.zone,
+      decisionNodeId: light?.decisionNodeId ?? '',
+      leftEdgeId: light?.leftEdgeId ?? '',
+      rightEdgeId: light?.rightEdgeId ?? '',
+      cctvId: light?.cctvId ?? '',
+    });
     setEditingItemId(item.id);
   };
 
   const handleSaveEdit = (item: PanelItem) => {
+    // 감시영역 재선택 중에 카드 완료를 눌러도 재선택 팝업이 안 닫히던 문제 — 완료는
+    // 재선택까지 함께 정리함(재선택 자체는 저장하지 않은 채로 취소됨)
+    if (editingCctvId === item.id) handleCancelEditCctvCells();
     const newLabel = editForm.label;
     if (item.source === 'floor') {
       setFloor((prev) =>
@@ -3215,6 +3659,7 @@ const FloorPlansDetailPage = () => {
           setAddedDevices((prev) => prev.map((d) => (d.id === item.id ? prevDevice : d)));
       };
       if (item.type === 'light' && prevDevice) {
+        const prevLight = iotLights.find((l) => l.id === item.id);
         updateIoTLight(item.id, {
           name: newLabel,
           x: prevDevice.x / 100,
@@ -3223,6 +3668,38 @@ const FloorPlansDetailPage = () => {
           rollback();
           show({ title: '유도등 정보 수정에 실패했습니다.', variant: 'error' });
         });
+
+        // 가이던스·담당 CCTV는 예전 설정 모달의 "저장" 버튼들이 하던 일을 그대로 옮긴 것 —
+        // 바뀐 값이 있을 때만, 각자 독립된 PATCH로 보냄. Pi 엔드포인트는 스웨거 확인 결과
+        // "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 쓰이지 않는다"고 명시되어 있어
+        // 카드에서 뺌(연동에 필요한 값이 아님) — 필요해지면 api/iotLightsApi.ts의
+        // updateLightPiEndpoint를 그대로 다시 쓰면 됨
+        const { decisionNodeId, leftEdgeId, rightEdgeId } = editForm;
+        const guidanceChanged =
+          decisionNodeId !== (prevLight?.decisionNodeId ?? '') ||
+          leftEdgeId !== (prevLight?.leftEdgeId ?? '') ||
+          rightEdgeId !== (prevLight?.rightEdgeId ?? '');
+        if (decisionNodeId && leftEdgeId && rightEdgeId && guidanceChanged) {
+          configureLightGuidance(item.id, { decisionNodeId, leftEdgeId, rightEdgeId })
+            .then((updated) =>
+              setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
+            )
+            .catch((error: unknown) => {
+              const { message } = extractServerError(error);
+              show({ title: message || '가이던스 저장에 실패했습니다.', variant: 'error' });
+            });
+        }
+
+        if (editForm.cctvId && editForm.cctvId !== (prevLight?.cctvId ?? '')) {
+          assignLightCctv(item.id, editForm.cctvId)
+            .then((updated) =>
+              setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
+            )
+            .catch((error: unknown) => {
+              const { message } = extractServerError(error);
+              show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
+            });
+        }
       } else if (item.type === 'cctv' && prevDevice) {
         updateCctv(item.id, { name: newLabel, x: prevDevice.x / 100, y: prevDevice.y / 100 })
           .then((updated) => {
@@ -3312,6 +3789,9 @@ const FloorPlansDetailPage = () => {
                   })}
               </div>
             </div>
+
+            {/* 훈련 준비 체크리스트는 더 적합한 위치를 찾는 중이라 여기서는 잠시 뺌 —
+                컴포넌트 자체는 components/ReadinessChecklist.tsx에 그대로 있음 */}
           </div>
         </aside>
 
@@ -3343,7 +3823,8 @@ const FloorPlansDetailPage = () => {
               currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
             )}
           >
-            {/* 장비 추가 / 구역 추가 */}
+            {/* 그리드 표시(뷰 토글)와 추가(노드/구역/엣지) — 편집 도구를 한 곳에 묶어서
+                툴바를 5개에서 2개로 줄임 */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <div className={styles.canvasActionFloat}>
                 <button
@@ -3355,51 +3836,18 @@ const FloorPlansDetailPage = () => {
                   aria-pressed={showGridOverlay}
                   onClick={handleToggleGridOverlay}
                 >
+                  그리드 표시
                   {showGridOverlay ? (
                     <EyeOffIcon width={14} height={14} />
                   ) : (
                     <EyeIcon width={14} height={14} />
                   )}
-                  그리드 표시
                 </button>
-                <button
-                  type="button"
-                  className={styles.canvasActionButton}
-                  onClick={() => {
-                    setZoneAddOpen(false);
-                    setNodeAddOpen((v) => !v);
-                  }}
-                >
-                  <PlusIcon width={14} height={14} />
-                  노드 추가
-                </button>
-                <button
-                  type="button"
-                  className={styles.canvasActionButton}
-                  onClick={handleToggleZoneAdd}
-                >
-                  <PlusIcon width={14} height={14} />
-                  구역 추가
-                </button>
-                <button
-                  type="button"
-                  className={styles.canvasActionButton}
-                  onClick={() => {
-                    setNodeAddOpen(false);
-                    setZoneAddOpen(false);
-                    setSelectedEdgeId(null);
-                    setEdgeAddOpen((v) => {
-                      if (v) {
-                        setEdgeDraftFromId(null);
-                        setEdgeDraftToId(null);
-                      }
-                      return !v;
-                    });
-                  }}
-                >
-                  <PlusIcon width={14} height={14} />
-                  엣지 연결
-                </button>
+                <AddActionMenu
+                  onAddNode={() => handleOpenNodeAdd()}
+                  onAddZone={handleToggleZoneAdd}
+                  onAddEdge={handleOpenEdgeAdd}
+                />
               </div>
             )}
 
@@ -3476,39 +3924,33 @@ const FloorPlansDetailPage = () => {
             )}
 
             {editingCctvId && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '0.8rem',
-                  left: '0.8rem',
-                  zIndex: 5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                  background: 'white',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.6rem',
-                  padding: '0.6rem 1rem',
-                  fontSize: '1.2rem',
-                  color: '#374151',
-                }}
-              >
-                <span>감시 영역 편집 중 · {cctvDraftCellIds.length}칸 선택됨</span>
-                <button
-                  type="button"
-                  className={styles.nodeAddCancelBtn}
-                  onClick={handleCancelEditCctvCells}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className={styles.nodeAddSubmitBtn}
-                  disabled={cctvDraftCellIds.length === 0}
-                  onClick={handleSaveEditCctvCells}
-                >
-                  저장
-                </button>
+              // 예전엔 좌측 상단에 raw 스타일로 떠서 눈에 잘 안 띄었음 — 다른 모든 "설정 중"
+              // 팝업(구역 설정 등)과 같은 자리·같은 스타일로 통일해서 찾기 쉽게 함
+              <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.nodeAddHeader}>
+                  <span className={styles.nodeAddTitle}>감시 영역 재선택</span>
+                </div>
+                <span className={styles.nodeAddHint}>
+                  도면에서 칸을 클릭하거나 드래그해서 감시 영역을 다시 선택해주세요.{' '}
+                  {cctvDraftCellIds.length}칸 선택됨.
+                </span>
+                <div className={styles.nodeAddActions}>
+                  <button
+                    type="button"
+                    className={styles.nodeAddCancelBtn}
+                    onClick={handleCancelEditCctvCells}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.nodeAddSubmitBtn}
+                    disabled={cctvDraftCellIds.length === 0}
+                    onClick={handleSaveEditCctvCells}
+                  >
+                    저장
+                  </button>
+                </div>
               </div>
             )}
 
@@ -3527,7 +3969,10 @@ const FloorPlansDetailPage = () => {
               />
             )}
 
-            {zoneAddOpen && (
+            {/* 기존 구역 수정(zoneResetTargetId)은 팝업 없이 카드에서 이름을, 도면에서 칸을
+                바로 편집함 — 이 팝업은 "새 구역 추가"에만 씀(이름을 받을 카드가 아직 없어서
+                여전히 필요함) */}
+            {zoneAddOpen && !zoneResetTargetId && (
               <ZoneAddPopup
                 containerRef={zonePopupRef}
                 selectedCellCount={zoneDraftCellIds.length}
@@ -3553,7 +3998,6 @@ const FloorPlansDetailPage = () => {
                   (nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
                   !!editingCctvId
                 }
-                zoneDraftRect={zoneDraftRect}
                 onZoneDraftChange={setZoneDraftRect}
                 onZoneDragEnd={handleZoneDragEnd}
                 savedZones={zones}
@@ -3581,8 +4025,10 @@ const FloorPlansDetailPage = () => {
                   setSelectedItem(isSame ? null : { kind: 'device', data: d });
                   setSelectedZoneRef(null);
                   // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
+                  // (다른 칩은 정리 — 안 그러면 이 종류가 아직 안 켜져 있을 때 여전히 숨어 있음)
                   setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
-                  setDeviceTypeFilter(deviceTypeToFilterChip(d.type));
+                  const chip = deviceTypeToFilterChip(d.type);
+                  setDeviceTypeFilter(chip ? [chip] : []);
                 }}
                 onMapClick={handleMapClick}
                 onBackgroundClick={() => {
@@ -3693,7 +4139,13 @@ const FloorPlansDetailPage = () => {
                     key={key}
                     type="button"
                     className={clsx(styles.filterTab, topFilter === key && styles.filterTabActive)}
-                    onClick={() => setTopFilter(key)}
+                    onClick={() => {
+                      // 유도등 등 하위 필터 칩을 고른 채로 "전체"를 누르면 그 필터가 그대로
+                      // 남아서 전체가 아니라 필터링된 목록만 보이는 문제가 있었음 — 탭을
+                      // 바꿀 때마다 하위 필터도 같이 초기화함
+                      setTopFilter(key);
+                      setDeviceTypeFilter([]);
+                    }}
                   >
                     {label}
                   </button>
@@ -3709,6 +4161,7 @@ const FloorPlansDetailPage = () => {
                       { key: 'door', label: '문 · 출입구' },
                       { key: 'stair', label: '계단' },
                       { key: 'hallway', label: '복도' },
+                      { key: 'start', label: '시작 후보' },
                     ] as const
                   ).map(({ key, label }) => (
                     <button
@@ -3716,9 +4169,13 @@ const FloorPlansDetailPage = () => {
                       type="button"
                       className={clsx(
                         styles.subFilterChip,
-                        deviceTypeFilter === key && styles.subFilterChipActive,
+                        deviceTypeFilter.includes(key) && styles.subFilterChipActive,
                       )}
-                      onClick={() => setDeviceTypeFilter((prev) => (prev === key ? null : key))}
+                      onClick={() =>
+                        setDeviceTypeFilter((prev) =>
+                          prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+                        )
+                      }
                     >
                       {label}
                     </button>
@@ -3744,7 +4201,12 @@ const FloorPlansDetailPage = () => {
                       onStartEdit={handleStartEdit}
                       onSaveEdit={handleSaveEdit}
                       onDelete={handlePanelItemDelete}
-                      onOpenSettings={handleOpenDeviceSettings}
+                      onToggleEnabled={handleToggleEnabled}
+                      onEditCctvCells={handleStartEditCctvCells}
+                      onLightDirectionChange={handleLightDirectionChange}
+                      lightNodeOptions={lightNodeOptions}
+                      lightEdgeOptions={lightEdgeOptions}
+                      lightCctvOptions={lightCctvOptions}
                     />
                   ))}
 
@@ -3798,32 +4260,6 @@ const FloorPlansDetailPage = () => {
           label={zoneDeleteTarget.label}
           onConfirm={handleZoneDeleteConfirm}
           isSubmitting={isDeletingZone}
-        />
-      )}
-
-      {lightSettingsTarget && (
-        <IoTLightSettingsModal
-          open
-          onClose={() => setLightSettingsTarget(null)}
-          light={lightSettingsTarget}
-          nodeOptions={lightNodeOptions}
-          edgeOptions={lightEdgeOptions}
-          onToggleEnabled={handleLightToggleEnabled}
-          onDirectionChange={handleLightDirectionChange}
-          onGuidanceSave={handleLightGuidanceSave}
-          onPiEndpointSave={handleLightPiEndpointSave}
-        />
-      )}
-
-      {cctvSettingsTarget && (
-        <CctvSettingsModal
-          open
-          onClose={() => setCctvSettingsTarget(null)}
-          cctv={cctvSettingsTarget}
-          isSaving={isSavingCctv}
-          onSaveName={handleCctvSaveName}
-          onToggleEnabled={handleCctvToggleEnabled}
-          onEditCells={handleStartEditCctvCells}
         />
       )}
     </>

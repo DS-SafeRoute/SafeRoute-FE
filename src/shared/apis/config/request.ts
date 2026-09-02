@@ -26,12 +26,14 @@ export interface RequestConfig<TBody = unknown> {
   body?: TBody;
   signal?: AbortSignal;
   responseMode?: 'wrapped' | 'raw';
+  // axiosInstance 기본값(30초)보다 오래 걸리는 게 정상인 요청(예: AI 분석)에서만 개별 지정
+  timeout?: number;
 }
 
 export const request = async <TResponse, TBody = unknown>(
   config: RequestConfig<TBody>,
 ): Promise<TResponse> => {
-  const { method, url, query, body, signal, responseMode = 'wrapped' } = config;
+  const { method, url, query, body, signal, responseMode = 'wrapped', timeout } = config;
 
   try {
     const response = await axiosInstance.request<BaseResponse<TResponse> | TResponse>({
@@ -40,6 +42,7 @@ export const request = async <TResponse, TBody = unknown>(
       params: query,
       data: body,
       signal,
+      ...(timeout !== undefined && { timeout }),
     });
 
     if (responseMode === 'raw') {
