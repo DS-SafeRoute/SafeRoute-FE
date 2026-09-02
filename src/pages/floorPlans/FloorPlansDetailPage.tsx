@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import { ApiError } from '@apis/errors/apiError';
+import { useCreateFireOriginMutation } from '@apis/scenarios/fireZoneQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -2068,6 +2069,8 @@ const FloorPlansDetailPage = () => {
   const [fireOriginModalOpen, setFireOriginModalOpen] = useState(false);
   // 발화점 지정 모드 — 시나리오를 고르고 나면 도면 그리드 클릭으로 셀을 지정할 수 있게 됨
   const [fireOriginScenarioId, setFireOriginScenarioId] = useState<string | null>(null);
+  const [fireOriginDraftCellId, setFireOriginDraftCellId] = useState<string | null>(null);
+  const createFireOriginMutation = useCreateFireOriginMutation();
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -2077,7 +2080,9 @@ const FloorPlansDetailPage = () => {
   // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
-  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | 'zone' | null>(null);
+  const [gridSetupIntent, setGridSetupIntent] = useState<
+    'toggle' | 'cctv' | 'zone' | 'fireOrigin' | null
+  >(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
@@ -2496,7 +2501,7 @@ const FloorPlansDetailPage = () => {
       .catch(() => []);
   };
 
-  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
+  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone' | 'fireOrigin') => {
     setGridSetupIntent(intent);
     // 업로드 때 정했던 값이 남아 있으면 다시 입력하지 않도록 채워둠
     const remembered = currentFloor
@@ -2587,6 +2592,8 @@ const FloorPlansDetailPage = () => {
   const handleGridSetupPromptCancel = () => {
     setGridSetupPromptOpen(false);
     if (gridSetupIntent === 'cctv') handleNodeAddBack();
+    // 그리드가 없어서 발화점을 지정할 수 없는 상태이니, 모드 자체를 접음
+    if (gridSetupIntent === 'fireOrigin') setFireOriginScenarioId(null);
     setGridSetupIntent(null);
   };
 
@@ -2605,6 +2612,8 @@ const FloorPlansDetailPage = () => {
           setNodeAddStage('fov');
         } else if (gridSetupIntent === 'zone') {
           setZoneAddOpen(true);
+        } else if (gridSetupIntent === 'fireOrigin') {
+          // 발화점 지정 모드는 fireOriginScenarioId로 이미 켜져 있어서 별도 처리 없이 셀 선택으로 넘어감
         } else {
           setShowGridOverlay(true);
         }
@@ -2624,13 +2633,47 @@ const FloorPlansDetailPage = () => {
 
   // 그리드 셀 드래그/클릭 선택은 CCTV 등록·CCTV 시야구역 재선택·구역 추가 세 곳에서 공유하는데,
   // 그중 CCTV/구역 두 플로우는 임시 선택값을 각자 다른 state(cctvDraftCellIds/zoneDraftCellIds)에
-  // 담아두고 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀
-  const activeDraftCellIds = zoneAddOpen ? zoneDraftCellIds : cctvDraftCellIds;
+  // 담아두고 있어서 "지금 어느 쪽이 활성 상태인지"만 여기서 한 번 정하고 아래에서 그대로 씀.
+  // 발화점 지정은 다중 선택이 아니라 단일 셀만 고르므로 fireOriginDraftCellId를 배열로 감싸 재사용
+  const activeDraftCellIds = fireOriginScenarioId
+    ? fireOriginDraftCellId
+      ? [fireOriginDraftCellId]
+      : []
+    : zoneAddOpen
+      ? zoneDraftCellIds
+      : cctvDraftCellIds;
   const setActiveDraftCellIds = zoneAddOpen ? setZoneDraftCellIds : setCctvDraftCellIds;
 
   const handleGridCellToggle = (cellId: string) => {
+    if (fireOriginScenarioId) {
+      // 여러 칸을 모으는 다른 플로우와 달리, 클릭할 때마다 그 칸 하나로 선택을 바꿈(다시 누르면 해제)
+      setFireOriginDraftCellId((prev) => (prev === cellId ? null : cellId));
+      return;
+    }
     setActiveDraftCellIds((prev) =>
       prev.includes(cellId) ? prev.filter((id) => id !== cellId) : [...prev, cellId],
+    );
+  };
+
+  const handleCancelFireOrigin = () => {
+    setFireOriginScenarioId(null);
+    setFireOriginDraftCellId(null);
+  };
+
+  const handleConfirmFireOrigin = () => {
+    if (!fireOriginScenarioId || !fireOriginDraftCellId) return;
+    createFireOriginMutation.mutate(
+      { scenarioId: fireOriginScenarioId, gridCellId: fireOriginDraftCellId },
+      {
+        onSuccess: () => {
+          show({ title: '발화점이 지정되었습니다.', variant: 'success' });
+          setFireOriginScenarioId(null);
+          setFireOriginDraftCellId(null);
+        },
+        onError: () => {
+          show({ title: '발화점 지정에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+        },
+      },
     );
   };
 
@@ -2901,6 +2944,7 @@ const FloorPlansDetailPage = () => {
   // 구역 추가 버튼 — 그리드가 있어야 셀을 선택할 수 있어서, 없으면 설정 팝업부터 띄움
   const handleToggleZoneAdd = () => {
     setNodeAddOpen(false);
+    handleCancelFireOrigin();
     if (zoneAddOpen) {
       setZoneAddOpen(false);
       return;
@@ -3146,7 +3190,8 @@ const FloorPlansDetailPage = () => {
   const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
     editingCctvId ||
-    zoneAddOpen
+    zoneAddOpen ||
+    fireOriginScenarioId
       ? 'selecting'
       : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
         ? 'viewing'
@@ -3371,6 +3416,7 @@ const FloorPlansDetailPage = () => {
                   className={styles.canvasActionButton}
                   onClick={() => {
                     setZoneAddOpen(false);
+                    handleCancelFireOrigin();
                     setNodeAddOpen((v) => !v);
                   }}
                 >
@@ -3391,6 +3437,7 @@ const FloorPlansDetailPage = () => {
                   onClick={() => {
                     setNodeAddOpen(false);
                     setZoneAddOpen(false);
+                    handleCancelFireOrigin();
                     setSelectedEdgeId(null);
                     setEdgeAddOpen((v) => {
                       if (v) {
@@ -3411,7 +3458,16 @@ const FloorPlansDetailPage = () => {
                     fireOriginScenarioId && styles.canvasActionButtonActive,
                   )}
                   aria-pressed={Boolean(fireOriginScenarioId)}
-                  onClick={() => setFireOriginModalOpen(true)}
+                  onClick={() => {
+                    // 다른 배치 모드와 동시에 켜지면 그리드 클릭 결과가 어느 쪽으로 가는지
+                    // 헷갈리므로, 발화점 지정을 시작할 때 나머지 모드는 먼저 정리함
+                    setNodeAddOpen(false);
+                    setZoneAddOpen(false);
+                    setEdgeAddOpen(false);
+                    setEditingCctvId(null);
+                    setEditingStructureId(null);
+                    setFireOriginModalOpen(true);
+                  }}
                 >
                   <PlusIcon width={14} height={14} />
                   발화점 지정
@@ -3457,6 +3513,34 @@ const FloorPlansDetailPage = () => {
                     onClick={handleGridSetupPromptConfirm}
                   >
                     설정
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {fireOriginScenarioId && (
+              <div className={styles.fireOriginPopup} onClick={(e) => e.stopPropagation()}>
+                <span className={styles.nodeAddTitle}>발화점 지정</span>
+                <span className={styles.nodeAddHint}>
+                  {fireOriginDraftCellId
+                    ? '선택한 칸을 이 시나리오의 최초 발화점으로 지정합니다.'
+                    : '도면에서 발화점으로 지정할 칸을 클릭해주세요.'}
+                </span>
+                <div className={styles.nodeAddActions}>
+                  <button
+                    type="button"
+                    className={styles.nodeAddCancelBtn}
+                    onClick={handleCancelFireOrigin}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.nodeAddSubmitBtn}
+                    disabled={!fireOriginDraftCellId || createFireOriginMutation.isPending}
+                    onClick={handleConfirmFireOrigin}
+                  >
+                    {createFireOriginMutation.isPending ? '지정 중...' : '지정'}
                   </button>
                 </div>
               </div>
@@ -3849,8 +3933,12 @@ const FloorPlansDetailPage = () => {
           onClose={() => setFireOriginModalOpen(false)}
           buildingId={buildingId}
           onSelect={(scenarioId) => {
-            setFireOriginScenarioId(scenarioId);
             setFireOriginModalOpen(false);
+            // CCTV 등록과 같은 이유로 그리드가 있어야 셀을 지정할 수 있음 — 없으면 먼저 만들게 함
+            void ensureFloorGridCells().then((cells) => {
+              setFireOriginScenarioId(scenarioId);
+              if (cells.length === 0) openGridSetupPrompt('fireOrigin');
+            });
           }}
         />
       )}
