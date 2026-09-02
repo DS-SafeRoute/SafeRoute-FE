@@ -7,11 +7,10 @@ import {
   useFloorLightsQuery,
 } from '@apis/floors/floorQueries';
 import type { FloorGraph } from '@apis/floors/mapGraphApi';
-
 import {
   useScenarioFireOriginQuery,
   useScenarioFireZonesQuery,
-} from '../api/fireZones/fireZoneQueries';
+} from '@apis/scenarios/fireZoneQueries';
 
 import type { PreviewMetric } from '../types/scenarioSettings';
 
