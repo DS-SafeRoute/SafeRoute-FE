@@ -2551,9 +2551,11 @@ const FloorPlansDetailPage = () => {
   }, [nodeAddOpen]);
 
   // 구역 설정 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 드래그는 구역 선택으로 처리)
-  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
+  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함.
+  // 기존 구역을 수정 중(zoneResetTargetId)일 때도 마찬가지 — 카드의 완료를 눌러야만
+  // 끝나게 하고, 다른 곳을 잘못 눌러서 조용히 편집이 날아가지 않게 함
   useEffect(() => {
-    if (!zoneAddOpen || zoneDraftCellIds.length > 0) return;
+    if (!zoneAddOpen || zoneResetTargetId || zoneDraftCellIds.length > 0) return;
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (zonePopupRef.current?.contains(target)) return;
@@ -2562,7 +2564,7 @@ const FloorPlansDetailPage = () => {
     };
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
-  }, [zoneAddOpen, zoneDraftCellIds]);
+  }, [zoneAddOpen, zoneResetTargetId, zoneDraftCellIds]);
 
   // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역/셀과 재설정 대상도 함께 초기화
   useEffect(() => {
@@ -3171,10 +3173,16 @@ const FloorPlansDetailPage = () => {
     setEditingStructureId((prev) => (prev === id ? null : id));
   };
 
+  // "수정"을 누르면 이름 입력뿐 아니라 도면 그리드 셀 선택도 바로 켬 — 재설정을 위해 별도
+  // 버튼·팝업을 한 번 더 거치게 했더니 클릭이 너무 많다는 피드백으로, CCTV 감시영역과 같은
+  // 결로 통일함(수정 중엔 도면을 드래그하면 바로 영역이 다시 잡힘)
   const handleStartEditZone = (zone: ZoneEntry) => {
     setEditingItemId(null);
     setEditingStructureId(null);
     handleCancelEditCctvCells();
+    setZoneResetTargetId(zone.id);
+    setZoneDraftCellIds(zone.cellIds);
+    setZoneAddOpen(true);
     setEditingZoneId(zone.id);
     setZoneEditLabel(zone.label);
   };
@@ -3182,10 +3190,22 @@ const FloorPlansDetailPage = () => {
   // 이름 수정 API가 아직 없어서 로컬에만 반영됨 — 새로고침하면 원래 이름으로 돌아감
   const handleSaveZoneLabel = (id: string) => {
     const trimmed = zoneEditLabel.trim();
-    // 재설정(재드래그) 중일 때 카드의 체크를 눌러도 "완료했다"고 느껴지는 게 자연스러운데,
-    // 예전엔 이걸 재설정 취소로 처리해서 방금 다시 고른 셀이 그냥 버려졌음(반영 안 되는 것처럼
-    // 보이던 버그) — 팝업의 "저장"과 똑같이 재설정을 확정하도록 바꿈
     if (zoneResetTargetId === id) {
+      const original = zones.find((z) => z.id === id);
+      const cellsChanged =
+        !original ||
+        original.cellIds.length !== zoneDraftCellIds.length ||
+        !original.cellIds.every((c) => zoneDraftCellIds.includes(c));
+      const nameChanged = !!trimmed && !!original && trimmed !== original.label;
+      // 아무것도 안 바꿨으면(이름도 그대로, 도면도 안 건드림) 굳이 삭제→생성을 왕복하지 않고
+      // 그냥 수정 모드만 닫음
+      if (!cellsChanged && !nameChanged) {
+        setZoneAddOpen(false);
+        setZoneDraftCellIds([]);
+        setZoneResetTargetId(null);
+        setEditingZoneId(null);
+        return;
+      }
       if (trimmed) handleConfirmZoneReset(trimmed);
       return;
     }
@@ -3212,16 +3232,8 @@ const FloorPlansDetailPage = () => {
   };
 
   // 구역은 PATCH가 없어(스웨거 확인) 새로 만들고 기존 걸 지우는 방식으로 "재설정"함 —
-  // 기존 셀을 미리 선택해둔 채로 재설정 팝업을 열어, 다시 드래그해서 영역을 바꿀 수 있게 함
-  const handleStartZoneReset = (zone: ZoneEntry) => {
-    setEditingItemId(null);
-    setEditingStructureId(null);
-    handleCancelEditCctvCells();
-    setZoneResetTargetId(zone.id);
-    setZoneDraftCellIds(zone.cellIds);
-    setZoneAddOpen(true);
-  };
-
+  // handleStartEditZone이 이미 zoneDraftCellIds를 기존 셀로 채워두고 도면 드래그를 켜뒀으므로
+  // 여기서는 그 결과(zoneDraftCellIds)를 그대로 저장만 함
   const handleConfirmZoneReset = (label: string) => {
     if (!currentFloor || !zoneResetTargetId || zoneDraftCellIds.length === 0) return;
     const targetId = zoneResetTargetId;
@@ -3452,20 +3464,16 @@ const FloorPlansDetailPage = () => {
           </span>
         </div>
         {/* 감시 영역(CCTV 카드)과 같은 자리·같은 모양 — 수정 중이 아닐 때도 정보를 보여줘서
-            수정 모드로 들어갈 때 카드 규격이 갑자기 늘어나 보이지 않게 함 */}
-        <div className={styles.deviceCardRow}>
+            수정 모드로 들어갈 때 카드 규격이 갑자기 늘어나 보이지 않게 함. 수정을 누르면 바로
+            도면 드래그가 켜지므로(handleStartEditZone) 별도 "재설정" 버튼 없이 여기는
+            지금 고른 칸 수만 실시간으로 보여줌 */}
+        <div
+          className={styles.deviceCardRow}
+          title={isEditing ? '도면에서 칸을 클릭하거나 드래그하면 영역이 바로 바뀌어요' : undefined}
+        >
           <span className={styles.deviceCardKey}>구역 범위</span>
           {isEditing ? (
-            <button
-              type="button"
-              className={styles.deviceCardFieldEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStartZoneReset(z);
-              }}
-            >
-              {z.cellIds.length}칸 · 재설정
-            </button>
+            <span className={styles.deviceCardValue}>{zoneDraftCellIds.length}칸</span>
           ) : (
             <span className={styles.deviceCardValue}>{z.cellIds.length}칸</span>
           )}
@@ -4017,15 +4025,15 @@ const FloorPlansDetailPage = () => {
               />
             )}
 
-            {zoneAddOpen && (
+            {/* 기존 구역 수정(zoneResetTargetId)은 팝업 없이 카드에서 이름을, 도면에서 칸을
+                바로 편집함 — 이 팝업은 "새 구역 추가"에만 씀(이름을 받을 카드가 아직 없어서
+                여전히 필요함) */}
+            {zoneAddOpen && !zoneResetTargetId && (
               <ZoneAddPopup
                 containerRef={zonePopupRef}
                 selectedCellCount={zoneDraftCellIds.length}
-                initialName={zoneResetTargetId ? zoneEditLabel : ''}
-                title={zoneResetTargetId ? '구역 재설정' : '구역 설정'}
-                submitLabel={zoneResetTargetId ? '저장' : '추가'}
                 onCancel={() => setZoneAddOpen(false)}
-                onSave={zoneResetTargetId ? handleConfirmZoneReset : handleAddZone}
+                onSave={handleAddZone}
               />
             )}
 
