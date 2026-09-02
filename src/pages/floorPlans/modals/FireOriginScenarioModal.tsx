@@ -61,7 +61,6 @@ const FireOriginScenarioModal = ({
       }
     >
       <div className={styles.section}>
-        <span className={styles.sectionTitle}>시나리오</span>
         {isLoading ? (
           <span className={styles.hint}>시나리오를 불러오는 중...</span>
         ) : isError ? (
@@ -77,6 +76,7 @@ const FireOriginScenarioModal = ({
             value={scenarioId}
             onChange={setScenarioId}
             placeholder="시나리오 선택"
+            fullWidth
           />
         )}
       </div>

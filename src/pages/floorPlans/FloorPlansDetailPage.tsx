@@ -1743,14 +1743,18 @@ const FloorPlansDetailPage = () => {
   const [imageAspect, setImageAspect] = useState<number | null>(null);
 
   // SVG viewBox 높이 — 폭 CANVAS_W(560)은 고정, 높이만 도면 실제 비율에 맞춤.
-  // 이미지 원본 비율을 우선(가장 직접적), 없으면 그리드 columns/rows, 그것도 없으면 4:3.
-  // viewBox 비율 == 이미지 비율이라 preserveAspectRatio="none"으로 채워도 이미지가 안 늘어남
+  // 그리드 columns/rows 비율을 우선으로 씀 — 셀 크기는 CANVAS_W/cols × canvasH/rows로 계산되므로
+  // (getGridCellPxSize) 이 값이 이미지의 원본 픽셀 비율과 어긋나면 정사각형이어야 할 셀이
+  // 직사각형으로 보임. 스캔·촬영한 도면은 실측 비율과 이미지 픽셀 비율이 딱 맞아떨어지지
+  // 않는 경우가 많아, 그리드가 아직 없을 때(분석 전)만 이미지 비율로 대체하고 그것도
+  // 없으면 4:3. viewBox 비율이 이미지와 살짝 어긋나면 배경 이미지가 미세하게 늘어날 수
+  // 있지만, 셀을 정확히 클릭·드래그해야 하는 그리드 쪽이 더 중요해서 이 쪽을 우선함
   const canvasH = useMemo(() => {
-    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
     if (floorGridCells.length > 0) {
       const { cols, rows } = getGridDimensions(floorGridCells);
       if (cols > 0 && rows > 0) return (CANVAS_W * rows) / cols;
     }
+    if (imageAspect && imageAspect > 0) return CANVAS_W / imageAspect;
     return DEFAULT_CANVAS_H;
   }, [imageAspect, floorGridCells]);
 

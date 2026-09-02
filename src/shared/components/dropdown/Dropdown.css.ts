@@ -8,6 +8,11 @@ export const container = style({
   display: 'inline-block',
 });
 
+export const containerFullWidth = style({
+  display: 'block',
+  width: '100%',
+});
+
 export const trigger = recipe({
   base: {
     position: 'relative',
@@ -40,6 +45,9 @@ export const trigger = recipe({
           '&:hover': { borderColor: vars.color.gray100 },
         },
       },
+    },
+    fullWidth: {
+      true: { width: '100%' },
     },
   },
 });

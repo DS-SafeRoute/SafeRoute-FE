@@ -181,7 +181,9 @@ export const gridSetupPopup = style({
 export const fireOriginPopup = style({
   position: 'absolute',
   zIndex: 15,
-  top: '5.6rem',
+  // 툴바 버튼 줄 아래로 확실히 떨어지도록 nodeAddPopup과 같은 높이로 맞춤(gridSetupPopup의
+  // 5.6rem은 버튼 줄과 겹침)
+  top: '9.6rem',
   right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
