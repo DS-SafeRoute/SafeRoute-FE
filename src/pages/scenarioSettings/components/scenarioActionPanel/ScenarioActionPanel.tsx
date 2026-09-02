@@ -84,19 +84,19 @@ const ScenarioActionPanel = ({
         시나리오 시작
       </Button>
 
-      {startState.restrictionMessage ? (
+      {startState.restrictionMessage && (
         <p className={startRestrictionNotice}>{startState.restrictionMessage}</p>
-      ) : null}
+      )}
 
-      {startState.showPreview ? (
+      {startState.showPreview && (
         <TrainingPreviewCard status={PREVIEW_STATUS} metrics={startState.metrics} />
-      ) : null}
+      )}
 
-      {startState.canEdit ? (
+      {startState.canEdit && (
         <Button type="button" variant="ghost" size="md" fullWidth onClick={handlers.onEdit}>
           수정하기
         </Button>
-      ) : null}
+      )}
     </aside>
   );
 };

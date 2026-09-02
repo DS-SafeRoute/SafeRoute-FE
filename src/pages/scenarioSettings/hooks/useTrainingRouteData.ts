@@ -47,6 +47,13 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   const rejectMutation = useRejectRouteRecalculationMutation();
   const routeProposal = formatRouteProposal(detailQuery.data);
 
+  let currentRouteMessage = formatCurrentRoute(currentRouteQuery.data);
+  if (currentRouteQuery.isPending) {
+    currentRouteMessage = '현재 대피 경로를 불러오는 중...';
+  } else if (currentRouteQuery.isError) {
+    currentRouteMessage = '현재 대피 경로를 불러오지 못했습니다.';
+  }
+
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
       if (
@@ -76,11 +83,7 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   );
 
   return {
-    currentRouteMessage: currentRouteQuery.isPending
-      ? '현재 대피 경로를 불러오는 중...'
-      : currentRouteQuery.isError
-        ? '현재 대피 경로를 불러오지 못했습니다.'
-        : formatCurrentRoute(currentRouteQuery.data),
+    currentRouteMessage,
     routeFloorId: currentRouteQuery.data?.floorId ?? null,
     routeNodeIds:
       currentRouteQuery.data?.path

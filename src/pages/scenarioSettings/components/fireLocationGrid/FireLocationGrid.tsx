@@ -57,14 +57,14 @@ const FireLocationGrid = ({
         role="group"
         aria-label="발화 위치와 대피 경로가 표시된 층 도면"
       >
-        {imageUrl ? (
+        {imageUrl && (
           <image
             href={imageUrl}
             width={MAP_WIDTH}
             height={MAP_HEIGHT}
             preserveAspectRatio="xMidYMid meet"
           />
-        ) : null}
+        )}
 
         {graph?.edges.map((edge) => {
           const fromNode = nodeById.get(edge.fromNodeId);
@@ -83,7 +83,7 @@ const FireLocationGrid = ({
           );
         })}
 
-        {routePoints ? <polyline className={styles.route} points={routePoints} /> : null}
+        {routePoints && <polyline className={styles.route} points={routePoints} />}
 
         {gridCells.map((cell) => {
           const isFireCell = fireCellIdSet.has(cell.id);
@@ -103,7 +103,7 @@ const FireLocationGrid = ({
                 width={cellSize.width}
                 height={cellSize.height}
               />
-              {isOrigin ? (
+              {isOrigin && (
                 <text
                   className={styles.fireMarker}
                   x={cell.centerX * MAP_WIDTH}
@@ -114,7 +114,7 @@ const FireLocationGrid = ({
                     최초 발화점
                   </tspan>
                 </text>
-              ) : null}
+              )}
             </g>
           );
         })}
@@ -130,7 +130,7 @@ const FireLocationGrid = ({
         ))}
       </svg>
 
-      {statusMessage ? <p className={styles.statusMessage}>{statusMessage}</p> : null}
+      {statusMessage && <p className={styles.statusMessage}>{statusMessage}</p>}
     </div>
   );
 };

@@ -34,7 +34,7 @@ const ScenarioField = ({
     <label className={styles.root}>
       <span className={styles.label}>{label}</span>
       <span className={styles.fieldShell({ disabled })}>
-        {leadingIcon ? <span className={styles.withLeadingIcon}>{leadingIcon}</span> : null}
+        {Boolean(leadingIcon) && <span className={styles.withLeadingIcon}>{leadingIcon}</span>}
         <select
           className={styles.select({ disabled, readOnly })}
           value={onChange ? value : undefined}
@@ -53,11 +53,11 @@ const ScenarioField = ({
             );
           })}
         </select>
-        {!isInactive ? (
+        {!isInactive && (
           <span className={styles.trailingIcon}>
             <ChevronDownIcon />
           </span>
-        ) : null}
+        )}
       </span>
     </label>
   );

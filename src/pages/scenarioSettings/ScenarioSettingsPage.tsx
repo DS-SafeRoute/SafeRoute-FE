@@ -54,11 +54,12 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   // 시나리오 상태에 따른 액션 패널 모드
   const isCreatePage = scenario === undefined;
   const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
-  const actionMode: ScenarioActionMode = isCreatePage
-    ? 'create'
-    : scenario.status === SCENARIO_STATUS.DRAFT || isEditing
-      ? 'edit'
-      : 'start';
+  let actionMode: ScenarioActionMode = 'start';
+  if (isCreatePage) {
+    actionMode = 'create';
+  } else if (scenario.status === SCENARIO_STATUS.DRAFT || isEditing) {
+    actionMode = 'edit';
+  }
 
   // 입력 폼과 훈련 세션의 상태·동작을 도메인 단위로 관리
   const scenarioForm = useScenarioForm({ scenario, defaultBuildingId: buildings[0]?.id });
@@ -86,18 +87,23 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     !floorView.isFireOriginPending &&
     !floorView.isFireOriginError &&
     !floorView.hasFireOrigin;
-  const startRestrictionMessage =
-    scenario?.status === SCENARIO_STATUS.COMPLETED || scenario?.status === SCENARIO_STATUS.ERROR
-      ? '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.'
-      : isFireOriginRequired
-        ? '도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.'
-        : undefined;
-  const isActionLoading =
-    actionMode === 'create'
-      ? createScenarioMutation.isPending || training.isScheduling
-      : actionMode === 'edit'
-        ? updateScenarioMutation.isPending
-        : training.isStarting;
+  let startRestrictionMessage: string | undefined;
+  if (
+    scenario?.status === SCENARIO_STATUS.COMPLETED ||
+    scenario?.status === SCENARIO_STATUS.ERROR
+  ) {
+    startRestrictionMessage =
+      '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
+  } else if (isFireOriginRequired) {
+    startRestrictionMessage = '도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.';
+  }
+
+  let isActionLoading = training.isStarting;
+  if (actionMode === 'create') {
+    isActionLoading = createScenarioMutation.isPending || training.isScheduling;
+  } else if (actionMode === 'edit') {
+    isActionLoading = updateScenarioMutation.isPending;
+  }
 
   // 예약 세션을 준비한 뒤 훈련 시작
   const handleStartTraining = async () => {
