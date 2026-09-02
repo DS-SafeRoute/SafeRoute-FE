@@ -3001,7 +3001,12 @@ const FloorPlansDetailPage = () => {
       id: d.id,
       kind: 'device' as const,
       // DeviceType('cctv'|'iot'|'fire') → 패널 필터 체계(placeType)로 변환
-      type: d.type === 'cctv' ? ('cctv' as const) : ('light' as const),
+      type:
+        d.type === 'cctv'
+          ? ('cctv' as const)
+          : d.type === 'iot'
+            ? ('light' as const)
+            : ('general' as const),
       label: d.label,
       statusText: d.status === 'online' ? '실시간' : '오프라인',
       statusOnline: d.status === 'online',
