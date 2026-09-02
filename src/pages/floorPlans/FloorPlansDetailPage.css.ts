@@ -829,6 +829,40 @@ export const deviceCardFieldEditBtn = style({
   },
 });
 
+// 가이던스(판단 노드/좌우 엣지) Dropdown 3개를 세로로 쌓는 영역 — deviceCardRow 밑에 통째로 붙음
+export const lightFieldGroup = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+});
+
+// 카드 폭에 맞춰 버튼 3개가 한 줄에 다 들어가도록 폭 전체를 씀 — deviceCardRow의
+// space-between 안에 끼워 넣으면 "방향"라벨에 밀려 좁아져서 글자가 줄바꿈되던 문제가 있었음
+export const lightDirectionRow = style({
+  display: 'flex',
+  gap: vars.space.s1,
+});
+
+export const lightDirectionBtn = style({
+  flex: 1,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.sm,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  padding: `${vars.space.s1} 0`,
+  whiteSpace: 'nowrap',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+    '&:disabled': {
+      opacity: 0.4,
+      backgroundColor: vars.color.white,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
 export const deviceCardActions = style({
   display: 'flex',
   gap: vars.space.s2,

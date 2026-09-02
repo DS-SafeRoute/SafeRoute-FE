@@ -7,7 +7,7 @@ import { Button } from '@components/Button';
 import Dropdown from '@components/dropdown';
 import Modal from '@components/modal';
 
-import * as styles from './IoTLightSettingsModal.css';
+import * as styles from './FireOriginScenarioModal.css';
 
 interface FireOriginScenarioModalProps {
   open: boolean;
