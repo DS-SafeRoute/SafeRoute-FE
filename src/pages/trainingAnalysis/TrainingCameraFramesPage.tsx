@@ -28,7 +28,12 @@ import {
 } from './constants/trainingAnalysis';
 import * as styles from './TrainingCameraFramesPage.css';
 import { CONGESTION_LEVEL_LABEL } from './types/trainingAnalysis';
-import { formatCapturedTime, formatElapsedFromStart } from './utils/trainingAnalysis';
+import {
+  formatCapturedTime,
+  formatElapsedFromStart,
+  formatSessionStartedClock,
+  formatSessionStartedDate,
+} from './utils/trainingAnalysis';
 
 import type { CongestionLevel, TrainingSessionStatus } from './types/trainingAnalysis';
 
@@ -178,6 +183,11 @@ const TrainingCameraFramesPage = () => {
         }
         live={isLive}
         onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
+        stats={[
+          { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
+          { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
+          { label: '카메라', value: `${cameras.length}대` },
+        ]}
       />
 
       {isFramesLoading && <LoadingState size="md" message="프레임을 불러오는 중..." />}

@@ -10,6 +10,13 @@ export const container = style({
   padding: vars.space.s8,
   paddingTop: vars.space.s4,
   overflow: 'auto',
+  // 스크롤은 그대로 되지만 오른쪽 스크롤바만 안 보이게 함
+  scrollbarWidth: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': {
+      display: 'none',
+    },
+  },
 });
 
 // 사이드바(카메라 목록)·뷰어·우측 패널을 나란히 두는 틀만 여기서 잡음 — 배경은 각 영역이
