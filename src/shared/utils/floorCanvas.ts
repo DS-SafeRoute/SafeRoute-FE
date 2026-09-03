@@ -1,8 +1,6 @@
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 
-// 도면 SVG 좌표계의 공통 기준 — 폭은 항상 560 고정, 높이는 도면마다 다름(호출부가 계산해서 넘김).
-// 그리드/노드 좌표 계산이 전부 이 폭을 기준으로 하므로, 이 파일을 쓰는 모든 곳(도면관리상세,
-// GridCellPickerCanvas)이 같은 값을 참조해야 셀 경계가 어긋나지 않음
+// 도면 SVG 좌표계의 공통 기준. 도면 관리와 시나리오 설정이 같은 좌표 계산을 사용한다.
 export const CANVAS_W = 560;
 
 // 그리드 행·열 수 — 셀이 수십만 개까지 갈 수 있어서 Math.max(...spread) 대신 순회로 구함

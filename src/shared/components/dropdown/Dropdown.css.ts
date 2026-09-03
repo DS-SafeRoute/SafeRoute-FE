@@ -37,6 +37,10 @@ export const trigger = recipe({
       pill: { borderRadius: vars.radius.pill },
       rounded: { borderRadius: vars.radius.md },
     },
+    size: {
+      md: {},
+      lg: { height: '4.4rem' },
+    },
     disabled: {
       true: {
         opacity: 0.4,
@@ -71,7 +75,7 @@ export const panel = style({
   borderRadius: vars.radius.lg,
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.12)',
   backgroundColor: vars.color.white,
-  padding: `${vars.space.s2} 0`,
+  padding: 0,
   minWidth: '18rem',
   overflow: 'hidden',
 });
@@ -87,6 +91,7 @@ export const option = style({
   ...vars.typography.body14,
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray50 },
+    '&[data-active="true"]': { backgroundColor: vars.color.gray50 },
     '&[aria-selected="true"]': {
       backgroundColor: vars.color.primaryLight2,
       color: vars.color.primary,

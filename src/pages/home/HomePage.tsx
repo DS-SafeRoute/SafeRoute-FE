@@ -1,6 +1,9 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 
+import { extractApiError } from '@apis/errors/apiError';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import { useStartTrainingSessionMutation } from '@apis/trainingSessions/useTrainingSessionMutations';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
@@ -43,6 +46,7 @@ const sectionIcons = {
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { show } = useToast();
   const { data: stats } = useGetDashboardStatsQuery();
   const { data: trainings = [] } = useGetDashboardTrainingsQuery();
@@ -51,12 +55,14 @@ const HomePage = () => {
   );
   const { data: scheduledSessions = [] } = useGetTrainingSessionsQuery(
     TRAINING_SESSION_STATUS.SCHEDULED,
+    { shouldPoll: false },
   );
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
   const selectedSession = runningSessions[0] ?? scheduledSessions[0];
   const { data: trainingStatus } = useGetTrainingStatusQuery(selectedSession?.sessionId);
   const training = toScheduledTraining(selectedSession, trainingStatus);
-  useTrainingSessionSocket({ sessionId: selectedSession?.sessionId });
+  // 실시간 이벤트는 RUNNING 세션에만 필요하다. SCHEDULED 세션은 목록·상태 조회만 사용한다.
+  useTrainingSessionSocket({ sessionId: runningSessions[0]?.sessionId });
 
   const handleTrainingAction = async () => {
     if (!training) return;
@@ -69,10 +75,21 @@ const HomePage = () => {
     }
 
     try {
+      const currentRoute = await queryClient.fetchQuery({
+        ...currentTrainingRouteQueryOptions(training.id),
+        staleTime: 0,
+      });
+      if (!currentRoute.path?.length) {
+        throw new Error('시작 지점에서 출구까지 연결된 기본 경로가 없습니다.');
+      }
+
       await startTrainingSessionMutation.mutateAsync(training.id);
       show({ title: '훈련이 시작되었습니다.', variant: 'success' });
-    } catch {
-      show({ title: '훈련 시작에 실패했습니다.', variant: 'error' });
+    } catch (error) {
+      const serverMessage = extractApiError(error).message;
+      const description =
+        serverMessage || (error instanceof Error ? error.message : '잠시 후 다시 시도해 주세요.');
+      show({ title: '훈련 시작에 실패했습니다.', description, variant: 'error' });
     }
   };
 

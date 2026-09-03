@@ -92,6 +92,13 @@ export const startRestrictionNotice = style({
   ...vars.typography.body14,
 });
 
+export const trainingDurationNotice = style({
+  padding: `0 ${vars.space.s2}`,
+  textAlign: 'center',
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
 export const pageState = style({
   display: 'flex',
   flex: 1,
@@ -99,11 +106,3 @@ export const pageState = style({
   justifyContent: 'center',
   padding: vars.space.s6,
 });
-
-export const stateMessage = style([
-  pageState,
-  {
-    color: vars.color.textLow,
-    ...vars.typography.body14,
-  },
-]);

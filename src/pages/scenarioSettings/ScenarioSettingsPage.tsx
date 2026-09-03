@@ -1,271 +1,262 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
-import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
-import {
-  useCreateTrainingSessionMutation,
-  useEndTrainingSessionMutation,
-  useStartTrainingSessionMutation,
-} from '@apis/trainingSessions/useTrainingSessionMutations';
-import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
+import { extractApiError } from '@apis/errors/apiError';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
-import PlayIcon from '@assets/icons/ic-play.svg?react';
-
-import { Button } from '@components/Button';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES, getScenarioDetailPath } from '@constants/path';
 
-import { useCreateScenarioMutation } from './api/useCreateScenarioMutation';
-import { useGetScenarioQuery } from './api/useScenariosQuery';
-import { useUpdateScenarioMutation } from './api/useUpdateScenarioMutation';
-import TrainingPreviewCard from './components/cards/trainingPreviewCard/TrainingPreviewCard';
+import {
+  useCreateScenarioDraftMutation,
+  useGetScenarioQuery,
+  useReadyScenarioMutation,
+  useUpdateScenarioMutation,
+} from './api/scenarioQueries';
+import ScenarioActionPanel from './components/scenarioActionPanel/ScenarioActionPanel';
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
-import { FIRE_SPREAD_LABEL, FIRE_SPREAD_VALUE, PREVIEW_STATUS } from './constants/scenarioSettings';
 import { useScenarioFloorView } from './hooks/useScenarioFloorView';
-import { useTrainingRouteData } from './hooks/useTrainingRouteData';
+import { useScenarioForm } from './hooks/useScenarioForm';
+import { useScenarioTraining } from './hooks/useScenarioTraining';
 import * as styles from './ScenarioSettingsPage.css';
 import { SCENARIO_STATUS } from './types/scenarioList';
-import { getInitialBasicInfo, toScheduledAt } from './utils/scenarioSettings';
 
-import type { FireSpreadLabel } from './constants/scenarioSettings';
+import type { ScenarioActionMode } from './components/scenarioActionPanel/ScenarioActionPanel';
 import type { Scenario } from './types/scenarioList';
-import type { BasicInfo } from './types/scenarioSettings';
 
 interface ScenarioSettingsContentProps {
   scenario?: Scenario;
 }
 
+const getScenarioActionMode = (
+  scenario: Scenario | undefined,
+  isEditing: boolean,
+): ScenarioActionMode => {
+  if (!scenario) return 'create';
+  if (scenario.status === SCENARIO_STATUS.DRAFT || isEditing) return 'edit';
+  return 'start';
+};
+
+const getStartRestrictionMessage = ({
+  scenario,
+  isSetupPending,
+  isSetupError,
+  isConfigured,
+  floorStatusMessage,
+}: {
+  scenario?: Scenario;
+  isSetupPending: boolean;
+  isSetupError: boolean;
+  isConfigured: boolean;
+  floorStatusMessage?: string;
+}) => {
+  if (
+    scenario?.status === SCENARIO_STATUS.COMPLETED ||
+    scenario?.status === SCENARIO_STATUS.ERROR
+  ) {
+    return '완료되었거나 실패한 훈련은 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
+  }
+  if (isSetupPending) return '발화 위치와 시작 지점 설정을 확인하고 있습니다.';
+  if (isSetupError) return '대피 설정을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.';
+  if (scenario?.status === SCENARIO_STATUS.READY && !isConfigured) {
+    return '도면에서 발화 위치와 START 후보를 선택해 저장해 주세요.';
+  }
+  if (scenario?.status === SCENARIO_STATUS.READY && floorStatusMessage) {
+    return floorStatusMessage;
+  }
+  return undefined;
+};
+
+const getActionErrorMessage = (error: unknown, fallback: string) => {
+  const serverMessage = extractApiError(error).message;
+  if (serverMessage) return serverMessage;
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+};
+
+// 시나리오 작성·대피 설정·훈련 제어의 순서를 조정하는 화면 컨테이너
 const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
   const { show } = useToast();
+
+  // 폼 선택지와 세션 등록에 필요한 사용자·건물 정보
   const { data: buildings = [] } = useGetBuildingsQuery();
   const { data: currentUser } = useMyProfileQuery();
-  const createScenarioMutation = useCreateScenarioMutation();
+
+  // DRAFT 생성·수정·READY 전환 요청 상태
+  const createDraftMutation = useCreateScenarioDraftMutation();
   const updateScenarioMutation = useUpdateScenarioMutation();
-  const createTrainingSessionMutation = useCreateTrainingSessionMutation();
-  const startTrainingSessionMutation = useStartTrainingSessionMutation();
-  const endTrainingSessionMutation = useEndTrainingSessionMutation();
-  const shouldQueryTrainingSessions =
-    scenario?.status === SCENARIO_STATUS.READY || scenario?.status === SCENARIO_STATUS.IN_PROGRESS;
-  const { data: runningSessions = [], isPending: isRunningSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, shouldQueryTrainingSessions);
-  const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, shouldQueryTrainingSessions);
-  const areTrainingSessionsPending =
-    shouldQueryTrainingSessions && (isRunningSessionsPending || isScheduledSessionsPending);
+  const readyScenarioMutation = useReadyScenarioMutation();
+
+  // 기본 정보 편집과 훈련 종료 모달은 독립적인 화면 상태
+  const [isEditing, setIsEditing] = useState(false);
+  const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
   const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
-  const isRestartUnavailable =
-    scenario?.status === SCENARIO_STATUS.COMPLETED || scenario?.status === SCENARIO_STATUS.ERROR;
-  const [isEditing, setIsEditing] = useState(false);
-  const isEditable = isCreatePage || isDraft || isEditing;
-  const [isEndModalOpen, setIsEndModalOpen] = useState(false);
-  const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
-  const [createdSessionStartedAt, setCreatedSessionStartedAt] = useState<string | null>(null);
-  const [basicInfo, setBasicInfo] = useState<BasicInfo>(() => getInitialBasicInfo(scenario));
-  const [fireSpreadLabel, setFireSpreadLabel] = useState<FireSpreadLabel>(
-    scenario ? FIRE_SPREAD_LABEL[scenario.fireSpreadSpeed] : FIRE_SPREAD_LABEL.MEDIUM,
-  );
-  const runningSession = runningSessions.find(
-    (session) =>
-      session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
-  );
-  const scheduledSession = scheduledSessions.find(
-    (session) =>
-      session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
-  );
-  const activeSessionId = createdSessionId ?? runningSession?.sessionId ?? null;
-  const routeSessionId = activeSessionId ?? scheduledSession?.sessionId ?? null;
-  const activeStartedAt = createdSessionStartedAt ?? runningSession?.startedAt ?? null;
-  const startedAt = activeStartedAt ? Date.parse(activeStartedAt) : null;
-  const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
-  const selectedBuildingId = basicInfo.targetBuilding || buildings[0]?.id || '';
-  const displayedBasicInfo = { ...basicInfo, targetBuilding: selectedBuildingId };
+  const actionMode = getScenarioActionMode(scenario, isEditing);
+
+  // 기본 정보 폼과 세션 생명주기를 각각 도메인 훅에서 관리
+  const scenarioForm = useScenarioForm({ scenario, defaultBuildingId: buildings[0]?.id });
+  const training = useScenarioTraining({ scenario, adminId: currentUser?.id });
   const buildingOptions = buildings.map((building) => ({
     label: building.name,
     value: building.id,
   }));
-  const trainingRouteData = useTrainingRouteData({
-    sessionId: routeSessionId,
-    enabled: isRunning,
-  });
+
+  // 선택 건물의 층·도면·START 후보·발화 격자와 저장된 대피 설정을 함께 조회
   const floorView = useScenarioFloorView({
     scenarioId: scenario?.id,
-    buildingId: selectedBuildingId,
-    isRunning,
-    routeFloorId: trainingRouteData.routeFloorId,
-    routeNodeIds: trainingRouteData.routeNodeIds,
-  });
-  const canStartTraining = isScenarioReady && floorView.hasFireOrigin;
-  const isFireOriginRequired =
-    isScenarioReady &&
-    !floorView.isFireOriginPending &&
-    !floorView.isFireOriginError &&
-    !floorView.hasFireOrigin;
-  useTrainingSessionSocket({
-    sessionId: activeSessionId,
-    onEvent: trainingRouteData.handleTrainingEvent,
+    buildingId: scenarioForm.selectedBuildingId,
+    enabled: Boolean(scenario) && !isDraft,
+    isRunning: training.isRunning,
+    routeFloorId: training.route.routeFloorId,
+    routePoints: training.route.routePoints,
   });
 
-  const handleStartTraining = async () => {
-    if (areTrainingSessionsPending || !canStartTraining) return;
+  const canStartTraining =
+    isScenarioReady && floorView.isConfigured && !floorView.floorMap.statusMessage;
+  const startRestrictionMessage = getStartRestrictionMessage({
+    scenario,
+    isSetupPending: floorView.isSetupPending,
+    isSetupError: floorView.isSetupError,
+    isConfigured: floorView.isConfigured,
+    floorStatusMessage: floorView.floorMap.statusMessage,
+  });
+  const isCompleting =
+    createDraftMutation.isPending ||
+    updateScenarioMutation.isPending ||
+    readyScenarioMutation.isPending ||
+    training.isStarting;
 
-    if (!scenario || !currentUser?.id) {
-      show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
-      return;
-    }
-
-    try {
-      let sessionId = scheduledSession?.sessionId;
-
-      if (!sessionId) {
-        const registeredSession = await createTrainingSessionMutation.mutateAsync({
-          scenarioId: scenario.id,
-          body: {
-            adminId: currentUser.id,
-            status: TRAINING_SESSION_STATUS.SCHEDULED,
-            startedAt: scenario.scheduledAt,
-          },
-        });
-
-        sessionId = registeredSession.id;
-      }
-
-      if (!sessionId) {
-        throw new Error('시작할 훈련 세션 ID가 없습니다.');
-      }
-
-      const session = await startTrainingSessionMutation.mutateAsync(sessionId);
-
-      if (!session.id || !session.startedAt) {
-        throw new Error('시작된 훈련 세션 정보가 없습니다.');
-      }
-
-      setCreatedSessionId(session.id);
-      setCreatedSessionStartedAt(session.startedAt);
-      show({ title: '훈련이 시작되었습니다.', variant: 'success' });
-    } catch {
-      show({ title: '훈련 시작에 실패했습니다.', variant: 'error' });
-    }
-  };
-
-  const handleEndTraining = async () => {
-    if (!activeSessionId) return;
-
-    try {
-      await endTrainingSessionMutation.mutateAsync(activeSessionId);
-      setIsEndModalOpen(true);
-    } catch {
-      show({ title: '훈련 종료에 실패했습니다.', variant: 'error' });
-    }
-  };
-
-  const handleBasicInfoChange = (key: keyof BasicInfo, value: string) => {
-    setBasicInfo((current) => ({ ...current, [key]: value }));
-  };
-
-  const handleFireSpreadChange = (value: string) => {
-    if (value in FIRE_SPREAD_VALUE) {
-      setFireSpreadLabel(value as FireSpreadLabel);
-    }
-  };
-
-  const getFormPayload = () => {
-    const name = basicInfo.scenarioName.trim();
-    const expectedParticipants = Number(basicInfo.expectedParticipants);
-    const scheduledAt = toScheduledAt(basicInfo.scheduledAt);
-    const fireSpreadSpeed = FIRE_SPREAD_VALUE[fireSpreadLabel];
-    const targetEvacuationSec = basicInfo.targetEvacuationSec
-      ? Number(basicInfo.targetEvacuationSec)
-      : undefined;
-
-    if (
-      !name ||
-      !selectedBuildingId ||
-      !Number.isInteger(expectedParticipants) ||
-      expectedParticipants < 1 ||
-      (targetEvacuationSec !== undefined &&
-        (!Number.isInteger(targetEvacuationSec) || targetEvacuationSec < 1)) ||
-      !scheduledAt
-    ) {
-      show({ title: '시나리오 정보를 모두 올바르게 입력해 주세요.', variant: 'error' });
-      return null;
-    }
-
-    return { name, expectedParticipants, scheduledAt, fireSpreadSpeed, targetEvacuationSec };
-  };
-
+  // 일부 값만 채운 새 시나리오도 DRAFT로 만들고, 기존 DRAFT는 PATCH로 갱신
   const handleSaveDraft = async () => {
-    if (!scenario) return;
-    const payload = getFormPayload();
-    if (!payload) return;
+    const payload = scenarioForm.getDraftPayload();
 
     try {
-      await updateScenarioMutation.mutateAsync({
-        scenarioId: scenario.id,
-        body: payload,
-      });
-      setIsEditing(false);
+      if (!scenario) {
+        const createdScenario = await createDraftMutation.mutateAsync(payload);
+        show({ title: '임시 저장되었습니다.', variant: 'success' });
+        void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
+        return;
+      }
+
+      await updateScenarioMutation.mutateAsync({ scenarioId: scenario.id, body: payload });
       show({ title: '임시 저장되었습니다.', variant: 'success' });
     } catch {
       show({ title: '임시 저장에 실패했습니다.', variant: 'error' });
     }
   };
 
-  const handleCreate = async () => {
-    const payload = getFormPayload();
-    if (!payload) return;
+  // 필수값을 저장한 뒤 새 DRAFT 또는 기존 DRAFT를 READY로 전환
+  const handleComplete = async () => {
+    const payload = scenarioForm.getReadyPayload();
+    if (!payload) {
+      show({ title: '시나리오 정보를 모두 올바르게 입력해 주세요.', variant: 'error' });
+      return;
+    }
 
-    if (!currentUser?.id) {
+    try {
+      const savedScenario = scenario
+        ? await updateScenarioMutation.mutateAsync({ scenarioId: scenario.id, body: payload })
+        : await createDraftMutation.mutateAsync(payload);
+      const completedScenario =
+        savedScenario.status === SCENARIO_STATUS.DRAFT
+          ? await readyScenarioMutation.mutateAsync(savedScenario.id)
+          : savedScenario;
+
+      setIsEditing(false);
+      show({
+        title: isScenarioReady ? '변경 사항이 저장되었습니다.' : '작성이 완료되었습니다.',
+        variant: 'success',
+      });
+      if (isCreatePage) {
+        void navigate(getScenarioDetailPath(completedScenario.id), { replace: true });
+      }
+    } catch {
+      show({ title: '시나리오 저장에 실패했습니다.', variant: 'error' });
+    }
+  };
+
+  // 발화 셀과 START 후보를 한 번에 저장한 뒤 SCHEDULED 세션과 초기 경로를 준비
+  const handleSaveEvacuationSetup = async () => {
+    if (!scenario || !currentUser?.id) {
       show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
       return;
     }
 
     try {
-      const createdScenario = await createScenarioMutation.mutateAsync({
-        ...payload,
-        buildingId: selectedBuildingId,
-        adminId: currentUser.id,
-      });
-
+      await floorView.saveEvacuationSetup();
       try {
-        await createTrainingSessionMutation.mutateAsync({
-          scenarioId: createdScenario.id,
-          body: {
-            adminId: currentUser.id,
-            status: TRAINING_SESSION_STATUS.SCHEDULED,
-            startedAt: payload.scheduledAt,
-          },
-        });
+        await training.ensureScheduledSession(scenario.id);
       } catch {
         show({
-          title: '시나리오는 등록됐지만 훈련 일정 등록에 실패했습니다.',
+          title: '대피 설정은 저장됐지만 훈련 세션 준비에 실패했습니다.',
+          description: '시나리오 시작 시 다시 시도할 수 있습니다.',
           variant: 'error',
         });
-        void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
         return;
       }
-
-      show({ title: '시나리오가 등록되었습니다.', variant: 'success' });
-      void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
+      show({ title: '발화 위치와 시작 지점이 저장되었습니다.', variant: 'success' });
     } catch {
-      show({ title: '시나리오 등록에 실패했습니다.', variant: 'error' });
+      show({ title: '발화 위치와 시작 지점 저장에 실패했습니다.', variant: 'error' });
+    }
+  };
+
+  // 예약 세션을 재사용하거나 준비한 뒤 훈련 시작
+  const handleStartTraining = async () => {
+    if (training.areSessionsPending || !canStartTraining) return;
+    if (!scenario || !currentUser?.id) {
+      show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
+      return;
+    }
+
+    try {
+      await training.startTraining();
+      show({ title: '훈련이 시작되었습니다.', variant: 'success' });
+    } catch (error) {
+      show({
+        title: '훈련 시작에 실패했습니다.',
+        description: getActionErrorMessage(error, '잠시 후 다시 시도해 주세요.'),
+        variant: 'error',
+      });
+    }
+  };
+
+  // 서버가 최대 진행 시간 초과로 FAILED 처리하면 생성된 보고서 목록으로 이동
+  useEffect(() => {
+    if (!training.timeLimitExceededAt) return;
+    show({
+      title: '최대 훈련 시간이 초과되었습니다.',
+      description: '훈련이 종료되어 생성된 보고서로 이동합니다.',
+      variant: 'default',
+    });
+    void navigate(ROUTES.REPORTS, { replace: true });
+  }, [navigate, show, training.timeLimitExceededAt]);
+
+  // 진행 중인 훈련 종료 후 결과 이동 모달 표시
+  const handleEndTraining = async () => {
+    if (!training.isRunning) return;
+    try {
+      await training.endTraining();
+      setIsEndModalOpen(true);
+    } catch {
+      show({ title: '훈련 종료에 실패했습니다.', variant: 'error' });
     }
   };
 
   const handleRejectRouteProposal = async () => {
     try {
-      await trainingRouteData.rejectRouteProposal();
+      await training.route.rejectRouteProposal();
     } catch {
       show({ title: '경로 변경 제안 거부에 실패했습니다.', variant: 'error' });
     }
@@ -273,7 +264,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
 
   const handleApplyRouteProposal = async () => {
     try {
-      await trainingRouteData.approveRouteProposal();
+      await training.route.approveRouteProposal();
     } catch {
       show({ title: '경로 변경 제안 승인에 실패했습니다.', variant: 'error' });
     }
@@ -283,112 +274,73 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     <div className={styles.container}>
       <div className={styles.contentGrid}>
         <ScenarioSetupForm
-          value={{
-            basicInfo: displayedBasicInfo,
-            fireSpreadLabel,
-          }}
+          value={scenarioForm.value}
           buildingOptions={buildingOptions}
           floorMap={floorView.floorMap}
           mode={{
-            isRunning,
-            readOnly: !isEditable && !isRunning,
-            buildingReadOnly: !isCreatePage,
+            isRunning: training.isRunning,
+            readOnly: actionMode === 'start' && !training.isRunning,
+            buildingReadOnly: floorView.isConfigured,
           }}
           handlers={{
-            onBasicInfoChange: handleBasicInfoChange,
-            onFireSpreadChange: handleFireSpreadChange,
+            onBasicInfoChange: scenarioForm.handleBasicInfoChange,
+            onFireSpreadChange: scenarioForm.handleFireSpreadChange,
+          }}
+          evacuationSetup={{
+            floorOptions: floorView.floorOptions,
+            selectedFloorId: floorView.selectedFloorId,
+            persistedStartNodeId: floorView.persistedStartNodeId,
+            editable: isScenarioReady,
+            configured: floorView.isConfigured,
+            canSave: floorView.canSaveSetup,
+            isSaving: floorView.isSavingSetup || training.isScheduling,
+            onFloorChange: floorView.chooseFloor,
+            onFireCellSelect: floorView.chooseFireCell,
+            onStartNodeSelect: floorView.chooseStartNode,
+            onSave: () => void handleSaveEvacuationSetup(),
           }}
         />
 
-        {isRunning && startedAt !== null ? (
+        {training.isRunning && training.startedAt !== null ? (
           <TrainingControlPanel
-            startedAt={startedAt}
-            currentRoute={trainingRouteData.currentRouteMessage}
+            startedAt={training.startedAt}
+            currentRoute={training.route.currentRouteMessage}
             liveMetrics={floorView.previewMetrics}
-            isEnding={endTrainingSessionMutation.isPending}
+            isEnding={training.isEnding}
             onEnd={() => void handleEndTraining()}
             routeDecision={{
-              proposal: trainingRouteData.routeProposal,
-              isApplying: trainingRouteData.isApplyingRouteProposal,
-              isRejecting: trainingRouteData.isRejectingRouteProposal,
+              proposal: training.route.routeProposal,
+              isApplying: training.route.isApplyingRouteProposal,
+              isRejecting: training.route.isRejectingRouteProposal,
               onReject: () => void handleRejectRouteProposal(),
               onApply: () => void handleApplyRouteProposal(),
             }}
           />
         ) : (
-          <aside className={styles.sideColumn}>
-            {isCreatePage ? (
-              <Button
-                type="button"
-                size="lg"
-                fullWidth
-                onClick={() => void handleCreate()}
-                isLoading={
-                  createScenarioMutation.isPending || createTrainingSessionMutation.isPending
-                }
-              >
-                작성 완료
-              </Button>
-            ) : isDraft || isEditing ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                fullWidth
-                className={styles.draftButton}
-                onClick={() => void handleSaveDraft()}
-                isLoading={updateScenarioMutation.isPending}
-              >
-                임시 저장
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  size="lg"
-                  fullWidth
-                  leftIcon={<PlayIcon />}
-                  onClick={() => void handleStartTraining()}
-                  disabled={
-                    areTrainingSessionsPending || floorView.isFireOriginPending || !canStartTraining
-                  }
-                  isLoading={
-                    createTrainingSessionMutation.isPending ||
-                    startTrainingSessionMutation.isPending
-                  }
-                >
-                  시나리오 시작
-                </Button>
-                {isRestartUnavailable ? (
-                  <p className={styles.startRestrictionNotice}>
-                    완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를
-                    생성해 주세요.
-                  </p>
-                ) : null}
-                {isFireOriginRequired ? (
-                  // 발화점 등록 API가 도면관리에서 evacuation-setup 쪽으로 옮겨간 것으로 보여
-                  // (팀 전달사항, 2026-09-03) 더 이상 "도면 관리에서"라고 특정 위치를 안내하지 않음
-                  <p className={styles.startRestrictionNotice}>
-                    이 시나리오의 최초 발화점이 아직 지정되지 않았어요.
-                  </p>
-                ) : null}
-                {canStartTraining ? (
-                  <TrainingPreviewCard status={PREVIEW_STATUS} metrics={floorView.previewMetrics} />
-                ) : null}
-                {scenario?.status === SCENARIO_STATUS.READY ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="md"
-                    fullWidth
-                    onClick={() => setIsEditing(true)}
-                  >
-                    수정하기
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </aside>
+          <ScenarioActionPanel
+            mode={actionMode}
+            isSavingDraft={createDraftMutation.isPending || updateScenarioMutation.isPending}
+            isCompleting={isCompleting}
+            showDraftSave={isCreatePage || isDraft}
+            completeLabel={isScenarioReady ? '변경 저장' : '다음'}
+            startState={{
+              disabled:
+                training.areSessionsPending ||
+                floorView.isSetupPending ||
+                floorView.isSetupError ||
+                !canStartTraining,
+              restrictionMessage: startRestrictionMessage,
+              showPreview: canStartTraining,
+              canEdit: isScenarioReady,
+              metrics: floorView.previewMetrics,
+            }}
+            handlers={{
+              onSaveDraft: () => void handleSaveDraft(),
+              onComplete: () => void handleComplete(),
+              onStart: () => void handleStartTraining(),
+              onEdit: () => setIsEditing(true),
+            }}
+          />
         )}
       </div>
 
@@ -401,12 +353,13 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   );
 };
 
+// 상세 조회 상태를 처리하고 검증된 시나리오만 콘텐츠에 전달
 const ScenarioSettingsPage = () => {
   const { scenarioId } = useParams();
   const { data: scenario, isPending, isError } = useGetScenarioQuery(scenarioId);
 
   if (scenarioId && isPending) {
-    return <div className={styles.stateMessage}>시나리오를 불러오는 중...</div>;
+    return <LoadingState message="시나리오를 불러오는 중..." />;
   }
 
   if (scenarioId && (isError || !scenario)) {

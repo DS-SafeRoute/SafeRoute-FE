@@ -24,6 +24,12 @@ import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
+import {
+  CANVAS_W,
+  buildZoneOutlinePath,
+  getGridCellPxSize,
+  getGridDimensions,
+} from '@utils/floorCanvas';
 
 import {
   configureCctvGridCells,
@@ -70,12 +76,6 @@ import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
-import {
-  CANVAS_W,
-  buildZoneOutlinePath,
-  getGridCellPxSize,
-  getGridDimensions,
-} from './utils/gridGeometry';
 import {
   GRID_SIZE_KEY,
   PENDING_GRID_SIZE_KEY,
@@ -187,9 +187,8 @@ const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
 // 시작 후보(START) 노드 생성은 이 화면(도면편집) 몫이 맞음 — 스웨거 재확인 결과 START는
 // "특정 시나리오에 귀속되지 않는, 층 단위로 등록해두는 훈련 시작점 후보"라 도면을 다루는
-// 이 화면에서 다른 구조 노드(문/계단/복도)와 똑같이 만드는 게 자연스러움. 실제로 그중 어떤
-// 후보를 "이 시나리오의 시작점"으로 쓸지 고르는 건 시나리오설정 몫(useEvacuationSetupDesignation이
-// useStartNodeDesignation이 만든 후보 목록 중 하나 + 발화점 셀을 같이 확정함)
+// 이 화면에서 다른 구조 노드(문/계단/복도)와 똑같이 만든다. 실제 훈련 시작점 선택은
+// 시나리오 설정 화면에서 발화점 셀과 함께 확정한다.
 type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
 type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
 
@@ -225,7 +224,7 @@ type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] 
    isFinalExit은 문·계단에서만 의미 있음(시작 후보·복도는 항상 false — 시작 후보는 서버가
    isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
    에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
-   시작점" 확정은 시나리오설정에서 useEvacuationSetupDesignation으로 함(발화점 셀과 함께) */
+   시작점" 확정은 시나리오 설정에서 발화점 셀과 함께 처리함) */
 type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
 
 type StructureNode = {
@@ -301,9 +300,8 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 //   3) 위 둘 다 없을 때만 사용자에게 한 번 물어봄
 // 키 정의·읽기/쓰기 헬퍼는 FloorPlansPage(업로드 화면)도 같이 쓰므로 utils/gridStorage로 뺌
 
-// 그리드 좌표계 기준값·순수 계산 함수는 utils/gridGeometry로 뽑아서 GridCellPickerCanvas(시나리오
-// 설정 페이지용으로 새로 만든 셀 선택 캔버스)와 여기가 같은 걸 참조하게 함 — 두 곳에 복사돼
-// 있으면 나중에 한쪽만 고쳐서 셀 경계가 어긋나는 버그가 생기기 쉬움
+// 그리드 좌표계 기준값·순수 계산 함수는 shared/utils/floorCanvas에서 관리한다.
+// 시나리오 설정 캔버스도 같은 계산을 사용해 셀 경계가 어긋나지 않게 한다.
 const DEFAULT_CANVAS_H = 420;
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정

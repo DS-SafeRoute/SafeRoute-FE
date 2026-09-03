@@ -62,8 +62,9 @@ export const API_ENDPOINTS = {
   // 훈련 시나리오
   SCENARIOS: {
     ROOT: `${API_V1}/scenarios`,
+    DRAFTS: `${API_V1}/scenarios/drafts`,
     DETAIL: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}`,
-    FIRE_ORIGIN: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-origin`,
+    READY: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/ready`,
     // GET 전용(화재구역 전체 조회) — POST(최초 발화점 등록)는 백엔드에서 제거됨(팀 전달사항,
     // 2026-09-03). 발화점 등록은 이제 EVACUATION_SETUP으로 통합됨
     FIRE_ZONES: (scenarioId: string) => `${API_V1}/scenarios/${scenarioId}/fire-zones`,

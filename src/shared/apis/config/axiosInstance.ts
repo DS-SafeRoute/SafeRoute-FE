@@ -37,7 +37,8 @@ const validateSecureApiUrl = () => {
 validateSecureApiUrl();
 
 const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  // 개발 환경에서는 Vite의 same-origin 프록시를 사용해 브라우저 CORS 제한을 피한다.
+  baseURL: import.meta.env.DEV ? '' : API_BASE_URL,
   timeout: REQUEST_TIMEOUT_MS,
   withCredentials: true,
 });

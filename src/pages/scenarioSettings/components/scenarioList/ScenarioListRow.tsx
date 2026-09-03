@@ -1,6 +1,6 @@
 import ScenarioListTooltip from '@pages/scenarioSettings/components/tooltip/ScenarioListTooltip';
 import { SCENARIO_STATUS_VIEW } from '@pages/scenarioSettings/types/scenarioList';
-import type { ScenarioSummary } from '@pages/scenarioSettings/types/scenarioList';
+import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 import { formatScenarioScheduledAt } from '@pages/scenarioSettings/utils/scenarioSettings';
 
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
@@ -12,16 +12,17 @@ import StatusBadge from '@components/chip/StatusBadge';
 import * as styles from './ScenarioListRow.css';
 
 interface ScenarioListRowProps {
-  scenario: ScenarioSummary;
+  scenario: Scenario;
   buildingName?: string;
-  onOpen: (scenario: ScenarioSummary) => void;
-  onDelete: (scenario: ScenarioSummary) => void;
+  onOpen: (scenario: Scenario) => void;
+  onDelete: (scenario: Scenario) => void;
 }
 
 const DELETE_DISABLED_MESSAGE = '훈련 이력이 있어 삭제할 수 없습니다';
 
 const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioListRowProps) => {
   const statusView = SCENARIO_STATUS_VIEW[scenario.status];
+  const scenarioName = scenario.name ?? '이름 없는 시나리오';
   const deleteButton = (
     <Button
       type="button"
@@ -30,7 +31,7 @@ const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioL
       iconOnly
       aria-disabled={scenario.deletable ? undefined : true}
       className={scenario.deletable ? styles.deleteButton : styles.disabledDeleteButton}
-      aria-label={`${scenario.name} 삭제`}
+      aria-label={`${scenarioName} 삭제`}
       onClick={() => {
         if (!scenario.deletable) return;
         onDelete(scenario);
@@ -44,12 +45,12 @@ const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioL
     <article className={styles.row}>
       <button type="button" className={styles.mainButton} onClick={() => onOpen(scenario)}>
         <span className={styles.titleRow}>
-          <strong className={styles.title}>{scenario.name}</strong>
+          <strong className={styles.title}>{scenarioName}</strong>
           <StatusBadge label={statusView.label} color={statusView.color} dot />
         </span>
         <span className={styles.detail}>
           {buildingName ?? '건물 정보 없음'} · {formatScenarioScheduledAt(scenario.scheduledAt)} ·
-          예상 {scenario.expectedParticipants}명
+          예상 {scenario.expectedParticipants ? `${scenario.expectedParticipants}명` : '인원 미정'}
         </span>
       </button>
 
@@ -61,7 +62,7 @@ const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioL
           iconOnly
           disabled={!scenario.reportId}
           className={styles.reportButton}
-          aria-label={`${scenario.name} 보고서`}
+          aria-label={`${scenarioName} 보고서`}
           onClick={() => {
             if (!scenario.reportId) return;
             // TODO: reportId를 사용해 해당 시나리오의 보고서 페이지로 이동

@@ -34,12 +34,3 @@ export const emptyState = style({
   backgroundColor: vars.color.white,
   minHeight: '36rem',
 });
-
-export const stateMessage = style({
-  display: 'flex',
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});

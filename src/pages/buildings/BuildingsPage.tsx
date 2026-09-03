@@ -16,6 +16,7 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
 import { Button } from '@components/Button';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { BUILDINGS_QUERY_KEY, useGetBuildingsQuery } from './api/useBuildingsQuery';
@@ -201,7 +202,7 @@ const BuildingsPage = () => {
           </Button>
         </div>
 
-        {isLoading && <p className={styles.stateMessage}>불러오는 중...</p>}
+        {isLoading && <LoadingState />}
 
         {isError && <p className={styles.errorMessage}>건물 목록을 불러오지 못했습니다.</p>}
 

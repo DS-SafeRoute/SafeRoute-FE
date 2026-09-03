@@ -1,4 +1,8 @@
+import type { ScenarioResponse } from '@apis/__generated__/data-contracts';
+
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
+
+export type ScenarioStatus = NonNullable<ScenarioResponse['status']>;
 
 export const SCENARIO_STATUS = {
   DRAFT: 'DRAFT',
@@ -6,25 +10,27 @@ export const SCENARIO_STATUS = {
   IN_PROGRESS: 'IN_PROGRESS',
   COMPLETED: 'COMPLETED',
   ERROR: 'ERROR',
-} as const;
+} as const satisfies Record<string, ScenarioStatus>;
 
-export type ScenarioStatus = (typeof SCENARIO_STATUS)[keyof typeof SCENARIO_STATUS];
+// DRAFT는 기본 정보가 비어 있을 수 있으므로 식별자와 상태만 필수로 좁힌다.
+// 나머지 필드는 자동 생성 타입을 그대로 사용해 API 스키마와 중복 선언하지 않는다.
+type ScenarioOptionalFields = Pick<
+  ScenarioResponse,
+  | 'name'
+  | 'buildingId'
+  | 'adminId'
+  | 'startNodeId'
+  | 'expectedParticipants'
+  | 'scheduledAt'
+  | 'isTemplate'
+  | 'fireSpreadSpeed'
+  | 'deletable'
+  | 'reportId'
+  | 'createdAt'
+  | 'updatedAt'
+>;
 
-export interface ScenarioSummary {
-  id: string;
-  name: string;
-  buildingId: string;
-  scheduledAt: string;
-  expectedParticipants: number;
-  status: ScenarioStatus;
-  deletable: boolean;
-  reportId: string | null;
-}
-
-export interface Scenario extends ScenarioSummary {
-  fireSpreadSpeed: 'SLOW' | 'MEDIUM' | 'FAST';
-  targetEvacuationSec: number | null;
-}
+export type Scenario = Required<Pick<ScenarioResponse, 'id' | 'status'>> & ScenarioOptionalFields;
 
 export const SCENARIO_STATUS_VIEW: Record<
   ScenarioStatus,
@@ -34,5 +40,5 @@ export const SCENARIO_STATUS_VIEW: Record<
   READY: { label: '준비완료', color: 'green' },
   IN_PROGRESS: { label: '진행중', color: 'yellow' },
   COMPLETED: { label: '완료', color: 'neutral' },
-  ERROR: { label: '오류', color: 'red' },
+  ERROR: { label: '훈련 실패', color: 'red' },
 };

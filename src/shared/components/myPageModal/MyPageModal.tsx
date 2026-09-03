@@ -40,6 +40,10 @@ const MyPageModal = ({
   onSave,
 }: MyPageModalProps) => {
   const [form, setForm] = useState<MyPageForm>(() => getInitialForm(profile));
+  const initialForm = getInitialForm(profile);
+  const isDirty = (Object.keys(initialForm) as (keyof MyPageForm)[]).some(
+    (field) => form[field] !== initialForm[field],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +56,7 @@ const MyPageModal = ({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSaving) return;
+    if (isLoading || isSaving || !isDirty) return;
 
     await onSave(form);
   };
@@ -84,7 +88,7 @@ const MyPageModal = ({
             type="submit"
             form="my-page-form"
             isLoading={isSaving}
-            disabled={isLoading}
+            disabled={isLoading || !isDirty}
           >
             저장
           </Button>

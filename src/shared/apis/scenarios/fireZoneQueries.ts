@@ -1,24 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getScenarioFireOrigin, getScenarioFireZones } from './fireZonesApi';
+import { getScenarioFireZones } from './fireZonesApi';
+
+const RUNNING_FIRE_ZONE_REFETCH_INTERVAL_MS = 10_000;
 
 export const fireZoneQueryKeys = {
   all: ['scenario-fire-zones'] as const,
-  origins: () => [...fireZoneQueryKeys.all, 'origin'] as const,
-  origin: (scenarioId?: string) => [...fireZoneQueryKeys.origins(), scenarioId] as const,
   lists: () => [...fireZoneQueryKeys.all, 'list'] as const,
   list: (scenarioId?: string) => [...fireZoneQueryKeys.lists(), scenarioId] as const,
 };
-
-export const useScenarioFireOriginQuery = (scenarioId?: string, enabled = true) =>
-  useQuery({
-    queryKey: fireZoneQueryKeys.origin(scenarioId),
-    queryFn: ({ signal }) => {
-      if (!scenarioId) throw new Error('최초 발화점을 조회할 시나리오 ID가 필요합니다.');
-      return getScenarioFireOrigin(scenarioId, signal);
-    },
-    enabled: enabled && Boolean(scenarioId),
-  });
 
 export const useScenarioFireZonesQuery = (scenarioId?: string, enabled = true) =>
   useQuery({
@@ -28,7 +18,6 @@ export const useScenarioFireZonesQuery = (scenarioId?: string, enabled = true) =
       return getScenarioFireZones(scenarioId, signal);
     },
     enabled: enabled && Boolean(scenarioId),
+    // 웹소켓 이벤트 누락·재연결 구간에도 확산 상태가 복구되도록 RUNNING에서만 보조 폴링한다.
+    refetchInterval: enabled ? RUNNING_FIRE_ZONE_REFETCH_INTERVAL_MS : false,
   });
-
-// 발화점 등록 mutation(useCreateFireOriginMutation)은 백엔드에서 POST 엔드포인트 자체가
-// 제거되어(evacuation-setup으로 통합된 것으로 보임, fireZonesApi.ts 주석 참고) 지웠음

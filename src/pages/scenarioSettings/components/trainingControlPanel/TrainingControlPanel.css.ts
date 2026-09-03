@@ -32,6 +32,13 @@ export const timerValue = style({
   ...vars.typography.body16Bold,
 });
 
+export const durationNotice = style({
+  marginTop: `-${vars.space.s2}`,
+  padding: `0 ${vars.space.s5}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
 export const proposalCard = style([
   sectionCardBase,
   {
