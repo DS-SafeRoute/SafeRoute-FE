@@ -6,14 +6,12 @@ import type {
   TrainingSessionStatus,
 } from '../types/trainingAnalysis';
 
-// 훈련분석은 진행 중(RUNNING) 훈련과 종료된(COMPLETED/FAILED) 훈련을 대상으로 함.
-// RUNNING은 5초 간격으로 최신 CCTV 프레임이 계속 들어와 실시간처럼 갱신되고,
-// COMPLETED/FAILED는 훈련 중 수집된 프레임을 사후 열람함.
-// SCHEDULED/STOPPED/CANCELLED는 열람 대상 아님
+// 훈련분석은 실시간 모니터링 전용 기능임(팀 결정) — 진행 중(RUNNING)인 훈련만 대상으로 하고,
+// 끝난 훈련은 COMPLETED든 FAILED든 더 이상 열람 대상이 아님. 그래서 세션이 RUNNING을
+// 벗어나는 순간(정상 종료·자동 실패 구분 없이) 화면이 자동으로 홈(다른 진행 중인 훈련이
+// 있으면 그쪽, 없으면 빈 상태)으로 돌아감
 export const VIEWABLE_SESSION_STATUSES = [
   'RUNNING',
-  'COMPLETED',
-  'FAILED',
 ] as const satisfies readonly TrainingSessionStatus[];
 
 // 진행 중 훈련은 카메라 목록·프레임·이벤트를 이 주기로 다시 조회해 최신 프레임을 반영함

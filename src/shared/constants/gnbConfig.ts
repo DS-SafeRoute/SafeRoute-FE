@@ -68,15 +68,17 @@ const GNB_CONFIGS = [
     // 보일 로딩/빈 상태는 카메라 목록(진짜 홈)과 같은 톤으로 맞춰둠
     path: ROUTES.TRAINING_ANALYSIS,
     config: {
+      breadcrumbs: [{ label: '훈련 분석' }],
       title: '훈련 분석',
       description: '진행 중인 훈련의 CCTV 프레임을 실시간으로 확인합니다',
     },
   },
   {
-    // 훈련분석의 실질적인 첫 화면(더 이상 목록 페이지가 없음)이라 브레드크럼 없이
-    // "훈련 분석" 자체를 타이틀로 씀
+    // 훈련분석의 실질적인 첫 화면(더 이상 목록 페이지가 없음)이지만, 다른 화면들과 톤을
+    // 맞추려고 브레드크럼은 depth 1로 남겨둠(다음 단계가 없어 breadcrumbs와 title이 같음)
     path: ROUTES.TRAINING_CAMERAS,
     config: {
+      breadcrumbs: [{ label: '훈련 분석' }],
       title: '훈련 분석',
       description: '선택한 훈련에서 카메라별로 수집된 프레임을 확인합니다',
     },

@@ -333,14 +333,8 @@ const TrainingCameraFramesPage = () => {
           <div className={styles.rightCol}>
             <div className={styles.panel}>
               <span className={styles.panelTitle}>세션 정보</span>
-              <div className={styles.infoRow}>
-                <span className={styles.infoKey}>촬영 장소</span>
-                <span className={styles.infoValue}>{camera.location}</span>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoKey}>카메라</span>
-                <span className={styles.infoValue}>{camera.code}</span>
-              </div>
+              {/* 촬영 장소·카메라 코드는 위 세션 정보 카드(SessionInfoCard)의 meta 줄에
+                  이미 나와 있어서 중복 표시하지 않음 */}
               <div className={styles.infoRow}>
                 <span className={styles.infoKey}>저장 프레임 수</span>
                 <span className={styles.infoValue}>
