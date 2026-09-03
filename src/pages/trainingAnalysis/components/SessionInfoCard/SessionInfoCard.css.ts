@@ -7,9 +7,6 @@ import { vars } from '@styles/global.css';
 // 쓰기 위한 톤 변형. 상세 화면은 CCTV 콘솔 느낌을 주려고 사이드바·뷰어와 함께 어둡게 감쌈
 export const card = recipe({
   base: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: vars.space.s2,
     borderRadius: vars.radius.lg,
     padding: vars.space.s5,
   },
@@ -26,6 +23,21 @@ export const card = recipe({
     },
   },
   defaultVariants: { tone: 'light' },
+});
+
+// 왼쪽 텍스트 정보와 오른쪽 수치 타일(날짜·시작 시간·카메라 대수)을 좌우로 나눔
+export const mainRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s8,
+});
+
+export const textCol = style({
+  display: 'flex',
+  flex: 1,
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  minWidth: 0,
 });
 
 export const headRow = style({
@@ -120,4 +132,60 @@ export const noticeLiveDot = style({
   width: '0.6rem',
   height: '0.6rem',
   animation: `${pulse} 1.6s ease-in-out infinite`,
+});
+
+// 날짜·시작 시간·카메라 대수 — 이전엔 meta 문장 안에 텍스트로 섞여 있어 잘 안 읽혔음.
+// 홈 화면 수치 카드(HomeSummarySection)와 같은 "큰 숫자 + 작은 라벨" 조합으로 눈에 띄게 뺌
+// (다만 세션 헤더 한 줄 옆이라 그만큼 크게는 안 하고 비율만 그대로 가져옴)
+export const statRow = style({
+  display: 'flex',
+  flexShrink: 0,
+  gap: vars.space.s7,
+});
+
+export const statTile = recipe({
+  base: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.4rem',
+    minWidth: '6.4rem',
+  },
+  variants: {
+    tone: {
+      light: {
+        borderLeft: `1px solid ${vars.color.gray100}`,
+        paddingLeft: vars.space.s7,
+        selectors: { '&:first-child': { borderLeft: 'none', paddingLeft: 0 } },
+      },
+      dark: {
+        borderLeft: '1px solid rgba(255,255,255,0.12)',
+        paddingLeft: vars.space.s7,
+        selectors: { '&:first-child': { borderLeft: 'none', paddingLeft: 0 } },
+      },
+    },
+  },
+  defaultVariants: { tone: 'light' },
+});
+
+export const statValue = recipe({
+  base: vars.typography.h3,
+  variants: {
+    tone: {
+      light: { color: vars.color.textHigh },
+      dark: { color: vars.color.white },
+    },
+  },
+  defaultVariants: { tone: 'light' },
+});
+
+export const statLabel = recipe({
+  base: vars.typography.caption,
+  variants: {
+    tone: {
+      light: { color: vars.color.textLow },
+      dark: { color: 'rgba(255,255,255,0.5)' },
+    },
+  },
+  defaultVariants: { tone: 'light' },
 });

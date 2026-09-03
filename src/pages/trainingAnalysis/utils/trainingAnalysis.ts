@@ -23,6 +23,22 @@ export const formatSessionStartedAt = (startedAt: string) => {
   )}:${pad(date.getMinutes())}`;
 };
 
+// 세션 정보 박스 우측의 수치 타일(날짜/시작 시간)에서 날짜·시각을 따로 보여주려고
+// formatSessionStartedAt을 둘로 쪼갠 버전
+export const formatSessionStartedDate = (startedAt: string) => {
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) return startedAt;
+
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}`;
+};
+
+export const formatSessionStartedClock = (startedAt: string) => {
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) return startedAt;
+
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 // 프레임/카메라 캡처 시각(epoch ms) → "HH:mm:ss". 훈련 종료 후 열람하는 화면이라
 // "n초 전" 같은 상대 시각 대신 실제 촬영 시각을 그대로 보여줌
 export const formatCapturedTime = (epochMs: number | null) => {

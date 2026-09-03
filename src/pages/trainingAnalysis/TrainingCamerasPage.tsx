@@ -19,7 +19,11 @@ import {
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
 import * as styles from './TrainingCamerasPage.css';
-import { formatSessionStartedAt, groupCamerasByFloor } from './utils/trainingAnalysis';
+import {
+  formatSessionStartedClock,
+  formatSessionStartedDate,
+  groupCamerasByFloor,
+} from './utils/trainingAnalysis';
 
 import type { MonitoringCamera, TrainingSessionStatus } from './types/trainingAnalysis';
 
@@ -69,10 +73,6 @@ const TrainingCamerasPage = () => {
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
-  // capturedAt은 "프레임이 있는지"가 아니라 "이미지가 첨부된 프레임이 있는지"만 나타냄(실측 확인됨
-  // — 이미지 없이 보낸 관측치는 데이터가 정상 저장돼도 이 값이 계속 null). 그래서 이 수는
-  // "썸네일이 있는 카메라 수"로만 씀 — "프레임이 있는 카메라 수"라고 하면 실제보다 적게 셀 수 있음
-  const camerasWithThumbnail = cameras.filter((camera) => camera.capturedAt !== null);
 
   const handleSelect = (camera: MonitoringCamera) => {
     void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId));
@@ -84,14 +84,18 @@ const TrainingCamerasPage = () => {
         sessionName={session.scenarioName}
         statusLabel={statusView.label}
         statusColor={statusView.color}
-        meta={`${session.buildingName} · ${formatSessionStartedAt(session.startedAt)} 시작 · 카메라 ${cameras.length}대`}
+        meta={session.buildingName}
         notice={
           isLive
             ? '실시간 모니터링 중 · 카메라별 최신 프레임이 5초 간격으로 자동 갱신됩니다.'
             : '훈련 중 5초 간격으로 수집된 프레임 기록입니다.'
         }
         live={isLive}
-        onBack={() => void navigate(ROUTES.TRAINING_ANALYSIS)}
+        stats={[
+          { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
+          { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
+          { label: '카메라', value: `${cameras.length}대` },
+        ]}
       />
 
       <div className={styles.gridSection}>
@@ -113,13 +117,6 @@ const TrainingCamerasPage = () => {
 
         {!isCamerasLoading && !isCamerasError && cameras.length > 0 && (
           <>
-            <div className={styles.gridHeadRow}>
-              <span className={styles.gridSubtitle}>
-                썸네일이 있는 카메라 {camerasWithThumbnail.length}대 ·{' '}
-                {isLive ? '약 5초 간격으로 갱신 중' : '5초 간격으로 수집됨'}
-              </span>
-            </div>
-
             {floorGroups.map(([floorName, floorCameras]) => (
               <div key={floorName} className={styles.floorGroup}>
                 <div className={styles.floorHeadRow}>
