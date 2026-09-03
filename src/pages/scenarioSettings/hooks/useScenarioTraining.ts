@@ -5,7 +5,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
 
+import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import {
@@ -84,6 +86,24 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     setPreparedSessionId(null);
   }, []);
 
+  // 종료 이벤트 직후 이전 RUNNING·SCHEDULED 캐시가 세션을 다시 활성화하지 않도록 제거
+  const removeSessionFromActiveCaches = useCallback(
+    (sessionId: string) => {
+      const removeSession = (sessions?: TrainingSessionSummaryResponse[]) =>
+        sessions?.filter((session) => session.sessionId !== sessionId);
+
+      queryClient.setQueryData(
+        trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.RUNNING),
+        removeSession,
+      );
+      queryClient.setQueryData(
+        trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.SCHEDULED),
+        removeSession,
+      );
+    },
+    [queryClient],
+  );
+
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
       handleRouteTrainingEvent(event);
@@ -91,16 +111,18 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
 
       const statusEvent = event as TrainingSessionEvent<TrainingStatusEventData>;
       if (statusEvent.data.status === TRAINING_SESSION_STATUS.COMPLETED) {
+        removeSessionFromActiveCaches(event.sessionId);
         clearLocalSessionState();
         return;
       }
 
       if (statusEvent.data.status !== TRAINING_SESSION_STATUS.FAILED) return;
 
+      removeSessionFromActiveCaches(event.sessionId);
       clearLocalSessionState();
       setTimeLimitExceededAt(statusEvent.data.endedAt ?? event.occurredAt);
     },
-    [clearLocalSessionState, handleRouteTrainingEvent],
+    [clearLocalSessionState, handleRouteTrainingEvent, removeSessionFromActiveCaches],
   );
 
   useTrainingSessionSocket({ sessionId: activeSessionId, onEvent: handleTrainingEvent });
