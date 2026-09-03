@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
-import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
+import type { PreviewMetric, RoutePoint } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 import {
@@ -34,14 +34,14 @@ interface UseScenarioFloorViewParams {
   enabled: boolean;
   isRunning: boolean;
   routeFloorId?: string | null;
-  routeNodeIds: readonly string[];
+  routePoints: readonly RoutePoint[];
 }
 
 export interface ScenarioFloorMapView {
   imageUrl?: string | null;
   graph?: FloorGraph | null;
   gridCells: readonly FloorGridCell[];
-  routeNodeIds: readonly string[];
+  routePoints: readonly RoutePoint[];
   fireCellIds: readonly string[];
   selectedFireCellId?: string | null;
   selectedStartNodeId?: string | null;
@@ -89,7 +89,7 @@ export const useScenarioFloorView = ({
   enabled,
   isRunning,
   routeFloorId,
-  routeNodeIds,
+  routePoints,
 }: UseScenarioFloorViewParams) => {
   const queryClient = useQueryClient();
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
@@ -269,7 +269,7 @@ export const useScenarioFloorView = ({
       imageUrl: floorImageQuery.data?.imageUrl,
       graph: floorGraphQuery.data,
       gridCells: floorGridQuery.data ?? [],
-      routeNodeIds,
+      routePoints,
       fireCellIds,
       selectedFireCellId,
       selectedStartNodeId,

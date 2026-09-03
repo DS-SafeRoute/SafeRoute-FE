@@ -9,6 +9,7 @@ import {
   useRouteRecalculationDetailQuery,
   useRouteRecalculationsQuery,
 } from '@pages/scenarioSettings/api/routeRecalculations/routeRecalculationQueries';
+import type { RoutePoint } from '@pages/scenarioSettings/types/scenarioSettings';
 import {
   formatCurrentRoute,
   formatRouteProposal,
@@ -38,6 +39,9 @@ const getCurrentRouteMessage = (
   if (isError) return '현재 대피 경로를 불러오지 못했습니다.';
   return formatCurrentRoute(route);
 };
+
+const hasRouteCoordinates = (point: { x?: number; y?: number }): point is RoutePoint =>
+  point.x !== undefined && point.y !== undefined;
 
 export const useTrainingRouteData = ({
   sessionId,
@@ -99,10 +103,8 @@ export const useTrainingRouteData = ({
   return {
     currentRouteMessage,
     routeFloorId: currentRouteQuery.data?.floorId ?? null,
-    routeNodeIds:
-      currentRouteQuery.data?.path
-        ?.map((node) => node.nodeId)
-        .filter((nodeId): nodeId is string => Boolean(nodeId)) ?? [],
+    // 경로 계산은 서버 책임이다. current-route가 준 좌표만 이어서 도면에 표시한다.
+    routePoints: currentRouteQuery.data?.path?.filter(hasRouteCoordinates) ?? [],
     routeProposal,
     isApplyingRouteProposal: approveMutation.isPending,
     isRejectingRouteProposal: rejectMutation.isPending,

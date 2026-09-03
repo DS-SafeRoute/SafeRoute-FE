@@ -112,7 +112,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     enabled: Boolean(scenario) && !isDraft,
     isRunning: training.isRunning,
     routeFloorId: training.route.routeFloorId,
-    routeNodeIds: training.route.routeNodeIds,
+    routePoints: training.route.routePoints,
   });
 
   const canStartTraining =

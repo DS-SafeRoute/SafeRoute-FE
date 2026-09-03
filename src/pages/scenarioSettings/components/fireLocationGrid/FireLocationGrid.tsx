@@ -1,5 +1,7 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 
+import type { RoutePoint } from '@pages/scenarioSettings/types/scenarioSettings';
+
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 import type { FloorGraph } from '@apis/floors/mapGraphApi';
 
@@ -18,7 +20,7 @@ interface FireLocationGridProps {
   imageUrl?: string | null;
   graph?: FloorGraph | null;
   gridCells: readonly FloorGridCell[];
-  routeNodeIds: readonly string[];
+  routePoints: readonly RoutePoint[];
   fireCellIds: readonly string[];
   selectedFireCellId?: string | null;
   selectedStartNodeId?: string | null;
@@ -47,7 +49,7 @@ const FireLocationGrid = ({
   imageUrl,
   graph,
   gridCells,
-  routeNodeIds,
+  routePoints,
   fireCellIds,
   selectedFireCellId,
   selectedStartNodeId,
@@ -74,18 +76,9 @@ const FireLocationGrid = ({
   }, [imageUrl]);
 
   const mapHeight = getCanvasHeight(gridCells, imageAspect, DEFAULT_CANVAS_HEIGHT);
-  const nodeById = useMemo(
-    () => new Map(graph?.nodes.map((node) => [node.id, node]) ?? []),
-    [graph],
-  );
-  const routePoints = useMemo(
-    () =>
-      routeNodeIds
-        .map((nodeId) => nodeById.get(nodeId))
-        .filter((node) => node !== undefined)
-        .map((node) => `${node.x * CANVAS_W},${node.y * mapHeight}`)
-        .join(' '),
-    [mapHeight, nodeById, routeNodeIds],
+  const routePolylinePoints = useMemo(
+    () => routePoints.map((point) => `${point.x * CANVAS_W},${point.y * mapHeight}`).join(' '),
+    [mapHeight, routePoints],
   );
   const cellSize = getGridCellPxSize(gridCells, mapHeight);
   const fireCellIdSet = useMemo(() => new Set(fireCellIds), [fireCellIds]);
@@ -109,7 +102,7 @@ const FireLocationGrid = ({
           />
         )}
 
-        {routePoints && <polyline className={styles.route} points={routePoints} />}
+        {routePolylinePoints && <polyline className={styles.route} points={routePolylinePoints} />}
 
         {gridCells.map((cell) => {
           const isFireCell = fireCellIdSet.has(cell.id);
