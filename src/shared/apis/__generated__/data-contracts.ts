@@ -1785,7 +1785,13 @@ export interface ScenarioResponse {
   scheduledAt?: string;
   /** @format uuid */
   startNodeId?: string;
-  status?: "DRAFT" | "READY" | "IN_PROGRESS" | "COMPLETED" | "ERROR";
+  status?:
+    | "DRAFT"
+    | "READY"
+    | "IN_PROGRESS"
+    | "COMPLETED"
+    | "ERROR"
+    | "TIMEOUT_FAILED";
   /** @format int32 */
   targetEvacuationSec?: number;
   /** @format date-time */
