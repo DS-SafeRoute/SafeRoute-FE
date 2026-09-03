@@ -81,12 +81,12 @@ const TrainingCamerasPage = () => {
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
-  // 저장된 프레임 유무는 capturedAt으로 판단 — MonitoringCamera 계약상 캡처 프레임이 없을 때만 null이고,
-  // thumbnailUrl은 만료 등으로 프레임이 있어도 null일 수 있음
-  const cameraWithFrame = cameras.filter((camera) => camera.capturedAt !== null);
+  // capturedAt은 "프레임이 있는지"가 아니라 "이미지가 첨부된 프레임이 있는지"만 나타냄(실측 확인됨
+  // — 이미지 없이 보낸 관측치는 데이터가 정상 저장돼도 이 값이 계속 null). 그래서 이 수는
+  // "썸네일이 있는 카메라 수"로만 씀 — "프레임이 있는 카메라 수"라고 하면 실제보다 적게 셀 수 있음
+  const camerasWithThumbnail = cameras.filter((camera) => camera.capturedAt !== null);
 
   const handleSelect = (camera: MonitoringCamera) => {
-    if (camera.capturedAt === null) return;
     void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId));
   };
 
@@ -126,7 +126,7 @@ const TrainingCamerasPage = () => {
           <>
             <div className={styles.gridHeadRow}>
               <span className={styles.gridSubtitle}>
-                프레임이 있는 카메라 {cameraWithFrame.length}대 ·{' '}
+                썸네일이 있는 카메라 {camerasWithThumbnail.length}대 ·{' '}
                 {isLive ? '약 5초 간격으로 갱신 중' : '5초 간격으로 수집됨'}
               </span>
             </div>

@@ -2,6 +2,7 @@ import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
+// 카드는 항상 클릭 가능함(썸네일 유무와 무관하게 상세 페이지로 이동) — disabled 상태 없음
 export const card = style({
   display: 'flex',
   flexDirection: 'column',
@@ -13,11 +14,8 @@ export const card = style({
   overflow: 'hidden',
   textAlign: 'left',
   selectors: {
-    '&:hover:not(:disabled)': {
+    '&:hover': {
       boxShadow: vars.shadow.md,
-    },
-    '&:disabled': {
-      cursor: 'default',
     },
   },
 });
@@ -82,10 +80,4 @@ export const link = style({
   gap: '0.2rem',
   color: vars.color.primary,
   ...vars.typography.body14Bold,
-});
-
-export const linkDisabled = style({
-  flexShrink: 0,
-  color: vars.color.textLow,
-  ...vars.typography.caption,
 });
