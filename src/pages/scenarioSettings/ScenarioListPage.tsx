@@ -2,8 +2,7 @@ import { useState, type ReactNode } from 'react';
 
 import { useNavigate } from 'react-router';
 
-import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
-
+import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import type { Scenario } from '@apis/scenarios/scenarioTypes';
 import { useDeleteScenarioMutation } from '@apis/scenarios/useScenarioMutations';
 import { useGetScenariosQuery } from '@apis/scenarios/useScenariosQuery';
