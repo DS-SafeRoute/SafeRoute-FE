@@ -37,6 +37,10 @@ export const trigger = recipe({
       pill: { borderRadius: vars.radius.pill },
       rounded: { borderRadius: vars.radius.md },
     },
+    size: {
+      md: {},
+      lg: { height: '4.4rem' },
+    },
     disabled: {
       true: {
         opacity: 0.4,
@@ -71,7 +75,7 @@ export const panel = style({
   borderRadius: vars.radius.lg,
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.12)',
   backgroundColor: vars.color.white,
-  padding: `${vars.space.s2} 0`,
+  padding: 0,
   minWidth: '18rem',
   overflow: 'hidden',
 });

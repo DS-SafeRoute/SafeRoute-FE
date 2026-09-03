@@ -27,6 +27,7 @@ export interface DropdownProps<T extends string = string> {
   disabled?: boolean;
   className?: string;
   shape?: 'pill' | 'rounded';
+  size?: 'md' | 'lg';
   // 트리거 버튼을 컨테이너 100% 너비로 늘림 — 켜면 목록 패널 너비도 같이 늘어남(패널 너비를
   // 트리거의 실제 렌더 너비에서 그대로 구해오기 때문)
   fullWidth?: boolean;
@@ -43,6 +44,7 @@ const Dropdown = <T extends string = string>({
   disabled = false,
   className,
   shape = 'pill',
+  size = 'md',
   fullWidth = false,
   ariaLabel,
 }: DropdownProps<T>) => {
@@ -101,7 +103,7 @@ const Dropdown = <T extends string = string>({
     >
       <button
         type="button"
-        className={styles.trigger({ disabled, shape, fullWidth })}
+        className={styles.trigger({ disabled, shape, size, fullWidth })}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
