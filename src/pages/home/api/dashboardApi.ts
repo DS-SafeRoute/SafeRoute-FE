@@ -1,9 +1,9 @@
-import type { HomeTrainingStatusResponse } from '@pages/home/types/home';
-
 import type {
-  DashboardStatsResponse,
-  RecentTrainingReportResponse,
-} from '@apis/__generated__/data-contracts';
+  DashboardRecentTrainingReport,
+  HomeTrainingStatusResponse,
+} from '@pages/home/types/home';
+
+import type { DashboardStatsResponse } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
@@ -16,7 +16,7 @@ export const getDashboardStats = () =>
 
 // 최근 훈련 리포트 목록 조회
 export const getDashboardTrainings = () =>
-  request<RecentTrainingReportResponse[]>({
+  request<DashboardRecentTrainingReport[]>({
     method: HTTP_METHOD.GET,
     url: API_ENDPOINTS.DASHBOARD.RECENT_TRAININGS,
   });

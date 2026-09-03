@@ -1,6 +1,7 @@
 import type {
   HomeMetric,
   HomeTrainingStatusResponse,
+  DashboardRecentTrainingReport,
   RunningTrainingStatusResponse,
   ScheduledTraining,
   ScheduledTrainingStatusResponse,
@@ -9,14 +10,11 @@ import type {
 
 import type {
   DashboardStatsResponse,
-  RecentTrainingReportResponse,
   TrainingSessionSummaryResponse,
 } from '@apis/__generated__/data-contracts';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 
 import { formatDate, formatDuration } from '@utils/format';
-
-const formatRate = (rate = 0) => (rate * 100).toFixed(1);
 
 const formatTime = (iso?: string) => {
   if (!iso) return '-';
@@ -61,7 +59,7 @@ export const toHomeMetrics = (stats: DashboardStatsResponse): HomeMetric[] => [
   {
     id: 'survival-rate',
     title: '평균 생존율',
-    value: formatRate(stats.avgSurvivalRate),
+    value: String(stats.avgSurvivalRate ?? 0),
     valueSuffix: '%',
     iconTone: 'green',
     iconKey: 'trend',
@@ -76,15 +74,16 @@ export const toHomeMetrics = (stats: DashboardStatsResponse): HomeMetric[] => [
 ];
 
 export const toTrainingRecord = (
-  training: RecentTrainingReportResponse,
+  training: DashboardRecentTrainingReport,
   index: number,
 ): TrainingRecord => ({
   id: index,
+  reportId: training.reportId,
   name: training.scenarioName ?? '-',
   date: formatDate(training.startedAt),
   participants: `${training.participantCount ?? 0}명`,
   evacuationTime: formatDuration(training.avgEvacuationSec),
-  survivalRate: `${formatRate(training.survivalRate)}%`,
+  survivalRate: `${training.survivalRate ?? 0}%`,
   grade: training.grade ?? 'C',
 });
 
