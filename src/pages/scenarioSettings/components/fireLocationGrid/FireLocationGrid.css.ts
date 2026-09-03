@@ -71,18 +71,6 @@ export const inactiveStartNode = style({
   strokeWidth: 1.5,
 });
 
-export const unavailableStartNode = style({
-  fill: vars.color.gray100,
-  stroke: vars.color.gray500,
-  strokeWidth: 1.5,
-});
-
-export const selectedUnavailableStartNode = style({
-  fill: vars.color.warningLight,
-  stroke: vars.color.warningStrong,
-  strokeWidth: 3,
-});
-
 export const startNode = style({
   cursor: 'pointer',
   fill: vars.color.pink,

@@ -50,14 +50,12 @@ const getStartRestrictionMessage = ({
   isSetupError,
   isConfigured,
   floorStatusMessage,
-  isSelectedStartReachable,
 }: {
   scenario?: Scenario;
   isSetupPending: boolean;
   isSetupError: boolean;
   isConfigured: boolean;
   floorStatusMessage?: string;
-  isSelectedStartReachable: boolean;
 }) => {
   if (
     scenario?.status === SCENARIO_STATUS.COMPLETED ||
@@ -72,9 +70,6 @@ const getStartRestrictionMessage = ({
   }
   if (scenario?.status === SCENARIO_STATUS.READY && floorStatusMessage) {
     return floorStatusMessage;
-  }
-  if (scenario?.status === SCENARIO_STATUS.READY && !isSelectedStartReachable) {
-    return '선택한 시작 지점에서 최종 탈출구까지 연결된 경로가 없습니다.';
   }
   return undefined;
 };
@@ -121,17 +116,13 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   });
 
   const canStartTraining =
-    isScenarioReady &&
-    floorView.isConfigured &&
-    !floorView.floorMap.statusMessage &&
-    floorView.floorMap.isSelectedStartReachable;
+    isScenarioReady && floorView.isConfigured && !floorView.floorMap.statusMessage;
   const startRestrictionMessage = getStartRestrictionMessage({
     scenario,
     isSetupPending: floorView.isSetupPending,
     isSetupError: floorView.isSetupError,
     isConfigured: floorView.isConfigured,
     floorStatusMessage: floorView.floorMap.statusMessage,
-    isSelectedStartReachable: floorView.floorMap.isSelectedStartReachable,
   });
   const isCompleting =
     createDraftMutation.isPending ||

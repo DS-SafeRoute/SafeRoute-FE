@@ -28,10 +28,6 @@ import { useScenarioFireZonesQuery } from '@apis/scenarios/fireZoneQueries';
 
 import { formatFloor } from '@utils/floor';
 
-import { getNodeIdsThatCanReachExit, getStartCandidateStatus } from '../utils/scenarioFloorGraph';
-
-import type { StartCandidateStatus } from '../utils/scenarioFloorGraph';
-
 interface UseScenarioFloorViewParams {
   scenarioId?: string;
   buildingId: string;
@@ -50,9 +46,7 @@ export interface ScenarioFloorMapView {
   selectedFireCellId?: string | null;
   selectedStartNodeId?: string | null;
   originCellId?: string | null;
-  startCandidateStatus: StartCandidateStatus;
-  unreachableStartNodeIds: readonly string[];
-  isSelectedStartReachable: boolean;
+  hasStartCandidates: boolean;
   statusMessage?: string;
 }
 
@@ -177,25 +171,10 @@ export const useScenarioFloorView = ({
     () => floorGraphQuery.data?.nodes.filter((node) => node.type === 'START') ?? [],
     [floorGraphQuery.data],
   );
-  const reachableNodeIds = useMemo(
-    () => getNodeIdsThatCanReachExit(floorGraphQuery.data),
-    [floorGraphQuery.data],
-  );
-  const reachableStartNodes = startNodes.filter((node) => reachableNodeIds.has(node.id));
-  const unreachableStartNodeIds = startNodes
-    .filter((node) => !reachableNodeIds.has(node.id))
-    .map((node) => node.id);
-  const exitTargetCount =
-    floorGraphQuery.data?.nodes.filter((node) => node.isExitTarget).length ?? 0;
-  const startCandidateStatus = getStartCandidateStatus(
-    startNodes.length,
-    exitTargetCount,
-    reachableStartNodes.length,
-  );
   const hasSelectedFireCell = Boolean(
     floorGridQuery.data?.some((cell) => cell.id === selectedFireCellId && cell.walkable),
   );
-  const hasSelectedStartNode = reachableStartNodes.some((node) => node.id === selectedStartNodeId);
+  const hasSelectedStartNode = startNodes.some((node) => node.id === selectedStartNodeId);
 
   const chooseFloor = (nextFloorId: string) => {
     setSelectedFloorId(nextFloorId);
@@ -210,7 +189,7 @@ export const useScenarioFloorView = ({
   };
 
   const chooseStartNode = (nodeId: string) => {
-    if (!reachableStartNodes.some((node) => node.id === nodeId)) return;
+    if (!startNodes.some((node) => node.id === nodeId)) return;
     setSelectedStartNodeId((current) => (current === nodeId ? null : nodeId));
   };
 
@@ -280,7 +259,6 @@ export const useScenarioFloorView = ({
 
   const persistedOriginCellId = setup?.floorId === floorId ? setup?.fireOrigin?.gridCellId : null;
   const persistedStartNodeId = setup?.floorId === floorId ? setup?.startNode?.nodeId : null;
-  const activeStartNodeId = persistedStartNodeId ?? selectedStartNodeId;
   const runningFireCellIds = (fireZonesQuery.data ?? [])
     .filter((zone) => zone.floorId === floorId)
     .map((zone) => zone.gridCellId);
@@ -296,11 +274,7 @@ export const useScenarioFloorView = ({
       selectedFireCellId,
       selectedStartNodeId,
       originCellId: persistedOriginCellId,
-      startCandidateStatus,
-      unreachableStartNodeIds,
-      isSelectedStartReachable: Boolean(
-        activeStartNodeId && reachableNodeIds.has(activeStartNodeId),
-      ),
+      hasStartCandidates: startNodes.length > 0,
       statusMessage,
     } satisfies ScenarioFloorMapView,
     floorOptions: selectableFloors.map((floor) => ({
