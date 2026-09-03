@@ -147,6 +147,11 @@ const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
   cctvId: '',
 };
 
+// CCTV 등록·시야 재선택·수정 세 곳에서 카드에 보여줄 "모니터링 N칸 · M㎡" 문구를 각자 다시
+// 조립하면 한 줄이 100자를 넘기기 쉽고 표현도 어긋나기 쉬워 하나로 합침
+const formatMonitoredZone = (cctv: Pick<Cctv, 'monitoredGridCellCount' | 'monitoredAreaM2'>) =>
+  `모니터링 ${cctv.monitoredGridCellCount}칸 · ${formatAreaM2(cctv.monitoredAreaM2)}㎡`;
+
 // 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
 // 두 군데(패널 목록 만들 때, 지도 클릭으로 필터 이동할 때)에서 각각 다시 구현하면 인식 못하는
 // 값의 처리(fallback)가 서로 어긋날 수 있어 하나로 합침
@@ -2026,9 +2031,18 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   }, []);
 
+  // CCTV 등록 시 그리드 배율이 서버에서 사라져있어(CCTV006) 재적용 후 재시도할 때, 방금 사용자가
+  // 드래그한 영역을 다시 그리게 하지 않고 같은 영역으로 셀을 재계산하기 위해 rect를 별도로 들고
+  // 있음 — cctvDraftCellIds는 재적용 전 그리드의 셀 id라 그대로 재사용할 수 없음(그리드 재적용 시
+  // 셀이 새로 생성되어 id가 바뀜). 등록 성공뿐 아니라 새 CCTV 시야 선택을 다시 시작할 때·층을
+  // 바꿀 때도 비워야 함 — 안 그러면 취소 후 클릭만으로 새 영역을 고른 다음 CCTV006이 나면
+  // 재시도가 엉뚱한(예전) 드래그 영역을 그대로 써버림(코드래빗 리뷰로 발견)
+  const lastCctvDraftRectRef = useRef<ZoneRect | null>(null);
+
   // 층이 바뀌거나 도면을 다시 올렸을 때, 이전 도면 기준으로 만들어진 노드·장비·구역이
   // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
   const resetFloorScopedState = useCallback(() => {
+    lastCctvDraftRectRef.current = null;
     setStructureNodes([]);
     setGraphNodes([]);
     setGraphEdges([]);
@@ -2270,7 +2284,7 @@ const FloorPlansDetailPage = () => {
               x: cctv.x * 100,
               y: cctv.y * 100,
               status: 'online',
-              zone: `모니터링 ${cctv.monitoredGridCellCount}칸 · ${formatAreaM2(cctv.monitoredAreaM2)}㎡`,
+              zone: formatMonitoredZone(cctv),
             }),
           ),
         ]);
@@ -2400,11 +2414,6 @@ const FloorPlansDetailPage = () => {
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
-  // CCTV 등록 시 그리드 배율이 서버에서 사라져있어(CCTV006) 재적용 후 재시도할 때, 방금 사용자가
-  // 드래그한 영역을 다시 그리게 하지 않고 같은 영역으로 셀을 재계산하기 위해 rect를 별도로 들고
-  // 있음 — cctvDraftCellIds는 재적용 전 그리드의 셀 id라 그대로 재사용할 수 없음(그리드 재적용 시
-  // 셀이 새로 생성되어 id가 바뀜)
-  const lastCctvDraftRectRef = useRef<ZoneRect | null>(null);
   const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
   const [zoneDeleteTarget, setZoneDeleteTarget] = useState<ZoneEntry | null>(null);
   const [isDeletingZone, setIsDeletingZone] = useState(false);
@@ -2507,7 +2516,7 @@ const FloorPlansDetailPage = () => {
             d.id === updated.id
               ? {
                   ...d,
-                  zone: `모니터링 ${updated.monitoredGridCellCount}칸 · ${formatAreaM2(updated.monitoredAreaM2)}㎡`,
+                  zone: formatMonitoredZone(updated),
                 }
               : d,
           ),
@@ -2865,6 +2874,13 @@ const FloorPlansDetailPage = () => {
     setNodeAddStage('entry');
     setZoneDraftRect(null);
     setCctvDraftCellIds([]);
+    lastCctvDraftRectRef.current = null;
+  };
+
+  // 팝업을 취소로 닫을 때도 다음 CCTV 등록 시도가 이전 드래그 영역을 이어받지 않게 비움
+  const handleCancelNodeAdd = () => {
+    setNodeAddOpen(false);
+    lastCctvDraftRectRef.current = null;
   };
 
   const handleGridSetupPromptCancel = () => {
@@ -2952,7 +2968,7 @@ const FloorPlansDetailPage = () => {
           x: nodeStagedPosition.x,
           y: nodeStagedPosition.y,
           status: 'online',
-          zone: `모니터링 ${newCctv.monitoredGridCellCount}칸 · ${formatAreaM2(newCctv.monitoredAreaM2)}㎡`,
+          zone: formatMonitoredZone(newCctv),
         },
       ]);
       lastCctvDraftRectRef.current = null;
@@ -2995,8 +3011,16 @@ const FloorPlansDetailPage = () => {
             .then(() => getFloorGridCells(currentFloor.id))
             .then((refreshed) => {
               setFloorGridCells(refreshed);
+              // gridCellPxSize는 재적용 전 floorGridCells 기준으로 계산된 memo라 그대로 쓰면
+              // 안 됨 — 재생성된 그리드는 행·열 수가 달라질 수 있어(코드래빗 리뷰로 발견),
+              // 새로 조회한 refreshed 기준으로 다시 계산해서 넘김
               const retryCellIds = draftRect
-                ? cellIdsIntersectingRect(refreshed, draftRect, gridCellPxSize, canvasH)
+                ? cellIdsIntersectingRect(
+                    refreshed,
+                    draftRect,
+                    getGridCellPxSize(refreshed, canvasH),
+                    canvasH,
+                  )
                 : [];
               if (retryCellIds.length === 0) {
                 setCctvDraftCellIds([]);
@@ -3350,6 +3374,8 @@ const FloorPlansDetailPage = () => {
     setZoneAddOpen(false);
     if (presetType) setNodeAddType(presetType);
     setNodeAddOpen(true);
+    // 새로 여는 등록 흐름은 이전 시도의 드래그 영역과 무관해야 함
+    lastCctvDraftRectRef.current = null;
   };
 
   const handleOpenEdgeAdd = () => {
@@ -4012,7 +4038,7 @@ const FloorPlansDetailPage = () => {
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
                 selectedCellCount={cctvDraftCellIds.length}
-                onCancel={() => setNodeAddOpen(false)}
+                onCancel={handleCancelNodeAdd}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
                 onFinalize={handleFinalizeFov}
