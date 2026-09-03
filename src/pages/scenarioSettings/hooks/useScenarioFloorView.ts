@@ -145,7 +145,7 @@ export const useScenarioFloorView = ({
   const setup = setupQuery.data;
   const isSetupPending = enabled && Boolean(scenarioId) && setupQuery.isPending;
   const isConfigured = Boolean(
-    setup?.configuredAt && setup.fireOrigin?.gridCellId && setup.startNode?.nodeId,
+    setup?.configuredAt && setup.floorId && setup.fireOrigin?.gridCellId && setup.startNode?.nodeId,
   );
 
   const floors = floorsQuery.data ?? [];

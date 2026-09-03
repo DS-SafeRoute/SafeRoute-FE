@@ -63,12 +63,13 @@ const ScenarioListPage = () => {
 
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
+    const scenarioName = deleteTarget.name ?? '이 시나리오';
 
     deleteScenarioMutation.mutate(deleteTarget.id, {
       onSuccess: () => {
         show({
           title: '시나리오가 삭제되었습니다.',
-          description: `${deleteTarget.name}이(가) 삭제되었습니다.`,
+          description: `${scenarioName}이(가) 삭제되었습니다.`,
           variant: 'success',
         });
         setDeleteTarget(null);

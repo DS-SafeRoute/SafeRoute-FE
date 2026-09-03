@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getScenarioEvacuationSetup, setScenarioEvacuationSetup } from './evacuationSetupApi';
+import { getScenarioEvacuationSetup, postScenarioEvacuationSetup } from './evacuationSetupApi';
 
 export const evacuationSetupQueryKeys = {
   all: ['scenario-evacuation-setup'] as const,
@@ -21,7 +21,7 @@ export const useSetEvacuationSetupMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: setScenarioEvacuationSetup,
+    mutationFn: postScenarioEvacuationSetup,
     onSuccess: (setup, variables) => {
       const scenarioId = setup.scenarioId ?? variables.scenarioId;
       queryClient.setQueryData(evacuationSetupQueryKeys.detail(scenarioId), setup);

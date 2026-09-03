@@ -51,13 +51,15 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   const shouldPollRunningSessions =
     scenario?.status === SCENARIO_STATUS.IN_PROGRESS || startedSession !== null;
   const { data: runningSessions = [], isPending: isRunningSessionsPending } =
-    useGetTrainingSessionsQuery(
-      TRAINING_SESSION_STATUS.RUNNING,
-      shouldQuerySessions,
-      shouldPollRunningSessions,
-    );
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, {
+      enabled: shouldQuerySessions,
+      shouldPoll: shouldPollRunningSessions,
+    });
   const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, shouldQuerySessions, false);
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, {
+      enabled: shouldQuerySessions,
+      shouldPoll: false,
+    });
 
   // 최신 응답의 scenarioId로 현재 시나리오 세션을 식별
   const runningSession = runningSessions.find((session) => session.scenarioId === scenario?.id);

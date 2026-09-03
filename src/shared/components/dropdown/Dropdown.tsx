@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
@@ -49,8 +49,11 @@ const Dropdown = <T extends string = string>({
   ariaLabel,
 }: DropdownProps<T>) => {
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
+  const listboxId = useId();
   // 패널을 document.body에 포탈로 띄우고 뷰포트 좌표(position: fixed)로 직접 배치함 —
   // 모달 안에서 열리면 모달의 overflow: hidden에 패널이 잘리는 문제를 피하기 위함
   const [panelRect, setPanelRect] = useState<PanelRect | null>(null);
@@ -74,26 +77,68 @@ const Dropdown = <T extends string = string>({
       if (!insideTrigger && !insidePanel) setOpen(false);
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('scroll', updatePanelRect, true);
     window.addEventListener('resize', updatePanelRect);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('scroll', updatePanelRect, true);
       window.removeEventListener('resize', updatePanelRect);
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open && panelRect) panelRef.current?.focus();
+  }, [open, panelRect]);
+
+  const getSelectedIndex = () => {
+    const selectedIndex = options.findIndex((option) => option.value === value);
+    return selectedIndex >= 0 ? selectedIndex : 0;
+  };
+
+  const openList = (initialIndex = getSelectedIndex()) => {
+    if (options.length === 0) return;
+    setActiveIndex(initialIndex);
+    setOpen(true);
+  };
+
+  const closeList = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
   const handleSelect = (optionValue: T) => {
     onChange(optionValue);
-    setOpen(false);
+    closeList();
+  };
+
+  const handleListKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeList();
+      return;
+    }
+    if (event.key === 'Tab') {
+      closeList();
+      return;
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      setActiveIndex(event.key === 'Home' ? 0 : options.length - 1);
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      setActiveIndex((current) => (current + direction + options.length) % options.length);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const option = options[activeIndex];
+      if (option) handleSelect(option.value);
+    }
   };
 
   return (
@@ -102,13 +147,27 @@ const Dropdown = <T extends string = string>({
       className={clsx(styles.container, fullWidth && styles.containerFullWidth, className)}
     >
       <button
+        ref={triggerRef}
         type="button"
         className={styles.trigger({ disabled, shape, size, fullWidth })}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-controls={open ? listboxId : undefined}
         aria-label={ariaLabel}
         disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          openList();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+          event.preventDefault();
+          const initialIndex = event.key === 'ArrowDown' ? getSelectedIndex() : options.length - 1;
+          openList(initialIndex);
+        }}
       >
         {selected ? selected.label : placeholder}
         <ChevronDownIcon className={styles.chevron} width={16} height={16} />
@@ -119,16 +178,24 @@ const Dropdown = <T extends string = string>({
         createPortal(
           <ul
             ref={panelRef}
+            id={listboxId}
             className={styles.panel}
             role="listbox"
+            tabIndex={-1}
+            aria-label={ariaLabel ?? '선택 옵션'}
+            aria-activedescendant={`${listboxId}-option-${activeIndex}`}
+            onKeyDown={handleListKeyDown}
             style={{ top: panelRect.top, left: panelRect.left, width: panelRect.width }}
           >
-            {options.map((option) => (
+            {options.map((option, index) => (
               <li
                 key={option.value}
+                id={`${listboxId}-option-${index}`}
                 className={styles.option}
                 role="option"
                 aria-selected={option.value === value}
+                data-active={index === activeIndex}
+                onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => handleSelect(option.value)}
               >
                 {option.label}

@@ -94,12 +94,7 @@ const FireLocationGrid = ({
         aria-label="발화 위치와 대피 경로가 표시된 층 도면"
       >
         {imageUrl && (
-          <image
-            href={imageUrl}
-            width={CANVAS_W}
-            height={mapHeight}
-            preserveAspectRatio="xMidYMid slice"
-          />
+          <image href={imageUrl} width={CANVAS_W} height={mapHeight} preserveAspectRatio="none" />
         )}
 
         {routePolylinePoints && <polyline className={styles.route} points={routePolylinePoints} />}
@@ -112,12 +107,10 @@ const FireLocationGrid = ({
           const y = cell.centerY * mapHeight - cellSize.h / 2;
 
           const cellClassName = getCellClassName(isFireCell, isSelected);
+          const cellAriaLabel = `${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열${isFireCell ? ', 화재구역' : ''}`;
 
           return (
-            <g
-              key={cell.id}
-              aria-label={`${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열${isFireCell ? ', 화재구역' : ''}`}
-            >
+            <g key={cell.id} aria-label={cellAriaLabel}>
               <rect
                 className={cellClassName}
                 x={x}
@@ -127,6 +120,7 @@ const FireLocationGrid = ({
                 role={!disabled && cell.walkable ? 'button' : undefined}
                 tabIndex={!disabled && cell.walkable ? 0 : undefined}
                 aria-pressed={isSelected}
+                aria-label={!disabled && cell.walkable ? cellAriaLabel : undefined}
                 onClick={() => {
                   if (!disabled && cell.walkable) onFireCellSelect?.(cell.id);
                 }}

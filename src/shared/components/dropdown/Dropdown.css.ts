@@ -91,6 +91,7 @@ export const option = style({
   ...vars.typography.body14,
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray50 },
+    '&[data-active="true"]': { backgroundColor: vars.color.gray50 },
     '&[aria-selected="true"]': {
       backgroundColor: vars.color.primaryLight2,
       color: vars.color.primary,

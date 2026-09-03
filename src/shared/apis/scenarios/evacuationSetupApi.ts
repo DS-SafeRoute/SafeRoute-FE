@@ -17,17 +17,17 @@ export const getScenarioEvacuationSetup = async (
     responseMode: 'raw',
   });
 
-export interface SetEvacuationSetupVariables extends CreateScenarioEvacuationSetupRequest {
+export interface PostEvacuationSetupVariables extends CreateScenarioEvacuationSetupRequest {
   scenarioId: string;
 }
 
 // 사용자가 고른 최초 발화점(fireOriginGridCellId)과 훈련 시작점(startNodeId)을 하나의 요청,
 // 하나의 트랜잭션으로 함께 저장(스웨거 설명 원문) — 스키마상 둘 다 required라 하나만 보낼 수 없음
-export const setScenarioEvacuationSetup = async ({
+export const postScenarioEvacuationSetup = async ({
   scenarioId,
   fireOriginGridCellId,
   startNodeId,
-}: SetEvacuationSetupVariables): Promise<ScenarioEvacuationSetupResponse> =>
+}: PostEvacuationSetupVariables): Promise<ScenarioEvacuationSetupResponse> =>
   request<ScenarioEvacuationSetupResponse, CreateScenarioEvacuationSetupRequest>({
     method: HTTP_METHOD.POST,
     url: API_ENDPOINTS.SCENARIOS.EVACUATION_SETUP(scenarioId),

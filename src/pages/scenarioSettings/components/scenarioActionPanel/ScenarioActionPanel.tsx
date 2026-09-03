@@ -14,6 +14,8 @@ import { Button } from '@components/Button';
 
 export type ScenarioActionMode = 'create' | 'edit' | 'start';
 
+const START_RESTRICTION_ID = 'scenario-start-restriction';
+
 interface ScenarioStartState {
   disabled: boolean;
   restrictionMessage?: string;
@@ -86,6 +88,7 @@ const ScenarioActionPanel = ({
         fullWidth
         leftIcon={<PlayIcon />}
         disabled={startState.disabled}
+        aria-describedby={startState.restrictionMessage ? START_RESTRICTION_ID : undefined}
         isLoading={isCompleting}
         onClick={handlers.onStart}
       >
@@ -97,7 +100,9 @@ const ScenarioActionPanel = ({
       </p>
 
       {startState.restrictionMessage && (
-        <p className={startRestrictionNotice}>{startState.restrictionMessage}</p>
+        <p id={START_RESTRICTION_ID} className={startRestrictionNotice} role="status">
+          {startState.restrictionMessage}
+        </p>
       )}
 
       {startState.showPreview && (

@@ -55,8 +55,7 @@ const HomePage = () => {
   );
   const { data: scheduledSessions = [] } = useGetTrainingSessionsQuery(
     TRAINING_SESSION_STATUS.SCHEDULED,
-    true,
-    false,
+    { shouldPoll: false },
   );
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
   const selectedSession = runningSessions[0] ?? scheduledSessions[0];
