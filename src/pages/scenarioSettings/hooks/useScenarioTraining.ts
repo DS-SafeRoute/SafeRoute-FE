@@ -1,9 +1,12 @@
 import { useState } from 'react';
 
+import { useQueryClient } from '@tanstack/react-query';
+
 import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import {
   useCreateTrainingSessionMutation,
@@ -20,6 +23,7 @@ interface UseScenarioTrainingParams {
 }
 
 export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingParams) => {
+  const queryClient = useQueryClient();
   // 목록 쿼리가 갱신되기 전에도 시작 직후 화면을 전환할 수 있도록 시작 응답을 임시 보관
   const [startedSession, setStartedSession] = useState<{
     id: string;
@@ -90,13 +94,21 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     return session.id;
   };
 
-  // 기존 예약 세션을 재사용하고, 없으면 일정을 등록한 뒤 훈련 시작
+  // 서버가 기본 경로를 반환하는지 마지막으로 검증한 뒤 훈련 시작
   const startTraining = async () => {
     if (!scenario || !adminId) throw new Error('훈련을 시작할 시나리오 정보가 없습니다.');
 
     const sessionId = await ensureScheduledSession(scenario.id);
 
     if (!sessionId) throw new Error('시작할 훈련 세션 ID가 없습니다.');
+
+    const currentRoute = await queryClient.fetchQuery({
+      ...currentTrainingRouteQueryOptions(sessionId),
+      staleTime: 0,
+    });
+    if (!currentRoute.path?.length) {
+      throw new Error('시작 지점에서 출구까지 연결된 기본 경로가 없습니다.');
+    }
 
     const session = await startSessionMutation.mutateAsync(sessionId);
     if (!session.id || !session.startedAt) {

@@ -1,6 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import { useStartTrainingSessionMutation } from '@apis/trainingSessions/useTrainingSessionMutations';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
@@ -43,6 +45,7 @@ const sectionIcons = {
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { show } = useToast();
   const { data: stats } = useGetDashboardStatsQuery();
   const { data: trainings = [] } = useGetDashboardTrainingsQuery();
@@ -72,6 +75,14 @@ const HomePage = () => {
     }
 
     try {
+      const currentRoute = await queryClient.fetchQuery({
+        ...currentTrainingRouteQueryOptions(training.id),
+        staleTime: 0,
+      });
+      if (!currentRoute.path?.length) {
+        throw new Error('시작 지점에서 출구까지 연결된 기본 경로가 없습니다.');
+      }
+
       await startTrainingSessionMutation.mutateAsync(training.id);
       show({ title: '훈련이 시작되었습니다.', variant: 'success' });
     } catch {

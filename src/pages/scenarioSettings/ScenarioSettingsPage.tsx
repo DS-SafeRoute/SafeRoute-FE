@@ -49,11 +49,15 @@ const getStartRestrictionMessage = ({
   isSetupPending,
   isSetupError,
   isConfigured,
+  floorStatusMessage,
+  isSelectedStartReachable,
 }: {
   scenario?: Scenario;
   isSetupPending: boolean;
   isSetupError: boolean;
   isConfigured: boolean;
+  floorStatusMessage?: string;
+  isSelectedStartReachable: boolean;
 }) => {
   if (
     scenario?.status === SCENARIO_STATUS.COMPLETED ||
@@ -65,6 +69,12 @@ const getStartRestrictionMessage = ({
   if (isSetupError) return '대피 설정을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.';
   if (scenario?.status === SCENARIO_STATUS.READY && !isConfigured) {
     return '도면에서 발화 위치와 START 후보를 선택해 저장해 주세요.';
+  }
+  if (scenario?.status === SCENARIO_STATUS.READY && floorStatusMessage) {
+    return floorStatusMessage;
+  }
+  if (scenario?.status === SCENARIO_STATUS.READY && !isSelectedStartReachable) {
+    return '선택한 시작 지점에서 최종 탈출구까지 연결된 경로가 없습니다.';
   }
   return undefined;
 };
@@ -110,12 +120,18 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     routeNodeIds: training.route.routeNodeIds,
   });
 
-  const canStartTraining = isScenarioReady && floorView.isConfigured;
+  const canStartTraining =
+    isScenarioReady &&
+    floorView.isConfigured &&
+    !floorView.floorMap.statusMessage &&
+    floorView.floorMap.isSelectedStartReachable;
   const startRestrictionMessage = getStartRestrictionMessage({
     scenario,
     isSetupPending: floorView.isSetupPending,
     isSetupError: floorView.isSetupError,
     isConfigured: floorView.isConfigured,
+    floorStatusMessage: floorView.floorMap.statusMessage,
+    isSelectedStartReachable: floorView.floorMap.isSelectedStartReachable,
   });
   const isCompleting =
     createDraftMutation.isPending ||
