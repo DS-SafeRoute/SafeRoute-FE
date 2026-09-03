@@ -248,8 +248,7 @@ export const useScenarioFloorView = ({
       id: 'iot',
       label: '활성 IoT 유도등',
       value: getMetricValue({
-        count: floorLightsQuery.data?.filter((light) => light.enabled && light.guidanceConfigured)
-          .length,
+        count: floorLightsQuery.data?.filter((light) => light.enabled).length,
         suffix: '개',
         isPending: metricPending,
         isUnavailable: !floorId || floorLightsQuery.isError,
