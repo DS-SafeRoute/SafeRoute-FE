@@ -160,9 +160,6 @@ const FireLocationGrid = ({
                   y={cell.centerY * mapHeight - 7}
                 >
                   <tspan aria-hidden="true">🔥</tspan>
-                  <tspan x={cell.centerX * CANVAS_W} dy="12">
-                    최초 발화점
-                  </tspan>
                 </text>
               )}
             </g>

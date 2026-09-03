@@ -2,9 +2,6 @@ import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-const fireSurface = 'rgba(252, 217, 204, 0.8)';
-const fireBorder = '#FF7A45';
-
 export const panel = style({
   position: 'relative',
   display: 'flex',
@@ -35,27 +32,27 @@ export const route = style({
 });
 
 export const gridCell = style({
-  fill: 'rgba(255, 255, 255, 0.04)',
-  stroke: 'rgba(156, 163, 175, 0.55)',
+  fill: `color-mix(in srgb, ${vars.color.white} 4%, transparent)`,
+  stroke: `color-mix(in srgb, ${vars.color.gray300} 55%, transparent)`,
   strokeWidth: 0.6,
 });
 
 export const selectedFireCell = style({
   cursor: 'pointer',
-  fill: 'rgba(255, 122, 69, 0.3)',
-  stroke: fireBorder,
+  fill: `color-mix(in srgb, ${vars.color.warningStrong} 30%, transparent)`,
+  stroke: vars.color.warningStrong,
   strokeWidth: 2,
 });
 
 export const fireCell = style({
-  fill: fireSurface,
-  stroke: fireBorder,
+  fill: vars.color.warningSurface,
+  stroke: vars.color.warningStrong,
   strokeWidth: 2,
 });
 
 export const fireMarker = style({
   pointerEvents: 'none',
-  fontSize: '11px',
+  fontSize: '20px',
   fontWeight: vars.fontWeight.bold,
   fill: vars.color.dangerText,
   textAnchor: 'middle',
@@ -94,7 +91,7 @@ export const statusMessage = style({
   left: '50%',
   transform: 'translate(-50%, -50%)',
   borderRadius: vars.radius.pill,
-  backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  backgroundColor: `color-mix(in srgb, ${vars.color.white} 92%, transparent)`,
   padding: `${vars.space.s2} ${vars.space.s3}`,
   whiteSpace: 'nowrap',
   color: vars.color.textLow,
