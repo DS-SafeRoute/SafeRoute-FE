@@ -6,6 +6,7 @@ import { FIRE_SPREAD_OPTIONS } from '@pages/scenarioSettings/constants/scenarioS
 import type { ScenarioFloorMapView } from '@pages/scenarioSettings/hooks/useScenarioFloorView';
 import * as pageStyles from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 import type { BasicInfo } from '@pages/scenarioSettings/types/scenarioSettings';
+import type { StartCandidateStatus } from '@pages/scenarioSettings/utils/scenarioFloorGraph';
 
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 
@@ -72,27 +73,50 @@ const getFireStepDescription = (state: SetupStepState) => {
 const getStartStepState = ({
   hasFireLocation,
   hasStartLocation,
-  hasStartCandidates,
+  isSelectedStartReachable,
+  startCandidateStatus,
   isMapUnavailable,
 }: {
   hasFireLocation: boolean;
   hasStartLocation: boolean;
-  hasStartCandidates: boolean;
+  isSelectedStartReachable: boolean;
+  startCandidateStatus: StartCandidateStatus;
   isMapUnavailable: boolean;
 }): SetupStepState => {
-  if (hasStartLocation) return 'complete';
   if (isMapUnavailable) return 'pending';
-  if (!hasStartCandidates) return 'blocked';
+  if (hasStartLocation && isSelectedStartReachable) return 'complete';
+  if (hasStartLocation) return 'blocked';
+  if (startCandidateStatus !== 'available') return 'blocked';
   if (hasFireLocation) return 'active';
   return 'pending';
 };
 
-const getStartStepDescription = (state: SetupStepState) => {
+const getStartStepDescription = ({
+  state,
+  startCandidateStatus,
+  hasInvalidStartLocation,
+  isMapUnavailable,
+}: {
+  state: SetupStepState;
+  startCandidateStatus: StartCandidateStatus;
+  hasInvalidStartLocation: boolean;
+  isMapUnavailable: boolean;
+}) => {
   if (state === 'complete') return '시작 지점을 선택했습니다.';
-  if (state === 'blocked') {
+  if (isMapUnavailable) return '도면 정보를 확인한 뒤 선택할 수 있습니다.';
+  if (hasInvalidStartLocation) {
+    return '선택한 START가 출구와 연결되지 않았습니다. 도면 관리에서 경로를 연결해 주세요.';
+  }
+  if (startCandidateStatus === 'missing') {
     return 'START 후보가 없습니다. 도면 관리에서 먼저 등록해 주세요.';
   }
-  if (state === 'active') return '도면의 분홍색 시작 지점을 선택해 주세요.';
+  if (startCandidateStatus === 'no-exit') {
+    return '최종 출구가 없습니다. 도면 관리에서 먼저 지정해 주세요.';
+  }
+  if (startCandidateStatus === 'unreachable') {
+    return '출구와 연결된 START가 없습니다. 도면 관리에서 경로를 연결해 주세요.';
+  }
+  if (state === 'active') return '출구와 연결된 분홍색 시작 지점을 선택해 주세요.';
   return '화재 시작 위치를 선택하면 다음 단계가 활성화됩니다.';
 };
 
@@ -111,6 +135,7 @@ const ScenarioSetupForm = ({
   const hasStartLocation = Boolean(
     floorMap.selectedStartNodeId || evacuationSetup.persistedStartNodeId,
   );
+  const hasInvalidStartLocation = hasStartLocation && !floorMap.isSelectedStartReachable;
   const isMapUnavailable = Boolean(floorMap.statusMessage);
   const canShowEvacuationSetup =
     evacuationSetup.editable || evacuationSetup.configured || isRunning;
@@ -118,7 +143,8 @@ const ScenarioSetupForm = ({
   const startStepState = getStartStepState({
     hasFireLocation,
     hasStartLocation,
-    hasStartCandidates: floorMap.hasStartCandidates,
+    isSelectedStartReachable: floorMap.isSelectedStartReachable,
+    startCandidateStatus: floorMap.startCandidateStatus,
     isMapUnavailable,
   });
 
@@ -228,7 +254,12 @@ const ScenarioSetupForm = ({
                 <div>
                   <strong className={styles.stepTitle}>훈련 시작 지점</strong>
                   <p className={styles.stepDescription}>
-                    {getStartStepDescription(startStepState)}
+                    {getStartStepDescription({
+                      state: startStepState,
+                      startCandidateStatus: floorMap.startCandidateStatus,
+                      hasInvalidStartLocation,
+                      isMapUnavailable,
+                    })}
                   </p>
                 </div>
               </div>
@@ -243,6 +274,7 @@ const ScenarioSetupForm = ({
               selectedFireCellId={floorMap.selectedFireCellId}
               selectedStartNodeId={floorMap.selectedStartNodeId}
               persistedStartNodeId={evacuationSetup.persistedStartNodeId}
+              unavailableStartNodeIds={floorMap.unreachableStartNodeIds}
               statusMessage={floorMap.statusMessage}
               disabled={!evacuationSetup.editable || evacuationSetup.configured || isRunning}
               startSelectionDisabled={!hasFireLocation}

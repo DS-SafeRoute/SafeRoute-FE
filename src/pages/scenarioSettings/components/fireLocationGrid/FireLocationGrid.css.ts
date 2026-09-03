@@ -66,21 +66,33 @@ export const selectedFireMarker = style({
 });
 
 export const inactiveStartNode = style({
-  fill: '#f9a8d4',
-  stroke: vars.color.white,
+  fill: `color-mix(in srgb, ${vars.color.pink} 18%, ${vars.color.white})`,
+  stroke: vars.color.pink,
   strokeWidth: 1.5,
+});
+
+export const unavailableStartNode = style({
+  fill: vars.color.gray100,
+  stroke: vars.color.gray500,
+  strokeWidth: 1.5,
+});
+
+export const selectedUnavailableStartNode = style({
+  fill: vars.color.warningLight,
+  stroke: vars.color.warningStrong,
+  strokeWidth: 3,
 });
 
 export const startNode = style({
   cursor: 'pointer',
-  fill: '#db2777',
+  fill: vars.color.pink,
   stroke: vars.color.white,
   strokeWidth: 1.5,
 });
 
 export const selectedStartNode = style({
   cursor: 'pointer',
-  fill: '#7c3aed',
+  fill: vars.color.purple,
   stroke: vars.color.white,
   strokeWidth: 3,
 });

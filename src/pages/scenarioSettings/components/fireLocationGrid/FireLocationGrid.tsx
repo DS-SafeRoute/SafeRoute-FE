@@ -23,6 +23,7 @@ interface FireLocationGridProps {
   selectedFireCellId?: string | null;
   selectedStartNodeId?: string | null;
   persistedStartNodeId?: string | null;
+  unavailableStartNodeIds: readonly string[];
   originCellId?: string | null;
   statusMessage?: string;
   disabled?: boolean;
@@ -37,7 +38,13 @@ const getCellClassName = (isFireCell: boolean, isSelected: boolean) => {
   return styles.gridCell;
 };
 
-const getStartNodeClassName = (isSelected: boolean, isDisabled: boolean) => {
+const getStartNodeClassName = (
+  isSelected: boolean,
+  isUnavailable: boolean,
+  isDisabled: boolean,
+) => {
+  if (isSelected && isUnavailable) return styles.selectedUnavailableStartNode;
+  if (isUnavailable) return styles.unavailableStartNode;
   if (isSelected) return styles.selectedStartNode;
   if (isDisabled) return styles.inactiveStartNode;
   return styles.startNode;
@@ -52,6 +59,7 @@ const FireLocationGrid = ({
   selectedFireCellId,
   selectedStartNodeId,
   persistedStartNodeId,
+  unavailableStartNodeIds,
   originCellId,
   statusMessage,
   disabled = false,
@@ -89,6 +97,10 @@ const FireLocationGrid = ({
   );
   const cellSize = getGridCellPxSize(gridCells, mapHeight);
   const fireCellIdSet = useMemo(() => new Set(fireCellIds), [fireCellIds]);
+  const unavailableStartNodeIdSet = useMemo(
+    () => new Set(unavailableStartNodeIds),
+    [unavailableStartNodeIds],
+  );
   const activeStartNodeId = persistedStartNodeId ?? selectedStartNodeId;
   const canSelectStartNode = !disabled && !startSelectionDisabled;
 
@@ -170,7 +182,13 @@ const FireLocationGrid = ({
           .filter((node) => node.type === 'START')
           .map((node) => {
             const isSelectedStart = node.id === activeStartNodeId;
-            const nodeClassName = getStartNodeClassName(isSelectedStart, !canSelectStartNode);
+            const isUnavailableStart = unavailableStartNodeIdSet.has(node.id);
+            const isStartNodeSelectable = canSelectStartNode && !isUnavailableStart;
+            const nodeClassName = getStartNodeClassName(
+              isSelectedStart,
+              isUnavailableStart,
+              !canSelectStartNode,
+            );
 
             return (
               <circle
@@ -179,15 +197,16 @@ const FireLocationGrid = ({
                 cx={node.x * CANVAS_W}
                 cy={node.y * mapHeight}
                 r={isSelectedStart ? 7 : 4}
-                role={canSelectStartNode ? 'button' : undefined}
-                tabIndex={canSelectStartNode ? 0 : undefined}
-                aria-label={`${node.name} 시작 지점`}
+                role={isStartNodeSelectable ? 'button' : undefined}
+                tabIndex={isStartNodeSelectable ? 0 : undefined}
+                aria-label={`${node.name} 시작 지점${isUnavailableStart ? ', 출구 연결 필요' : ''}`}
                 aria-pressed={isSelectedStart}
+                aria-disabled={isUnavailableStart || undefined}
                 onClick={() => {
-                  if (canSelectStartNode) onStartNodeSelect?.(node.id);
+                  if (isStartNodeSelectable) onStartNodeSelect?.(node.id);
                 }}
                 onKeyDown={(event) => {
-                  if (!canSelectStartNode) return;
+                  if (!isStartNodeSelectable) return;
                   if (event.key !== 'Enter' && event.key !== ' ') return;
                   event.preventDefault();
                   onStartNodeSelect?.(node.id);
