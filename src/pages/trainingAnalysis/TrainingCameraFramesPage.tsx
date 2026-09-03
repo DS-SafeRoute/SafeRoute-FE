@@ -17,7 +17,7 @@ import { useCameraFramesQuery } from './api/useCameraFramesQuery';
 import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useSessionEventsQuery } from './api/useSessionEventsQuery';
 import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
-import CameraTabs from './components/CameraTabs/CameraTabs';
+import CameraSidebar from './components/CameraSidebar/CameraSidebar';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
   EVENT_SEVERITY_COLOR,
@@ -50,7 +50,7 @@ const TrainingCameraFramesPage = () => {
   // 따라가게 함(라이브 방송의 "최신으로 이동" 개념과 동일)
   const stickToLatestRef = useRef(true);
 
-  // 카메라 탭으로 cctvId만 바뀌면 프레임 목록도 카메라별로 새로 조회되므로,
+  // 사이드바에서 cctvId만 바뀌면 프레임 목록도 카메라별로 새로 조회되므로,
   // 이전 카메라의 frameIndex가 남아 새 카메라의 프레임 수를 넘어가지 않도록 초기화하고
   // 최신 프레임 추적도 다시 켬
   useEffect(() => {
@@ -109,7 +109,7 @@ const TrainingCameraFramesPage = () => {
     }
   }, [frameIndex, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // 이제 최신 프레임이 필름스트립 맨 오른쪽에 있어서(시간순으로 뒤집었으니) 프레임이 많으면
+  // 최신 프레임이 필름스트립 맨 오른쪽에 있어서(시간순으로 뒤집었으니) 프레임이 많으면
   // 화면 밖으로 벗어날 수 있음 — 선택된 프레임이 바뀔 때마다 보이는 위치로 스크롤해줌
   useEffect(() => {
     const container = filmstripRef.current;
@@ -173,16 +173,11 @@ const TrainingCameraFramesPage = () => {
         meta={`${camera.location} · ${camera.code}`}
         notice={
           isLive
-            ? '훈련이 진행 중입니다. 약 5초 간격으로 최신 CCTV 프레임이 들어옵니다.'
-            : '훈련 중 5초 간격으로 수집된 CCTV 프레임입니다. 프레임과 프레임 사이의 상황은 확인할 수 없습니다.'
+            ? '실시간 모니터링 중 · 5초 간격으로 최신 CCTV 프레임이 수신됩니다.'
+            : '훈련 중 5초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.'
         }
+        live={isLive}
         onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
-      />
-
-      <CameraTabs
-        cameras={cameras}
-        activeCctvId={camera.cctvId}
-        onSelect={(c) => void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId))}
       />
 
       {isFramesLoading && <LoadingState size="md" message="프레임을 불러오는 중..." />}
@@ -194,130 +189,145 @@ const TrainingCameraFramesPage = () => {
         />
       )}
 
-      {!isFramesLoading && !isFramesError && (frames.length === 0 || !currentFrame) && (
-        <EmptyState title="저장된 프레임이 없습니다" />
-      )}
+      {!isFramesLoading && !isFramesError && (
+        <div className={styles.consolePanel}>
+          <CameraSidebar
+            cameras={cameras}
+            activeCctvId={camera.cctvId}
+            onSelect={(c) =>
+              void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId))
+            }
+          />
 
-      {!isFramesLoading && !isFramesError && frames.length > 0 && currentFrame && (
-        <div className={styles.mainGrid}>
-          <div className={styles.leftCol}>
-            <div className={styles.viewer}>
-              {currentFrame.imageUrl ? (
-                <img
-                  className={styles.viewerImg}
-                  src={currentFrame.imageUrl}
-                  alt={`${camera.code} ${formatCapturedTime(currentFrame.capturedAt)} 프레임`}
-                />
-              ) : (
-                <span className={styles.viewerEmpty}>이미지 준비 중…</span>
-              )}
+          <div className={styles.viewerCol}>
+            {frames.length === 0 || !currentFrame ? (
+              // EmptyState는 밝은 화면 기준 색이라(짙은 글자) 어두운 뷰어 위에서는 거의 안 보임 —
+              // 뷰어와 같은 어두운 박스 안에 옅은 색 글자로 직접 띄움
+              <div className={styles.viewer}>
+                <span className={styles.viewerEmpty}>저장된 프레임이 없습니다</span>
+              </div>
+            ) : (
+              <>
+                <div className={styles.viewer}>
+                  {currentFrame.imageUrl ? (
+                    <img
+                      className={styles.viewerImg}
+                      src={currentFrame.imageUrl}
+                      alt={`${camera.code} ${formatCapturedTime(currentFrame.capturedAt)} 프레임`}
+                    />
+                  ) : (
+                    <span className={styles.viewerEmpty}>이미지 준비 중…</span>
+                  )}
 
-              <span className={styles.viewerTime}>
-                촬영 시각 {formatCapturedTime(currentFrame.capturedAt)} ·{' '}
-                {formatElapsedFromStart(currentFrame.capturedAt, sessionStartedAtMs)}
-              </span>
-              <span className={styles.viewerIndex}>
-                {frameIndex + 1}/{frames.length}
-                {hasNextPage ? '+' : ''}
-              </span>
-              {isLive && frameIndex === lastFrameIndex && (
-                <span className={styles.liveBadge}>
-                  <span className={styles.liveDot} aria-hidden="true" />
-                  LIVE
-                </span>
-              )}
-
-              <button
-                type="button"
-                className={styles.navBtn}
-                style={{ left: '1.2rem' }}
-                disabled={frameIndex === 0 && !hasNextPage}
-                aria-label="이전 프레임"
-                onClick={goPrev}
-              >
-                <ChevronRightIcon width={16} height={16} className={styles.navIconPrev} />
-              </button>
-              <button
-                type="button"
-                className={styles.navBtn}
-                style={{ right: '1.2rem' }}
-                disabled={frameIndex === lastFrameIndex}
-                aria-label="다음 프레임"
-                onClick={goNext}
-              >
-                <ChevronRightIcon width={16} height={16} />
-              </button>
-            </div>
-
-            <div className={styles.filmstripSection}>
-              <button
-                type="button"
-                className={styles.filmstripNavBtn}
-                aria-label="프레임 목록 왼쪽으로"
-                onClick={() => scrollFilmstrip(-1)}
-              >
-                <ChevronRightIcon width={14} height={14} className={styles.navIconPrev} />
-              </button>
-
-              <div className={styles.filmstrip} ref={filmstripRef}>
-                {frames.map((frame, index) => (
-                  <button
-                    key={frame.frameId}
-                    type="button"
-                    className={clsx(
-                      styles.filmstripItem,
-                      index === frameIndex && styles.filmstripItemActive,
-                    )}
-                    onClick={() => selectFrame(index)}
-                  >
-                    {frame.imageUrl && (
-                      <img className={styles.filmstripThumb} src={frame.imageUrl} alt="" />
-                    )}
-                    <span className={styles.filmstripIndex}>{index + 1}</span>
-                    {NEEDS_ATTENTION.includes(frame.congestionLevel) && (
-                      <AlertIcon
-                        width={14}
-                        height={14}
-                        className={clsx(
-                          styles.filmstripAlert,
-                          frame.congestionLevel === 'VERY_CROWDED' && styles.filmstripAlertDanger,
-                        )}
-                      />
-                    )}
-                    <span className={styles.filmstripTime}>
-                      {formatCapturedTime(frame.capturedAt)}
+                  <span className={styles.viewerTime}>
+                    촬영 시각 {formatCapturedTime(currentFrame.capturedAt)} ·{' '}
+                    {formatElapsedFromStart(currentFrame.capturedAt, sessionStartedAtMs)}
+                  </span>
+                  <span className={styles.viewerIndex}>
+                    {frameIndex + 1}/{frames.length}
+                    {hasNextPage ? '+' : ''}
+                  </span>
+                  {isLive && frameIndex === lastFrameIndex && (
+                    <span className={styles.liveBadge}>
+                      <span className={styles.liveDot} aria-hidden="true" />
+                      LIVE
                     </span>
+                  )}
+
+                  <button
+                    type="button"
+                    className={styles.navBtn}
+                    style={{ left: '1.2rem' }}
+                    disabled={frameIndex === 0 && !hasNextPage}
+                    aria-label="이전 프레임"
+                    onClick={goPrev}
+                  >
+                    <ChevronRightIcon width={16} height={16} className={styles.navIconPrev} />
                   </button>
-                ))}
-              </div>
+                  <button
+                    type="button"
+                    className={styles.navBtn}
+                    style={{ right: '1.2rem' }}
+                    disabled={frameIndex === lastFrameIndex}
+                    aria-label="다음 프레임"
+                    onClick={goNext}
+                  >
+                    <ChevronRightIcon width={16} height={16} />
+                  </button>
+                </div>
 
-              <button
-                type="button"
-                className={styles.filmstripNavBtn}
-                aria-label="프레임 목록 오른쪽으로"
-                onClick={() => scrollFilmstrip(1)}
-              >
-                <ChevronRightIcon width={14} height={14} />
-              </button>
-            </div>
+                <div className={styles.filmstripSection}>
+                  <button
+                    type="button"
+                    className={styles.filmstripNavBtn}
+                    aria-label="프레임 목록 왼쪽으로"
+                    onClick={() => scrollFilmstrip(-1)}
+                  >
+                    <ChevronRightIcon width={14} height={14} className={styles.navIconPrev} />
+                  </button>
 
-            <div className={styles.statRow}>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>감지 인원</span>
-                <span className={styles.statValue}>{currentFrame.headcount}명</span>
-              </div>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>밀집도</span>
-                <span className={styles.statValue}>{currentFrame.density.toFixed(1)}명/㎡</span>
-              </div>
-              <div className={styles.statBox}>
-                <span className={styles.statLabel}>혼잡 단계</span>
-                <span className={styles.statValue}>
-                  {CONGESTION_LEVEL_LABEL[currentFrame.congestionLevel]}
-                </span>
-                <span className={styles.statSub}>{currentFrame.congestionLevel}</span>
-              </div>
-            </div>
+                  <div className={styles.filmstrip} ref={filmstripRef}>
+                    {frames.map((frame, index) => (
+                      <button
+                        key={frame.frameId}
+                        type="button"
+                        className={clsx(
+                          styles.filmstripItem,
+                          index === frameIndex && styles.filmstripItemActive,
+                        )}
+                        onClick={() => selectFrame(index)}
+                      >
+                        {frame.imageUrl && (
+                          <img className={styles.filmstripThumb} src={frame.imageUrl} alt="" />
+                        )}
+                        <span className={styles.filmstripIndex}>{index + 1}</span>
+                        {NEEDS_ATTENTION.includes(frame.congestionLevel) && (
+                          <AlertIcon
+                            width={14}
+                            height={14}
+                            className={clsx(
+                              styles.filmstripAlert,
+                              frame.congestionLevel === 'VERY_CROWDED' &&
+                                styles.filmstripAlertDanger,
+                            )}
+                          />
+                        )}
+                        <span className={styles.filmstripTime}>
+                          {formatCapturedTime(frame.capturedAt)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.filmstripNavBtn}
+                    aria-label="프레임 목록 오른쪽으로"
+                    onClick={() => scrollFilmstrip(1)}
+                  >
+                    <ChevronRightIcon width={14} height={14} />
+                  </button>
+                </div>
+
+                <div className={styles.statRow}>
+                  <div className={styles.statBox}>
+                    <span className={styles.statLabel}>감지 인원</span>
+                    <span className={styles.statValue}>{currentFrame.headcount}명</span>
+                  </div>
+                  <div className={styles.statBox}>
+                    <span className={styles.statLabel}>밀집도</span>
+                    <span className={styles.statValue}>{currentFrame.density.toFixed(1)}명/㎡</span>
+                  </div>
+                  <div className={styles.statBox}>
+                    <span className={styles.statLabel}>혼잡 단계</span>
+                    <span className={styles.statValue}>
+                      {CONGESTION_LEVEL_LABEL[currentFrame.congestionLevel]}
+                    </span>
+                    <span className={styles.statSub}>{currentFrame.congestionLevel}</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className={styles.rightCol}>

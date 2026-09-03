@@ -19,24 +19,12 @@ import {
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
 import * as styles from './TrainingCamerasPage.css';
-import { formatSessionStartedAt } from './utils/trainingAnalysis';
+import { formatSessionStartedAt, groupCamerasByFloor } from './utils/trainingAnalysis';
 
 import type { MonitoringCamera, TrainingSessionStatus } from './types/trainingAnalysis';
 
 const isViewable = (status: TrainingSessionStatus) =>
   (VIEWABLE_SESSION_STATUSES as readonly TrainingSessionStatus[]).includes(status);
-
-// 층별로 묶어서 보여주기 위한 그룹핑. Map은 key가 처음 등장한 순서를 유지하므로
-// 카메라 목록 응답 순서(대개 층 순)를 그대로 따라감
-const groupByFloor = (cameras: MonitoringCamera[]) => {
-  const groups = new Map<string, MonitoringCamera[]>();
-  for (const camera of cameras) {
-    const group = groups.get(camera.floorName);
-    if (group) group.push(camera);
-    else groups.set(camera.floorName, [camera]);
-  }
-  return Array.from(groups.entries());
-};
 
 const TrainingCamerasPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -55,7 +43,7 @@ const TrainingCamerasPage = () => {
     error: camerasError,
   } = useSessionCamerasQuery(sessionId, { live: isLive });
 
-  const floorGroups = useMemo(() => groupByFloor(cameras), [cameras]);
+  const floorGroups = useMemo(() => groupCamerasByFloor(cameras), [cameras]);
 
   if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
@@ -99,9 +87,10 @@ const TrainingCamerasPage = () => {
         meta={`${session.buildingName} · ${formatSessionStartedAt(session.startedAt)} 시작 · 카메라 ${cameras.length}대`}
         notice={
           isLive
-            ? '훈련이 진행 중입니다. 카메라별 최신 프레임이 약 5초 간격으로 갱신됩니다.'
-            : '훈련 중 5초 간격으로 수집된 프레임을 카메라별로 확인할 수 있습니다.'
+            ? '실시간 모니터링 중 · 카메라별 최신 프레임이 5초 간격으로 자동 갱신됩니다.'
+            : '훈련 중 5초 간격으로 수집된 프레임 기록입니다.'
         }
+        live={isLive}
         onBack={() => void navigate(ROUTES.TRAINING_ANALYSIS)}
       />
 

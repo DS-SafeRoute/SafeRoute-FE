@@ -1,4 +1,18 @@
+import type { MonitoringCamera } from '../types/trainingAnalysis';
+
 const pad = (value: number) => String(value).padStart(2, '0');
+
+// 층별로 묶어서 보여주기 위한 그룹핑 — 카메라 목록 카드 그리드, 프레임 상세 사이드바 둘 다에서
+// 씀. Map은 key가 처음 등장한 순서를 유지하므로 카메라 목록 응답 순서(대개 층 순)를 그대로 따라감
+export const groupCamerasByFloor = (cameras: MonitoringCamera[]) => {
+  const groups = new Map<string, MonitoringCamera[]>();
+  for (const camera of cameras) {
+    const group = groups.get(camera.floorName);
+    if (group) group.push(camera);
+    else groups.set(camera.floorName, [camera]);
+  }
+  return Array.from(groups.entries());
+};
 
 export const formatSessionStartedAt = (startedAt: string) => {
   const date = new Date(startedAt);

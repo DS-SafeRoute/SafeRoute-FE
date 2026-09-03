@@ -1,3 +1,4 @@
+import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 
 import * as styles from './CameraCard.css';
@@ -30,7 +31,6 @@ const CameraCard = ({ camera, onClick }: CameraCardProps) => {
       <div className={styles.thumb}>
         {hasThumbnail ? (
           <>
-            {capturedTime ? <span className={styles.timeBadge}>{capturedTime}</span> : null}
             {camera.thumbnailUrl ? (
               <img
                 className={styles.thumbImg}
@@ -41,20 +41,27 @@ const CameraCard = ({ camera, onClick }: CameraCardProps) => {
             ) : (
               <span className={styles.thumbPlaceholder} aria-hidden="true" />
             )}
+            {/* 사진 위에 시각 배지가 바로 얹히면 사진에 따라 잘 안 보일 수 있어 아래쪽에
+                옅은 그라데이션을 깔아 항상 읽히게 함 */}
+            <span className={styles.thumbScrim} aria-hidden="true" />
+            {capturedTime ? <span className={styles.timeBadge}>{capturedTime}</span> : null}
           </>
         ) : (
-          <span className={styles.noFrame}>썸네일 준비 중</span>
+          <div className={styles.thumbEmpty}>
+            <CameraIcon width={20} height={20} className={styles.thumbEmptyIcon} />
+            <span className={styles.noFrame}>썸네일 준비 중</span>
+          </div>
         )}
       </div>
 
       <div className={styles.info}>
-        <div>
+        <div className={styles.infoText}>
           <div className={styles.name}>{camera.name}</div>
           <div className={styles.location}>{camera.location}</div>
         </div>
         <span className={styles.link}>
           영상 분석 보기
-          <ChevronRightIcon width={12} height={12} />
+          <ChevronRightIcon width={12} height={12} className={styles.linkIcon} />
         </span>
       </div>
     </button>
