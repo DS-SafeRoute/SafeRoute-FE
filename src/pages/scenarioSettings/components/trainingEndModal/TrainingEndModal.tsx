@@ -76,20 +76,20 @@ const TrainingEndModal = ({
       <Modal
         open={open}
         onClose={() => undefined}
-        size="md"
+        size="lg"
         variant="confirm"
         className={styles.modal}
         confirmBodyClassName={styles.confirmBody}
         icon={<span className={styles.successIcon}>✓</span>}
-        title="분석 보고서가 생성되었습니다"
-        description="훈련 결과가 저장되었습니다. 이동할 페이지를 선택해 주세요."
+        title="훈련이 완료되었습니다"
+        description="훈련 결과가 저장되었으며 분석 보고서가 생성되었습니다."
         footer={
           <div className={styles.actions}>
             <Button type="button" variant="ghost" size="lg" onClick={onHome}>
               홈으로
             </Button>
             <Button type="button" size="lg" onClick={onReport}>
-              분석 보고서 보기
+              분석 보고서 보러 가기
             </Button>
           </div>
         }
@@ -102,10 +102,10 @@ const TrainingEndModal = ({
       open={open}
       onClose={canClose && !isSubmitting ? onClose : () => undefined}
       showCloseButton={canClose && !isSubmitting}
-      size="md"
+      size="lg"
       className={styles.modal}
       title="훈련 결과 입력"
-      description="예상 참가 인원을 확인하고 훈련 종료 시점의 생존 인원을 입력해 주세요."
+      description="총 참가 인원을 확인하고 생존 인원을 입력해 주세요."
       footer={
         <>
           <Button

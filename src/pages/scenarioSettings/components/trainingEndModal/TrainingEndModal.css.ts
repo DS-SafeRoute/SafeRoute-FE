@@ -3,7 +3,7 @@ import { style } from '@vanilla-extract/css';
 import { vars } from '@styles/global.css';
 
 export const modal = style({
-  width: '48rem',
+  width: 'min(60rem, calc(100vw - 3.2rem))',
 });
 
 export const form = style({
