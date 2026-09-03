@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
 
+import { extractApiError } from '@apis/errors/apiError';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import EmptyState from '@components/empty';
@@ -72,6 +73,13 @@ const getStartRestrictionMessage = ({
     return floorStatusMessage;
   }
   return undefined;
+};
+
+const getActionErrorMessage = (error: unknown, fallback: string) => {
+  const serverMessage = extractApiError(error).message;
+  if (serverMessage) return serverMessage;
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
 };
 
 // 시나리오 작성·대피 설정·훈련 제어의 순서를 조정하는 화면 컨테이너
@@ -215,8 +223,12 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     try {
       await training.startTraining();
       show({ title: '훈련이 시작되었습니다.', variant: 'success' });
-    } catch {
-      show({ title: '훈련 시작에 실패했습니다.', variant: 'error' });
+    } catch (error) {
+      show({
+        title: '훈련 시작에 실패했습니다.',
+        description: getActionErrorMessage(error, '잠시 후 다시 시도해 주세요.'),
+        variant: 'error',
+      });
     }
   };
 

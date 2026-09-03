@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 
+import { extractApiError } from '@apis/errors/apiError';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
@@ -85,8 +86,11 @@ const HomePage = () => {
 
       await startTrainingSessionMutation.mutateAsync(training.id);
       show({ title: '훈련이 시작되었습니다.', variant: 'success' });
-    } catch {
-      show({ title: '훈련 시작에 실패했습니다.', variant: 'error' });
+    } catch (error) {
+      const serverMessage = extractApiError(error).message;
+      const description =
+        serverMessage || (error instanceof Error ? error.message : '잠시 후 다시 시도해 주세요.');
+      show({ title: '훈련 시작에 실패했습니다.', description, variant: 'error' });
     }
   };
 
