@@ -1,9 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { useQueryClient } from '@tanstack/react-query';
 
 import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 import {
+  buildingFloorsQueryOptions,
+  floorCctvsQueryOptions,
+  floorGraphQueryOptions,
+  floorGridQueryOptions,
+  floorImageQueryOptions,
+  floorLightsQueryOptions,
   useBuildingFloorsQuery,
   useFloorCctvsQuery,
   useFloorGraphQuery,
@@ -23,6 +31,7 @@ import { formatFloor } from '@utils/floor';
 interface UseScenarioFloorViewParams {
   scenarioId?: string;
   buildingId: string;
+  enabled: boolean;
   isRunning: boolean;
   routeFloorId?: string | null;
   routeNodeIds: readonly string[];
@@ -73,24 +82,68 @@ const getDisplayedFloorId = ({
   return fallbackFloorId;
 };
 
-// 시나리오 대피 설정에 필요한 층·도면·그래프·격자와 선택 상태를 한 흐름으로 관리한다.
+// 시나리오 대피 설정에 필요한 층·도면·그래프·격자와 선택 상태를 관리
 export const useScenarioFloorView = ({
   scenarioId,
   buildingId,
+  enabled,
   isRunning,
   routeFloorId,
   routeNodeIds,
 }: UseScenarioFloorViewParams) => {
+  const queryClient = useQueryClient();
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [selectedFireCellId, setSelectedFireCellId] = useState<string | null>(null);
   const [selectedStartNodeId, setSelectedStartNodeId] = useState<string | null>(null);
 
-  const floorsQuery = useBuildingFloorsQuery(buildingId);
-  const setupQuery = useGetScenarioEvacuationSetupQuery(scenarioId);
+  // 기본 정보 작성 중 첫 도면 데이터 prefetch
+  useEffect(() => {
+    if (enabled || !buildingId) return;
+
+    let isCancelled = false;
+    const floorsQueryOptions = buildingFloorsQueryOptions(buildingId);
+    void queryClient
+      .prefetchQuery(floorsQueryOptions)
+      .then(async () => {
+        if (isCancelled) return;
+
+        const floors = queryClient.getQueryData(floorsQueryOptions.queryKey) ?? [];
+        const defaultFloor = floors.find(
+          (floor) => floor.segmentationStatus === 'DONE' && Boolean(floor.mapImageKey),
+        );
+        if (!defaultFloor) return;
+
+        const imageQueryOptions = floorImageQueryOptions(buildingId, defaultFloor.id);
+        const imagePrefetch = queryClient.prefetchQuery(imageQueryOptions).then(() => {
+          if (isCancelled) return;
+          const imageData = queryClient.getQueryData(imageQueryOptions.queryKey);
+          if (!imageData?.imageUrl) return;
+
+          const floorImage = new Image();
+          floorImage.src = imageData.imageUrl;
+        });
+
+        await Promise.allSettled([
+          imagePrefetch,
+          queryClient.prefetchQuery(floorGraphQueryOptions(defaultFloor.id)),
+          queryClient.prefetchQuery(floorGridQueryOptions(defaultFloor.id)),
+          queryClient.prefetchQuery(floorCctvsQueryOptions(defaultFloor.id)),
+          queryClient.prefetchQuery(floorLightsQueryOptions(defaultFloor.id)),
+        ]);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [buildingId, enabled, queryClient]);
+
+  const floorsQuery = useBuildingFloorsQuery(buildingId, enabled);
+  const setupQuery = useGetScenarioEvacuationSetupQuery(scenarioId, enabled);
   const setupMutation = useSetEvacuationSetupMutation();
   const fireZonesQuery = useScenarioFireZonesQuery(scenarioId, isRunning);
   const setup = setupQuery.data;
-  const isSetupPending = Boolean(scenarioId) && setupQuery.isPending;
+  const isSetupPending = enabled && Boolean(scenarioId) && setupQuery.isPending;
   const isConfigured = Boolean(
     setup?.configuredAt && setup.fireOrigin?.gridCellId && setup.startNode?.nodeId,
   );
@@ -109,11 +162,11 @@ export const useScenarioFloorView = ({
     isSelectedFloorAvailable,
   });
 
-  const floorImageQuery = useFloorImageUrlQuery(buildingId, floorId);
-  const floorGraphQuery = useFloorGraphQuery(floorId);
-  const floorGridQuery = useFloorGridCellsQuery(floorId);
-  const floorCctvsQuery = useFloorCctvsQuery(floorId);
-  const floorLightsQuery = useFloorLightsQuery(floorId);
+  const floorImageQuery = useFloorImageUrlQuery(buildingId, floorId, enabled);
+  const floorGraphQuery = useFloorGraphQuery(floorId, enabled);
+  const floorGridQuery = useFloorGridCellsQuery(floorId, enabled);
+  const floorCctvsQuery = useFloorCctvsQuery(floorId, enabled);
+  const floorLightsQuery = useFloorLightsQuery(floorId, enabled);
   const startNodes = useMemo(
     () => floorGraphQuery.data?.nodes.filter((node) => node.type === 'START') ?? [],
     [floorGraphQuery.data],

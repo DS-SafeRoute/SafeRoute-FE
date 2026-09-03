@@ -104,6 +104,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const floorView = useScenarioFloorView({
     scenarioId: scenario?.id,
     buildingId: scenarioForm.selectedBuildingId,
+    enabled: Boolean(scenario) && !isDraft,
     isRunning: training.isRunning,
     routeFloorId: training.route.routeFloorId,
     routeNodeIds: training.route.routeNodeIds,
