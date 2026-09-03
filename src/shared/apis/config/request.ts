@@ -82,9 +82,12 @@ export const request = async <TResponse, TBody = unknown>(
       const { status } = response;
       const message = response.data?.message;
 
+      // 서버가 준 실제 메시지가 있으면 그걸 우선함 — 예전엔 상태코드 기준 범용 문구를 먼저
+      // 체크해서 서버가 뭐라고 보내든(예: "진행 중인 훈련 세션을 찾을 수 없습니다") 항상 같은
+      // 뭉뚱그린 문구("이미 존재하는 데이터입니다" 등)만 콘솔에 찍혀 원인 파악을 방해했음
       const displayMessage =
-        RESPONSE_MESSAGE[status as keyof typeof RESPONSE_MESSAGE] ??
         message ??
+        RESPONSE_MESSAGE[status as keyof typeof RESPONSE_MESSAGE] ??
         '알 수 없는 오류가 발생했습니다.';
 
       if (import.meta.env.DEV) {

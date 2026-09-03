@@ -10,24 +10,19 @@ export const container = style({
   padding: vars.space.s8,
   paddingTop: vars.space.s4,
   overflow: 'auto',
+  // 스크롤은 그대로 되지만 오른쪽 스크롤바만 안 보이게 함
+  scrollbarWidth: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': {
+      display: 'none',
+    },
+  },
 });
 
 export const gridSection = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s5,
-});
-
-// "카메라 목록"이라는 별도 제목은 세션 카드 바로 아래에서 어색해서 뺐고,
-// 보조 정보만 우측 정렬로 가볍게 남겨둠 (목록 페이지 "총 N건"과 같은 톤)
-export const gridHeadRow = style({
-  display: 'flex',
-  justifyContent: 'flex-end',
-});
-
-export const gridSubtitle = style({
-  color: vars.color.textLow,
-  ...vars.typography.body14,
 });
 
 export const floorGroup = style({

@@ -31,7 +31,11 @@ const GNB = ({
 }: GNBProps) => (
   <header className={styles.container}>
     <div className={styles.left}>
-      {breadcrumbs && breadcrumbs.length > 0 && (
+      {/* breadcrumbs가 undefined면(대부분의 화면) 브레드크럼 자체를 안 그림 — 기존과 동일.
+          breadcrumbs를 빈 배열([])로 명시하면(더 상위 단계가 없는 "홈"급 화면) 이전 단계
+          없이 title 하나만 현재 위치로 보여줌 — 앞 단계가 없는데 title을 그대로 한 번 더
+          붙이면 "훈련 분석 › 훈련 분석"처럼 같은 말이 중복돼 보이는 문제를 해결함 */}
+      {breadcrumbs && (
         <nav className={styles.breadcrumb} aria-label="breadcrumb">
           {breadcrumbs.map((item, index) => (
             <span key={`${item.label}-${index}`} className={styles.breadcrumb}>
@@ -41,7 +45,9 @@ const GNB = ({
               <span>{item.label}</span>
             </span>
           ))}
-          <ChevronRightIcon className={styles.breadcrumbSep} width={12} height={12} />
+          {breadcrumbs.length > 0 && (
+            <ChevronRightIcon className={styles.breadcrumbSep} width={12} height={12} />
+          )}
           <span className={styles.breadcrumbCurrent}>{title}</span>
         </nav>
       )}

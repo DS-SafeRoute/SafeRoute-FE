@@ -6,49 +6,60 @@ export const container = style({
   display: 'flex',
   flex: 1,
   flexDirection: 'column',
-  gap: vars.space.s5,
+  gap: vars.space.s4,
   padding: vars.space.s8,
   paddingTop: vars.space.s4,
   overflow: 'auto',
+  // 스크롤은 그대로 되지만 오른쪽 스크롤바만 안 보이게 함
+  scrollbarWidth: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': {
+      display: 'none',
+    },
+  },
 });
 
-export const mainGrid = style({
+// 사이드바(카메라 목록)·뷰어·우측 패널을 나란히 두는 틀만 여기서 잡음 — 배경은 각 영역이
+// 알아서 관리함(뷰어·필름스트립은 영상이라 어둡게, 사이드바·우측 패널은 앱의 다른 화면과
+// 같은 밝은 카드 톤으로). 전체를 하나의 어두운 캔버스로 묶어봤다가 정보 카드까지 다 어두워져
+// 가독성이 떨어진다는 피드백을 받고 되돌림
+export const consolePanel = style({
   display: 'grid',
-  gridTemplateColumns: '1fr 32rem',
+  gridTemplateColumns: '25rem 1fr 30rem',
   alignItems: 'start',
   gap: vars.space.s5,
-  // 좁은 화면에서는 고정 32rem 우측 열이 컨테이너 패딩과 함께 가로 폭을 넘겨서
-  // 단일 열로 떨어뜨림
   '@media': {
-    '(max-width: 1024px)': {
+    '(max-width: 1280px)': {
+      gridTemplateColumns: '25rem 1fr',
+    },
+    '(max-width: 960px)': {
       gridTemplateColumns: '1fr',
     },
   },
 });
 
-// minWidth:0 필수 — 없으면 grid item의 기본 min-width가 콘텐츠 크기(auto)로 잡혀서,
-// 프레임이 20개로 늘어난 뒤 필름스트립의 콘텐츠 폭만큼 이 컬럼 전체가 밀려 커지고
-// 우측 패널이 화면 밖으로 빠지는 가로 오버플로우가 생겼음
-export const leftCol = style({
+export const viewerCol = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
   minWidth: 0,
 });
 
-/* 프레임 뷰어. 16:9 비율은 유지한 채 maxWidth로 상한을 둬서 화면이 넓어도 찌그러지지 않고
-   가운데 정렬로 작아지게 함 (maxHeight로 누르면 비율이 깨져서 납작해짐) */
+/* 프레임 뷰어 — 목록 화면의 카드 썸네일(16:9, 그리드 한 칸 폭)보다 이 화면이 실제로 "보는" 데
+   전념하는 화면이니 눈에 띄게 커야 함. 이전엔 maxWidth로 눌러놨는데 그러면 카드 썸네일이랑
+   체감 크기 차이가 잘 안 남 — 가운데 열 폭을 그대로 다 씀(대신 세로로 과하게 길어지지 않도록
+   maxHeight로만 상한을 둠). 영상이 실제로 나오는 자리라 검정 배경은 그대로 유지함(영상 플레이어의
+   일반적인 관례이고, 주변이 밝아도 이 박스만 어두운 건 자연스러움) */
 export const viewer = style({
   aspectRatio: '16 / 9',
   position: 'relative',
   display: 'flex',
   alignItems: 'center',
-  alignSelf: 'center',
   justifyContent: 'center',
   borderRadius: vars.radius.lg,
-  backgroundColor: vars.color.gray900,
+  backgroundColor: '#000000',
   width: '100%',
-  maxWidth: '64rem',
+  maxHeight: '60rem',
   overflow: 'hidden',
 });
 
@@ -136,7 +147,7 @@ export const navIconPrev = style({
   transform: 'scaleX(-1)',
 });
 
-/* 지표 3종 — 카드 톤을 rightCol의 panel과 맞춤(padding s5로 통일) */
+/* 지표 3종 — 영상이 아니라 수치 데이터라 우측 패널과 같은 밝은 카드 톤으로 둠 */
 export const statRow = style({
   display: 'grid',
   gridTemplateColumns: 'repeat(3, 1fr)',
@@ -168,8 +179,7 @@ export const statSub = style({
   ...vars.typography.body14,
 });
 
-/* 프레임 탐색 — 별도 카드로 감싸지 않고 뷰어 아래 흐름에 바로 이어지게 함.
-   제목/개수 문구는 우측 "세션 정보" 패널의 저장 프레임 수와 중복이라 뺌 */
+/* 프레임 탐색 — 뷰어 바로 아래 이어지는 영상 타임라인이라 뷰어와 같은 어두운 톤을 유지함 */
 export const filmstripSection = style({
   display: 'flex',
   alignItems: 'center',
@@ -182,15 +192,15 @@ export const filmstripNavBtn = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
+  border: 'none',
   borderRadius: '50%',
-  backgroundColor: vars.color.white,
+  backgroundColor: vars.color.gray900,
   cursor: 'pointer',
   width: '3.2rem',
   height: '3.2rem',
-  color: vars.color.textMid,
+  color: vars.color.white,
   selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
+    '&:hover': { backgroundColor: vars.color.gray700 },
   },
 });
 
@@ -201,6 +211,9 @@ export const filmstrip = style({
   display: 'flex',
   flex: 1,
   gap: vars.space.s2,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.gray900,
+  padding: '0.6rem',
   minWidth: 0,
   overflowX: 'auto',
   scrollbarWidth: 'none',
@@ -221,11 +234,12 @@ export const filmstripItem = style({
   transition: 'outline-color 0.15s, box-shadow 0.15s',
   outline: `3px solid transparent`,
   outlineOffset: '-3px',
+  border: '1px solid rgba(255,255,255,0.12)',
   borderRadius: vars.radius.md,
-  backgroundColor: vars.color.gray900,
+  backgroundColor: vars.color.gray700,
   cursor: 'pointer',
-  width: '12rem',
-  height: '8rem',
+  width: '11rem',
+  height: '7rem',
 });
 
 // 어두운 썸네일 위에서도 또렷이 보이도록 outline(진한 파랑) + 바깥쪽 은은한 링(box-shadow)을 같이 줌
@@ -275,11 +289,13 @@ export const filmstripTime = style({
   ...vars.typography.caption,
 });
 
-/* 우측 패널 */
+/* 우측 패널 — 세션·이벤트 정보는 영상이 아니라 텍스트 데이터라, 앱의 다른 화면과 같은
+   밝은 카드 톤을 그대로 씀(어두운 캔버스에 묶었더니 오히려 안 읽힌다는 피드백 반영) */
 export const rightCol = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
+  minWidth: 0,
 });
 
 export const panel = style({

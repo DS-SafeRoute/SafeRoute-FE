@@ -64,27 +64,33 @@ const GNB_CONFIGS = [
     },
   },
   {
+    // 진행 중인 훈련으로 바로 리다이렉트되는 화면이라 거의 순간적으로만 보임 — 그래도 잠깐
+    // 보일 로딩/빈 상태는 카메라 목록(진짜 홈)과 같은 톤으로 맞춰둠
     path: ROUTES.TRAINING_ANALYSIS,
     config: {
-      breadcrumbs: [{ label: '훈련 분석' }],
+      // 더 상위 단계가 없는 화면이라 빈 배열로 둠 — GNB가 이 경우 "훈련 분석"(title)
+      // 하나만 브레드크럼으로 보여주고, "훈련 분석 › 훈련 분석"처럼 중복되지 않게 함
+      breadcrumbs: [],
       title: '훈련 분석',
-      description: '진행 중이거나 종료된 훈련의 CCTV 프레임을 확인합니다',
+      description: '진행 중인 훈련의 CCTV 프레임을 실시간으로 확인합니다',
     },
   },
   {
+    // 훈련분석의 실질적인 첫 화면(더 이상 목록 페이지가 없음) — 위와 같은 이유로 빈 배열
     path: ROUTES.TRAINING_CAMERAS,
     config: {
-      breadcrumbs: [{ label: '훈련 분석' }],
-      title: '영상 분석',
+      breadcrumbs: [],
+      title: '훈련 분석',
       description: '선택한 훈련에서 카메라별로 수집된 프레임을 확인합니다',
     },
   },
   {
+    // 카메라 목록에서 한 단계 더 들어간 화면이라 "훈련 분석" 브레드크럼 아래 별도 타이틀을 둠
     path: ROUTES.TRAINING_CAMERA_FRAMES,
     config: {
       breadcrumbs: [{ label: '훈련 분석' }],
-      title: '영상 분석',
-      description: '선택한 훈련에서 카메라별로 수집된 프레임을 확인합니다',
+      title: '영상 상세',
+      description: '선택한 카메라의 CCTV 프레임을 확인합니다',
     },
   },
   {

@@ -2,13 +2,21 @@ import { useMemo } from 'react';
 
 import { Navigate, useNavigate, useParams } from 'react-router';
 
+import { extractApiError } from '@apis/errors/apiError';
+
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 
 import { getTrainingCameraFramesPath, ROUTES } from '@constants/path';
 
+import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
+
+import { formatDuration } from '@utils/format';
+
 import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
-import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
+import { useTrainingSessionQuery } from './api/useSessionContextQuery';
+import { useSessionCurrentStatesQuery } from './api/useSessionCurrentStatesQuery';
+import { useTrainingMonitoringSocket } from './api/useTrainingMonitoringSocket';
 import CameraCard from './components/CameraCard/CameraCard';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -17,24 +25,16 @@ import {
   VIEWABLE_SESSION_STATUSES,
 } from './constants/trainingAnalysis';
 import * as styles from './TrainingCamerasPage.css';
-import { formatSessionStartedAt } from './utils/trainingAnalysis';
+import {
+  formatSessionStartedClock,
+  formatSessionStartedDate,
+  groupCamerasByFloor,
+} from './utils/trainingAnalysis';
 
 import type { MonitoringCamera, TrainingSessionStatus } from './types/trainingAnalysis';
 
 const isViewable = (status: TrainingSessionStatus) =>
   (VIEWABLE_SESSION_STATUSES as readonly TrainingSessionStatus[]).includes(status);
-
-// 층별로 묶어서 보여주기 위한 그룹핑. Map은 key가 처음 등장한 순서를 유지하므로
-// 카메라 목록 응답 순서(대개 층 순)를 그대로 따라감
-const groupByFloor = (cameras: MonitoringCamera[]) => {
-  const groups = new Map<string, MonitoringCamera[]>();
-  for (const camera of cameras) {
-    const group = groups.get(camera.floorName);
-    if (group) group.push(camera);
-    else groups.set(camera.floorName, [camera]);
-  }
-  return Array.from(groups.entries());
-};
 
 const TrainingCamerasPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -44,15 +44,32 @@ const TrainingCamerasPage = () => {
     session,
     isLoading: isSessionLoading,
     isError: isSessionError,
+    error: sessionError,
   } = useTrainingSessionQuery(sessionId);
   const isLive = isLiveSessionStatus(session?.status);
   const {
     data: cameras = [],
     isLoading: isCamerasLoading,
     isError: isCamerasError,
+    error: camerasError,
   } = useSessionCamerasQuery(sessionId, { live: isLive });
+  const { data: currentStates = [] } = useSessionCurrentStatesQuery(sessionId, { live: isLive });
+  const currentStateByCode = useMemo(
+    () => new Map(currentStates.map((state) => [state.cctvCode, state])),
+    [currentStates],
+  );
 
-  const floorGroups = useMemo(() => groupByFloor(cameras), [cameras]);
+  // 진행 중일 때만 1초 단위로 이어서 증가시키고, 종료됐으면 서버가 마지막으로 준 값을 그대로 표시
+  const tickingElapsed = useElapsedTrainingTime(isLive ? (session?.startedAt ?? null) : null);
+  const elapsedDisplay = isLive ? tickingElapsed : formatDuration(session?.elapsedSeconds ?? 0);
+
+  const cameraRefs = useMemo(
+    () => cameras.map((c) => ({ cctvId: c.cctvId, code: c.code })),
+    [cameras],
+  );
+  useTrainingMonitoringSocket(sessionId, cameraRefs);
+
+  const floorGroups = useMemo(() => groupCamerasByFloor(cameras), [cameras]);
 
   if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
@@ -63,7 +80,7 @@ const TrainingCamerasPage = () => {
       <div className={styles.container}>
         <EmptyState
           title="훈련 정보를 불러오지 못했습니다"
-          description="잠시 후 다시 시도해주세요"
+          description={extractApiError(sessionError).message || '잠시 후 다시 시도해주세요'}
         />
       </div>
     );
@@ -78,12 +95,8 @@ const TrainingCamerasPage = () => {
   }
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
-  // 저장된 프레임 유무는 capturedAt으로 판단 — MonitoringCamera 계약상 캡처 프레임이 없을 때만 null이고,
-  // thumbnailUrl은 만료 등으로 프레임이 있어도 null일 수 있음
-  const cameraWithFrame = cameras.filter((camera) => camera.capturedAt !== null);
 
   const handleSelect = (camera: MonitoringCamera) => {
-    if (camera.capturedAt === null) return;
     void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId));
   };
 
@@ -93,13 +106,19 @@ const TrainingCamerasPage = () => {
         sessionName={session.scenarioName}
         statusLabel={statusView.label}
         statusColor={statusView.color}
-        meta={`${session.buildingName} · ${formatSessionStartedAt(session.startedAt)} 시작 · 카메라 ${cameras.length}대`}
+        meta={session.buildingName}
         notice={
           isLive
-            ? '훈련이 진행 중입니다. 카메라별 최신 프레임이 약 5초 간격으로 갱신됩니다.'
-            : '훈련 중 5초 간격으로 수집된 프레임을 카메라별로 확인할 수 있습니다.'
+            ? `실시간 모니터링 중 · 카메라별 최신 프레임이 ${session.snapshotIntervalSec}초 간격으로 자동 갱신됩니다.`
+            : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 프레임 기록입니다.`
         }
-        onBack={() => void navigate(ROUTES.TRAINING_ANALYSIS)}
+        live={isLive}
+        stats={[
+          { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
+          { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
+          { label: '진행 시간', value: elapsedDisplay },
+          { label: '카메라', value: `${cameras.length}대` },
+        ]}
       />
 
       <div className={styles.gridSection}>
@@ -108,7 +127,10 @@ const TrainingCamerasPage = () => {
         {!isCamerasLoading && isCamerasError && (
           <EmptyState
             title="카메라 목록을 불러오지 못했습니다"
-            description="잠시 후 다시 시도해주세요"
+            // 서버가 이유를 message로 내려주면(예: 세션이 더 이상 조회 가능한 상태가 아님)
+            // 그대로 보여줌 — "잠시 후 다시 시도해주세요"는 재시도로 해결 안 되는 경우에도
+            // 똑같이 떠서 오해를 줬음
+            description={extractApiError(camerasError).message || '잠시 후 다시 시도해주세요'}
           />
         )}
 
@@ -118,13 +140,6 @@ const TrainingCamerasPage = () => {
 
         {!isCamerasLoading && !isCamerasError && cameras.length > 0 && (
           <>
-            <div className={styles.gridHeadRow}>
-              <span className={styles.gridSubtitle}>
-                프레임이 있는 카메라 {cameraWithFrame.length}대 ·{' '}
-                {isLive ? '약 5초 간격으로 갱신 중' : '5초 간격으로 수집됨'}
-              </span>
-            </div>
-
             {floorGroups.map(([floorName, floorCameras]) => (
               <div key={floorName} className={styles.floorGroup}>
                 <div className={styles.floorHeadRow}>
@@ -133,7 +148,12 @@ const TrainingCamerasPage = () => {
                 </div>
                 <div className={styles.grid}>
                   {floorCameras.map((camera) => (
-                    <CameraCard key={camera.cctvId} camera={camera} onClick={handleSelect} />
+                    <CameraCard
+                      key={camera.cctvId}
+                      camera={camera}
+                      currentState={currentStateByCode.get(camera.code)}
+                      onClick={handleSelect}
+                    />
                   ))}
                 </div>
               </div>
