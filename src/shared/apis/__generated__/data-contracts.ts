@@ -244,6 +244,7 @@ export interface ApiResponseTrainingSessionResponse {
   code?: string;
   isSuccess?: boolean;
   message?: string;
+  /** 훈련 세션 생성/시작/종료/강제종료 API의 공통 응답 */
   result?: TrainingSessionResponse;
 }
 
@@ -494,12 +495,9 @@ export interface CreateCctvRequest {
   y: number;
 }
 
-export type CreateEdgeData = ApiResponseMapEdgeResponse;
+export type CreateDraftData = ScenarioResponse;
 
-export interface CreateFireZoneRequest {
-  /** @format uuid */
-  gridCellId: string;
-}
+export type CreateEdgeData = ApiResponseMapEdgeResponse;
 
 export type CreateFloorData = ApiResponseFloorResponse;
 
@@ -577,40 +575,38 @@ export interface CreatePresignedImageUrlRequest {
 
 export type CreatePresignedUrlData = PresignedImageUrlResponse;
 
-export type CreateScenarioData = ScenarioResponse;
-
-export interface CreateScenarioRequest {
+export interface CreateScenarioDraftRequest {
   /** @format uuid */
-  adminId: string;
-  /** @format uuid */
-  buildingId: string;
+  buildingId?: string;
   /** @format int32 */
-  expectedParticipants: number;
+  expectedParticipants?: number;
   fireSpreadSpeed?: "SLOW" | "MEDIUM" | "FAST";
   isTemplate?: boolean;
   /**
    * @minLength 2
    * @maxLength 20
    */
-  name: string;
+  name?: string;
   /** @format date-time */
-  scheduledAt: string;
+  scheduledAt?: string;
   /** @format int32 */
   targetEvacuationSec?: number;
 }
 
-export interface CreateSessionRequest {
+export interface CreateScenarioEvacuationSetupRequest {
   /** @format uuid */
+  fireOriginGridCellId: string;
+  /** @format uuid */
+  startNodeId: string;
+}
+
+export interface CreateSessionRequest {
+  /**
+   * 세션을 생성할 관리자 ID
+   * @format uuid
+   * @example "8d40b5e1-40f8-4dd4-a11c-f1ed418b73d1"
+   */
   adminId: string;
-  /** @format date-time */
-  startedAt: string;
-  status:
-    | "RUNNING"
-    | "STOPPED"
-    | "SCHEDULED"
-    | "COMPLETED"
-    | "FAILED"
-    | "CANCELLED";
 }
 
 export type CreateTrainingSessionData = TrainingSessionResponse;
@@ -622,6 +618,119 @@ export interface CumulativeEvacuationPointResponse {
   cumulativeCount?: number;
   /** @format int32 */
   elapsedSec?: number;
+}
+
+/** CCTV별 현재 혼잡 상태 목록의 공통 API 응답 스키마 */
+export interface CurrentCctvStateListApiResponse {
+  /**
+   * 응답 코드
+   * @example "TRAINING_SUCCESS_010"
+   */
+  code?: string;
+  /**
+   * 요청 성공 여부
+   * @example true
+   */
+  isSuccess?: boolean;
+  /**
+   * 응답 메시지
+   * @example "CCTV 현재 혼잡 상태 조회에 성공했습니다."
+   */
+  message?: string;
+  /** CCTV별 현재 혼잡 상태 목록 */
+  result?: CurrentCctvStateListResponse;
+}
+
+/** 훈련 세션의 CCTV별 현재 혼잡 상태 목록 */
+export interface CurrentCctvStateListResponse {
+  /**
+   * 이 응답을 만든 시각(Unix epoch milliseconds)
+   * @format int64
+   * @example 1787722095000
+   */
+  observedAt?: number;
+  /**
+   * 조회한 훈련 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
+  sessionId?: string;
+  states?: CurrentCctvStateResponse[];
+}
+
+/** CCTV 한 대의 현재 혼잡 상태 */
+export interface CurrentCctvStateResponse {
+  /**
+   * 최근 5초 관측 구간의 평균 인원. 상태가 없으면 null
+   * @format double
+   * @example 8.6
+   */
+  avgHeadcount?: number;
+  /**
+   * CCTV가 설치된 건물명
+   * @example "A동"
+   */
+  buildingName?: string;
+  /**
+   * CCTV 고유 코드
+   * @example "CCTV_001"
+   */
+  cctvCode?: string;
+  /**
+   * CCTV ID
+   * @format uuid
+   * @example "67b86e33-7874-494c-855f-e591e7847c09"
+   */
+  cctvId?: string;
+  /**
+   * 관리자가 지정한 CCTV 이름
+   * @example "CAM-1"
+   */
+  cctvName?: string;
+  /**
+   * 상태가 저장될 때 적용된 혼잡 설정 버전. 상태가 없으면 null
+   * @format int64
+   * @example 3
+   */
+  configVersion?: number;
+  /**
+   * 혼잡 단계. 상태가 없으면 null
+   * @example "CROWDED"
+   */
+  congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
+  /**
+   * 밀집도(㎡당 인원). 상태가 없으면 null
+   * @format double
+   * @example 0.42
+   */
+  density?: number;
+  /**
+   * 화면 표시용 층 이름
+   * @example "3층"
+   */
+  floorName?: string;
+  /**
+   * 상태를 마지막으로 관측한 시각(Unix epoch milliseconds). 상태가 없으면 null
+   * @format int64
+   * @example 1787722095000
+   */
+  lastDetectedAt?: number;
+  /**
+   * 건물명과 층 이름을 조합한 표시 위치
+   * @example "A동 3층"
+   */
+  location?: string;
+  /**
+   * 최근 5초 관측 구간의 순간 최대 인원. 상태가 없으면 null
+   * @format int32
+   * @example 12
+   */
+  peakHeadcount?: number;
+  /**
+   * stateStaleAfterSec를 초과해 오래됐거나 상태가 아직 없으면 true. true일 때는 congestionLevel 등을 NORMAL로 오인하지 말고 '정보 없음/오래됨'으로 표시해야 한다
+   * @example false
+   */
+  stale?: boolean;
 }
 
 export interface CurrentRouteResponse {
@@ -670,8 +779,6 @@ export type DeleteScenarioData = any;
 
 export type DeleteUserZoneData = any;
 
-export type DesignateOriginData = FireZoneResponse;
-
 export interface DeviceTokenIssueResponse {
   deviceToken?: string;
 }
@@ -707,6 +814,21 @@ export interface EventDetectionResponse {
 export type FindAllUserZoneData = ApiResponseAllUserZoneResponse;
 
 export type FindUserZoneData = ApiResponseUserZoneCellsResponse;
+
+export interface FireOrigin {
+  /** @format double */
+  centerX?: number;
+  /** @format double */
+  centerY?: number;
+  /** @format int32 */
+  columnIndex?: number;
+  /** @format uuid */
+  fireZoneId?: string;
+  /** @format uuid */
+  gridCellId?: string;
+  /** @format int32 */
+  rowIndex?: number;
+}
 
 export interface FireZoneResponse {
   /** @format date-time */
@@ -823,7 +945,11 @@ export type GetCctvsData = ApiResponseListCctvResponse;
 
 export type GetConfigData = CongestionConfigQueryResponse;
 
+export type GetContextData = MonitoringContextApiResponse;
+
 export type GetCurrentRouteData = ApiResponseCurrentRouteResponse;
+
+export type GetCurrentStatesData = CurrentCctvStateListApiResponse;
 
 export type GetDeviationRateData = ApiResponseRouteDeviationResponse;
 
@@ -872,6 +998,8 @@ export type GetScenarioData = ScenarioResponse;
 export type GetScenariosData = ScenarioResponse[];
 
 export type GetSessionsData = TrainingSessionListApiResponse;
+
+export type GetSetupData = ScenarioEvacuationSetupResponse;
 
 export type GetShortestRouteData = ApiResponseEvacuationRouteResponse;
 
@@ -1065,6 +1193,88 @@ export interface MonitoringCameraResponse {
   urlExpiresAt?: number;
 }
 
+/** 모니터링 세션 정보의 공통 API 응답 스키마 */
+export interface MonitoringContextApiResponse {
+  /**
+   * 응답 코드
+   * @example "TRAINING_SUCCESS_011"
+   */
+  code?: string;
+  /**
+   * 요청 성공 여부
+   * @example true
+   */
+  isSuccess?: boolean;
+  /**
+   * 응답 메시지
+   * @example "모니터링 세션 정보 조회에 성공했습니다."
+   */
+  message?: string;
+  /** 모니터링 세션 정보 */
+  result?: MonitoringContextResponse;
+}
+
+/** 모니터링 상세 화면에 필요한 세션 기본 정보 */
+export interface MonitoringContextResponse {
+  /**
+   * 세션이 속한 건물명
+   * @example "A동"
+   */
+  buildingName?: string;
+  /**
+   * 경과 시간(초). RUNNING이면 현재 시각 기준으로 계속 늘어나는 값, 종료된 세션이면 종료 시각 기준으로 고정된 값. 아직 시작 전(SCHEDULED)이면 null
+   * @format int64
+   * @example 95
+   */
+  elapsedSeconds?: number;
+  /**
+   * 훈련 종료 시각(Unix epoch milliseconds). 아직 종료되지 않았으면 null
+   * @format int64
+   * @example 1787723000000
+   */
+  endedAt?: number;
+  /**
+   * 시나리오명
+   * @example "3학년 A동 화재 대피 훈련"
+   */
+  scenarioName?: string;
+  /**
+   * 조회한 훈련 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
+  sessionId?: string;
+  /**
+   * Pi 관측 저장 간격(초). 전역 설정값
+   * @format int32
+   * @example 5
+   */
+  snapshotIntervalSec?: number;
+  /**
+   * 훈련 시작 시각(Unix epoch milliseconds). 아직 시작 전(SCHEDULED)이면 null
+   * @format int64
+   * @example 1787722000000
+   */
+  startedAt?: number;
+  /**
+   * CCTV 현재 상태(current-states)가 stale로 판정되는 기준(초). 전역 설정값
+   * @format int32
+   * @example 15
+   */
+  stateStaleAfterSec?: number;
+  /**
+   * 세션 상태
+   * @example "RUNNING"
+   */
+  status?:
+    | "RUNNING"
+    | "STOPPED"
+    | "SCHEDULED"
+    | "COMPLETED"
+    | "FAILED"
+    | "CANCELLED";
+}
+
 /** 이벤트 타임라인의 공통 API 응답 스키마 */
 export interface MonitoringEventListApiResponse {
   /**
@@ -1227,6 +1437,18 @@ export interface MonitoringFrameResponse {
    * @example 1787725695000
    */
   urlExpiresAt?: number;
+  /**
+   * 이 프레임이 속한 분석 구간의 종료 시각(Unix epoch milliseconds)
+   * @format int64
+   * @example 1787722095000
+   */
+  windowEnd?: number;
+  /**
+   * 이 프레임이 속한 분석 구간의 시작 시각(Unix epoch milliseconds)
+   * @format int64
+   * @example 1787722090000
+   */
+  windowStart?: number;
 }
 
 export interface NodePoint {
@@ -1274,6 +1496,8 @@ export interface PresignedImageUrlResponse {
   objectKey?: string;
   uploadUrl?: string;
 }
+
+export type ReadyScenarioData = ScenarioResponse;
 
 export interface RecentEvacuationResponse {
   /** @format int32 */
@@ -1508,6 +1732,19 @@ export interface S3UploadResponse {
   size?: number;
 }
 
+export interface ScenarioEvacuationSetupResponse {
+  /** @format uuid */
+  buildingId?: string;
+  /** @format date-time */
+  configuredAt?: string;
+  fireOrigin?: FireOrigin;
+  /** @format uuid */
+  floorId?: string;
+  /** @format uuid */
+  scenarioId?: string;
+  startNode?: StartNode;
+}
+
 export interface ScenarioResponse {
   /** @format uuid */
   adminId?: string;
@@ -1534,6 +1771,8 @@ export interface ScenarioResponse {
   /** @format date-time */
   updatedAt?: string;
 }
+
+export type SetupData = ScenarioEvacuationSetupResponse;
 
 export type SignupData = ApiResponseSignupResponse;
 
@@ -1572,6 +1811,18 @@ export interface SignupResponse {
   username?: string;
 }
 
+export interface StartNode {
+  code?: string;
+  name?: string;
+  /** @format uuid */
+  nodeId?: string;
+  type?: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "START" | "CUSTOM";
+  /** @format double */
+  x?: number;
+  /** @format double */
+  y?: number;
+}
+
 export type StartTrainingSessionData = ApiResponseTrainingSessionResponse;
 
 /** 훈련 세션 목록의 공통 API 응답 스키마 */
@@ -1600,13 +1851,38 @@ export interface TrainingSessionListResponse {
   sessions?: TrainingSessionSummaryResponse[];
 }
 
+/** 훈련 세션 생성/시작/종료/강제종료 API의 공통 응답 */
 export interface TrainingSessionResponse {
+  /**
+   * 세션을 생성한 관리자 이름
+   * @example "박현지"
+   */
   adminName?: string;
-  /** @format uuid */
+  /**
+   * 훈련 종료 시각(정상 종료 또는 강제 종료). RUNNING이거나 아직 시작되지 않았으면 null. end/force-end 응답에는 방금 종료 처리된 시각이 그대로 담깁니다.
+   * @format date-time
+   */
+  endedAt?: string;
+  /**
+   * 세션 ID
+   * @format uuid
+   * @example "d669294e-55e1-4c00-bf67-229d89b76948"
+   */
   id?: string;
+  /**
+   * 훈련 시나리오명
+   * @example "3학년 A동 화재 대피 훈련"
+   */
   scenarioName?: string;
-  /** @format date-time */
+  /**
+   * 훈련 시작 시각. 아직 시작되지 않았으면(SCHEDULED) null
+   * @format date-time
+   */
   startedAt?: string;
+  /**
+   * 세션 상태
+   * @example "COMPLETED"
+   */
   status?:
     | "RUNNING"
     | "STOPPED"
@@ -1629,6 +1905,12 @@ export interface TrainingSessionSummaryResponse {
    * @example "A동"
    */
   buildingName?: string;
+  /**
+   * 훈련 시나리오 ID
+   * @format uuid
+   * @example "746d0249-c6c2-4a61-a233-44f35c04dc49"
+   */
+  scenarioId?: string;
   /**
    * 훈련 시나리오 이름
    * @example "3학년 A동 화재 대피 훈련"
@@ -1740,6 +2022,8 @@ export interface UpdatePiEndpointRequest {
 export type UpdateScenarioData = ScenarioResponse;
 
 export interface UpdateScenarioRequest {
+  /** @format uuid */
+  buildingId?: string;
   /** @format int32 */
   expectedParticipants?: number;
   fireSpreadSpeed?: "SLOW" | "MEDIUM" | "FAST";
