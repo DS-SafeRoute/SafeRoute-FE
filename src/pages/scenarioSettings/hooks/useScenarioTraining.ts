@@ -37,8 +37,8 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   } | null>(null);
   // 대피 설정 직후 생성한 SCHEDULED 세션을 목록 재조회 전에도 경로 미리보기에 사용
   const [preparedSessionId, setPreparedSessionId] = useState<string | null>(null);
-  // 서버가 최대 진행 시간 초과로 FAILED 처리했을 때 한 번 안내하기 위한 이벤트 시각
-  const [timeLimitExceededAt, setTimeLimitExceededAt] = useState<string | null>(null);
+  // 타임아웃으로 종료된 세션 ID를 보고서 생성 요청까지 유지
+  const [timedOutSessionId, setTimedOutSessionId] = useState<string | null>(null);
 
   // 훈련 세션 예약·시작·종료
   const createSessionMutation = useCreateTrainingSessionMutation();
@@ -119,7 +119,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
 
       removeSessionFromActiveCaches(event.sessionId);
       clearLocalSessionState();
-      setTimeLimitExceededAt(statusEvent.data.endedAt ?? event.occurredAt);
+      setTimedOutSessionId(event.sessionId);
     },
     [clearLocalSessionState, handleRouteTrainingEvent, removeSessionFromActiveCaches],
   );
@@ -168,7 +168,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     }
 
     setStartedSession({ id: session.id, startedAt: session.startedAt });
-    setTimeLimitExceededAt(null);
+    setTimedOutSessionId(null);
   };
 
   // 현재 실행 중인 훈련 종료
@@ -188,7 +188,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     isScheduling: createSessionMutation.isPending,
     isStarting: createSessionMutation.isPending || startSessionMutation.isPending,
     isEnding: endSessionMutation.isPending,
-    timeLimitExceededAt,
+    timedOutSessionId,
     ensureScheduledSession,
     startTraining,
     endTraining,

@@ -8,6 +8,7 @@ export const SCENARIO_STATUS = {
   IN_PROGRESS: 'IN_PROGRESS',
   COMPLETED: 'COMPLETED',
   ERROR: 'ERROR',
+  TIMEOUT_FAILED: 'TIMEOUT_FAILED',
 } as const satisfies Record<string, ScenarioStatus>;
 
 // DRAFT는 기본 정보가 비어 있을 수 있으므로 식별자와 상태만 필수로 좁힌다.

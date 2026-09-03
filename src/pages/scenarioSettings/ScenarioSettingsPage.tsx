@@ -61,7 +61,8 @@ const getStartRestrictionMessage = ({
 }) => {
   if (
     scenario?.status === SCENARIO_STATUS.COMPLETED ||
-    scenario?.status === SCENARIO_STATUS.ERROR
+    scenario?.status === SCENARIO_STATUS.ERROR ||
+    scenario?.status === SCENARIO_STATUS.TIMEOUT_FAILED
   ) {
     return '완료되었거나 실패한 훈련은 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
   }
@@ -237,22 +238,23 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  // 서버가 최대 진행 시간 초과로 FAILED 처리하면 생성된 보고서 목록으로 이동
+  // 서버가 최대 진행 시간 초과로 종료하면 정상 종료와 같은 결과 입력 모달을 표시
   useEffect(() => {
-    if (!training.timeLimitExceededAt) return;
+    if (!training.timedOutSessionId) return;
+    setHasEndedSession(true);
+    setIsEndModalOpen(true);
     show({
       title: '최대 훈련 시간이 초과되었습니다.',
-      description: '훈련이 종료되어 생성된 보고서로 이동합니다.',
+      description: '생존 인원을 입력해 분석 보고서를 생성해 주세요.',
       variant: 'default',
     });
-    void navigate(ROUTES.REPORTS, { replace: true });
-  }, [navigate, show, training.timeLimitExceededAt]);
+  }, [show, training.timedOutSessionId]);
 
   // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
   const handleCompleteTraining = async (values: GenerateReportRequest) => {
-    if (!training.sessionId) return;
-    const sessionId = training.sessionId;
-    let sessionEnded = hasEndedSession;
+    const sessionId = training.sessionId ?? training.timedOutSessionId;
+    if (!sessionId) return;
+    let sessionEnded = hasEndedSession || Boolean(training.timedOutSessionId);
 
     try {
       if (!sessionEnded) {
