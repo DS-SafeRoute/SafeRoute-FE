@@ -32,6 +32,7 @@ export const vars = createGlobalTheme(':root', {
     purple: '#8B5CF6',
     purpleLight: '#EDE9FE',
     purpleText: '#5B21B6',
+    pink: '#DB2777',
     // Semantic
     success: '#10B981',
     successLight: '#D1FAE5',

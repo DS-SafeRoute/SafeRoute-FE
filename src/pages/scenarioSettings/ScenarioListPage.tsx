@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { useNavigate } from 'react-router';
 
@@ -10,18 +10,18 @@ import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import { Button } from '@components/Button';
 import Dropdown from '@components/dropdown';
 import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES, getScenarioDetailPath } from '@constants/path';
 
-import { useDeleteScenarioMutation } from './api/useDeleteScenarioMutation';
-import { useGetScenariosQuery } from './api/useScenariosQuery';
+import { useDeleteScenarioMutation, useGetScenariosQuery } from './api/scenarioQueries';
 import ScenarioDeleteModal from './components/scenarioDeleteModal/ScenarioDeleteModal';
 import ScenarioListRow from './components/scenarioList/ScenarioListRow';
 import { SCENARIO_STATUS_FILTER_OPTIONS } from './constants/scenarioSettings';
 import * as styles from './ScenarioListPage.css';
 
-import type { ScenarioSummary } from './types/scenarioList';
+import type { Scenario } from './types/scenarioList';
 
 type StatusFilter = (typeof SCENARIO_STATUS_FILTER_OPTIONS)[number]['value'];
 
@@ -32,7 +32,7 @@ const ScenarioListPage = () => {
   const { data: buildings = [], isPending: areBuildingsPending } = useGetBuildingsQuery();
   const deleteScenarioMutation = useDeleteScenarioMutation();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [deleteTarget, setDeleteTarget] = useState<ScenarioSummary | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null);
   const buildingNames = new Map(buildings.map((building) => [building.id, building.name]));
 
   const filteredScenarios = scenarios.filter(
@@ -52,23 +52,24 @@ const ScenarioListPage = () => {
     void navigate(ROUTES.SCENARIO_CREATE);
   };
 
-  const handleOpen = (scenario: ScenarioSummary) => {
+  const handleOpen = (scenario: Scenario) => {
     void navigate(getScenarioDetailPath(scenario.id));
   };
 
-  const handleDelete = (scenario: ScenarioSummary) => {
+  const handleDelete = (scenario: Scenario) => {
     if (!scenario.deletable) return;
     setDeleteTarget(scenario);
   };
 
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
+    const scenarioName = deleteTarget.name ?? '이 시나리오';
 
     deleteScenarioMutation.mutate(deleteTarget.id, {
       onSuccess: () => {
         show({
           title: '시나리오가 삭제되었습니다.',
-          description: `${deleteTarget.name}이(가) 삭제되었습니다.`,
+          description: `${scenarioName}이(가) 삭제되었습니다.`,
           variant: 'success',
         });
         setDeleteTarget(null);
@@ -78,6 +79,50 @@ const ScenarioListPage = () => {
       },
     });
   };
+
+  let listContent: ReactNode;
+  if (isPending) {
+    listContent = <LoadingState />;
+  } else if (isError) {
+    listContent = (
+      <EmptyState
+        className={styles.emptyState}
+        icon={<FileTextIcon />}
+        title="시나리오 목록을 불러오지 못했습니다."
+        action={
+          <Button type="button" variant="ghost" onClick={() => void refetch()}>
+            다시 시도
+          </Button>
+        }
+      />
+    );
+  } else if (scenarios.length === 0) {
+    listContent = (
+      <EmptyState
+        className={styles.emptyState}
+        icon={<FileTextIcon />}
+        title="아직 등록된 시나리오가 없습니다."
+      />
+    );
+  } else if (filteredScenarios.length === 0) {
+    listContent = (
+      <EmptyState className={styles.emptyState} title="선택한 상태의 시나리오가 없습니다." />
+    );
+  } else {
+    listContent = (
+      <div className={styles.list}>
+        {filteredScenarios.map((scenario) => (
+          <ScenarioListRow
+            key={scenario.id}
+            scenario={scenario}
+            buildingName={scenario.buildingId ? buildingNames.get(scenario.buildingId) : undefined}
+            onOpen={handleOpen}
+            onDelete={handleDelete}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -100,51 +145,18 @@ const ScenarioListPage = () => {
           </Button>
         </div>
 
-        {isPending ? (
-          <p className={styles.stateMessage}>불러오는 중...</p>
-        ) : isError ? (
-          <EmptyState
-            className={styles.emptyState}
-            icon={<FileTextIcon />}
-            title="시나리오 목록을 불러오지 못했습니다."
-            action={
-              <Button type="button" variant="ghost" onClick={() => void refetch()}>
-                다시 시도
-              </Button>
-            }
-          />
-        ) : scenarios.length === 0 ? (
-          <EmptyState
-            className={styles.emptyState}
-            icon={<FileTextIcon />}
-            title="아직 등록된 시나리오가 없습니다."
-          />
-        ) : filteredScenarios.length > 0 ? (
-          <div className={styles.list}>
-            {filteredScenarios.map((scenario) => (
-              <ScenarioListRow
-                key={scenario.id}
-                scenario={scenario}
-                buildingName={buildingNames.get(scenario.buildingId)}
-                onOpen={handleOpen}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState className={styles.emptyState} title="선택한 상태의 시나리오가 없습니다." />
-        )}
+        {listContent}
       </div>
 
-      {deleteTarget ? (
+      {deleteTarget && (
         <ScenarioDeleteModal
           open
-          scenarioName={deleteTarget.name}
+          scenarioName={deleteTarget.name ?? '이 시나리오'}
           onClose={() => setDeleteTarget(null)}
           onConfirm={handleConfirmDelete}
           isSubmitting={deleteScenarioMutation.isPending}
         />
-      ) : null}
+      )}
     </>
   );
 };

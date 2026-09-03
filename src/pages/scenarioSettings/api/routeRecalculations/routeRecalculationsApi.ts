@@ -7,14 +7,14 @@ import type {
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-export type RouteRecalculationStatus = NonNullable<RouteRecalculationSummaryResponse['status']>;
+type RouteRecalculationStatus = NonNullable<RouteRecalculationSummaryResponse['status']>;
 
 export interface GetRouteRecalculationsParams {
   trainingSessionId: string;
   status?: RouteRecalculationStatus;
 }
 
-export interface RejectRouteRecalculationVariables {
+interface RejectRouteRecalculationVariables {
   recalculationId: string;
   reason?: string;
 }

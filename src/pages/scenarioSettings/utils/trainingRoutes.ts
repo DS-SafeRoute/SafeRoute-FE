@@ -11,7 +11,7 @@ export const formatCurrentRoute = (route?: CurrentRouteResponse) => {
   return labels.join(' → ');
 };
 
-export const formatRouteSegment = (segment?: RouteSegment) => {
+const formatRouteSegment = (segment?: RouteSegment) => {
   const nodeCount = segment?.nodeIds?.length ?? 0;
   if (nodeCount === 0) return '현재 대피 경로 정보가 없습니다.';
 
@@ -42,19 +42,3 @@ export const getLatestRecalculation = (items: RouteRecalculationSummaryResponse[
     const bTime = b.requestedAt ? Date.parse(b.requestedAt) : 0;
     return bTime - aTime;
   })[0];
-
-export const formatRecalculationTime = (requestedAt?: string) => {
-  if (!requestedAt) return '기록 없음';
-  const date = new Date(requestedAt);
-  if (Number.isNaN(date.getTime())) return '기록 없음';
-
-  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1_000));
-  if (elapsedSeconds < 60) return `${elapsedSeconds}초 전`;
-  if (elapsedSeconds < 3_600) return `${Math.floor(elapsedSeconds / 60)}분 전`;
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(date);
-};

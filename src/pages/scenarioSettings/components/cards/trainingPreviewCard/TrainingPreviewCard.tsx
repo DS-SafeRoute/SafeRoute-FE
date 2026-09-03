@@ -1,10 +1,9 @@
 import { sideCardTitle } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
+import type { PreviewMetric, PreviewStatus } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import StatusBadge from '@components/chip/StatusBadge';
 
 import * as styles from './TrainingPreviewCard.css';
-
-import type { PreviewMetric, PreviewStatus } from '../../../types/scenarioSettings';
 
 interface TrainingPreviewCardProps {
   title?: string;

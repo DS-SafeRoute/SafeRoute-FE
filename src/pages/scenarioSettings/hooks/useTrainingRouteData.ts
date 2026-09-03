@@ -9,12 +9,14 @@ import {
   useRouteRecalculationDetailQuery,
   useRouteRecalculationsQuery,
 } from '@pages/scenarioSettings/api/routeRecalculations/routeRecalculationQueries';
+import type { RoutePoint } from '@pages/scenarioSettings/types/scenarioSettings';
 import {
   formatCurrentRoute,
   formatRouteProposal,
   getLatestRecalculation,
 } from '@pages/scenarioSettings/utils/trainingRoutes';
 
+import type { CurrentRouteResponse } from '@apis/__generated__/data-contracts';
 import { floorQueryKeys } from '@apis/floors/floorQueries';
 import { fireZoneQueryKeys } from '@apis/scenarios/fireZoneQueries';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
@@ -25,15 +27,33 @@ import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trai
 interface UseTrainingRouteDataParams {
   sessionId?: string | null;
   enabled: boolean;
+  liveUpdatesEnabled: boolean;
 }
 
-export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDataParams) => {
+const getCurrentRouteMessage = (
+  route: CurrentRouteResponse | undefined,
+  isPending: boolean,
+  isError: boolean,
+) => {
+  if (isPending) return '현재 대피 경로를 불러오는 중...';
+  if (isError) return '현재 대피 경로를 불러오지 못했습니다.';
+  return formatCurrentRoute(route);
+};
+
+const hasRouteCoordinates = (point: { x?: number; y?: number }): point is RoutePoint =>
+  point.x !== undefined && point.y !== undefined;
+
+export const useTrainingRouteData = ({
+  sessionId,
+  enabled,
+  liveUpdatesEnabled,
+}: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
   const shouldFetch = enabled && Boolean(sessionId);
-  const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId);
+  const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId, shouldFetch);
   const recalculationsQuery = useRouteRecalculationsQuery(
     sessionId ? { trainingSessionId: sessionId } : undefined,
-    shouldFetch,
+    shouldFetch && liveUpdatesEnabled,
   );
   const recalculations = recalculationsQuery.data ?? [];
   const pendingRecalculation = getLatestRecalculation(
@@ -41,11 +61,16 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   );
   const detailQuery = useRouteRecalculationDetailQuery(
     pendingRecalculation?.recalculationId,
-    shouldFetch,
+    shouldFetch && liveUpdatesEnabled,
   );
   const approveMutation = useApproveRouteRecalculationMutation();
   const rejectMutation = useRejectRouteRecalculationMutation();
   const routeProposal = formatRouteProposal(detailQuery.data);
+  const currentRouteMessage = getCurrentRouteMessage(
+    currentRouteQuery.data,
+    currentRouteQuery.isPending,
+    currentRouteQuery.isError,
+  );
 
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
@@ -76,16 +101,10 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   );
 
   return {
-    currentRouteMessage: currentRouteQuery.isPending
-      ? '현재 대피 경로를 불러오는 중...'
-      : currentRouteQuery.isError
-        ? '현재 대피 경로를 불러오지 못했습니다.'
-        : formatCurrentRoute(currentRouteQuery.data),
+    currentRouteMessage,
     routeFloorId: currentRouteQuery.data?.floorId ?? null,
-    routeNodeIds:
-      currentRouteQuery.data?.path
-        ?.map((node) => node.nodeId)
-        .filter((nodeId): nodeId is string => Boolean(nodeId)) ?? [],
+    // 경로 계산은 서버 책임이다. current-route가 준 좌표만 이어서 도면에 표시한다.
+    routePoints: currentRouteQuery.data?.path?.filter(hasRouteCoordinates) ?? [],
     routeProposal,
     isApplyingRouteProposal: approveMutation.isPending,
     isRejectingRouteProposal: rejectMutation.isPending,

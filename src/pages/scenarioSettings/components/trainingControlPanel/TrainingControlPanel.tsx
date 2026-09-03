@@ -69,6 +69,9 @@ const TrainingControlPanel = ({
         </span>
         <strong className={styles.timerValue}>{elapsedTime}</strong>
       </div>
+      <p className={styles.durationNotice}>
+        훈련은 최대 10분간 진행되며, 종료 후 보고서가 생성됩니다.
+      </p>
 
       <RecommendationCard icon={<SparklesIcon />} title="현재 경로" message={currentRoute} />
 
