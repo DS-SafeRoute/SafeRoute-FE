@@ -589,8 +589,6 @@ export interface CreateScenarioDraftRequest {
   name?: string;
   /** @format date-time */
   scheduledAt?: string;
-  /** @format int32 */
-  targetEvacuationSec?: number;
 }
 
 export interface CreateScenarioEvacuationSetupRequest {
@@ -1296,9 +1294,19 @@ export interface MonitoringEventListApiResponse {
   result?: MonitoringEventListResponse;
 }
 
-/** 훈련 세션의 이벤트 타임라인 */
+/** 훈련 세션의 이벤트 타임라인 (최신순 커서 페이지네이션) */
 export interface MonitoringEventListResponse {
   events?: MonitoringEventResponse[];
+  /**
+   * 다음 페이지 존재 여부
+   * @example true
+   */
+  hasNext?: boolean;
+  /**
+   * 다음 페이지 조회에 사용할 커서. 다음 페이지가 없으면 null
+   * @example "MTc4NzcyMjA5NTAwMHwzYzlmN2UyYS0zYjM5LTRmMGEtOWYwYS02YTJiNmIxZjVhMTE"
+   */
+  nextCursor?: string;
   /**
    * 조회한 훈련 세션 ID
    * @format uuid
@@ -1345,7 +1353,9 @@ export interface MonitoringEventResponse {
     | "ROUTE_RECALCULATION_REQUESTED"
     | "EVACUATION_ROUTE_UPDATED"
     | "ROUTE_RECALCULATION_REJECTED"
-    | "ROUTE_RECALCULATION_CANCELLED";
+    | "ROUTE_RECALCULATION_CANCELLED"
+    | "AI_ANALYSIS_STARTED"
+    | "ROUTE_DEVIATION_DETECTED";
 }
 
 /** 카메라별 프레임 목록의 공통 API 응답 스키마 */
@@ -1394,6 +1404,12 @@ export interface MonitoringFrameListResponse {
    * @example "d669294e-55e1-4c00-bf67-229d89b76948"
    */
   sessionId?: string;
+  /**
+   * 이 세션+CCTV 조합의 전체 저장 프레임(Observation) 개수
+   * @format int64
+   * @example 137
+   */
+  totalCount?: number;
 }
 
 /** 상세 모니터링 화면의 프레임 한 장 */
@@ -2031,8 +2047,6 @@ export interface UpdateScenarioRequest {
   name?: string;
   /** @format date-time */
   scheduledAt?: string;
-  /** @format int32 */
-  targetEvacuationSec?: number;
 }
 
 export interface UpdateUserProfileRequest {
