@@ -45,11 +45,17 @@ const TrainingCameraFramesPage = () => {
   const navigate = useNavigate();
   const [frameIndex, setFrameIndex] = useState(0);
   const filmstripRef = useRef<HTMLDivElement>(null);
+  // 사용자가 과거 프레임을 보고 있는 동안엔(마지막=최신 프레임에서 벗어나 있으면) 새 프레임이
+  // 들어와도 보던 위치를 유지하고, 최신 프레임을 보고 있을 때만 새 프레임이 들어오는 대로 계속
+  // 따라가게 함(라이브 방송의 "최신으로 이동" 개념과 동일)
+  const stickToLatestRef = useRef(true);
 
   // 카메라 탭으로 cctvId만 바뀌면 프레임 목록도 카메라별로 새로 조회되므로,
-  // 이전 카메라의 frameIndex가 남아 새 카메라의 프레임 수를 넘어가지 않도록 초기화
+  // 이전 카메라의 frameIndex가 남아 새 카메라의 프레임 수를 넘어가지 않도록 초기화하고
+  // 최신 프레임 추적도 다시 켬
   useEffect(() => {
     setFrameIndex(0);
+    stickToLatestRef.current = true;
   }, [cctvId, sessionId]);
 
   const {
@@ -76,19 +82,42 @@ const TrainingCameraFramesPage = () => {
     isFetchingNextPage,
     fetchNextPage,
   } = useCameraFramesQuery(sessionId, cctvId, { live: isLive });
+  // API는 최신순(newest-first) 커서 페이지네이션이라(다음 페이지 = 더 과거) 그대로 쓰면
+  // 필름스트립이 최신→과거 순으로 놓여서 "다음 프레임"(→)을 누를 때마다 과거로 가는 이상한
+  // 경험이 됐음(실측으로 확인한 버그). 화면에서는 시간순(과거→최신, 왼쪽→오른쪽)으로 뒤집어서
+  // 씀 — "다음"이 항상 미래, "이전"이 항상 과거를 가리키게
   const frames = useMemo(
-    () => framePages?.pages.flatMap((page) => page.frames) ?? [],
+    () => [...(framePages?.pages.flatMap((page) => page.frames) ?? [])].reverse(),
     [framePages],
   );
+  const lastFrameIndex = frames.length - 1;
+
+  // 새 프레임이 들어오면(최초 로드 포함) 최신 추적 중일 때만 마지막(최신) 프레임으로 따라감
+  useEffect(() => {
+    if (frames.length > 0 && stickToLatestRef.current) {
+      setFrameIndex(frames.length - 1);
+    }
+  }, [frames.length]);
 
   const { data: events = [] } = useSessionEventsQuery(sessionId, camera?.code, { live: isLive });
 
-  // 마지막 프레임 근처까지 보면 다음 페이지를 미리 불러와서, ›로 넘길 때 끊기지 않게 함
+  // 배열이 시간순으로 뒤집혀서, "다음 페이지(더 과거 프레임)"가 필요해지는 시점도 배열
+  // 앞쪽(오래된 쪽, 인덱스 0 근처)임 — 그쪽 근처까지 보면 미리 불러와서 ‹로 넘길 때 끊기지 않게 함
   useEffect(() => {
-    if (frameIndex >= frames.length - PREFETCH_THRESHOLD && hasNextPage && !isFetchingNextPage) {
+    if (frameIndex <= PREFETCH_THRESHOLD - 1 && hasNextPage && !isFetchingNextPage) {
       void fetchNextPage();
     }
-  }, [frameIndex, frames.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [frameIndex, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // 이제 최신 프레임이 필름스트립 맨 오른쪽에 있어서(시간순으로 뒤집었으니) 프레임이 많으면
+  // 화면 밖으로 벗어날 수 있음 — 선택된 프레임이 바뀔 때마다 보이는 위치로 스크롤해줌
+  useEffect(() => {
+    const container = filmstripRef.current;
+    const activeEl = container?.children[frameIndex];
+    if (activeEl instanceof HTMLElement) {
+      activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [frameIndex]);
 
   if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
@@ -123,8 +152,14 @@ const TrainingCameraFramesPage = () => {
   const currentFrame = frames[frameIndex];
   const sessionStartedAtMs = new Date(session.startedAt).getTime();
 
-  const goPrev = () => setFrameIndex((i) => Math.max(0, i - 1));
-  const goNext = () => setFrameIndex((i) => Math.min(frames.length - 1, i + 1));
+  // 프레임을 어떤 경로로든(이전/다음 버튼, 필름스트립 클릭) 옮길 땐 항상 이걸 거침 —
+  // 최신(마지막) 프레임으로 옮기면 다시 최신 추적을 켜고, 그 외로 옮기면 끔
+  const selectFrame = (index: number) => {
+    setFrameIndex(index);
+    stickToLatestRef.current = index >= lastFrameIndex;
+  };
+  const goPrev = () => selectFrame(Math.max(0, frameIndex - 1));
+  const goNext = () => selectFrame(Math.min(lastFrameIndex, frameIndex + 1));
   const scrollFilmstrip = (direction: 1 | -1) => {
     filmstripRef.current?.scrollBy({ left: direction * 420, behavior: 'smooth' });
   };
@@ -185,7 +220,7 @@ const TrainingCameraFramesPage = () => {
                 {frameIndex + 1}/{frames.length}
                 {hasNextPage ? '+' : ''}
               </span>
-              {isLive && frameIndex === 0 && (
+              {isLive && frameIndex === lastFrameIndex && (
                 <span className={styles.liveBadge}>
                   <span className={styles.liveDot} aria-hidden="true" />
                   LIVE
@@ -196,7 +231,7 @@ const TrainingCameraFramesPage = () => {
                 type="button"
                 className={styles.navBtn}
                 style={{ left: '1.2rem' }}
-                disabled={frameIndex === 0}
+                disabled={frameIndex === 0 && !hasNextPage}
                 aria-label="이전 프레임"
                 onClick={goPrev}
               >
@@ -206,7 +241,7 @@ const TrainingCameraFramesPage = () => {
                 type="button"
                 className={styles.navBtn}
                 style={{ right: '1.2rem' }}
-                disabled={frameIndex === frames.length - 1 && !hasNextPage}
+                disabled={frameIndex === lastFrameIndex}
                 aria-label="다음 프레임"
                 onClick={goNext}
               >
@@ -233,7 +268,7 @@ const TrainingCameraFramesPage = () => {
                       styles.filmstripItem,
                       index === frameIndex && styles.filmstripItemActive,
                     )}
-                    onClick={() => setFrameIndex(index)}
+                    onClick={() => selectFrame(index)}
                   >
                     {frame.imageUrl && (
                       <img className={styles.filmstripThumb} src={frame.imageUrl} alt="" />
