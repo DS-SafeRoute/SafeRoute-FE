@@ -96,7 +96,7 @@ const ScenarioActionPanel = ({
       </Button>
 
       <p className={trainingDurationNotice}>
-        훈련은 시작 후 서버 기준 최대 10분간 진행되며 자동 종료됩니다.
+        훈련은 최대 10분간 진행되며, 제한 시간 초과 시 종료됩니다.
       </p>
 
       {startState.restrictionMessage && (

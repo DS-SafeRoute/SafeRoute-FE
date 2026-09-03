@@ -62,7 +62,7 @@ const getStartRestrictionMessage = ({
     scenario?.status === SCENARIO_STATUS.COMPLETED ||
     scenario?.status === SCENARIO_STATUS.ERROR
   ) {
-    return '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
+    return '완료되었거나 실패한 훈련은 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
   }
   if (isSetupPending) return '발화 위치와 시작 지점 설정을 확인하고 있습니다.';
   if (isSetupError) return '대피 설정을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.';
@@ -232,16 +232,16 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  // 서버의 자동 종료 상태를 받으면 생성된 보고서 목록으로 이동
+  // 서버가 최대 진행 시간 초과로 FAILED 처리하면 생성된 보고서 목록으로 이동
   useEffect(() => {
-    if (!training.autoEndedAt) return;
+    if (!training.timeLimitExceededAt) return;
     show({
-      title: '훈련이 자동 종료되었습니다.',
-      description: '최대 훈련 시간이 지나 생성된 보고서로 이동합니다.',
+      title: '최대 훈련 시간이 초과되었습니다.',
+      description: '훈련이 종료되어 생성된 보고서로 이동합니다.',
       variant: 'default',
     });
     void navigate(ROUTES.REPORTS, { replace: true });
-  }, [navigate, show, training.autoEndedAt]);
+  }, [navigate, show, training.timeLimitExceededAt]);
 
   // 진행 중인 훈련 종료 후 결과 이동 모달 표시
   const handleEndTraining = async () => {
