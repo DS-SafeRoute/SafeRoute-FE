@@ -14,7 +14,6 @@ export const ROUTES = {
   TRAINING_ANALYSIS: '/trainingAnalysis',
   TRAINING_CAMERAS: '/trainingAnalysis/:sessionId/cameras',
   TRAINING_CAMERA_FRAMES: '/trainingAnalysis/:sessionId/cameras/:cctvId',
-  REPORTS_ROOT: '/reports',
   REPORTS: '/reports/:reportId',
 } as const;
 

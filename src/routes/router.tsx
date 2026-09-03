@@ -115,10 +115,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.REPORTS_ROOT,
-        lazy: loadReportsPage,
-      },
-      {
         path: ROUTES.REPORTS,
         lazy: loadReportsPage,
       },
