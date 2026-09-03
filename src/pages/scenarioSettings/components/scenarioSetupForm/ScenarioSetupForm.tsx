@@ -2,7 +2,6 @@ import FireLocationGrid from '@pages/scenarioSettings/components/fireLocationGri
 import DateTimeField from '@pages/scenarioSettings/components/inputField/dateTimeField/DateTimeField';
 import ScenarioField from '@pages/scenarioSettings/components/inputField/scenarioField/ScenarioField';
 import type { ScenarioFieldOption } from '@pages/scenarioSettings/components/inputField/scenarioField/ScenarioField';
-import TargetEvacuationTimeField from '@pages/scenarioSettings/components/inputField/targetEvacuationTimeField/TargetEvacuationTimeField';
 import { FIRE_SPREAD_OPTIONS } from '@pages/scenarioSettings/constants/scenarioSettings';
 import type { ScenarioFloorMapView } from '@pages/scenarioSettings/hooks/useScenarioFloorView';
 import * as pageStyles from '@pages/scenarioSettings/ScenarioSettingsPage.css';
@@ -92,12 +91,6 @@ const ScenarioSetupForm = ({
             readOnly={readOnly}
             disabled={isRunning}
             onChange={(event) => onBasicInfoChange('expectedParticipants', event.target.value)}
-          />
-          <TargetEvacuationTimeField
-            value={basicInfo.targetEvacuationSec}
-            readOnly={readOnly}
-            disabled={isRunning}
-            onChange={(value) => onBasicInfoChange('targetEvacuationSec', value)}
           />
         </div>
       </section>

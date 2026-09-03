@@ -28,10 +28,9 @@ type RequiredScenarioFields = Required<
 
 export type Scenario = RequiredScenarioFields & {
   reportId: NonNullable<ScenarioResponse['reportId']> | null;
-  targetEvacuationSec: NonNullable<ScenarioResponse['targetEvacuationSec']> | null;
 };
 
-export type ScenarioSummary = Omit<Scenario, 'fireSpreadSpeed' | 'targetEvacuationSec'>;
+export type ScenarioSummary = Omit<Scenario, 'fireSpreadSpeed'>;
 
 export const SCENARIO_STATUS_VIEW: Record<
   ScenarioStatus,

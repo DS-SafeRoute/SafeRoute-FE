@@ -32,7 +32,6 @@ const toScenario = (response: unknown): Scenario => {
     status,
     deletable,
     reportId,
-    targetEvacuationSec,
   } = response as Record<string, unknown>;
 
   if (
@@ -49,10 +48,7 @@ const toScenario = (response: unknown): Scenario => {
     !isFireSpreadSpeed(fireSpreadSpeed) ||
     !isScenarioStatus(status) ||
     (typeof deletable !== 'boolean' && deletable !== null) ||
-    (reportId !== undefined && reportId !== null && typeof reportId !== 'string') ||
-    (targetEvacuationSec !== undefined &&
-      targetEvacuationSec !== null &&
-      (typeof targetEvacuationSec !== 'number' || !Number.isInteger(targetEvacuationSec)))
+    (reportId !== undefined && reportId !== null && typeof reportId !== 'string')
   ) {
     throw new Error('시나리오 응답 필드가 올바르지 않습니다.');
   }
@@ -67,7 +63,6 @@ const toScenario = (response: unknown): Scenario => {
     status,
     deletable: deletable ?? false,
     reportId: reportId ?? null,
-    targetEvacuationSec: targetEvacuationSec ?? null,
   };
 };
 

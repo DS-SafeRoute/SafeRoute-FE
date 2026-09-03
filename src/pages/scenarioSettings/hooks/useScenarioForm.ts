@@ -18,8 +18,7 @@ interface UseScenarioFormParams {
 
 type ScenarioFormPayload = Required<
   Pick<UpdateScenarioRequest, 'name' | 'expectedParticipants' | 'scheduledAt' | 'fireSpreadSpeed'>
-> &
-  Pick<UpdateScenarioRequest, 'targetEvacuationSec'>;
+>;
 
 const isFireSpreadLabel = (value: string): value is FireSpreadLabel => value in FIRE_SPREAD_VALUE;
 
@@ -42,17 +41,12 @@ export const useScenarioForm = ({ scenario, defaultBuildingId }: UseScenarioForm
     const name = basicInfo.scenarioName.trim();
     const expectedParticipants = Number(basicInfo.expectedParticipants);
     const scheduledAt = toScheduledAt(basicInfo.scheduledAt);
-    const targetEvacuationSec = basicInfo.targetEvacuationSec
-      ? Number(basicInfo.targetEvacuationSec)
-      : undefined;
 
     if (
       !name ||
       !selectedBuildingId ||
       !Number.isInteger(expectedParticipants) ||
       expectedParticipants < 1 ||
-      (targetEvacuationSec !== undefined &&
-        (!Number.isInteger(targetEvacuationSec) || targetEvacuationSec < 1)) ||
       !scheduledAt
     ) {
       return null;
@@ -63,7 +57,6 @@ export const useScenarioForm = ({ scenario, defaultBuildingId }: UseScenarioForm
       expectedParticipants,
       scheduledAt,
       fireSpreadSpeed: FIRE_SPREAD_VALUE[fireSpreadLabel],
-      targetEvacuationSec,
     };
   };
 
