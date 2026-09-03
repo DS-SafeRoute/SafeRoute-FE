@@ -36,9 +36,11 @@ export const EVENT_SEVERITY_COLOR = {
 } as const satisfies Record<MonitoringEventSeverity, string>;
 
 export const EVENT_TYPE_LABEL = {
+  AI_ANALYSIS_STARTED: 'AI 분석 시작',
   CONGESTION_STARTED: '혼잡 감지 시작',
   CONGESTION_LEVEL_UP: '혼잡 단계 상승',
   CONGESTION_ENDED: '혼잡 해소',
+  ROUTE_DEVIATION_DETECTED: '경로 이탈 감지',
   ROUTE_RECALCULATION_REQUESTED: '경로 재탐색 요청',
   EVACUATION_ROUTE_UPDATED: '대피 경로 갱신',
   ROUTE_RECALCULATION_REJECTED: '경로 재탐색 거부',

@@ -20,6 +20,11 @@ export const card = style({
       borderColor: vars.color.primaryLight,
       boxShadow: vars.shadow.md,
     },
+    // 카드가 항상 클릭 가능한 <button>이라 키보드로 넘어왔을 때도 hover와 동일한 강조가 필요함
+    '&:focus-visible': {
+      borderColor: vars.color.primaryLight,
+      boxShadow: vars.shadow.md,
+    },
   },
 });
 
@@ -65,6 +70,14 @@ export const thumbEmpty = style({
 
 export const thumbEmptyIcon = style({
   color: 'rgba(255,255,255,0.3)',
+});
+
+// 혼잡 단계 배지 — 촬영 시각 배지(우하단)와 겹치지 않게 반대쪽(좌상단)에 둠
+export const congestionBadge = style({
+  position: 'absolute',
+  zIndex: 1,
+  top: vars.space.s2,
+  left: vars.space.s2,
 });
 
 export const timeBadge = style({

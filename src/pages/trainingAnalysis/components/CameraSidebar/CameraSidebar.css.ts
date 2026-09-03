@@ -72,7 +72,19 @@ export const itemThumbImg = style({
 });
 
 export const itemThumbIcon = style({
-  color: 'rgba(255,255,255,0.35)',
+  opacity: 0.35,
+  color: vars.color.white,
+});
+
+// 상태 점(itemStatusDot)은 시각적 참고용이라 aria-hidden 처리되어 있음 — 화면에는 안 보이지만
+// 스크린 리더에는 같은 정보를 텍스트로 전달함
+export const srOnly = style({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  clip: 'rect(0, 0, 0, 0)',
 });
 
 export const itemText = style({

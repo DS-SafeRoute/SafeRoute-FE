@@ -14,27 +14,21 @@ export const groupCamerasByFloor = (cameras: MonitoringCamera[]) => {
   return Array.from(groups.entries());
 };
 
-export const formatSessionStartedAt = (startedAt: string) => {
-  const date = new Date(startedAt);
-  if (Number.isNaN(date.getTime())) return startedAt;
-
-  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
-};
-
 // 세션 정보 박스 우측의 수치 타일(날짜/시작 시간)에서 날짜·시각을 따로 보여주려고
-// formatSessionStartedAt을 둘로 쪼갠 버전
-export const formatSessionStartedDate = (startedAt: string) => {
+// formatSessionStartedAt을 둘로 쪼갠 버전. context.startedAt은 epoch ms이고 예약 상태(SCHEDULED)면
+// null — 이 화면들은 RUNNING만 보여줘서 실제로는 항상 값이 있지만 타입상 방어함
+export const formatSessionStartedDate = (startedAt: number | null) => {
+  if (startedAt === null) return '-';
   const date = new Date(startedAt);
-  if (Number.isNaN(date.getTime())) return startedAt;
+  if (Number.isNaN(date.getTime())) return '-';
 
   return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}`;
 };
 
-export const formatSessionStartedClock = (startedAt: string) => {
+export const formatSessionStartedClock = (startedAt: number | null) => {
+  if (startedAt === null) return '-';
   const date = new Date(startedAt);
-  if (Number.isNaN(date.getTime())) return startedAt;
+  if (Number.isNaN(date.getTime())) return '-';
 
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
@@ -49,7 +43,8 @@ export const formatCapturedTime = (epochMs: number | null) => {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
-export const formatElapsedFromStart = (capturedAt: number, sessionStartedAt: number) => {
+export const formatElapsedFromStart = (capturedAt: number, sessionStartedAt: number | null) => {
+  if (sessionStartedAt === null) return null;
   const elapsedSec = Math.max(0, Math.round((capturedAt - sessionStartedAt) / 1000));
   const minutes = Math.floor(elapsedSec / 60);
   const seconds = elapsedSec % 60;

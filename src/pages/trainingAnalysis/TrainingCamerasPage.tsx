@@ -9,8 +9,14 @@ import LoadingState from '@components/loadingState';
 
 import { getTrainingCameraFramesPath, ROUTES } from '@constants/path';
 
+import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
+
+import { formatDuration } from '@utils/format';
+
 import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
-import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
+import { useTrainingSessionQuery } from './api/useSessionContextQuery';
+import { useSessionCurrentStatesQuery } from './api/useSessionCurrentStatesQuery';
+import { useTrainingMonitoringSocket } from './api/useTrainingMonitoringSocket';
 import CameraCard from './components/CameraCard/CameraCard';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -38,6 +44,7 @@ const TrainingCamerasPage = () => {
     session,
     isLoading: isSessionLoading,
     isError: isSessionError,
+    error: sessionError,
   } = useTrainingSessionQuery(sessionId);
   const isLive = isLiveSessionStatus(session?.status);
   const {
@@ -46,6 +53,21 @@ const TrainingCamerasPage = () => {
     isError: isCamerasError,
     error: camerasError,
   } = useSessionCamerasQuery(sessionId, { live: isLive });
+  const { data: currentStates = [] } = useSessionCurrentStatesQuery(sessionId, { live: isLive });
+  const currentStateByCode = useMemo(
+    () => new Map(currentStates.map((state) => [state.cctvCode, state])),
+    [currentStates],
+  );
+
+  // 진행 중일 때만 1초 단위로 이어서 증가시키고, 종료됐으면 서버가 마지막으로 준 값을 그대로 표시
+  const tickingElapsed = useElapsedTrainingTime(isLive ? (session?.startedAt ?? null) : null);
+  const elapsedDisplay = isLive ? tickingElapsed : formatDuration(session?.elapsedSeconds ?? 0);
+
+  const cameraRefs = useMemo(
+    () => cameras.map((c) => ({ cctvId: c.cctvId, code: c.code })),
+    [cameras],
+  );
+  useTrainingMonitoringSocket(sessionId, cameraRefs);
 
   const floorGroups = useMemo(() => groupCamerasByFloor(cameras), [cameras]);
 
@@ -58,7 +80,7 @@ const TrainingCamerasPage = () => {
       <div className={styles.container}>
         <EmptyState
           title="훈련 정보를 불러오지 못했습니다"
-          description="잠시 후 다시 시도해주세요"
+          description={extractApiError(sessionError).message || '잠시 후 다시 시도해주세요'}
         />
       </div>
     );
@@ -87,13 +109,14 @@ const TrainingCamerasPage = () => {
         meta={session.buildingName}
         notice={
           isLive
-            ? '실시간 모니터링 중 · 카메라별 최신 프레임이 5초 간격으로 자동 갱신됩니다.'
-            : '훈련 중 5초 간격으로 수집된 프레임 기록입니다.'
+            ? `실시간 모니터링 중 · 카메라별 최신 프레임이 ${session.snapshotIntervalSec}초 간격으로 자동 갱신됩니다.`
+            : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 프레임 기록입니다.`
         }
         live={isLive}
         stats={[
           { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
           { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
+          { label: '진행 시간', value: elapsedDisplay },
           { label: '카메라', value: `${cameras.length}대` },
         ]}
       />
@@ -125,7 +148,12 @@ const TrainingCamerasPage = () => {
                 </div>
                 <div className={styles.grid}>
                   {floorCameras.map((camera) => (
-                    <CameraCard key={camera.cctvId} camera={camera} onClick={handleSelect} />
+                    <CameraCard
+                      key={camera.cctvId}
+                      camera={camera}
+                      currentState={currentStateByCode.get(camera.code)}
+                      onClick={handleSelect}
+                    />
                   ))}
                 </div>
               </div>

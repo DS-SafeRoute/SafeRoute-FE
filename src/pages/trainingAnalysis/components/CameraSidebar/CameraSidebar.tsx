@@ -52,6 +52,9 @@ const CameraSidebar = ({ cameras, activeCctvId, onSelect }: CameraSidebarProps) 
                       className={clsx(styles.itemStatusDot, hasThumbnail && styles.itemStatusDotOn)}
                       aria-hidden="true"
                     />
+                    <span className={styles.srOnly}>
+                      {hasThumbnail ? '최근 프레임 있음' : '최근 프레임 없음'}
+                    </span>
                     <span className={styles.itemCode}>{camera.code}</span>
                   </span>
                   <span className={styles.itemLocation}>{camera.location}</span>

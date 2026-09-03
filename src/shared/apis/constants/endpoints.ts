@@ -50,7 +50,10 @@ export const API_ENDPOINTS = {
     FORCE_END: (sessionId: string) => `${API_V1}/sessions/${sessionId}/force-end`,
     CURRENT_ROUTE: (sessionId: string) => `${API_V1}/sessions/${sessionId}/current-route`,
     // 훈련분석(모니터링): 종료된 세션의 카메라별 최신 캡처/프레임 목록/이벤트 타임라인
+    MONITORING_CONTEXT: (sessionId: string) => `${API_V1}/sessions/${sessionId}/monitoring/context`,
     MONITORING_CAMERAS: (sessionId: string) => `${API_V1}/sessions/${sessionId}/monitoring/cameras`,
+    MONITORING_CURRENT_STATES: (sessionId: string) =>
+      `${API_V1}/sessions/${sessionId}/monitoring/current-states`,
     MONITORING_FRAMES: (sessionId: string, cctvId: string) =>
       `${API_V1}/sessions/${sessionId}/monitoring/cameras/${cctvId}/frames`,
     MONITORING_EVENTS: (sessionId: string) => `${API_V1}/sessions/${sessionId}/monitoring/events`,

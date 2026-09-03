@@ -13,10 +13,15 @@ import LoadingState from '@components/loadingState';
 
 import { getTrainingCameraFramesPath, getTrainingCamerasPath, ROUTES } from '@constants/path';
 
+import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
+
+import { formatDuration } from '@utils/format';
+
 import { useCameraFramesQuery } from './api/useCameraFramesQuery';
 import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
+import { useTrainingSessionQuery } from './api/useSessionContextQuery';
 import { useSessionEventsQuery } from './api/useSessionEventsQuery';
-import { useTrainingSessionQuery } from './api/useViewableTrainingSessionsQuery';
+import { useTrainingMonitoringSocket } from './api/useTrainingMonitoringSocket';
 import CameraSidebar from './components/CameraSidebar/CameraSidebar';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -48,7 +53,11 @@ const PREFETCH_THRESHOLD = 3;
 const TrainingCameraFramesPage = () => {
   const { sessionId, cctvId } = useParams<{ sessionId: string; cctvId: string }>();
   const navigate = useNavigate();
-  const [frameIndex, setFrameIndex] = useState(0);
+  // 인덱스가 아니라 frameId로 선택 프레임을 추적함 — 과거 페이지를 더 불러오면 배열 앞쪽에
+  // 프레임이 추가되는데(아래 frames 설명 참고), 고정된 숫자 인덱스로 추적하면 그 순간
+  // 사용자가 보던 프레임이 페이지 크기만큼 과거로 밀려버림(실측으로 확인한 버그).
+  // frameId로 추적하면 배열이 어떻게 늘어나든 항상 같은 프레임을 가리킴
+  const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
   const filmstripRef = useRef<HTMLDivElement>(null);
   // 사용자가 과거 프레임을 보고 있는 동안엔(마지막=최신 프레임에서 벗어나 있으면) 새 프레임이
   // 들어와도 보던 위치를 유지하고, 최신 프레임을 보고 있을 때만 새 프레임이 들어오는 대로 계속
@@ -56,10 +65,10 @@ const TrainingCameraFramesPage = () => {
   const stickToLatestRef = useRef(true);
 
   // 사이드바에서 cctvId만 바뀌면 프레임 목록도 카메라별로 새로 조회되므로,
-  // 이전 카메라의 frameIndex가 남아 새 카메라의 프레임 수를 넘어가지 않도록 초기화하고
+  // 이전 카메라에서 선택했던 frameId를 그대로 들고 있지 않도록 초기화하고
   // 최신 프레임 추적도 다시 켬
   useEffect(() => {
-    setFrameIndex(0);
+    setSelectedFrameId(null);
     stickToLatestRef.current = true;
   }, [cctvId, sessionId]);
 
@@ -67,6 +76,7 @@ const TrainingCameraFramesPage = () => {
     session,
     isLoading: isSessionLoading,
     isError: isSessionError,
+    error: sessionError,
   } = useTrainingSessionQuery(sessionId);
   // 진행 중 훈련이면 카메라·프레임·이벤트를 주기적으로 다시 조회해 최신 프레임을 반영
   const isLive = isLiveSessionStatus(session?.status);
@@ -96,15 +106,36 @@ const TrainingCameraFramesPage = () => {
     [framePages],
   );
   const lastFrameIndex = frames.length - 1;
+  // BE 작업 예정 필드라 아직 없을 수 있음(현재 프레임 목록 응답엔 없음) — 오면 그 값을,
+  // 없으면 지금까지 불러온 개수로 대신 표시함(아래 렌더링에서 처리)
+  const totalFrameCount = framePages?.pages[0]?.totalCount ?? null;
+
+  // selectedFrameId가 가리키는 프레임의 현재 위치를 매 렌더 새로 계산함 — frames 배열이
+  // 어떻게 늘어나든(뒤에 최신 프레임 추가든, 앞에 과거 페이지 삽입이든) 항상 정확한 위치를 가리킴.
+  // 아직 아무것도 선택 안 했거나(최초 로드) 선택했던 프레임이 더는 없으면 최신 프레임으로 봄
+  const rawFrameIndex = selectedFrameId
+    ? frames.findIndex((frame) => frame.frameId === selectedFrameId)
+    : -1;
+  const frameIndex = rawFrameIndex === -1 ? lastFrameIndex : rawFrameIndex;
 
   // 새 프레임이 들어오면(최초 로드 포함) 최신 추적 중일 때만 마지막(최신) 프레임으로 따라감
   useEffect(() => {
     if (frames.length > 0 && stickToLatestRef.current) {
-      setFrameIndex(frames.length - 1);
+      setSelectedFrameId(frames[frames.length - 1].frameId);
     }
-  }, [frames.length]);
+  }, [frames]);
 
   const { data: events = [] } = useSessionEventsQuery(sessionId, camera?.code, { live: isLive });
+
+  // 진행 중일 때만 1초 단위로 이어서 증가시키고, 종료됐으면 서버가 마지막으로 준 값을 그대로 표시
+  const tickingElapsed = useElapsedTrainingTime(isLive ? (session?.startedAt ?? null) : null);
+  const elapsedDisplay = isLive ? tickingElapsed : formatDuration(session?.elapsedSeconds ?? 0);
+
+  const cameraRefs = useMemo(
+    () => cameras.map((c) => ({ cctvId: c.cctvId, code: c.code })),
+    [cameras],
+  );
+  useTrainingMonitoringSocket(sessionId, cameraRefs);
 
   // 배열이 시간순으로 뒤집혀서, "다음 페이지(더 과거 프레임)"가 필요해지는 시점도 배열
   // 앞쪽(오래된 쪽, 인덱스 0 근처)임 — 그쪽 근처까지 보면 미리 불러와서 ‹로 넘길 때 끊기지 않게 함
@@ -129,11 +160,14 @@ const TrainingCameraFramesPage = () => {
   }
 
   if (isSessionError || isCamerasError) {
+    // 세션 조회만 실패하면 camerasError는 비어있어서(카메라 쿼리는 따로 실패하지 않음) 그대로
+    // 쓰면 항상 빈 메시지 → 일반 안내 문구로만 떨어짐. 어느 쪽이 실패했는지에 맞는 에러를 골라 씀
+    const relevantError = isSessionError ? sessionError : camerasError;
     return (
       <div className={styles.container}>
         <EmptyState
           title="훈련 정보를 불러오지 못했습니다"
-          description={extractApiError(camerasError).message || '잠시 후 다시 시도해주세요'}
+          description={extractApiError(relevantError).message || '잠시 후 다시 시도해주세요'}
         />
       </div>
     );
@@ -155,16 +189,25 @@ const TrainingCameraFramesPage = () => {
 
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
   const currentFrame = frames[frameIndex];
-  const sessionStartedAtMs = new Date(session.startedAt).getTime();
+  // RUNNING만 열람 가능한 화면이라 실제로는 항상 값이 있지만, context.startedAt이 예약 상태에서
+  // null일 수 있는 타입이라 방어함
+  const sessionStartedAtMs = session.startedAt;
 
   // 프레임을 어떤 경로로든(이전/다음 버튼, 필름스트립 클릭) 옮길 땐 항상 이걸 거침 —
   // 최신(마지막) 프레임으로 옮기면 다시 최신 추적을 켜고, 그 외로 옮기면 끔
-  const selectFrame = (index: number) => {
-    setFrameIndex(index);
-    stickToLatestRef.current = index >= lastFrameIndex;
+  const selectFrame = (targetFrameId: string) => {
+    setSelectedFrameId(targetFrameId);
+    const targetIndex = frames.findIndex((frame) => frame.frameId === targetFrameId);
+    stickToLatestRef.current = targetIndex === -1 || targetIndex >= lastFrameIndex;
   };
-  const goPrev = () => selectFrame(Math.max(0, frameIndex - 1));
-  const goNext = () => selectFrame(Math.min(lastFrameIndex, frameIndex + 1));
+  const goPrev = () => {
+    const prevFrame = frames[Math.max(0, frameIndex - 1)];
+    if (prevFrame) selectFrame(prevFrame.frameId);
+  };
+  const goNext = () => {
+    const nextFrame = frames[Math.min(lastFrameIndex, frameIndex + 1)];
+    if (nextFrame) selectFrame(nextFrame.frameId);
+  };
   const scrollFilmstrip = (direction: 1 | -1) => {
     filmstripRef.current?.scrollBy({ left: direction * 420, behavior: 'smooth' });
   };
@@ -178,14 +221,15 @@ const TrainingCameraFramesPage = () => {
         meta={`${camera.location} · ${camera.code}`}
         notice={
           isLive
-            ? '실시간 모니터링 중 · 5초 간격으로 최신 CCTV 프레임이 수신됩니다.'
-            : '훈련 중 5초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.'
+            ? `실시간 모니터링 중 · ${session.snapshotIntervalSec}초 간격으로 최신 CCTV 프레임이 수신됩니다.`
+            : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.`
         }
         live={isLive}
         onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
         stats={[
           { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
           { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
+          { label: '진행 시간', value: elapsedDisplay },
           { label: '카메라', value: `${cameras.length}대` },
         ]}
       />
@@ -285,7 +329,7 @@ const TrainingCameraFramesPage = () => {
                           styles.filmstripItem,
                           index === frameIndex && styles.filmstripItemActive,
                         )}
-                        onClick={() => selectFrame(index)}
+                        onClick={() => selectFrame(frame.frameId)}
                       >
                         {frame.imageUrl && (
                           <img className={styles.filmstripThumb} src={frame.imageUrl} alt="" />
@@ -348,12 +392,14 @@ const TrainingCameraFramesPage = () => {
               <div className={styles.infoRow}>
                 <span className={styles.infoKey}>저장 프레임 수</span>
                 <span className={styles.infoValue}>
-                  {frames.length}개{hasNextPage ? '+' : ''}
+                  {totalFrameCount !== null
+                    ? `${totalFrameCount}개`
+                    : `${frames.length}개${hasNextPage ? '+' : ''}`}
                 </span>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoKey}>저장 간격</span>
-                <span className={styles.infoValue}>5초</span>
+                <span className={styles.infoValue}>{session.snapshotIntervalSec}초</span>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoKey}>훈련 상태</span>

@@ -124,7 +124,8 @@ const pulse = keyframes({
   '50%': { opacity: 0.3 },
 });
 
-// 진행 중 상태 표시용 점 — 텍스트를 읽기 전에도 "지금 살아있는 값"이라는 걸 알 수 있게 함
+// 진행 중 상태 표시용 점 — 텍스트를 읽기 전에도 "지금 살아있는 값"이라는 걸 알 수 있게 함.
+// 모션 감소를 설정한 사용자에게는 계속 깜빡이는 애니메이션이 불편할 수 있어 꺼줌
 export const noticeLiveDot = style({
   flexShrink: 0,
   borderRadius: '50%',
@@ -132,6 +133,11 @@ export const noticeLiveDot = style({
   width: '0.6rem',
   height: '0.6rem',
   animation: `${pulse} 1.6s ease-in-out infinite`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
 });
 
 // 날짜·시작 시간·카메라 대수 — 이전엔 meta 문장 안에 텍스트로 섞여 있어 잘 안 읽혔음.

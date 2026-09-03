@@ -7,7 +7,7 @@ import LoadingState from '@components/loadingState';
 
 import { getTrainingCamerasPath } from '@constants/path';
 
-import { useRunningTrainingSessionsQuery } from './api/useViewableTrainingSessionsQuery';
+import { useRunningTrainingSessionsQuery } from './api/useRunningTrainingSessionsQuery';
 import * as styles from './TrainingAnalysisPage.css';
 
 // 훈련분석은 시나리오가 시작(RUNNING)돼야만 볼 수 있어서, "볼 수 있는 훈련을 골라 들어가는

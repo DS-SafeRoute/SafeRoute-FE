@@ -1,13 +1,29 @@
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 
+import StatusBadge from '@components/chip/StatusBadge';
+import type { StatusBadgeColor } from '@components/chip/StatusBadge';
+
 import * as styles from './CameraCard.css';
+import { CONGESTION_LEVEL_LABEL } from '../../types/trainingAnalysis';
 import { formatCapturedTime } from '../../utils/trainingAnalysis';
 
-import type { MonitoringCamera } from '../../types/trainingAnalysis';
+import type { CctvCurrentState, MonitoringCamera } from '../../types/trainingAnalysis';
+
+// 혼잡 단계별 배지 색 — 세션 상태 배지(진행 중=yellow 등)와 겹치지 않게 정상은 green으로 둠
+const CONGESTION_BADGE_COLOR: Record<
+  NonNullable<CctvCurrentState['congestionLevel']>,
+  StatusBadgeColor
+> = {
+  NORMAL: 'green',
+  CAUTION: 'yellow',
+  CROWDED: 'red',
+  VERY_CROWDED: 'red',
+};
 
 interface CameraCardProps {
   camera: MonitoringCamera;
+  currentState?: CctvCurrentState;
   onClick: (camera: MonitoringCamera) => void;
 }
 
@@ -22,13 +38,31 @@ interface CameraCardProps {
 // 프레임도 문제없이 보여주므로(포스터 자리에 "이미지 준비 중…"만 뜸) 여기서는 항상 눌러볼 수 있게
 // 하고, 진짜 프레임이 하나도 없는 경우는 상세 페이지 자체의 빈 상태("저장된 프레임이 없습니다")가
 // 처리하게 맡김
-const CameraCard = ({ camera, onClick }: CameraCardProps) => {
+const CameraCard = ({ camera, currentState, onClick }: CameraCardProps) => {
   const hasThumbnail = camera.capturedAt !== null;
   const capturedTime = formatCapturedTime(camera.capturedAt);
+
+  // stale(정보 지연)이거나 아직 혼잡 상태 자체가 없으면(congestionLevel=null) 절대 "정상"으로
+  // 임의 표시하지 않음 — 명세에 따라 지연/정보 없음 상태를 별도로 보여줌
+  const congestionBadge =
+    currentState?.stale || !currentState?.congestionLevel
+      ? { label: currentState?.stale ? '갱신 지연' : '정보 없음', color: 'neutral' as const }
+      : {
+          label: CONGESTION_LEVEL_LABEL[currentState.congestionLevel],
+          color: CONGESTION_BADGE_COLOR[currentState.congestionLevel],
+        };
 
   return (
     <button type="button" className={styles.card} onClick={() => onClick(camera)}>
       <div className={styles.thumb}>
+        {currentState ? (
+          <StatusBadge
+            className={styles.congestionBadge}
+            label={congestionBadge.label}
+            color={congestionBadge.color}
+            dot
+          />
+        ) : null}
         {hasThumbnail ? (
           <>
             {camera.thumbnailUrl ? (
