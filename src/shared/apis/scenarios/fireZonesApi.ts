@@ -30,18 +30,14 @@ const toFireZone = (response: FireZoneResponse): FireZone => {
   };
 };
 
-const getFireZoneList = async (url: string, signal?: AbortSignal) => {
+// 발화점 등록은 evacuation-setup으로 통합되었고, 이 조회는 훈련 중 확산 셀 표시에만 사용한다.
+export const getScenarioFireZones = async (scenarioId: string, signal?: AbortSignal) => {
   const response = await request<FireZoneResponse[]>({
     method: HTTP_METHOD.GET,
-    url,
+    url: API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId),
     signal,
     responseMode: 'raw',
   });
 
   return response.map(toFireZone);
 };
-
-export const getScenarioFireZones = (scenarioId: string, signal?: AbortSignal) =>
-  getFireZoneList(API_ENDPOINTS.SCENARIOS.FIRE_ZONES(scenarioId), signal);
-
-// 발화점 등록은 evacuation-setup으로 통합되었고, 이 조회는 훈련 중 확산 셀 표시에만 사용한다.
