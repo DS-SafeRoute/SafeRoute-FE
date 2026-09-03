@@ -112,6 +112,8 @@ const ScenarioSetupForm = ({
     floorMap.selectedStartNodeId || evacuationSetup.persistedStartNodeId,
   );
   const isMapUnavailable = Boolean(floorMap.statusMessage);
+  const canShowEvacuationSetup =
+    evacuationSetup.editable || evacuationSetup.configured || isRunning;
   const fireStepState = getFireStepState(hasFireLocation, isMapUnavailable);
   const startStepState = getStartStepState({
     hasFireLocation,
@@ -171,7 +173,9 @@ const ScenarioSetupForm = ({
           {isRunning && <span className={pageStyles.lockBadge}>{TRAINING_LOCK_MESSAGE}</span>}
         </div>
 
-        <div className={styles.conditionFields}>
+        <div
+          className={canShowEvacuationSetup ? styles.conditionFields : styles.conditionFieldsSingle}
+        >
           <ScenarioField
             label="확산 속도"
             value={fireSpreadLabel}
@@ -180,75 +184,89 @@ const ScenarioSetupForm = ({
             readOnly={readOnly}
             onChange={onFireSpreadChange}
           />
-          <ScenarioField
-            label="대상 층"
-            value={evacuationSetup.selectedFloorId}
-            options={evacuationSetup.floorOptions}
-            disabled={isRunning || evacuationSetup.configured}
-            readOnly={!evacuationSetup.editable}
-            onChange={evacuationSetup.onFloorChange}
-          />
+          {canShowEvacuationSetup && (
+            <ScenarioField
+              label="대상 층"
+              value={evacuationSetup.selectedFloorId}
+              options={evacuationSetup.floorOptions}
+              disabled={isRunning || evacuationSetup.configured}
+              readOnly={!evacuationSetup.editable}
+              onChange={evacuationSetup.onFloorChange}
+            />
+          )}
         </div>
 
-        <div className={styles.setupHeading}>
-          <h3 className={styles.fireLocationLabel}>발화 위치 및 시작 지점</h3>
-          <p className={styles.setupDescription}>
-            도면에서 화재가 시작될 위치와 훈련 시작 지점을 순서대로 선택해 주세요.
-          </p>
-        </div>
-        <div className={styles.setupSteps}>
-          <div className={styles.setupStep[fireStepState]}>
-            <span className={styles.stepNumber[fireStepState]}>1</span>
-            <div>
-              <strong className={styles.stepTitle}>화재 시작 위치</strong>
-              <p className={styles.stepDescription}>{getFireStepDescription(fireStepState)}</p>
+        {!canShowEvacuationSetup && (
+          <div className={styles.lockedSetup}>
+            <div className={styles.lockedSetupCard}>
+              <h3 className={styles.fireLocationLabel}>다음 단계: 발화 위치 및 시작 지점</h3>
+              <p className={styles.lockedSetupDescription}>
+                기본 정보를 입력한 뒤 오른쪽의 &apos;다음&apos; 버튼을 눌러 설정을 계속해 주세요.
+              </p>
             </div>
           </div>
-          <div className={styles.setupStep[startStepState]}>
-            <span className={styles.stepNumber[startStepState]}>2</span>
-            <div>
-              <strong className={styles.stepTitle}>훈련 시작 지점</strong>
-              <p className={styles.stepDescription}>{getStartStepDescription(startStepState)}</p>
-            </div>
-          </div>
-        </div>
-        <FireLocationGrid
-          imageUrl={floorMap.imageUrl}
-          graph={floorMap.graph}
-          gridCells={floorMap.gridCells}
-          routeNodeIds={floorMap.routeNodeIds}
-          fireCellIds={floorMap.fireCellIds}
-          originCellId={floorMap.originCellId}
-          selectedFireCellId={floorMap.selectedFireCellId}
-          selectedStartNodeId={floorMap.selectedStartNodeId}
-          persistedStartNodeId={evacuationSetup.persistedStartNodeId}
-          statusMessage={floorMap.statusMessage}
-          disabled={!evacuationSetup.editable || evacuationSetup.configured || isRunning}
-          startSelectionDisabled={!hasFireLocation}
-          onFireCellSelect={evacuationSetup.onFireCellSelect}
-          onStartNodeSelect={evacuationSetup.onStartNodeSelect}
-        />
+        )}
 
-        {evacuationSetup.configured && (
-          <p className={styles.setupNotice}>
-            설정이 저장되었습니다. 변경하려면 새 시나리오를 만들어 주세요.
-          </p>
-        )}
-        {!evacuationSetup.configured && !evacuationSetup.editable && (
-          <p className={styles.setupNotice}>
-            시나리오 작성을 완료해 READY 상태로 전환한 뒤 설정할 수 있습니다.
-          </p>
-        )}
-        {evacuationSetup.editable && !evacuationSetup.configured && (
-          <Button
-            type="button"
-            className={styles.setupButton}
-            disabled={!evacuationSetup.canSave}
-            isLoading={evacuationSetup.isSaving}
-            onClick={evacuationSetup.onSave}
-          >
-            발화 위치 · 시작 지점 저장
-          </Button>
+        {canShowEvacuationSetup && (
+          <>
+            <div className={styles.setupHeading}>
+              <h3 className={styles.fireLocationLabel}>발화 위치 및 시작 지점</h3>
+              <p className={styles.setupDescription}>
+                도면에서 화재가 시작될 위치와 훈련 시작 지점을 순서대로 선택해 주세요.
+              </p>
+            </div>
+            <div className={styles.setupSteps}>
+              <div className={styles.setupStep[fireStepState]}>
+                <span className={styles.stepNumber[fireStepState]}>1</span>
+                <div>
+                  <strong className={styles.stepTitle}>화재 시작 위치</strong>
+                  <p className={styles.stepDescription}>{getFireStepDescription(fireStepState)}</p>
+                </div>
+              </div>
+              <div className={styles.setupStep[startStepState]}>
+                <span className={styles.stepNumber[startStepState]}>2</span>
+                <div>
+                  <strong className={styles.stepTitle}>훈련 시작 지점</strong>
+                  <p className={styles.stepDescription}>
+                    {getStartStepDescription(startStepState)}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <FireLocationGrid
+              imageUrl={floorMap.imageUrl}
+              graph={floorMap.graph}
+              gridCells={floorMap.gridCells}
+              routeNodeIds={floorMap.routeNodeIds}
+              fireCellIds={floorMap.fireCellIds}
+              originCellId={floorMap.originCellId}
+              selectedFireCellId={floorMap.selectedFireCellId}
+              selectedStartNodeId={floorMap.selectedStartNodeId}
+              persistedStartNodeId={evacuationSetup.persistedStartNodeId}
+              statusMessage={floorMap.statusMessage}
+              disabled={!evacuationSetup.editable || evacuationSetup.configured || isRunning}
+              startSelectionDisabled={!hasFireLocation}
+              onFireCellSelect={evacuationSetup.onFireCellSelect}
+              onStartNodeSelect={evacuationSetup.onStartNodeSelect}
+            />
+
+            {evacuationSetup.configured && (
+              <p className={styles.setupNotice}>
+                설정이 저장되었습니다. 변경하려면 새 시나리오를 만들어 주세요.
+              </p>
+            )}
+            {evacuationSetup.editable && !evacuationSetup.configured && (
+              <Button
+                type="button"
+                className={styles.setupButton}
+                disabled={!evacuationSetup.canSave}
+                isLoading={evacuationSetup.isSaving}
+                onClick={evacuationSetup.onSave}
+              >
+                시나리오 설정 완료
+              </Button>
+            )}
+          </>
         )}
       </section>
     </div>

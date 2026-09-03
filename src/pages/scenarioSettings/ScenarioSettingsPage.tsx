@@ -292,7 +292,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
             isSavingDraft={createDraftMutation.isPending || updateScenarioMutation.isPending}
             isCompleting={isCompleting}
             showDraftSave={isCreatePage || isDraft}
-            completeLabel={isScenarioReady ? '변경 저장' : '작성 완료'}
+            completeLabel={isScenarioReady ? '변경 저장' : '다음'}
             startState={{
               disabled:
                 training.areSessionsPending ||

@@ -16,6 +16,33 @@ export const conditionFields = style({
   marginTop: vars.space.s4,
 });
 
+export const conditionFieldsSingle = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  marginTop: vars.space.s4,
+  width: '100%',
+  maxWidth: '32rem',
+});
+
+export const lockedSetup = style({
+  marginTop: vars.space.s5,
+  borderTop: `1px solid ${vars.color.gray100}`,
+  paddingTop: vars.space.s5,
+});
+
+export const lockedSetupCard = style({
+  border: `1px solid ${vars.color.gray200}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.gray25,
+  padding: vars.space.s4,
+});
+
+export const lockedSetupDescription = style({
+  marginTop: vars.space.s1,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
 export const setupHeading = style({
   marginTop: vars.space.s5,
   borderTop: `1px solid ${vars.color.gray100}`,
