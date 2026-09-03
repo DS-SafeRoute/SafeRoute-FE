@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 
 import { LIVE_SESSION_POLL_INTERVAL_MS } from '@pages/trainingAnalysis/constants/trainingAnalysis';
 import type { TrainingSessionSummary } from '@pages/trainingAnalysis/types/trainingAnalysis';
@@ -70,6 +70,36 @@ export const useViewableTrainingSessionsQuery = () => {
     isLoading: running.isLoading || completed.isLoading || failed.isLoading,
     isError: running.isError || completed.isError || failed.isError,
   };
+};
+
+// 훈련분석 첫 화면(목록)에서만 쓰는, 진행 중(RUNNING) 훈련만 보는 쿼리.
+// "첫 화면은 진행 중인 훈련만 보여준다"는 팀 결정에 따른 범위 제한임(기술적 제약이 아님) —
+// 백엔드가 종료된 세션의 모니터링 조회도 열어줘서(스웨거: "세션 상태와 무관하게 조회할 수
+// 있으며, 종료된 세션은 훈련 중 마지막으로 저장된 캡처를 그대로 보여줍니다", 실제 호출로도 확인)
+// 지난 훈련 다시보기가 필요해지면 이 쿼리의 상태 조건만 넓히면 됨.
+// 상세 화면(카메라/프레임)이 쓰는 아래 useTrainingSessionQuery는 딥링크·새로고침으로 종료된
+// 세션에 직접 들어오는 경우까지 받아주려고 기존대로 세 상태를 모두 조회함
+export const useRunningTrainingSessionsQuery = () => {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.RUNNING),
+    queryFn: ({ signal }) => getTrainingSessions(TRAINING_SESSION_STATUS.RUNNING, signal),
+    // 훈련이 새로 시작되면 목록에 알아서 나타나도록 계속 지켜봄
+    refetchInterval: LIVE_SESSION_POLL_INTERVAL_MS,
+    // 기본값(false)이면 창이 포커스를 잃는 순간 폴링이 멈춤 — 관제 화면처럼 띄워만 두는 경우
+    // "자동 갱신"이라고 안내해놓고 실제로는 멈춰 있게 되어서 백그라운드에서도 계속 돌게 함
+    refetchIntervalInBackground: true,
+  });
+
+  const sessions = useMemo(
+    () =>
+      (data ?? [])
+        .map(toTrainingSessionSummary)
+        .filter((session): session is TrainingSessionSummary => session !== null)
+        .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)),
+    [data],
+  );
+
+  return { sessions, isLoading, isError };
 };
 
 // 세션 상세 조회 API가 따로 없어서(목록만 있음), 목록 쿼리 캐시에서 찾아 씀 — 목록 화면을
