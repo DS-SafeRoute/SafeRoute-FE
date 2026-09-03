@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -13,6 +13,11 @@ import {
   useEndTrainingSessionMutation,
   useStartTrainingSessionMutation,
 } from '@apis/trainingSessions/useTrainingSessionMutations';
+import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
+import type {
+  TrainingSessionEvent,
+  TrainingStatusEventData,
+} from '@apis/trainingSessions/websocket/trainingSessionEvents';
 import { useTrainingSessionSocket } from '@apis/trainingSessions/websocket/useTrainingSessionSocket';
 
 import { useTrainingRouteData } from './useTrainingRouteData';
@@ -31,6 +36,9 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   } | null>(null);
   // 대피 설정 직후 생성한 SCHEDULED 세션을 목록 재조회 전에도 경로 미리보기에 사용
   const [preparedSessionId, setPreparedSessionId] = useState<string | null>(null);
+  // 서버가 최대 진행 시간 만료로 종료했을 때 화면에서 한 번 안내하기 위한 이벤트 시각
+  const [autoEndedAt, setAutoEndedAt] = useState<string | null>(null);
+  const manuallyEndedSessionIdRef = useRef<string | null>(null);
 
   // 훈련 세션 예약·시작·종료
   const createSessionMutation = useCreateTrainingSessionMutation();
@@ -68,11 +76,30 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     enabled: Boolean(activeSessionId ?? scheduledSessionId),
     liveUpdatesEnabled: isRunning,
   });
+  const handleRouteTrainingEvent = route.handleTrainingEvent;
 
-  useTrainingSessionSocket({
-    sessionId: activeSessionId,
-    onEvent: route.handleTrainingEvent,
-  });
+  const clearLocalSessionState = useCallback(() => {
+    setStartedSession(null);
+    setPreparedSessionId(null);
+  }, []);
+
+  const handleTrainingEvent = useCallback(
+    (event: TrainingSessionEvent) => {
+      handleRouteTrainingEvent(event);
+      if (event.eventType !== TRAINING_EVENT_TYPE.STATUS_UPDATED) return;
+
+      const statusEvent = event as TrainingSessionEvent<TrainingStatusEventData>;
+      if (statusEvent.data.status !== TRAINING_SESSION_STATUS.COMPLETED) return;
+
+      clearLocalSessionState();
+      if (manuallyEndedSessionIdRef.current !== event.sessionId) {
+        setAutoEndedAt(statusEvent.data.endedAt ?? event.occurredAt);
+      }
+    },
+    [clearLocalSessionState, handleRouteTrainingEvent],
+  );
+
+  useTrainingSessionSocket({ sessionId: activeSessionId, onEvent: handleTrainingEvent });
 
   // 시나리오 생성 직후 또는 예약 세션이 없을 때 훈련 일정 등록
   const scheduleTraining = async (scenarioId: string) => {
@@ -116,12 +143,21 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     }
 
     setStartedSession({ id: session.id, startedAt: session.startedAt });
+    setAutoEndedAt(null);
+    manuallyEndedSessionIdRef.current = null;
   };
 
   // 현재 실행 중인 훈련 종료
   const endTraining = async () => {
     if (!activeSessionId) throw new Error('종료할 훈련 세션 ID가 없습니다.');
-    await endSessionMutation.mutateAsync(activeSessionId);
+    manuallyEndedSessionIdRef.current = activeSessionId;
+    try {
+      await endSessionMutation.mutateAsync(activeSessionId);
+      clearLocalSessionState();
+    } catch (error) {
+      manuallyEndedSessionIdRef.current = null;
+      throw error;
+    }
   };
 
   return {
@@ -133,6 +169,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     isScheduling: createSessionMutation.isPending,
     isStarting: createSessionMutation.isPending || startSessionMutation.isPending,
     isEnding: endSessionMutation.isPending,
+    autoEndedAt,
     ensureScheduledSession,
     startTraining,
     endTraining,

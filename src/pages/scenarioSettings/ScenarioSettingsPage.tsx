@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useNavigate, useParams } from 'react-router';
 
@@ -231,6 +231,17 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
       });
     }
   };
+
+  // 서버의 자동 종료 상태를 받으면 생성된 보고서 목록으로 이동
+  useEffect(() => {
+    if (!training.autoEndedAt) return;
+    show({
+      title: '훈련이 자동 종료되었습니다.',
+      description: '최대 훈련 시간이 지나 생성된 보고서로 이동합니다.',
+      variant: 'default',
+    });
+    void navigate(ROUTES.REPORTS, { replace: true });
+  }, [navigate, show, training.autoEndedAt]);
 
   // 진행 중인 훈련 종료 후 결과 이동 모달 표시
   const handleEndTraining = async () => {
