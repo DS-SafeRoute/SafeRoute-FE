@@ -168,12 +168,16 @@ export const statSub = style({
   ...vars.typography.body14,
 });
 
-/* 프레임 탐색 — 별도 카드로 감싸지 않고 뷰어 아래 흐름에 바로 이어지게 함.
+/* 프레임 탐색 — 뷰어와 같은 톤(gray900)의 바로 감싸서 "이게 프레임 목록"이라는 게 한눈에
+   보이게 함(이전엔 배경이 페이지와 같은 흰색이라 낱개 썸네일들이 흩어져 있는 것처럼 보였음).
    제목/개수 문구는 우측 "세션 정보" 패널의 저장 프레임 수와 중복이라 뺌 */
 export const filmstripSection = style({
   display: 'flex',
   alignItems: 'center',
   gap: vars.space.s2,
+  borderRadius: vars.radius.lg,
+  backgroundColor: vars.color.gray900,
+  padding: vars.space.s3,
   minWidth: 0,
 });
 
@@ -182,15 +186,15 @@ export const filmstripNavBtn = style({
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
+  border: 'none',
   borderRadius: '50%',
-  backgroundColor: vars.color.white,
+  backgroundColor: 'rgba(255,255,255,0.1)',
   cursor: 'pointer',
   width: '3.2rem',
   height: '3.2rem',
-  color: vars.color.textMid,
+  color: vars.color.white,
   selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
+    '&:hover': { backgroundColor: 'rgba(255,255,255,0.18)' },
   },
 });
 
@@ -221,6 +225,8 @@ export const filmstripItem = style({
   transition: 'outline-color 0.15s, box-shadow 0.15s',
   outline: `3px solid transparent`,
   outlineOffset: '-3px',
+  // 필름스트립 바 배경(gray900)과 같은 색이라 옅은 테두리로 낱개 항목 경계를 구분함
+  border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: vars.radius.md,
   backgroundColor: vars.color.gray900,
   cursor: 'pointer',

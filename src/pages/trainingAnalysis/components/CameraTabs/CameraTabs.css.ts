@@ -27,12 +27,8 @@ export const tab = style({
   padding: `${vars.space.s2} ${vars.space.s3}`,
   color: vars.color.textMid,
   selectors: {
-    '&:hover:not(:disabled)': {
+    '&:hover': {
       backgroundColor: vars.color.gray25,
-    },
-    '&:disabled': {
-      opacity: 0.5,
-      cursor: 'not-allowed',
     },
   },
 });
