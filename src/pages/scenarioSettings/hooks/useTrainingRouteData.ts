@@ -26,6 +26,7 @@ import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trai
 interface UseTrainingRouteDataParams {
   sessionId?: string | null;
   enabled: boolean;
+  liveUpdatesEnabled: boolean;
 }
 
 const getCurrentRouteMessage = (
@@ -38,13 +39,17 @@ const getCurrentRouteMessage = (
   return formatCurrentRoute(route);
 };
 
-export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDataParams) => {
+export const useTrainingRouteData = ({
+  sessionId,
+  enabled,
+  liveUpdatesEnabled,
+}: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
   const shouldFetch = enabled && Boolean(sessionId);
-  const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId);
+  const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId, shouldFetch);
   const recalculationsQuery = useRouteRecalculationsQuery(
     sessionId ? { trainingSessionId: sessionId } : undefined,
-    shouldFetch,
+    shouldFetch && liveUpdatesEnabled,
   );
   const recalculations = recalculationsQuery.data ?? [];
   const pendingRecalculation = getLatestRecalculation(
@@ -52,7 +57,7 @@ export const useTrainingRouteData = ({ sessionId, enabled }: UseTrainingRouteDat
   );
   const detailQuery = useRouteRecalculationDetailQuery(
     pendingRecalculation?.recalculationId,
-    shouldFetch,
+    shouldFetch && liveUpdatesEnabled,
   );
   const approveMutation = useApproveRouteRecalculationMutation();
   const rejectMutation = useRejectRouteRecalculationMutation();

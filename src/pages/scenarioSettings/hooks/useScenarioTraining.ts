@@ -36,10 +36,16 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   // 시작 가능한 시나리오에서만 실행 중·예약 세션 조회
   const shouldQuerySessions =
     scenario?.status === SCENARIO_STATUS.READY || scenario?.status === SCENARIO_STATUS.IN_PROGRESS;
+  const shouldPollRunningSessions =
+    scenario?.status === SCENARIO_STATUS.IN_PROGRESS || startedSession !== null;
   const { data: runningSessions = [], isPending: isRunningSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, shouldQuerySessions);
+    useGetTrainingSessionsQuery(
+      TRAINING_SESSION_STATUS.RUNNING,
+      shouldQuerySessions,
+      shouldPollRunningSessions,
+    );
   const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
-    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, shouldQuerySessions);
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, shouldQuerySessions, false);
 
   // 최신 응답의 scenarioId로 현재 시나리오 세션을 식별
   const runningSession = runningSessions.find((session) => session.scenarioId === scenario?.id);
@@ -56,6 +62,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   const route = useTrainingRouteData({
     sessionId: activeSessionId ?? scheduledSessionId,
     enabled: Boolean(activeSessionId ?? scheduledSessionId),
+    liveUpdatesEnabled: isRunning,
   });
 
   useTrainingSessionSocket({

@@ -51,12 +51,15 @@ const HomePage = () => {
   );
   const { data: scheduledSessions = [] } = useGetTrainingSessionsQuery(
     TRAINING_SESSION_STATUS.SCHEDULED,
+    true,
+    false,
   );
   const startTrainingSessionMutation = useStartTrainingSessionMutation();
   const selectedSession = runningSessions[0] ?? scheduledSessions[0];
   const { data: trainingStatus } = useGetTrainingStatusQuery(selectedSession?.sessionId);
   const training = toScheduledTraining(selectedSession, trainingStatus);
-  useTrainingSessionSocket({ sessionId: selectedSession?.sessionId });
+  // 실시간 이벤트는 RUNNING 세션에만 필요하다. SCHEDULED 세션은 목록·상태 조회만 사용한다.
+  useTrainingSessionSocket({ sessionId: runningSessions[0]?.sessionId });
 
   const handleTrainingAction = async () => {
     if (!training) return;
