@@ -21,7 +21,7 @@ import ScenarioListRow from './components/scenarioList/ScenarioListRow';
 import { SCENARIO_STATUS_FILTER_OPTIONS } from './constants/scenarioSettings';
 import * as styles from './ScenarioListPage.css';
 
-import type { ScenarioSummary } from './types/scenarioList';
+import type { Scenario } from './types/scenarioList';
 
 type StatusFilter = (typeof SCENARIO_STATUS_FILTER_OPTIONS)[number]['value'];
 
@@ -32,7 +32,7 @@ const ScenarioListPage = () => {
   const { data: buildings = [], isPending: areBuildingsPending } = useGetBuildingsQuery();
   const deleteScenarioMutation = useDeleteScenarioMutation();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [deleteTarget, setDeleteTarget] = useState<ScenarioSummary | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null);
   const buildingNames = new Map(buildings.map((building) => [building.id, building.name]));
 
   const filteredScenarios = scenarios.filter(
@@ -52,11 +52,11 @@ const ScenarioListPage = () => {
     void navigate(ROUTES.SCENARIO_CREATE);
   };
 
-  const handleOpen = (scenario: ScenarioSummary) => {
+  const handleOpen = (scenario: Scenario) => {
     void navigate(getScenarioDetailPath(scenario.id));
   };
 
-  const handleDelete = (scenario: ScenarioSummary) => {
+  const handleDelete = (scenario: Scenario) => {
     if (!scenario.deletable) return;
     setDeleteTarget(scenario);
   };
@@ -114,7 +114,7 @@ const ScenarioListPage = () => {
           <ScenarioListRow
             key={scenario.id}
             scenario={scenario}
-            buildingName={buildingNames.get(scenario.buildingId)}
+            buildingName={scenario.buildingId ? buildingNames.get(scenario.buildingId) : undefined}
             onOpen={handleOpen}
             onDelete={handleDelete}
           />
@@ -150,7 +150,7 @@ const ScenarioListPage = () => {
       {deleteTarget && (
         <ScenarioDeleteModal
           open
-          scenarioName={deleteTarget.name}
+          scenarioName={deleteTarget.name ?? '이 시나리오'}
           onClose={() => setDeleteTarget(null)}
           onConfirm={handleConfirmDelete}
           isSubmitting={deleteScenarioMutation.isPending}

@@ -17,7 +17,7 @@ export const panel = style({
 });
 
 export const map = style({
-  aspectRatio: '4 / 3',
+  display: 'block',
   border: `1px solid ${vars.color.gray200}`,
   backgroundColor: vars.color.white,
   width: '100%',
@@ -27,48 +27,76 @@ export const map = style({
 
 export const graphEdge = style({
   stroke: vars.color.gray300,
-  strokeWidth: 0.35,
+  strokeWidth: 1.4,
 });
 
 export const route = style({
   fill: 'none',
   stroke: vars.color.success,
-  strokeDasharray: '1.4 1.2',
+  strokeDasharray: '7 5',
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
-  strokeWidth: 0.8,
+  strokeWidth: 4,
 });
 
 export const gridCell = style({
   fill: 'rgba(255, 255, 255, 0.04)',
   stroke: 'rgba(156, 163, 175, 0.55)',
-  strokeWidth: 0.15,
+  strokeWidth: 0.6,
+});
+
+export const selectedFireCell = style({
+  cursor: 'pointer',
+  fill: 'rgba(255, 122, 69, 0.3)',
+  stroke: fireBorder,
+  strokeWidth: 2,
 });
 
 export const fireCell = style({
   fill: fireSurface,
   stroke: fireBorder,
-  strokeWidth: 0.45,
+  strokeWidth: 2,
 });
 
 export const fireMarker = style({
   pointerEvents: 'none',
-  fontSize: '2.3px',
+  fontSize: '11px',
   fontWeight: vars.fontWeight.bold,
   fill: vars.color.dangerText,
   textAnchor: 'middle',
 });
 
+export const selectedFireMarker = style({
+  pointerEvents: 'none',
+  fontSize: '14px',
+  textAnchor: 'middle',
+  dominantBaseline: 'middle',
+});
+
 export const graphNode = style({
   fill: vars.color.primary,
   stroke: vars.color.white,
-  strokeWidth: 0.3,
+  strokeWidth: 1.5,
 });
 
 export const exitNode = style({
   fill: vars.color.success,
   stroke: vars.color.white,
-  strokeWidth: 0.3,
+  strokeWidth: 1.5,
+});
+
+export const startNode = style({
+  cursor: 'pointer',
+  fill: '#db2777',
+  stroke: vars.color.white,
+  strokeWidth: 1.5,
+});
+
+export const selectedStartNode = style({
+  cursor: 'pointer',
+  fill: '#7c3aed',
+  stroke: vars.color.white,
+  strokeWidth: 3,
 });
 
 export const statusMessage = style({

@@ -9,6 +9,7 @@ import type { BasicInfo } from '@pages/scenarioSettings/types/scenarioSettings';
 
 import UsersIcon from '@assets/icons/ic-multi-user.svg?react';
 
+import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
 
 import * as styles from './ScenarioSetupForm.css';
@@ -29,12 +30,27 @@ interface ScenarioSetupHandlers {
   onFireSpreadChange: (value: string) => void;
 }
 
+interface EvacuationSetupControl {
+  floorOptions: readonly ScenarioFieldOption[];
+  selectedFloorId: string;
+  persistedStartNodeId?: string | null;
+  editable: boolean;
+  configured: boolean;
+  canSave: boolean;
+  isSaving: boolean;
+  onFloorChange: (floorId: string) => void;
+  onFireCellSelect: (cellId: string) => void;
+  onStartNodeSelect: (nodeId: string) => void;
+  onSave: () => void;
+}
+
 interface ScenarioSetupFormProps {
   value: ScenarioSetupValue;
   buildingOptions: readonly ScenarioFieldOption[];
   floorMap: ScenarioFloorMapView;
   mode: ScenarioSetupMode;
   handlers: ScenarioSetupHandlers;
+  evacuationSetup: EvacuationSetupControl;
 }
 
 const TRAINING_LOCK_MESSAGE = '🔒 잠금 · 훈련 중 수정 불가';
@@ -45,6 +61,7 @@ const ScenarioSetupForm = ({
   floorMap,
   mode,
   handlers,
+  evacuationSetup,
 }: ScenarioSetupFormProps) => {
   const { basicInfo, fireSpreadLabel } = value;
   const { isRunning, readOnly, buildingReadOnly } = mode;
@@ -112,7 +129,25 @@ const ScenarioSetupForm = ({
           />
         </div>
 
-        <h3 className={styles.fireLocationLabel}>발화 위치</h3>
+        <h3 className={styles.fireLocationLabel}>발화 위치 및 시작 지점</h3>
+        <div className={styles.mapToolbar}>
+          <ScenarioField
+            label="도면 층"
+            value={evacuationSetup.selectedFloorId}
+            options={evacuationSetup.floorOptions}
+            disabled={isRunning || evacuationSetup.configured}
+            readOnly={!evacuationSetup.editable}
+            onChange={evacuationSetup.onFloorChange}
+          />
+          <div className={styles.mapGuide}>
+            <span>
+              <strong>1.</strong> 보행 가능한 격자에서 발화 위치 선택
+            </span>
+            <span>
+              <strong>2.</strong> 분홍색 START 후보에서 시작 지점 선택
+            </span>
+          </div>
+        </div>
         <FireLocationGrid
           imageUrl={floorMap.imageUrl}
           graph={floorMap.graph}
@@ -120,8 +155,36 @@ const ScenarioSetupForm = ({
           routeNodeIds={floorMap.routeNodeIds}
           fireCellIds={floorMap.fireCellIds}
           originCellId={floorMap.originCellId}
+          selectedFireCellId={floorMap.selectedFireCellId}
+          selectedStartNodeId={floorMap.selectedStartNodeId}
+          persistedStartNodeId={evacuationSetup.persistedStartNodeId}
           statusMessage={floorMap.statusMessage}
+          disabled={!evacuationSetup.editable || evacuationSetup.configured || isRunning}
+          onFireCellSelect={evacuationSetup.onFireCellSelect}
+          onStartNodeSelect={evacuationSetup.onStartNodeSelect}
         />
+
+        {evacuationSetup.configured && (
+          <p className={styles.setupNotice}>
+            설정이 저장되었습니다. 변경하려면 새 시나리오를 만들어 주세요.
+          </p>
+        )}
+        {!evacuationSetup.configured && !evacuationSetup.editable && (
+          <p className={styles.setupNotice}>
+            시나리오 작성을 완료해 READY 상태로 전환한 뒤 설정할 수 있습니다.
+          </p>
+        )}
+        {evacuationSetup.editable && !evacuationSetup.configured && (
+          <Button
+            type="button"
+            className={styles.setupButton}
+            disabled={!evacuationSetup.canSave}
+            isLoading={evacuationSetup.isSaving}
+            onClick={evacuationSetup.onSave}
+          >
+            발화 위치 · 시작 지점 저장
+          </Button>
+        )}
       </section>
     </div>
   );

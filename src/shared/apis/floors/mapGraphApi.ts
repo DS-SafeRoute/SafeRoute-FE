@@ -7,7 +7,7 @@ import type {
 import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-export type MapNodeType = 'STAIR' | 'ROOM' | 'HALLWAY' | 'DOOR' | 'EXIT' | 'START' | 'CUSTOM';
+export type MapNodeType = NonNullable<MapNodeResponse['type']>;
 
 export interface MapNode {
   id: string;
@@ -63,8 +63,7 @@ export const getFloorGraph = async (floorId: string, signal?: AbortSignal): Prom
   };
 };
 
-// 발화점 생성(fireZonesApi.ts)과 같은 이유로 여기 둠 — 도면관리상세뿐 아니라 시나리오설정에서도
-// 시작 노드를 만들 때 이 함수를 그대로 씀(useStartNodeDesignation)
+// 도면 관리에서 START를 포함한 맵 노드를 등록
 export const createMapNode = async (
   floorId: string,
   body: CreateMapNodeRequest,

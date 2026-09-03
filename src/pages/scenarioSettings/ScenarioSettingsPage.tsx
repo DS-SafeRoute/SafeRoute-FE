@@ -13,8 +13,9 @@ import useToast from '@components/toast/useToast';
 import { ROUTES, getScenarioDetailPath } from '@constants/path';
 
 import {
-  useCreateScenarioMutation,
+  useCreateScenarioDraftMutation,
   useGetScenarioQuery,
+  useReadyScenarioMutation,
   useUpdateScenarioMutation,
 } from './api/scenarioQueries';
 import ScenarioActionPanel from './components/scenarioActionPanel/ScenarioActionPanel';
@@ -43,66 +44,63 @@ const getScenarioActionMode = (
   return 'start';
 };
 
-const getStartRestrictionMessage = (
-  scenario: Scenario | undefined,
-  isFireOriginRequired: boolean,
-) => {
+const getStartRestrictionMessage = ({
+  scenario,
+  isSetupPending,
+  isSetupError,
+  isConfigured,
+}: {
+  scenario?: Scenario;
+  isSetupPending: boolean;
+  isSetupError: boolean;
+  isConfigured: boolean;
+}) => {
   if (
     scenario?.status === SCENARIO_STATUS.COMPLETED ||
     scenario?.status === SCENARIO_STATUS.ERROR
   ) {
     return '완료되었거나 오류가 발생한 시나리오는 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
   }
-  if (isFireOriginRequired) {
-    return '도면 관리에서 이 시나리오의 최초 발화점을 지정해 주세요.';
+  if (isSetupPending) return '발화 위치와 시작 지점 설정을 확인하고 있습니다.';
+  if (isSetupError) return '대피 설정을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.';
+  if (scenario?.status === SCENARIO_STATUS.READY && !isConfigured) {
+    return '도면에서 발화 위치와 START 후보를 선택해 저장해 주세요.';
   }
   return undefined;
 };
 
-const getActionLoading = (
-  mode: ScenarioActionMode,
-  isCreating: boolean,
-  isSaving: boolean,
-  isStarting: boolean,
-) => {
-  if (mode === 'create') return isCreating;
-  if (mode === 'edit') return isSaving;
-  return isStarting;
-};
-
-// 시나리오 작성·수정 화면과 훈련 진행 화면의 UI 흐름 조정
+// 시나리오 작성·대피 설정·훈련 제어의 순서를 조정하는 화면 컨테이너
 const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
   const { show } = useToast();
 
-  // 폼 선택지와 요청에 필요한 사용자·건물 정보
+  // 폼 선택지와 세션 등록에 필요한 사용자·건물 정보
   const { data: buildings = [] } = useGetBuildingsQuery();
   const { data: currentUser } = useMyProfileQuery();
 
-  // 시나리오 생성·수정 요청 상태
-  const createScenarioMutation = useCreateScenarioMutation();
+  // DRAFT 생성·수정·READY 전환 요청 상태
+  const createDraftMutation = useCreateScenarioDraftMutation();
   const updateScenarioMutation = useUpdateScenarioMutation();
+  const readyScenarioMutation = useReadyScenarioMutation();
 
-  // 편집 여부와 훈련 종료 안내 모달은 서로 독립적인 UI 상태
+  // 기본 정보 편집과 훈련 종료 모달은 독립적인 화면 상태
   const [isEditing, setIsEditing] = useState(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
 
-  // 시나리오 상태에 따른 액션 패널 모드
   const isCreatePage = scenario === undefined;
+  const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
   const isScenarioReady = scenario?.status === SCENARIO_STATUS.READY;
   const actionMode = getScenarioActionMode(scenario, isEditing);
 
-  // 입력 폼과 훈련 세션의 상태·동작을 도메인 단위로 관리
+  // 기본 정보 폼과 세션 생명주기를 각각 도메인 훅에서 관리
   const scenarioForm = useScenarioForm({ scenario, defaultBuildingId: buildings[0]?.id });
   const training = useScenarioTraining({ scenario, adminId: currentUser?.id });
-
-  // 건물 조회 결과를 대상 건물 선택 옵션으로 변환
   const buildingOptions = buildings.map((building) => ({
     label: building.name,
     value: building.id,
   }));
 
-  // 선택된 건물·훈련 경로에 맞는 도면과 발화 위치 조회
+  // 선택 건물의 층·도면·START 후보·발화 격자와 저장된 대피 설정을 함께 조회
   const floorView = useScenarioFloorView({
     scenarioId: scenario?.id,
     buildingId: scenarioForm.selectedBuildingId,
@@ -111,25 +109,96 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     routeNodeIds: training.route.routeNodeIds,
   });
 
-  // 준비 상태와 발화점 조회 결과를 조합해 훈련 시작 가능 여부 결정
-  const canStartTraining = isScenarioReady && floorView.hasFireOrigin;
-  const isFireOriginRequired =
-    isScenarioReady &&
-    !floorView.isFireOriginPending &&
-    !floorView.isFireOriginError &&
-    !floorView.hasFireOrigin;
-  const startRestrictionMessage = getStartRestrictionMessage(scenario, isFireOriginRequired);
-  const isActionLoading = getActionLoading(
-    actionMode,
-    createScenarioMutation.isPending || training.isScheduling,
-    updateScenarioMutation.isPending,
-    training.isStarting,
-  );
+  const canStartTraining = isScenarioReady && floorView.isConfigured;
+  const startRestrictionMessage = getStartRestrictionMessage({
+    scenario,
+    isSetupPending: floorView.isSetupPending,
+    isSetupError: floorView.isSetupError,
+    isConfigured: floorView.isConfigured,
+  });
+  const isCompleting =
+    createDraftMutation.isPending ||
+    updateScenarioMutation.isPending ||
+    readyScenarioMutation.isPending ||
+    training.isStarting;
 
-  // 예약 세션을 준비한 뒤 훈련 시작
+  // 일부 값만 채운 새 시나리오도 DRAFT로 만들고, 기존 DRAFT는 PATCH로 갱신
+  const handleSaveDraft = async () => {
+    const payload = scenarioForm.getDraftPayload();
+
+    try {
+      if (!scenario) {
+        const createdScenario = await createDraftMutation.mutateAsync(payload);
+        show({ title: '임시 저장되었습니다.', variant: 'success' });
+        void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
+        return;
+      }
+
+      await updateScenarioMutation.mutateAsync({ scenarioId: scenario.id, body: payload });
+      show({ title: '임시 저장되었습니다.', variant: 'success' });
+    } catch {
+      show({ title: '임시 저장에 실패했습니다.', variant: 'error' });
+    }
+  };
+
+  // 필수값을 저장한 뒤 새 DRAFT 또는 기존 DRAFT를 READY로 전환
+  const handleComplete = async () => {
+    const payload = scenarioForm.getReadyPayload();
+    if (!payload) {
+      show({ title: '시나리오 정보를 모두 올바르게 입력해 주세요.', variant: 'error' });
+      return;
+    }
+
+    try {
+      const savedScenario = scenario
+        ? await updateScenarioMutation.mutateAsync({ scenarioId: scenario.id, body: payload })
+        : await createDraftMutation.mutateAsync(payload);
+      const completedScenario =
+        savedScenario.status === SCENARIO_STATUS.DRAFT
+          ? await readyScenarioMutation.mutateAsync(savedScenario.id)
+          : savedScenario;
+
+      setIsEditing(false);
+      show({
+        title: isScenarioReady ? '변경 사항이 저장되었습니다.' : '작성이 완료되었습니다.',
+        variant: 'success',
+      });
+      if (isCreatePage) {
+        void navigate(getScenarioDetailPath(completedScenario.id), { replace: true });
+      }
+    } catch {
+      show({ title: '시나리오 저장에 실패했습니다.', variant: 'error' });
+    }
+  };
+
+  // 발화 셀과 START 후보를 한 번에 저장한 뒤 SCHEDULED 세션과 초기 경로를 준비
+  const handleSaveEvacuationSetup = async () => {
+    if (!scenario || !currentUser?.id) {
+      show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
+      return;
+    }
+
+    try {
+      await floorView.saveEvacuationSetup();
+      try {
+        await training.ensureScheduledSession(scenario.id);
+      } catch {
+        show({
+          title: '대피 설정은 저장됐지만 훈련 세션 준비에 실패했습니다.',
+          description: '시나리오 시작 시 다시 시도할 수 있습니다.',
+          variant: 'error',
+        });
+        return;
+      }
+      show({ title: '발화 위치와 시작 지점이 저장되었습니다.', variant: 'success' });
+    } catch {
+      show({ title: '발화 위치와 시작 지점 저장에 실패했습니다.', variant: 'error' });
+    }
+  };
+
+  // 예약 세션을 재사용하거나 준비한 뒤 훈련 시작
   const handleStartTraining = async () => {
     if (training.areSessionsPending || !canStartTraining) return;
-
     if (!scenario || !currentUser?.id) {
       show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
       return;
@@ -146,7 +215,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   // 진행 중인 훈련 종료 후 결과 이동 모달 표시
   const handleEndTraining = async () => {
     if (!training.isRunning) return;
-
     try {
       await training.endTraining();
       setIsEndModalOpen(true);
@@ -155,69 +223,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  // 작성·수정에서 공통으로 사용할 검증 완료 payload 반환
-  const getFormPayload = () => {
-    const payload = scenarioForm.getPayload();
-    if (!payload) {
-      show({ title: '시나리오 정보를 모두 올바르게 입력해 주세요.', variant: 'error' });
-    }
-    return payload;
-  };
-
-  // 기존 시나리오의 수정 내용을 임시 저장
-  const handleSaveDraft = async () => {
-    if (!scenario) return;
-    const payload = getFormPayload();
-    if (!payload) return;
-
-    try {
-      await updateScenarioMutation.mutateAsync({
-        scenarioId: scenario.id,
-        body: payload,
-      });
-      setIsEditing(false);
-      show({ title: '임시 저장되었습니다.', variant: 'success' });
-    } catch {
-      show({ title: '임시 저장에 실패했습니다.', variant: 'error' });
-    }
-  };
-
-  // 시나리오 생성 후 연결된 훈련 일정까지 순서대로 등록
-  const handleCreate = async () => {
-    const payload = getFormPayload();
-    if (!payload) return;
-
-    if (!currentUser?.id) {
-      show({ title: '사용자 정보를 불러온 후 다시 시도해 주세요.', variant: 'error' });
-      return;
-    }
-
-    try {
-      const createdScenario = await createScenarioMutation.mutateAsync({
-        ...payload,
-        buildingId: scenarioForm.selectedBuildingId,
-        adminId: currentUser.id,
-      });
-
-      try {
-        await training.scheduleTraining(createdScenario.id, payload.scheduledAt);
-      } catch {
-        show({
-          title: '시나리오는 등록됐지만 훈련 일정 등록에 실패했습니다.',
-          variant: 'error',
-        });
-        void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
-        return;
-      }
-
-      show({ title: '시나리오가 등록되었습니다.', variant: 'success' });
-      void navigate(getScenarioDetailPath(createdScenario.id), { replace: true });
-    } catch {
-      show({ title: '시나리오 등록에 실패했습니다.', variant: 'error' });
-    }
-  };
-
-  // 실시간 경로 변경 제안 거부
   const handleRejectRouteProposal = async () => {
     try {
       await training.route.rejectRouteProposal();
@@ -226,7 +231,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  // 실시간 경로 변경 제안 승인
   const handleApplyRouteProposal = async () => {
     try {
       await training.route.approveRouteProposal();
@@ -238,7 +242,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   return (
     <div className={styles.container}>
       <div className={styles.contentGrid}>
-        {/* 기본 정보·화재 조건·발화 위치 입력 영역 */}
         <ScenarioSetupForm
           value={scenarioForm.value}
           buildingOptions={buildingOptions}
@@ -246,15 +249,27 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           mode={{
             isRunning: training.isRunning,
             readOnly: actionMode === 'start' && !training.isRunning,
-            buildingReadOnly: !isCreatePage,
+            buildingReadOnly: floorView.isConfigured,
           }}
           handlers={{
             onBasicInfoChange: scenarioForm.handleBasicInfoChange,
             onFireSpreadChange: scenarioForm.handleFireSpreadChange,
           }}
+          evacuationSetup={{
+            floorOptions: floorView.floorOptions,
+            selectedFloorId: floorView.selectedFloorId,
+            persistedStartNodeId: floorView.persistedStartNodeId,
+            editable: isScenarioReady,
+            configured: floorView.isConfigured,
+            canSave: floorView.canSaveSetup,
+            isSaving: floorView.isSavingSetup || training.isScheduling,
+            onFloorChange: floorView.chooseFloor,
+            onFireCellSelect: floorView.chooseFireCell,
+            onStartNodeSelect: floorView.chooseStartNode,
+            onSave: () => void handleSaveEvacuationSetup(),
+          }}
         />
 
-        {/* 훈련 중에는 제어 패널, 그 외에는 작성·저장·시작 액션 표시 */}
         {training.isRunning && training.startedAt !== null ? (
           <TrainingControlPanel
             startedAt={training.startedAt}
@@ -273,18 +288,24 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         ) : (
           <ScenarioActionPanel
             mode={actionMode}
-            isLoading={isActionLoading}
+            isSavingDraft={createDraftMutation.isPending || updateScenarioMutation.isPending}
+            isCompleting={isCompleting}
+            showDraftSave={isCreatePage || isDraft}
+            completeLabel={isScenarioReady ? '변경 저장' : '작성 완료'}
             startState={{
               disabled:
-                training.areSessionsPending || floorView.isFireOriginPending || !canStartTraining,
+                training.areSessionsPending ||
+                floorView.isSetupPending ||
+                floorView.isSetupError ||
+                !canStartTraining,
               restrictionMessage: startRestrictionMessage,
               showPreview: canStartTraining,
               canEdit: isScenarioReady,
               metrics: floorView.previewMetrics,
             }}
             handlers={{
-              onCreate: () => void handleCreate(),
-              onSave: () => void handleSaveDraft(),
+              onSaveDraft: () => void handleSaveDraft(),
+              onComplete: () => void handleComplete(),
               onStart: () => void handleStartTraining(),
               onEdit: () => setIsEditing(true),
             }}
@@ -292,7 +313,6 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         )}
       </div>
 
-      {/* 훈련 종료 후 홈 또는 보고서 이동 선택 */}
       <TrainingEndModal
         open={isEndModalOpen}
         onHome={() => void navigate(ROUTES.HOME)}

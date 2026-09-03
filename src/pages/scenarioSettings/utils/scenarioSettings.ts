@@ -6,7 +6,7 @@ export const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({
   scenarioName: scenario?.name ?? '',
   targetBuilding: scenario?.buildingId ?? '',
   scheduledAt: scenario?.scheduledAt ?? '',
-  expectedParticipants: scenario ? String(scenario.expectedParticipants) : '',
+  expectedParticipants: scenario?.expectedParticipants ? String(scenario.expectedParticipants) : '',
 });
 
 // 오늘 날짜의 00시 00분 00초 반환
@@ -24,7 +24,8 @@ export const toScheduledAt = (value: string) => {
 };
 
 // 시나리오 실시 일시를 목록 화면용 날짜·시간 문자열로 포맷
-export const formatScenarioScheduledAt = (scheduledAt: string) => {
+export const formatScenarioScheduledAt = (scheduledAt?: string) => {
+  if (!scheduledAt) return '일시 미정';
   const date = new Date(scheduledAt);
 
   if (Number.isNaN(date.getTime())) return scheduledAt;

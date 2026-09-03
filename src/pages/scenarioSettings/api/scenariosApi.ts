@@ -2,7 +2,7 @@ import { SCENARIO_STATUS } from '@pages/scenarioSettings/types/scenarioList';
 import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 
 import type {
-  CreateScenarioRequest,
+  CreateScenarioDraftRequest,
   UpdateScenarioRequest,
 } from '@apis/__generated__/data-contracts';
 import { HTTP_METHOD, request } from '@apis/config/request';
@@ -32,22 +32,29 @@ const toScenario = (response: unknown): Scenario => {
     status,
     deletable,
     reportId,
+    adminId,
+    startNodeId,
+    isTemplate,
+    createdAt,
+    updatedAt,
   } = response as Record<string, unknown>;
 
   if (
     typeof id !== 'string' ||
     !id ||
-    typeof name !== 'string' ||
-    !name ||
-    typeof buildingId !== 'string' ||
-    !buildingId ||
-    typeof expectedParticipants !== 'number' ||
-    !Number.isInteger(expectedParticipants) ||
-    typeof scheduledAt !== 'string' ||
-    Number.isNaN(Date.parse(scheduledAt)) ||
-    !isFireSpreadSpeed(fireSpreadSpeed) ||
     !isScenarioStatus(status) ||
-    (typeof deletable !== 'boolean' && deletable !== null) ||
+    (name !== undefined && name !== null && typeof name !== 'string') ||
+    (buildingId !== undefined && buildingId !== null && typeof buildingId !== 'string') ||
+    (expectedParticipants !== undefined &&
+      expectedParticipants !== null &&
+      (typeof expectedParticipants !== 'number' || !Number.isInteger(expectedParticipants))) ||
+    (scheduledAt !== undefined &&
+      scheduledAt !== null &&
+      (typeof scheduledAt !== 'string' || Number.isNaN(Date.parse(scheduledAt)))) ||
+    (fireSpreadSpeed !== undefined &&
+      fireSpreadSpeed !== null &&
+      !isFireSpreadSpeed(fireSpreadSpeed)) ||
+    (deletable !== undefined && deletable !== null && typeof deletable !== 'boolean') ||
     (reportId !== undefined && reportId !== null && typeof reportId !== 'string')
   ) {
     throw new Error('시나리오 응답 필드가 올바르지 않습니다.');
@@ -55,14 +62,19 @@ const toScenario = (response: unknown): Scenario => {
 
   return {
     id,
-    name,
-    buildingId,
-    expectedParticipants,
-    scheduledAt,
-    fireSpreadSpeed,
+    ...(typeof name === 'string' && { name }),
+    ...(typeof buildingId === 'string' && { buildingId }),
+    ...(typeof adminId === 'string' && { adminId }),
+    ...(typeof startNodeId === 'string' && { startNodeId }),
+    ...(typeof expectedParticipants === 'number' && { expectedParticipants }),
+    ...(typeof scheduledAt === 'string' && { scheduledAt }),
+    ...(isFireSpreadSpeed(fireSpreadSpeed) && { fireSpreadSpeed }),
+    ...(typeof isTemplate === 'boolean' && { isTemplate }),
+    ...(typeof createdAt === 'string' && { createdAt }),
+    ...(typeof updatedAt === 'string' && { updatedAt }),
     status,
     deletable: deletable ?? false,
-    reportId: reportId ?? null,
+    ...(typeof reportId === 'string' && { reportId }),
   };
 };
 
@@ -90,11 +102,21 @@ export const getScenario = async (scenarioId: string) => {
   return toScenario(scenario);
 };
 
-export const postScenario = async (body: CreateScenarioRequest) => {
-  const scenario = await request<unknown, CreateScenarioRequest>({
+export const postScenarioDraft = async (body: CreateScenarioDraftRequest) => {
+  const scenario = await request<unknown, CreateScenarioDraftRequest>({
     method: HTTP_METHOD.POST,
-    url: API_ENDPOINTS.SCENARIOS.ROOT,
+    url: API_ENDPOINTS.SCENARIOS.DRAFTS,
     body,
+    responseMode: 'raw',
+  });
+
+  return toScenario(scenario);
+};
+
+export const postReadyScenario = async (scenarioId: string) => {
+  const scenario = await request<unknown>({
+    method: HTTP_METHOD.POST,
+    url: API_ENDPOINTS.SCENARIOS.READY(scenarioId),
     responseMode: 'raw',
   });
 

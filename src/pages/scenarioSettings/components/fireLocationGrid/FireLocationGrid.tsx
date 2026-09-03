@@ -1,12 +1,18 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 
 import type { FloorGridCell } from '@apis/floors/floorGridApi';
 import type { FloorGraph } from '@apis/floors/mapGraphApi';
 
+import {
+  CANVAS_W,
+  getCanvasHeight,
+  getGridCellPxSize,
+  measureImageAspect,
+} from '@utils/floorCanvas';
+
 import * as styles from './FireLocationGrid.css';
 
-const MAP_WIDTH = 100;
-const MAP_HEIGHT = 75;
+const DEFAULT_CANVAS_HEIGHT = 420;
 
 interface FireLocationGridProps {
   imageUrl?: string | null;
@@ -14,14 +20,35 @@ interface FireLocationGridProps {
   gridCells: readonly FloorGridCell[];
   routeNodeIds: readonly string[];
   fireCellIds: readonly string[];
+  selectedFireCellId?: string | null;
+  selectedStartNodeId?: string | null;
+  persistedStartNodeId?: string | null;
   originCellId?: string | null;
   statusMessage?: string;
+  disabled?: boolean;
+  onFireCellSelect?: (cellId: string) => void;
+  onStartNodeSelect?: (nodeId: string) => void;
 }
 
-const getGridCellSize = (cells: readonly FloorGridCell[]) => {
-  const rowCount = Math.max(...cells.map((cell) => cell.rowIndex), 0) + 1;
-  const columnCount = Math.max(...cells.map((cell) => cell.columnIndex), 0) + 1;
-  return { width: MAP_WIDTH / columnCount, height: MAP_HEIGHT / rowCount };
+const getCellClassName = (isFireCell: boolean, isSelected: boolean) => {
+  if (isFireCell) return styles.fireCell;
+  if (isSelected) return styles.selectedFireCell;
+  return styles.gridCell;
+};
+
+const getNodeClassName = ({
+  isExit,
+  isStartCandidate,
+  isSelected,
+}: {
+  isExit: boolean;
+  isStartCandidate: boolean;
+  isSelected: boolean;
+}) => {
+  if (isSelected) return styles.selectedStartNode;
+  if (isStartCandidate) return styles.startNode;
+  if (isExit) return styles.exitNode;
+  return styles.graphNode;
 };
 
 const FireLocationGrid = ({
@@ -30,9 +57,30 @@ const FireLocationGrid = ({
   gridCells,
   routeNodeIds,
   fireCellIds,
+  selectedFireCellId,
+  selectedStartNodeId,
+  persistedStartNodeId,
   originCellId,
   statusMessage,
+  disabled = false,
+  onFireCellSelect,
+  onStartNodeSelect,
 }: FireLocationGridProps) => {
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
+
+  useEffect(() => {
+    setImageAspect(null);
+    if (!imageUrl) return;
+    let cancelled = false;
+    void measureImageAspect(imageUrl).then((aspect) => {
+      if (!cancelled) setImageAspect(aspect);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl]);
+
+  const mapHeight = getCanvasHeight(gridCells, imageAspect, DEFAULT_CANVAS_HEIGHT);
   const nodeById = useMemo(
     () => new Map(graph?.nodes.map((node) => [node.id, node]) ?? []),
     [graph],
@@ -42,27 +90,28 @@ const FireLocationGrid = ({
       routeNodeIds
         .map((nodeId) => nodeById.get(nodeId))
         .filter((node) => node !== undefined)
-        .map((node) => `${node.x * MAP_WIDTH},${node.y * MAP_HEIGHT}`)
+        .map((node) => `${node.x * CANVAS_W},${node.y * mapHeight}`)
         .join(' '),
-    [nodeById, routeNodeIds],
+    [mapHeight, nodeById, routeNodeIds],
   );
-  const cellSize = useMemo(() => getGridCellSize(gridCells), [gridCells]);
+  const cellSize = getGridCellPxSize(gridCells, mapHeight);
   const fireCellIdSet = useMemo(() => new Set(fireCellIds), [fireCellIds]);
+  const activeStartNodeId = persistedStartNodeId ?? selectedStartNodeId;
 
   return (
     <div className={styles.panel}>
       <svg
         className={styles.map}
-        viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+        viewBox={`0 0 ${CANVAS_W} ${mapHeight}`}
         role="group"
         aria-label="발화 위치와 대피 경로가 표시된 층 도면"
       >
         {imageUrl && (
           <image
             href={imageUrl}
-            width={MAP_WIDTH}
-            height={MAP_HEIGHT}
-            preserveAspectRatio="xMidYMid meet"
+            width={CANVAS_W}
+            height={mapHeight}
+            preserveAspectRatio="xMidYMid slice"
           />
         )}
 
@@ -75,10 +124,10 @@ const FireLocationGrid = ({
             <line
               key={edge.id}
               className={styles.graphEdge}
-              x1={fromNode.x * MAP_WIDTH}
-              y1={fromNode.y * MAP_HEIGHT}
-              x2={toNode.x * MAP_WIDTH}
-              y2={toNode.y * MAP_HEIGHT}
+              x1={fromNode.x * CANVAS_W}
+              y1={fromNode.y * mapHeight}
+              x2={toNode.x * CANVAS_W}
+              y2={toNode.y * mapHeight}
             />
           );
         })}
@@ -88,8 +137,11 @@ const FireLocationGrid = ({
         {gridCells.map((cell) => {
           const isFireCell = fireCellIdSet.has(cell.id);
           const isOrigin = cell.id === originCellId;
-          const x = cell.centerX * MAP_WIDTH - cellSize.width / 2;
-          const y = cell.centerY * MAP_HEIGHT - cellSize.height / 2;
+          const isSelected = cell.id === selectedFireCellId;
+          const x = cell.centerX * CANVAS_W - cellSize.w / 2;
+          const y = cell.centerY * mapHeight - cellSize.h / 2;
+
+          const cellClassName = getCellClassName(isFireCell, isSelected);
 
           return (
             <g
@@ -97,20 +149,41 @@ const FireLocationGrid = ({
               aria-label={`${cell.rowIndex + 1}행 ${cell.columnIndex + 1}열${isFireCell ? ', 화재구역' : ''}`}
             >
               <rect
-                className={isFireCell ? styles.fireCell : styles.gridCell}
+                className={cellClassName}
                 x={x}
                 y={y}
-                width={cellSize.width}
-                height={cellSize.height}
+                width={cellSize.w}
+                height={cellSize.h}
+                role={!disabled && cell.walkable ? 'button' : undefined}
+                tabIndex={!disabled && cell.walkable ? 0 : undefined}
+                aria-pressed={isSelected}
+                onClick={() => {
+                  if (!disabled && cell.walkable) onFireCellSelect?.(cell.id);
+                }}
+                onKeyDown={(event) => {
+                  if (disabled || !cell.walkable) return;
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  onFireCellSelect?.(cell.id);
+                }}
               />
+              {isSelected && !isOrigin && (
+                <text
+                  className={styles.selectedFireMarker}
+                  x={cell.centerX * CANVAS_W}
+                  y={cell.centerY * mapHeight}
+                >
+                  🔥
+                </text>
+              )}
               {isOrigin && (
                 <text
                   className={styles.fireMarker}
-                  x={cell.centerX * MAP_WIDTH}
-                  y={cell.centerY * MAP_HEIGHT - 1}
+                  x={cell.centerX * CANVAS_W}
+                  y={cell.centerY * mapHeight - 7}
                 >
                   <tspan aria-hidden="true">🔥</tspan>
-                  <tspan x={cell.centerX * MAP_WIDTH} dy="4">
+                  <tspan x={cell.centerX * CANVAS_W} dy="12">
                     최초 발화점
                   </tspan>
                 </text>
@@ -119,15 +192,38 @@ const FireLocationGrid = ({
           );
         })}
 
-        {graph?.nodes.map((node) => (
-          <circle
-            key={node.id}
-            className={node.isExitTarget ? styles.exitNode : styles.graphNode}
-            cx={node.x * MAP_WIDTH}
-            cy={node.y * MAP_HEIGHT}
-            r={node.id === routeNodeIds[0] ? 1.2 : 0.7}
-          />
-        ))}
+        {graph?.nodes.map((node) => {
+          const isStartCandidate = node.type === 'START';
+          const isSelectedStart = node.id === activeStartNodeId;
+          const nodeClassName = getNodeClassName({
+            isExit: node.isExitTarget,
+            isStartCandidate,
+            isSelected: isSelectedStart,
+          });
+
+          return (
+            <circle
+              key={node.id}
+              className={nodeClassName}
+              cx={node.x * CANVAS_W}
+              cy={node.y * mapHeight}
+              r={isSelectedStart ? 7 : 4}
+              role={!disabled && isStartCandidate ? 'button' : undefined}
+              tabIndex={!disabled && isStartCandidate ? 0 : undefined}
+              aria-label={isStartCandidate ? `${node.name} 시작 후보` : node.name}
+              aria-pressed={isStartCandidate ? isSelectedStart : undefined}
+              onClick={() => {
+                if (!disabled && isStartCandidate) onStartNodeSelect?.(node.id);
+              }}
+              onKeyDown={(event) => {
+                if (disabled || !isStartCandidate) return;
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                onStartNodeSelect?.(node.id);
+              }}
+            />
+          );
+        })}
       </svg>
 
       {statusMessage && <p className={styles.statusMessage}>{statusMessage}</p>}

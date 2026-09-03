@@ -25,6 +25,8 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     id: string;
     startedAt: string;
   } | null>(null);
+  // 대피 설정 직후 생성한 SCHEDULED 세션을 목록 재조회 전에도 경로 미리보기에 사용
+  const [preparedSessionId, setPreparedSessionId] = useState<string | null>(null);
 
   // 훈련 세션 예약·시작·종료
   const createSessionMutation = useCreateTrainingSessionMutation();
@@ -39,24 +41,22 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
     useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, shouldQuerySessions);
 
-  // 세션 목록 응답에 scenarioId가 없어 시나리오명과 건물 ID로 현재 시나리오의 세션 식별
-  const runningSession = runningSessions.find(
-    (session) =>
-      session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
-  );
-  const scheduledSession = scheduledSessions.find(
-    (session) =>
-      session.scenarioName === scenario?.name && session.buildingId === scenario?.buildingId,
-  );
+  // 최신 응답의 scenarioId로 현재 시나리오 세션을 식별
+  const runningSession = runningSessions.find((session) => session.scenarioId === scenario?.id);
+  const scheduledSession = scheduledSessions.find((session) => session.scenarioId === scenario?.id);
 
   // 시작 직후에는 API 응답을 사용하고, 재진입 시에는 조회된 실행 세션 사용
   const activeSessionId = startedSession?.id ?? runningSession?.sessionId ?? null;
+  const scheduledSessionId = preparedSessionId ?? scheduledSession?.sessionId ?? null;
   const activeStartedAt = startedSession?.startedAt ?? runningSession?.startedAt ?? null;
   const startedAt = activeStartedAt ? Date.parse(activeStartedAt) : null;
   const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
 
-  // 실행 중인 세션의 현재 경로와 실시간 이벤트 연결
-  const route = useTrainingRouteData({ sessionId: activeSessionId, enabled: isRunning });
+  // SCHEDULED부터 현재 경로를 조회하고, 실시간 이벤트는 RUNNING일 때만 연결
+  const route = useTrainingRouteData({
+    sessionId: activeSessionId ?? scheduledSessionId,
+    enabled: Boolean(activeSessionId ?? scheduledSessionId),
+  });
 
   useTrainingSessionSocket({
     sessionId: activeSessionId,
@@ -64,25 +64,30 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   });
 
   // 시나리오 생성 직후 또는 예약 세션이 없을 때 훈련 일정 등록
-  const scheduleTraining = (scenarioId: string, scheduledAt: string) => {
+  const scheduleTraining = async (scenarioId: string) => {
     if (!adminId) throw new Error('훈련 세션을 등록할 관리자 ID가 없습니다.');
 
-    return createSessionMutation.mutateAsync({
+    const session = await createSessionMutation.mutateAsync({
       scenarioId,
-      body: {
-        adminId,
-        status: TRAINING_SESSION_STATUS.SCHEDULED,
-        startedAt: scheduledAt,
-      },
+      body: { adminId },
     });
+    if (!session.id) throw new Error('생성된 훈련 세션 ID가 없습니다.');
+    setPreparedSessionId(session.id);
+    return session;
+  };
+
+  // 이미 생성된 예약 세션은 재사용하고 없을 때만 생성
+  const ensureScheduledSession = async (scenarioId: string) => {
+    if (scheduledSessionId) return scheduledSessionId;
+    const session = await scheduleTraining(scenarioId);
+    return session.id;
   };
 
   // 기존 예약 세션을 재사용하고, 없으면 일정을 등록한 뒤 훈련 시작
   const startTraining = async () => {
     if (!scenario || !adminId) throw new Error('훈련을 시작할 시나리오 정보가 없습니다.');
 
-    const sessionId =
-      scheduledSession?.sessionId ?? (await scheduleTraining(scenario.id, scenario.scheduledAt)).id;
+    const sessionId = await ensureScheduledSession(scenario.id);
 
     if (!sessionId) throw new Error('시작할 훈련 세션 ID가 없습니다.');
 
@@ -109,7 +114,7 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     isScheduling: createSessionMutation.isPending,
     isStarting: createSessionMutation.isPending || startSessionMutation.isPending,
     isEnding: endSessionMutation.isPending,
-    scheduleTraining,
+    ensureScheduledSession,
     startTraining,
     endTraining,
   };

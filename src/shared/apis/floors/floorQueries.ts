@@ -29,6 +29,16 @@ export const buildingFloorsQueryOptions = (buildingId: string) =>
     queryFn: ({ signal }) => getBuildingFloors(buildingId, signal),
   });
 
+export const useBuildingFloorsQuery = (buildingId?: string, enabled = true) =>
+  useQuery({
+    queryKey: floorQueryKeys.list(buildingId),
+    queryFn: ({ signal }) => {
+      if (!buildingId) throw new Error('층 목록 조회에 필요한 건물 ID가 없습니다.');
+      return getBuildingFloors(buildingId, signal);
+    },
+    enabled: enabled && Boolean(buildingId),
+  });
+
 export const floorGraphQueryOptions = (floorId: string) =>
   queryOptions({
     queryKey: floorQueryKeys.graph(floorId),

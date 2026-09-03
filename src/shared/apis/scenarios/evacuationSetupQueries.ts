@@ -22,10 +22,9 @@ export const useSetEvacuationSetupMutation = () => {
 
   return useMutation({
     mutationFn: setScenarioEvacuationSetup,
-    onSuccess: (setup) => {
-      void queryClient.invalidateQueries({
-        queryKey: evacuationSetupQueryKeys.detail(setup.scenarioId),
-      });
+    onSuccess: (setup, variables) => {
+      const scenarioId = setup.scenarioId ?? variables.scenarioId;
+      queryClient.setQueryData(evacuationSetupQueryKeys.detail(scenarioId), setup);
     },
   });
 };

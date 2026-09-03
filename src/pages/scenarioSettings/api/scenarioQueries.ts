@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { UpdateScenarioRequest } from '@apis/__generated__/data-contracts';
+import type {
+  CreateScenarioDraftRequest,
+  UpdateScenarioRequest,
+} from '@apis/__generated__/data-contracts';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 
 import {
@@ -8,7 +11,8 @@ import {
   getScenario,
   getScenarios,
   patchScenario,
-  postScenario,
+  postReadyScenario,
+  postScenarioDraft,
 } from './scenariosApi';
 
 // 시나리오 목록 조회
@@ -29,12 +33,25 @@ export const useGetScenarioQuery = (scenarioId?: string) =>
     enabled: Boolean(scenarioId),
   });
 
-// 시나리오 생성
-export const useCreateScenarioMutation = () => {
+// 시나리오 임시 저장 생성
+export const useCreateScenarioDraftMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: postScenario,
+    mutationFn: (body: CreateScenarioDraftRequest) => postScenarioDraft(body),
+    onSuccess: (scenario) => {
+      queryClient.setQueryData(scenarioQueryKeys.detail(scenario.id), scenario);
+      void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all, exact: true });
+    },
+  });
+};
+
+// 시나리오 작성 완료(DRAFT → READY)
+export const useReadyScenarioMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: postReadyScenario,
     onSuccess: (scenario) => {
       queryClient.setQueryData(scenarioQueryKeys.detail(scenario.id), scenario);
       void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all, exact: true });

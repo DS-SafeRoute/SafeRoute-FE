@@ -22,15 +22,18 @@ interface ScenarioStartState {
 }
 
 interface ScenarioActionHandlers {
-  onCreate: () => void;
-  onSave: () => void;
+  onSaveDraft: () => void;
+  onComplete: () => void;
   onStart: () => void;
   onEdit: () => void;
 }
 
 interface ScenarioActionPanelProps {
   mode: ScenarioActionMode;
-  isLoading: boolean;
+  isSavingDraft: boolean;
+  isCompleting: boolean;
+  showDraftSave: boolean;
+  completeLabel: string;
   startState: ScenarioStartState;
   handlers: ScenarioActionHandlers;
 }
@@ -38,16 +41,38 @@ interface ScenarioActionPanelProps {
 // 훈련 전 시나리오 상태에 맞는 생성·저장·시작 액션 표시
 const ScenarioActionPanel = ({
   mode,
-  isLoading,
+  isSavingDraft,
+  isCompleting,
+  showDraftSave,
+  completeLabel,
   startState,
   handlers,
 }: ScenarioActionPanelProps) => {
   if (mode === 'create') {
     return (
       <aside className={sideColumn}>
-        <Button type="button" size="lg" fullWidth isLoading={isLoading} onClick={handlers.onCreate}>
-          작성 완료
+        <Button
+          type="button"
+          size="lg"
+          fullWidth
+          isLoading={isCompleting}
+          onClick={handlers.onComplete}
+        >
+          {completeLabel}
         </Button>
+        {showDraftSave && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            fullWidth
+            className={draftButton}
+            isLoading={isSavingDraft}
+            onClick={handlers.onSaveDraft}
+          >
+            임시 저장
+          </Button>
+        )}
       </aside>
     );
   }
@@ -57,15 +82,26 @@ const ScenarioActionPanel = ({
       <aside className={sideColumn}>
         <Button
           type="button"
-          variant="ghost"
           size="lg"
           fullWidth
-          className={draftButton}
-          isLoading={isLoading}
-          onClick={handlers.onSave}
+          isLoading={isCompleting}
+          onClick={handlers.onComplete}
         >
-          임시 저장
+          {completeLabel}
         </Button>
+        {showDraftSave && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            fullWidth
+            className={draftButton}
+            isLoading={isSavingDraft}
+            onClick={handlers.onSaveDraft}
+          >
+            임시 저장
+          </Button>
+        )}
       </aside>
     );
   }
@@ -78,7 +114,7 @@ const ScenarioActionPanel = ({
         fullWidth
         leftIcon={<PlayIcon />}
         disabled={startState.disabled}
-        isLoading={isLoading}
+        isLoading={isCompleting}
         onClick={handlers.onStart}
       >
         시나리오 시작
