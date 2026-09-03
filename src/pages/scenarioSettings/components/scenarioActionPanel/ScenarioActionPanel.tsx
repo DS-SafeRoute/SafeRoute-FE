@@ -4,6 +4,7 @@ import {
   draftButton,
   sideColumn,
   startRestrictionNotice,
+  trainingDurationNotice,
 } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
 
@@ -90,6 +91,10 @@ const ScenarioActionPanel = ({
       >
         시나리오 시작
       </Button>
+
+      <p className={trainingDurationNotice}>
+        훈련은 시작 후 서버 기준 최대 10분간 진행되며 자동 종료됩니다.
+      </p>
 
       {startState.restrictionMessage && (
         <p className={startRestrictionNotice}>{startState.restrictionMessage}</p>

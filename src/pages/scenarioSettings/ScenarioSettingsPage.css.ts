@@ -92,6 +92,13 @@ export const startRestrictionNotice = style({
   ...vars.typography.body14,
 });
 
+export const trainingDurationNotice = style({
+  padding: `0 ${vars.space.s2}`,
+  textAlign: 'center',
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
 export const pageState = style({
   display: 'flex',
   flex: 1,
