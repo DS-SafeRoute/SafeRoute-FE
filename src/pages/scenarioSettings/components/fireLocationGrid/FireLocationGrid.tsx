@@ -26,6 +26,7 @@ interface FireLocationGridProps {
   originCellId?: string | null;
   statusMessage?: string;
   disabled?: boolean;
+  startSelectionDisabled?: boolean;
   onFireCellSelect?: (cellId: string) => void;
   onStartNodeSelect?: (nodeId: string) => void;
 }
@@ -36,19 +37,10 @@ const getCellClassName = (isFireCell: boolean, isSelected: boolean) => {
   return styles.gridCell;
 };
 
-const getNodeClassName = ({
-  isExit,
-  isStartCandidate,
-  isSelected,
-}: {
-  isExit: boolean;
-  isStartCandidate: boolean;
-  isSelected: boolean;
-}) => {
+const getStartNodeClassName = (isSelected: boolean, isDisabled: boolean) => {
   if (isSelected) return styles.selectedStartNode;
-  if (isStartCandidate) return styles.startNode;
-  if (isExit) return styles.exitNode;
-  return styles.graphNode;
+  if (isDisabled) return styles.inactiveStartNode;
+  return styles.startNode;
 };
 
 const FireLocationGrid = ({
@@ -63,6 +55,7 @@ const FireLocationGrid = ({
   originCellId,
   statusMessage,
   disabled = false,
+  startSelectionDisabled = false,
   onFireCellSelect,
   onStartNodeSelect,
 }: FireLocationGridProps) => {
@@ -97,6 +90,7 @@ const FireLocationGrid = ({
   const cellSize = getGridCellPxSize(gridCells, mapHeight);
   const fireCellIdSet = useMemo(() => new Set(fireCellIds), [fireCellIds]);
   const activeStartNodeId = persistedStartNodeId ?? selectedStartNodeId;
+  const canSelectStartNode = !disabled && !startSelectionDisabled;
 
   return (
     <div className={styles.panel}>
@@ -114,23 +108,6 @@ const FireLocationGrid = ({
             preserveAspectRatio="xMidYMid slice"
           />
         )}
-
-        {graph?.edges.map((edge) => {
-          const fromNode = nodeById.get(edge.fromNodeId);
-          const toNode = nodeById.get(edge.toNodeId);
-          if (!fromNode || !toNode) return null;
-
-          return (
-            <line
-              key={edge.id}
-              className={styles.graphEdge}
-              x1={fromNode.x * CANVAS_W}
-              y1={fromNode.y * mapHeight}
-              x2={toNode.x * CANVAS_W}
-              y2={toNode.y * mapHeight}
-            />
-          );
-        })}
 
         {routePoints && <polyline className={styles.route} points={routePoints} />}
 
@@ -192,38 +169,35 @@ const FireLocationGrid = ({
           );
         })}
 
-        {graph?.nodes.map((node) => {
-          const isStartCandidate = node.type === 'START';
-          const isSelectedStart = node.id === activeStartNodeId;
-          const nodeClassName = getNodeClassName({
-            isExit: node.isExitTarget,
-            isStartCandidate,
-            isSelected: isSelectedStart,
-          });
+        {graph?.nodes
+          .filter((node) => node.type === 'START')
+          .map((node) => {
+            const isSelectedStart = node.id === activeStartNodeId;
+            const nodeClassName = getStartNodeClassName(isSelectedStart, !canSelectStartNode);
 
-          return (
-            <circle
-              key={node.id}
-              className={nodeClassName}
-              cx={node.x * CANVAS_W}
-              cy={node.y * mapHeight}
-              r={isSelectedStart ? 7 : 4}
-              role={!disabled && isStartCandidate ? 'button' : undefined}
-              tabIndex={!disabled && isStartCandidate ? 0 : undefined}
-              aria-label={isStartCandidate ? `${node.name} 시작 후보` : node.name}
-              aria-pressed={isStartCandidate ? isSelectedStart : undefined}
-              onClick={() => {
-                if (!disabled && isStartCandidate) onStartNodeSelect?.(node.id);
-              }}
-              onKeyDown={(event) => {
-                if (disabled || !isStartCandidate) return;
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                onStartNodeSelect?.(node.id);
-              }}
-            />
-          );
-        })}
+            return (
+              <circle
+                key={node.id}
+                className={nodeClassName}
+                cx={node.x * CANVAS_W}
+                cy={node.y * mapHeight}
+                r={isSelectedStart ? 7 : 4}
+                role={canSelectStartNode ? 'button' : undefined}
+                tabIndex={canSelectStartNode ? 0 : undefined}
+                aria-label={`${node.name} 시작 지점`}
+                aria-pressed={isSelectedStart}
+                onClick={() => {
+                  if (canSelectStartNode) onStartNodeSelect?.(node.id);
+                }}
+                onKeyDown={(event) => {
+                  if (!canSelectStartNode) return;
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  onStartNodeSelect?.(node.id);
+                }}
+              />
+            );
+          })}
       </svg>
 
       {statusMessage && <p className={styles.statusMessage}>{statusMessage}</p>}

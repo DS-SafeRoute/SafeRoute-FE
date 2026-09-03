@@ -25,11 +25,6 @@ export const map = style({
   maxHeight: '28rem',
 });
 
-export const graphEdge = style({
-  stroke: vars.color.gray300,
-  strokeWidth: 1.4,
-});
-
 export const route = style({
   fill: 'none',
   stroke: vars.color.success,
@@ -73,14 +68,8 @@ export const selectedFireMarker = style({
   dominantBaseline: 'middle',
 });
 
-export const graphNode = style({
-  fill: vars.color.primary,
-  stroke: vars.color.white,
-  strokeWidth: 1.5,
-});
-
-export const exitNode = style({
-  fill: vars.color.success,
+export const inactiveStartNode = style({
+  fill: '#f9a8d4',
   stroke: vars.color.white,
   strokeWidth: 1.5,
 });

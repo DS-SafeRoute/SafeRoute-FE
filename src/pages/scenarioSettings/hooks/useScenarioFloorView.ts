@@ -37,6 +37,7 @@ export interface ScenarioFloorMapView {
   selectedFireCellId?: string | null;
   selectedStartNodeId?: string | null;
   originCellId?: string | null;
+  hasStartCandidates: boolean;
   statusMessage?: string;
 }
 
@@ -175,8 +176,6 @@ export const useScenarioFloorView = ({
     statusMessage = '도면 데이터를 불러오지 못했습니다.';
   } else if (floorGridQuery.data?.length === 0) {
     statusMessage = '등록된 격자 정보가 없습니다.';
-  } else if (startNodes.length === 0) {
-    statusMessage = '도면 관리에서 START 후보를 먼저 등록해 주세요.';
   }
 
   const metricPending =
@@ -222,6 +221,7 @@ export const useScenarioFloorView = ({
       selectedFireCellId,
       selectedStartNodeId,
       originCellId: persistedOriginCellId,
+      hasStartCandidates: startNodes.length > 0,
       statusMessage,
     } satisfies ScenarioFloorMapView,
     floorOptions: selectableFloors.map((floor) => ({

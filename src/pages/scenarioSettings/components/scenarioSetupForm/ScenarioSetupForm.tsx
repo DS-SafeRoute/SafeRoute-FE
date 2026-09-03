@@ -55,6 +55,47 @@ interface ScenarioSetupFormProps {
 
 const TRAINING_LOCK_MESSAGE = '🔒 잠금 · 훈련 중 수정 불가';
 
+type SetupStepState = 'active' | 'blocked' | 'complete' | 'pending';
+
+const getFireStepState = (hasFireLocation: boolean, isMapUnavailable: boolean): SetupStepState => {
+  if (hasFireLocation) return 'complete';
+  if (isMapUnavailable) return 'pending';
+  return 'active';
+};
+
+const getFireStepDescription = (state: SetupStepState) => {
+  if (state === 'complete') return '화재 시작 위치를 선택했습니다.';
+  if (state === 'pending') return '도면 정보를 확인한 뒤 선택할 수 있습니다.';
+  return '도면에서 화재가 시작될 보행 영역을 선택해 주세요.';
+};
+
+const getStartStepState = ({
+  hasFireLocation,
+  hasStartLocation,
+  hasStartCandidates,
+  isMapUnavailable,
+}: {
+  hasFireLocation: boolean;
+  hasStartLocation: boolean;
+  hasStartCandidates: boolean;
+  isMapUnavailable: boolean;
+}): SetupStepState => {
+  if (hasStartLocation) return 'complete';
+  if (isMapUnavailable) return 'pending';
+  if (!hasStartCandidates) return 'blocked';
+  if (hasFireLocation) return 'active';
+  return 'pending';
+};
+
+const getStartStepDescription = (state: SetupStepState) => {
+  if (state === 'complete') return '시작 지점을 선택했습니다.';
+  if (state === 'blocked') {
+    return 'START 후보가 없습니다. 도면 관리에서 먼저 등록해 주세요.';
+  }
+  if (state === 'active') return '도면의 분홍색 시작 지점을 선택해 주세요.';
+  return '화재 시작 위치를 선택하면 다음 단계가 활성화됩니다.';
+};
+
 const ScenarioSetupForm = ({
   value,
   buildingOptions,
@@ -66,6 +107,18 @@ const ScenarioSetupForm = ({
   const { basicInfo, fireSpreadLabel } = value;
   const { isRunning, readOnly, buildingReadOnly } = mode;
   const { onBasicInfoChange, onFireSpreadChange } = handlers;
+  const hasFireLocation = Boolean(floorMap.selectedFireCellId || floorMap.originCellId);
+  const hasStartLocation = Boolean(
+    floorMap.selectedStartNodeId || evacuationSetup.persistedStartNodeId,
+  );
+  const isMapUnavailable = Boolean(floorMap.statusMessage);
+  const fireStepState = getFireStepState(hasFireLocation, isMapUnavailable);
+  const startStepState = getStartStepState({
+    hasFireLocation,
+    hasStartLocation,
+    hasStartCandidates: floorMap.hasStartCandidates,
+    isMapUnavailable,
+  });
 
   return (
     <div className={styles.container}>
@@ -118,7 +171,7 @@ const ScenarioSetupForm = ({
           {isRunning && <span className={pageStyles.lockBadge}>{TRAINING_LOCK_MESSAGE}</span>}
         </div>
 
-        <div className={styles.fireConditionField}>
+        <div className={styles.conditionFields}>
           <ScenarioField
             label="확산 속도"
             value={fireSpreadLabel}
@@ -127,25 +180,36 @@ const ScenarioSetupForm = ({
             readOnly={readOnly}
             onChange={onFireSpreadChange}
           />
-        </div>
-
-        <h3 className={styles.fireLocationLabel}>발화 위치 및 시작 지점</h3>
-        <div className={styles.mapToolbar}>
           <ScenarioField
-            label="도면 층"
+            label="대상 층"
             value={evacuationSetup.selectedFloorId}
             options={evacuationSetup.floorOptions}
             disabled={isRunning || evacuationSetup.configured}
             readOnly={!evacuationSetup.editable}
             onChange={evacuationSetup.onFloorChange}
           />
-          <div className={styles.mapGuide}>
-            <span>
-              <strong>1.</strong> 보행 가능한 격자에서 발화 위치 선택
-            </span>
-            <span>
-              <strong>2.</strong> 분홍색 START 후보에서 시작 지점 선택
-            </span>
+        </div>
+
+        <div className={styles.setupHeading}>
+          <h3 className={styles.fireLocationLabel}>발화 위치 및 시작 지점</h3>
+          <p className={styles.setupDescription}>
+            도면에서 화재가 시작될 위치와 훈련 시작 지점을 순서대로 선택해 주세요.
+          </p>
+        </div>
+        <div className={styles.setupSteps}>
+          <div className={styles.setupStep[fireStepState]}>
+            <span className={styles.stepNumber[fireStepState]}>1</span>
+            <div>
+              <strong className={styles.stepTitle}>화재 시작 위치</strong>
+              <p className={styles.stepDescription}>{getFireStepDescription(fireStepState)}</p>
+            </div>
+          </div>
+          <div className={styles.setupStep[startStepState]}>
+            <span className={styles.stepNumber[startStepState]}>2</span>
+            <div>
+              <strong className={styles.stepTitle}>훈련 시작 지점</strong>
+              <p className={styles.stepDescription}>{getStartStepDescription(startStepState)}</p>
+            </div>
           </div>
         </div>
         <FireLocationGrid
@@ -160,6 +224,7 @@ const ScenarioSetupForm = ({
           persistedStartNodeId={evacuationSetup.persistedStartNodeId}
           statusMessage={floorMap.statusMessage}
           disabled={!evacuationSetup.editable || evacuationSetup.configured || isRunning}
+          startSelectionDisabled={!hasFireLocation}
           onFireCellSelect={evacuationSetup.onFireCellSelect}
           onStartNodeSelect={evacuationSetup.onStartNodeSelect}
         />
