@@ -48,7 +48,7 @@ const ScenarioActionPanel = ({
   startState,
   handlers,
 }: ScenarioActionPanelProps) => {
-  if (mode === 'create') {
+  if (mode === 'create' || mode === 'edit') {
     return (
       <aside className={sideColumn}>
         <Button
@@ -70,36 +70,7 @@ const ScenarioActionPanel = ({
             isLoading={isSavingDraft}
             onClick={handlers.onSaveDraft}
           >
-            임시 저장
-          </Button>
-        )}
-      </aside>
-    );
-  }
-
-  if (mode === 'edit') {
-    return (
-      <aside className={sideColumn}>
-        <Button
-          type="button"
-          size="lg"
-          fullWidth
-          isLoading={isCompleting}
-          onClick={handlers.onComplete}
-        >
-          {completeLabel}
-        </Button>
-        {showDraftSave && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="lg"
-            fullWidth
-            className={draftButton}
-            isLoading={isSavingDraft}
-            onClick={handlers.onSaveDraft}
-          >
-            임시 저장
+            {mode === 'create' ? '임시 저장' : '변경사항 임시 저장'}
           </Button>
         )}
       </aside>
