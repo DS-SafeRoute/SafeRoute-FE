@@ -29,3 +29,8 @@ export const chartBody = style({
   flex: 1,
   minHeight: '18rem',
 });
+
+export const emptyState = style({
+  padding: vars.space.s6,
+  height: '100%',
+});
