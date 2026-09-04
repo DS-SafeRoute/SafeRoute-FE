@@ -10,9 +10,15 @@ const zoneStartColor = '#DB2777';
 const zoneHallwayColor = '#0891B2';
 
 /* ── 전체 레이아웃 ── */
+// 좌우 패널은 폭 고정인데 가운데 캔버스만 flex: 1로 남는 공간을 다 먹다 보니, 큰 화면에선
+// 도면(고정 크기 SVG) 주변에 빈 공간만 늘어나고 그 여백 구석에 앉은 범례·팝업이 도면과
+// 동떨어져 보이며 화면이 커질수록 상대적으로 작아 보이던 문제 — 전체 폭에 상한을 둬서 방지
 export const layout = style({
   display: 'flex',
   flex: 1,
+  margin: '0 auto',
+  width: '100%',
+  maxWidth: '144rem',
   minHeight: 0,
   overflow: 'hidden',
 });
