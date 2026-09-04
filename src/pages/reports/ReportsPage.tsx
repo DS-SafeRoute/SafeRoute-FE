@@ -1,37 +1,11 @@
-import AiReportCard from './components/card/AiReportCard';
-import GradeSummaryCard from './components/card/GradeSummaryCard';
-import RecommendationsCard from './components/card/RecommendationsCard';
-import ScoreBreakdownCard from './components/card/ScoreBreakdownCard';
-import ReportCharts from './components/chart/ReportCharts';
-import {
-  densityByZone,
-  evacuationAccumulation,
-  recentEvacuationTimes,
-  recommendations,
-  reportNarrative,
-  reportScores,
-  reportSummary,
-} from './mocks/reportData';
-import * as styles from './ReportsPage.css';
+import { useParams } from 'react-router';
 
-const ReportsPage = () => (
-  <div className={styles.container}>
-    <div className={styles.topGrid}>
-      <GradeSummaryCard summary={reportSummary} />
-      <ScoreBreakdownCard scores={reportScores} />
-    </div>
+import ReportDetail from './components/ReportDetail';
 
-    <ReportCharts
-      evacuationAccumulation={evacuationAccumulation}
-      densityByZone={densityByZone}
-      recentEvacuationTimes={recentEvacuationTimes}
-    />
+const ReportsPage = () => {
+  const { reportId } = useParams<{ reportId: string }>();
 
-    <div className={styles.bottomGrid}>
-      <AiReportCard narrative={reportNarrative} />
-      <RecommendationsCard items={recommendations} />
-    </div>
-  </div>
-);
+  return reportId ? <ReportDetail reportId={reportId} /> : null;
+};
 
 export default ReportsPage;

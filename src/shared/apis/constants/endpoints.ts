@@ -76,6 +76,7 @@ export const API_ENDPOINTS = {
   // 훈련 리포트
   TRAINING_REPORTS: {
     CREATE: (sessionId: string) => `${API_V1}/analysis/trainings/${sessionId}`,
+    DETAIL: (reportId: string) => `${API_V1}/reports/${reportId}`,
   },
 
   // 대시보드

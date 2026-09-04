@@ -1,7 +1,8 @@
 import ScenarioListTooltip from '@pages/scenarioSettings/components/tooltip/ScenarioListTooltip';
 import { SCENARIO_STATUS_VIEW } from '@pages/scenarioSettings/types/scenarioList';
-import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 import { formatScenarioScheduledAt } from '@pages/scenarioSettings/utils/scenarioSettings';
+
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
 
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
@@ -15,12 +16,19 @@ interface ScenarioListRowProps {
   scenario: Scenario;
   buildingName?: string;
   onOpen: (scenario: Scenario) => void;
+  onOpenReport: (reportId: string) => void;
   onDelete: (scenario: Scenario) => void;
 }
 
 const DELETE_DISABLED_MESSAGE = '훈련 이력이 있어 삭제할 수 없습니다';
 
-const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioListRowProps) => {
+const ScenarioListRow = ({
+  scenario,
+  buildingName,
+  onOpen,
+  onOpenReport,
+  onDelete,
+}: ScenarioListRowProps) => {
   const statusView = SCENARIO_STATUS_VIEW[scenario.status];
   const scenarioName = scenario.name ?? '이름 없는 시나리오';
   const deleteButton = (
@@ -65,7 +73,7 @@ const ScenarioListRow = ({ scenario, buildingName, onOpen, onDelete }: ScenarioL
           aria-label={`${scenarioName} 보고서`}
           onClick={() => {
             if (!scenario.reportId) return;
-            // TODO: reportId를 사용해 해당 시나리오의 보고서 페이지로 이동
+            onOpenReport(scenario.reportId);
           }}
         >
           <FileTextIcon />

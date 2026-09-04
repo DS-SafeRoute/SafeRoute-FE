@@ -1,5 +1,6 @@
-import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 import type { BasicInfo } from '@pages/scenarioSettings/types/scenarioSettings';
+
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
 
 // 시나리오 상세 데이터로 기본 정보 폼의 초기값 구성
 export const getInitialBasicInfo = (scenario?: Scenario): BasicInfo => ({

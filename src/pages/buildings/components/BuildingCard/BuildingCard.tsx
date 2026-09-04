@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
+import type { Building } from '@apis/buildings/buildingTypes';
+
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import * as styles from './BuildingCard.css';
 import { useBuildingDeviceStatsQuery } from '../../api/useBuildingDeviceStatsQuery';
-
-import type { Building } from '../../types/buildings';
 
 interface BuildingCardProps {
   building: Building;

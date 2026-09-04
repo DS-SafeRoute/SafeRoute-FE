@@ -19,6 +19,7 @@ export interface HomeMetric {
 
 export interface TrainingRecord {
   id: number;
+  reportId?: string;
   name: string;
   date: string;
   participants: string;

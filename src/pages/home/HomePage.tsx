@@ -18,7 +18,7 @@ import TrendUpIcon from '@assets/icons/ic-trendup.svg?react';
 
 import useToast from '@components/toast/useToast';
 
-import { getTrainingCamerasPath } from '@constants/path';
+import { ROUTES, getReportPath, getTrainingCamerasPath } from '@constants/path';
 
 import { useGetDashboardStatsQuery } from './api/useDashboardStatsQuery';
 import { useGetDashboardTrainingsQuery } from './api/useDashboardTrainingsQuery';
@@ -107,6 +107,8 @@ const HomePage = () => {
           <RecentTrainingSection
             records={trainings.map(toTrainingRecord)}
             actionIcon={sectionIcons.action}
+            onViewAll={() => void navigate(ROUTES.SCENARIO_LIST)}
+            onOpenReport={(reportId) => void navigate(getReportPath(reportId))}
           />
 
           <div className={styles.sideColumn}>

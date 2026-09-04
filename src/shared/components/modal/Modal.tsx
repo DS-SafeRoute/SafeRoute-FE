@@ -23,6 +23,7 @@ export interface ModalProps {
   className?: string;
   confirmBodyClassName?: string;
   footerClassName?: string;
+  showCloseButton?: boolean;
 }
 
 const FOCUSABLE = [
@@ -48,6 +49,7 @@ const Modal = ({
   className,
   confirmBodyClassName,
   footerClassName,
+  showCloseButton = true,
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -121,14 +123,16 @@ const Modal = ({
               </h2>
               {description && <p className={styles.description}>{description}</p>}
             </div>
-            <button
-              type="button"
-              className={styles.closeButton}
-              aria-label="닫기"
-              onClick={onClose}
-            >
-              <XIcon width={20} height={20} />
-            </button>
+            {showCloseButton ? (
+              <button
+                type="button"
+                className={styles.closeButton}
+                aria-label="닫기"
+                onClick={onClose}
+              >
+                <XIcon width={20} height={20} />
+              </button>
+            ) : null}
           </div>
         )}
 

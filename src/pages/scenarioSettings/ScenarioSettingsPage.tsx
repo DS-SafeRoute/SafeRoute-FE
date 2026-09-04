@@ -2,23 +2,26 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate, useParams } from 'react-router';
 
-import { useGetBuildingsQuery } from '@pages/buildings/api/useBuildingsQuery';
-
+import type { GenerateReportRequest } from '@apis/__generated__/data-contracts';
+import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import { extractApiError } from '@apis/errors/apiError';
+import { useGenerateTrainingReportMutation } from '@apis/reports/useReports';
+import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
+import {
+  useCreateScenarioDraftMutation,
+  useReadyScenarioMutation,
+  useUpdateScenarioMutation,
+} from '@apis/scenarios/useScenarioMutations';
+import { useGetScenarioQuery } from '@apis/scenarios/useScenariosQuery';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
-import { ROUTES, getScenarioDetailPath } from '@constants/path';
+import { ROUTES, getReportPath, getScenarioDetailPath } from '@constants/path';
 
-import {
-  useCreateScenarioDraftMutation,
-  useGetScenarioQuery,
-  useReadyScenarioMutation,
-  useUpdateScenarioMutation,
-} from './api/scenarioQueries';
 import ScenarioActionPanel from './components/scenarioActionPanel/ScenarioActionPanel';
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
@@ -27,10 +30,8 @@ import { useScenarioFloorView } from './hooks/useScenarioFloorView';
 import { useScenarioForm } from './hooks/useScenarioForm';
 import { useScenarioTraining } from './hooks/useScenarioTraining';
 import * as styles from './ScenarioSettingsPage.css';
-import { SCENARIO_STATUS } from './types/scenarioList';
 
 import type { ScenarioActionMode } from './components/scenarioActionPanel/ScenarioActionPanel';
-import type { Scenario } from './types/scenarioList';
 
 interface ScenarioSettingsContentProps {
   scenario?: Scenario;
@@ -60,7 +61,8 @@ const getStartRestrictionMessage = ({
 }) => {
   if (
     scenario?.status === SCENARIO_STATUS.COMPLETED ||
-    scenario?.status === SCENARIO_STATUS.ERROR
+    scenario?.status === SCENARIO_STATUS.ERROR ||
+    scenario?.status === SCENARIO_STATUS.TIMEOUT_FAILED
   ) {
     return '완료되었거나 실패한 훈련은 다시 시작할 수 없습니다. 새 시나리오를 생성해 주세요.';
   }
@@ -95,10 +97,15 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   const createDraftMutation = useCreateScenarioDraftMutation();
   const updateScenarioMutation = useUpdateScenarioMutation();
   const readyScenarioMutation = useReadyScenarioMutation();
+  const generateTrainingReportMutation = useGenerateTrainingReportMutation();
 
   // 기본 정보 편집과 훈련 종료 모달은 독립적인 화면 상태
   const [isEditing, setIsEditing] = useState(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+  const [trainingTimerStoppedAt, setTrainingTimerStoppedAt] = useState<number | null>(null);
+  const [hasEndedSession, setHasEndedSession] = useState(false);
+  const [isTrainingCompleted, setIsTrainingCompleted] = useState(false);
+  const [generatedReportId, setGeneratedReportId] = useState<string | null>(null);
 
   const isCreatePage = scenario === undefined;
   const isDraft = scenario?.status === SCENARIO_STATUS.DRAFT;
@@ -232,25 +239,54 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  // 서버가 최대 진행 시간 초과로 FAILED 처리하면 생성된 보고서 목록으로 이동
+  const timeLimitSessionId = training.timedOutSessionId ?? training.timeLimitReachedSessionId;
+
+  // 시작 시각 기준 10분이 지나거나 서버가 FAILED를 알리면 결과 입력 모달을 표시
   useEffect(() => {
-    if (!training.timeLimitExceededAt) return;
+    if (!timeLimitSessionId) return;
+    setTrainingTimerStoppedAt(Date.now());
+    setIsEndModalOpen(true);
     show({
       title: '최대 훈련 시간이 초과되었습니다.',
-      description: '훈련이 종료되어 생성된 보고서로 이동합니다.',
+      description: '생존 인원을 입력해 분석 보고서를 생성해 주세요.',
       variant: 'default',
     });
-    void navigate(ROUTES.REPORTS, { replace: true });
-  }, [navigate, show, training.timeLimitExceededAt]);
+  }, [show, timeLimitSessionId]);
 
-  // 진행 중인 훈련 종료 후 결과 이동 모달 표시
-  const handleEndTraining = async () => {
-    if (!training.isRunning) return;
+  // 서버 FAILED 이벤트를 받은 경우에는 종료 API를 중복 호출하지 않음
+  useEffect(() => {
+    if (!training.timedOutSessionId) return;
+    setHasEndedSession(true);
+  }, [training.timedOutSessionId]);
+
+  // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
+  const handleCompleteTraining = async (values: GenerateReportRequest) => {
+    const sessionId = training.sessionId ?? timeLimitSessionId;
+    if (!sessionId) return;
+    let sessionEnded = hasEndedSession || Boolean(training.timedOutSessionId);
+
     try {
-      await training.endTraining();
-      setIsEndModalOpen(true);
+      if (!sessionEnded) {
+        await training.endTraining();
+        sessionEnded = true;
+        setHasEndedSession(true);
+      }
+
+      const report = await generateTrainingReportMutation.mutateAsync({
+        sessionId,
+        body: values,
+      });
+      if (!report.reportId) throw new Error('생성된 분석 보고서 ID가 없습니다.');
+
+      setGeneratedReportId(report.reportId);
+      setIsTrainingCompleted(true);
     } catch {
-      show({ title: '훈련 종료에 실패했습니다.', variant: 'error' });
+      show({
+        title: sessionEnded
+          ? '분석 보고서 생성에 실패했습니다. 다시 시도해 주세요.'
+          : '훈련 종료에 실패했습니다.',
+        variant: 'error',
+      });
     }
   };
 
@@ -304,10 +340,14 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         {training.isRunning && training.startedAt !== null ? (
           <TrainingControlPanel
             startedAt={training.startedAt}
+            timerStoppedAt={trainingTimerStoppedAt}
             currentRoute={training.route.currentRouteMessage}
             liveMetrics={floorView.previewMetrics}
             isEnding={training.isEnding}
-            onEnd={() => void handleEndTraining()}
+            onEnd={() => {
+              setTrainingTimerStoppedAt(Date.now());
+              setIsEndModalOpen(true);
+            }}
             routeDecision={{
               proposal: training.route.routeProposal,
               isApplying: training.route.isApplyingRouteProposal,
@@ -346,8 +386,20 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
 
       <TrainingEndModal
         open={isEndModalOpen}
+        completed={isTrainingCompleted}
+        participantCount={scenario?.expectedParticipants ?? 0}
+        isSubmitting={training.isEnding || generateTrainingReportMutation.isPending}
+        canClose={!hasEndedSession && !timeLimitSessionId}
+        onClose={() => {
+          setTrainingTimerStoppedAt(null);
+          setIsEndModalOpen(false);
+        }}
+        onSubmit={handleCompleteTraining}
         onHome={() => void navigate(ROUTES.HOME)}
-        onReport={() => void navigate(ROUTES.REPORTS)}
+        onReport={() => {
+          if (!generatedReportId) return;
+          void navigate(getReportPath(generatedReportId));
+        }}
       />
     </div>
   );

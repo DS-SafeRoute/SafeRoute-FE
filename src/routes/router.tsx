@@ -10,6 +10,11 @@ const loadScenarioSettingsPage = async () => {
   return { Component: ScenarioSettingsPage };
 };
 
+const loadReportsPage = async () => {
+  const { default: ReportsPage } = await import('@/pages/reports/ReportsPage');
+  return { Component: ReportsPage };
+};
+
 const router = createBrowserRouter([
   {
     path: ROUTES.LANDING,
@@ -111,10 +116,7 @@ const router = createBrowserRouter([
       },
       {
         path: ROUTES.REPORTS,
-        lazy: async () => {
-          const { default: ReportsPage } = await import('@/pages/reports/ReportsPage');
-          return { Component: ReportsPage };
-        },
+        lazy: loadReportsPage,
       },
     ],
   },

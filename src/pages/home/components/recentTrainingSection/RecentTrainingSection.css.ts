@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 
 import { vars } from '@styles/global.css';
@@ -63,6 +63,54 @@ export const recordsTable = style({
   tableLayout: 'fixed',
   borderCollapse: 'collapse',
 });
+
+export const tableRow = recipe({
+  base: {
+    position: 'relative',
+    transition: `background-color 150ms ease, box-shadow 150ms ease`,
+  },
+  variants: {
+    interactive: {
+      true: {
+        cursor: 'pointer',
+        selectors: {
+          '&:hover': { backgroundColor: vars.color.primaryLight2 },
+          '&:focus-within': {
+            outline: 'none',
+            boxShadow: `inset 0 0 0 2px ${vars.color.primary}`,
+          },
+        },
+      },
+      false: {},
+    },
+  },
+  defaultVariants: { interactive: false },
+});
+
+export const reportButton = style({
+  border: 0,
+  background: 'transparent',
+  cursor: 'pointer',
+  padding: 0,
+  color: 'inherit',
+  font: 'inherit',
+  fontWeight: 'inherit',
+  selectors: {
+    '&:focus-visible': { outline: 'none' },
+    '&::after': {
+      position: 'absolute',
+      inset: 0,
+      content: '',
+    },
+  },
+});
+
+globalStyle(`${recordsTable} th:nth-child(1)`, { width: '30%' });
+globalStyle(`${recordsTable} th:nth-child(2)`, { width: '18%' });
+globalStyle(`${recordsTable} th:nth-child(3)`, { width: '11%' });
+globalStyle(`${recordsTable} th:nth-child(4)`, { width: '15%' });
+globalStyle(`${recordsTable} th:nth-child(5)`, { width: '14%' });
+globalStyle(`${recordsTable} th:nth-child(6)`, { width: '12%' });
 
 export const tableHeadCell = style({
   borderTop: `1px solid ${vars.color.gray100}`,

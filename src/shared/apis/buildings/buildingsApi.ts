@@ -3,13 +3,12 @@ import type {
   CreateBuildingRequest,
   UpdateBuildingRequest,
 } from '@apis/__generated__/data-contracts';
-import { request, HTTP_METHOD } from '@apis/config/request';
+import { HTTP_METHOD, request } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
 
-import type { Building } from '../types/buildings';
+import type { Building } from './buildingTypes';
 
-// 필수 필드가 비어 있으면 상세 조회/수정/삭제 요청에 잘못된 id가 쓰이는 등 오류가 조용히 전파되므로, 기본값으로 채우지 않고 즉시 에러를 던짐
-export const toBuilding = (response: BuildingResponse): Building => {
+const toBuilding = (response: BuildingResponse): Building => {
   const {
     id,
     name,
@@ -80,9 +79,8 @@ export const putBuilding = async (buildingId: string, body: UpdateBuildingReques
   return toBuilding(building);
 };
 
-export const deleteBuilding = (buildingId: string) => {
-  return request<void>({
+export const deleteBuilding = (buildingId: string) =>
+  request<void>({
     method: HTTP_METHOD.DELETE,
     url: API_ENDPOINTS.BUILDINGS.DETAIL(buildingId),
   });
-};

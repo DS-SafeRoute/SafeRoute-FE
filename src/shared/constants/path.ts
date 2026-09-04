@@ -14,7 +14,7 @@ export const ROUTES = {
   TRAINING_ANALYSIS: '/trainingAnalysis',
   TRAINING_CAMERAS: '/trainingAnalysis/:sessionId/cameras',
   TRAINING_CAMERA_FRAMES: '/trainingAnalysis/:sessionId/cameras/:cctvId',
-  REPORTS: '/reports',
+  REPORTS: '/reports/:reportId',
 } as const;
 
 export const getScenarioDetailPath = (scenarioId: string) =>
@@ -28,3 +28,6 @@ export const getTrainingCameraFramesPath = (sessionId: string, cctvId: string) =
     ':cctvId',
     encodeURIComponent(cctvId),
   );
+
+export const getReportPath = (reportId: string) =>
+  ROUTES.REPORTS.replace(':reportId', encodeURIComponent(reportId));

@@ -12,42 +12,21 @@ export interface TrendPoint {
   value: number;
 }
 
-export type DensityLevel = 'high' | 'medium' | 'low';
-
-export interface DensityItem {
-  label: string;
-  value: number;
-  level: DensityLevel;
-}
+export type RecommendationLevel = 'high' | 'medium' | 'low';
 
 export interface RecommendationItem {
   id: string;
-  level: DensityLevel;
+  level: RecommendationLevel;
   title: string;
   description: string;
-}
-
-export interface ReportNarrative {
-  headlinePrefix: string;
-  grade: string;
-  headlineSuffix: string;
-  strength: string;
-  improvementPrefix: string;
-  improvementScore: string;
-  improvementSuffix: string;
 }
 
 export interface ReportSummary {
   grade: string;
   scoreText: string;
-  percentileText: string;
-  previousDelta: ReportDelta;
-  nationalDelta: ReportDelta;
 }
 
-export type ReportDeltaDirection = 'up' | 'down' | 'flat';
-
-export interface ReportDelta {
+export interface ReportMetaItem {
+  label: string;
   value: string;
-  direction: ReportDeltaDirection;
 }

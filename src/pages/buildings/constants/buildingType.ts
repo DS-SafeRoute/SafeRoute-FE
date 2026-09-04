@@ -1,4 +1,4 @@
-import type { BuildingType } from '../types/buildings';
+import type { BuildingType } from '@apis/buildings/buildingTypes';
 
 export const BUILDING_TYPE_OPTIONS = [
   { value: 'CLASSROOM', label: '교실' },

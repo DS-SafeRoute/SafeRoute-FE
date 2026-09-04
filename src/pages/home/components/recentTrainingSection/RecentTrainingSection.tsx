@@ -14,9 +14,16 @@ import type { TrainingRecord } from '../../types/home';
 type RecentTrainingSectionProps = {
   records: TrainingRecord[];
   actionIcon: ReactNode;
+  onViewAll: () => void;
+  onOpenReport: (reportId: string) => void;
 };
 
-const RecentTrainingSection = ({ records, actionIcon }: RecentTrainingSectionProps) => (
+const RecentTrainingSection = ({
+  records,
+  actionIcon,
+  onViewAll,
+  onOpenReport,
+}: RecentTrainingSectionProps) => (
   <section className={styles.recordsSection}>
     <div className={styles.sectionHeader}>
       <h2 className={styles.sectionTitle}>최근 훈련 기록</h2>
@@ -27,6 +34,7 @@ const RecentTrainingSection = ({ records, actionIcon }: RecentTrainingSectionPro
         size="sm"
         rightIcon={actionIcon}
         className={styles.headerActionButton}
+        onClick={onViewAll}
       >
         전체 보기
       </Button>
@@ -44,21 +52,38 @@ const RecentTrainingSection = ({ records, actionIcon }: RecentTrainingSectionPro
           </tr>
         </thead>
         <tbody>
-          {records.map((record) => (
-            <tr key={record.id}>
-              <td className={styles.tableCell({ tone: 'emphasis' })}>{record.name}</td>
-              <td className={styles.tableCell({ tone: 'date' })}>{record.date}</td>
-              <td className={styles.tableCell()}>{record.participants}</td>
-              <td className={styles.tableCell({ tone: 'emphasis' })}>{record.evacuationTime}</td>
-              <td className={styles.tableCell()}>{record.survivalRate}</td>
-              <td className={styles.tableCell()}>
-                <StatusBadge
-                  label={record.grade}
-                  color={HOME_GRADE_BADGE_COLOR[record.grade] ?? 'neutral'}
-                />
-              </td>
-            </tr>
-          ))}
+          {records.map((record) => {
+            const reportId = record.reportId;
+
+            return (
+              <tr key={record.id} className={styles.tableRow({ interactive: Boolean(reportId) })}>
+                <td className={styles.tableCell({ tone: 'emphasis' })}>
+                  {reportId ? (
+                    <button
+                      type="button"
+                      className={styles.reportButton}
+                      aria-label={`${record.name} 분석 보고서 보기`}
+                      onClick={() => onOpenReport(reportId)}
+                    >
+                      {record.name}
+                    </button>
+                  ) : (
+                    record.name
+                  )}
+                </td>
+                <td className={styles.tableCell({ tone: 'date' })}>{record.date}</td>
+                <td className={styles.tableCell()}>{record.participants}</td>
+                <td className={styles.tableCell({ tone: 'emphasis' })}>{record.evacuationTime}</td>
+                <td className={styles.tableCell()}>{record.survivalRate}</td>
+                <td className={styles.tableCell()}>
+                  <StatusBadge
+                    label={record.grade}
+                    color={HOME_GRADE_BADGE_COLOR[record.grade] ?? 'neutral'}
+                  />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     ) : (

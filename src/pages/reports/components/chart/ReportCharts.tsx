@@ -1,39 +1,32 @@
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
   LabelList,
   Line,
   LineChart,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
 } from 'recharts';
 
+import EmptyState from '@components/empty';
+
 import { vars } from '@styles/global.css';
+
+import { formatDuration } from '@utils/format';
 
 import * as styles from './ReportCharts.css';
 
-import type { DensityItem, TrendPoint } from '../../types/report';
+import type { TrendPoint } from '../../types/report';
 
 interface ReportChartsProps {
   evacuationAccumulation: TrendPoint[];
-  densityByZone: DensityItem[];
   recentEvacuationTimes: TrendPoint[];
 }
 
-const densityColors: Record<DensityItem['level'], string> = {
-  high: vars.color.danger,
-  medium: vars.color.warning,
-  low: vars.color.success,
-};
-
 const CHART_MARGIN = { top: 16, right: 16, bottom: 8, left: 16 };
 const CHART_STROKE_WIDTH = 3;
-const BAR_SIZE = 40;
-const BAR_RADIUS: [number, number, number, number] = [6, 6, 0, 0];
 const DOT_STYLE = {
   fill: vars.color.success,
   r: 4,
@@ -46,90 +39,83 @@ const axisTick = {
   fontSize: vars.typography.caption.fontSize,
 };
 
-const axisTickStrong = {
-  ...axisTick,
-  fill: vars.color.textMid,
-};
+const formatEvacuationTime = (value: unknown) =>
+  typeof value === 'number' ? formatDuration(value) : '';
 
-const labelText = {
-  fill: vars.color.textHigh,
-  fontFamily: vars.fontFamily.base,
-  fontSize: vars.typography.caption.fontSize,
-  fontWeight: vars.fontWeight.bold,
-};
-
-const ReportCharts = ({
-  evacuationAccumulation,
-  densityByZone,
-  recentEvacuationTimes,
-}: ReportChartsProps) => (
+const ReportCharts = ({ evacuationAccumulation, recentEvacuationTimes }: ReportChartsProps) => (
   <div className={styles.chartGrid}>
     <section className={styles.chartCard}>
       <h2 className={styles.chartTitle}>대피 인원 누적</h2>
       <div className={styles.chartBody}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={evacuationAccumulation} margin={CHART_MARGIN}>
-            <CartesianGrid vertical={false} stroke={vars.color.gray100} />
-            <XAxis
-              dataKey="label"
-              axisLine={false}
-              tickLine={false}
-              tick={axisTick}
-              interval="preserveStartEnd"
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={vars.color.primary}
-              strokeWidth={CHART_STROKE_WIDTH}
-              fill={vars.color.primaryLight}
-              fillOpacity={0.72}
-              dot={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-
-    <section className={styles.chartCard}>
-      <h2 className={styles.chartTitle}>구역별 평균 밀집도</h2>
-      <div className={styles.chartBody}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={densityByZone} margin={CHART_MARGIN}>
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={axisTickStrong} />
-            <Bar dataKey="value" radius={BAR_RADIUS} barSize={BAR_SIZE}>
-              <LabelList
-                dataKey="value"
-                position="top"
-                formatter={(value) => `${value}%`}
-                {...labelText}
+        {evacuationAccumulation.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={evacuationAccumulation} margin={CHART_MARGIN}>
+              <CartesianGrid vertical={false} stroke={vars.color.gray100} />
+              <XAxis
+                dataKey="label"
+                axisLine={false}
+                tickLine={false}
+                tick={axisTick}
+                interval="preserveStartEnd"
               />
-              {densityByZone.map((item) => (
-                <Cell key={item.label} fill={densityColors[item.level]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={vars.color.primary}
+                strokeWidth={CHART_STROKE_WIDTH}
+                fill={vars.color.primaryLight}
+                fillOpacity={0.72}
+                dot={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <EmptyState
+            className={styles.emptyState}
+            title="대피 인원 기록이 없습니다."
+            description="누적 대피 데이터가 수집되면 그래프로 표시됩니다."
+          />
+        )}
       </div>
     </section>
 
     <section className={styles.chartCard}>
       <h2 className={styles.chartTitle}>최근 5회 대피 시간</h2>
       <div className={styles.chartBody}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={recentEvacuationTimes} margin={CHART_MARGIN}>
-            <CartesianGrid vertical={false} stroke={vars.color.gray100} />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={axisTick} />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke={vars.color.success}
-              strokeWidth={CHART_STROKE_WIDTH}
-              dot={DOT_STYLE}
-              activeDot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {recentEvacuationTimes.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={recentEvacuationTimes} margin={CHART_MARGIN}>
+              <CartesianGrid vertical={false} stroke={vars.color.gray100} />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={axisTick} />
+              <Tooltip
+                formatter={(value) => [formatEvacuationTime(value), '대피 시간']}
+                labelStyle={{ color: vars.color.textMid }}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={vars.color.success}
+                strokeWidth={CHART_STROKE_WIDTH}
+                dot={DOT_STYLE}
+                activeDot={false}
+              >
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  formatter={formatEvacuationTime}
+                  fill={vars.color.textMid}
+                  fontSize={12}
+                />
+              </Line>
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <EmptyState
+            className={styles.emptyState}
+            title="최근 대피 기록이 없습니다."
+            description="훈련 기록이 쌓이면 최근 5회 결과를 비교할 수 있습니다."
+          />
+        )}
       </div>
     </section>
   </div>

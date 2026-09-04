@@ -5,7 +5,6 @@ import {
   FIRE_SPREAD_VALUE,
 } from '@pages/scenarioSettings/constants/scenarioSettings';
 import type { FireSpreadLabel } from '@pages/scenarioSettings/constants/scenarioSettings';
-import type { Scenario } from '@pages/scenarioSettings/types/scenarioList';
 import type { BasicInfo } from '@pages/scenarioSettings/types/scenarioSettings';
 import { getInitialBasicInfo, toScheduledAt } from '@pages/scenarioSettings/utils/scenarioSettings';
 
@@ -13,6 +12,7 @@ import type {
   CreateScenarioDraftRequest,
   UpdateScenarioRequest,
 } from '@apis/__generated__/data-contracts';
+import type { Scenario } from '@apis/scenarios/scenarioTypes';
 
 interface UseScenarioFormParams {
   scenario?: Scenario;

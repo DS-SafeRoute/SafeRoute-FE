@@ -29,6 +29,7 @@ interface RouteDecision {
 
 interface TrainingControlPanelProps {
   startedAt: number;
+  timerStoppedAt: number | null;
   currentRoute: string;
   liveMetrics: PreviewMetric[];
   isEnding: boolean;
@@ -38,13 +39,14 @@ interface TrainingControlPanelProps {
 
 const TrainingControlPanel = ({
   startedAt,
+  timerStoppedAt,
   currentRoute,
   liveMetrics,
   isEnding,
   onEnd,
   routeDecision,
 }: TrainingControlPanelProps) => {
-  const elapsedTime = useElapsedTrainingTime(startedAt);
+  const elapsedTime = useElapsedTrainingTime(startedAt, timerStoppedAt);
   const { proposal, isApplying, isRejecting, onReject, onApply } = routeDecision;
   const isPending = isApplying || isRejecting;
 
