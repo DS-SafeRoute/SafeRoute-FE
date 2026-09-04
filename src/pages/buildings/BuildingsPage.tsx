@@ -1,7 +1,6 @@
 import { useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { isAxiosError } from 'axios';
 
 import type {
   CreateBuildingRequest,
@@ -10,8 +9,7 @@ import type {
 import { buildingQueryKeys } from '@apis/buildings/buildingQueryKeys';
 import type { Building } from '@apis/buildings/buildingTypes';
 import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
-import { ApiError } from '@apis/errors/apiError';
-import type { BaseResponse } from '@apis/types/baseResponse';
+import { extractApiError } from '@apis/errors/apiError';
 import { useMyProfileQuery } from '@apis/users/useMyProfileQuery';
 
 import BuildingIcon from '@assets/icons/ic-building.svg?react';
@@ -44,14 +42,10 @@ type ModalState =
 
 // 실패 원인을 토스트에도 보여줘서, 재현했을 때 개발자도구 없이도 바로 원인을 알 수 있게 함
 // (request.ts는 HTTP 에러 상태코드가 오면 실제 서버 메시지 대신 고정 문구로 덮어써서 콘솔에도 안 남으므로,
-// 여기서는 axios 에러의 원본 응답 바디를 직접 읽어서 진짜 서버 메시지를 보여줌)
+// 여기서는 서버 응답의 원본 code·message를 공용 헬퍼로 직접 꺼내 진짜 서버 메시지를 보여줌)
 const describeError = (error: unknown): string => {
-  if (error instanceof ApiError) return `${error.message} (${error.code})`;
-  if (isAxiosError<BaseResponse<unknown>>(error)) {
-    const serverMessage = error.response?.data?.message;
-    if (serverMessage) return `${serverMessage} (HTTP ${error.response?.status})`;
-  }
-  return '알 수 없는 오류';
+  const { code, message } = extractApiError(error);
+  return message ? `${message}${code ? ` (${code})` : ''}` : '알 수 없는 오류';
 };
 
 interface FloorSyncTarget {

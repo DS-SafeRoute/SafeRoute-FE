@@ -5,7 +5,7 @@ import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
-import { ApiError } from '@apis/errors/apiError';
+import { extractApiError } from '@apis/errors/apiError';
 import { floorQueryKeys } from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
@@ -93,19 +93,6 @@ import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
 import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
-
-// 서버 에러 메시지 추출 — 200+isSuccess:false는 ApiError로, HTTP 4xx는 AxiosError로 서로 다르게
-// 올라오므로 한 곳에서 통일해서 꺼냄
-const extractServerError = (error: unknown): { code: string; message: string } => {
-  const responseData = isAxiosError(error) ? error.response?.data : undefined;
-  const body =
-    responseData && typeof responseData === 'object'
-      ? (responseData as { code?: unknown; message?: unknown })
-      : undefined;
-  const code = error instanceof ApiError ? error.code : String(body?.code ?? '');
-  const message = error instanceof ApiError ? error.message : String(body?.message ?? '');
-  return { code, message };
-};
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
 
@@ -2876,7 +2863,7 @@ const FloorPlansDetailPage = () => {
     changeLightDirection(item.id, direction)
       .then(() => show({ title: '유도등 방향을 변경했습니다.', variant: 'success' }))
       .catch((error: unknown) => {
-        const { message } = extractServerError(error);
+        const { message } = extractApiError(error);
         show({ title: message || '유도등 방향 변경에 실패했습니다.', variant: 'error' });
       });
   };
@@ -3055,7 +3042,7 @@ const FloorPlansDetailPage = () => {
           .catch((error: unknown) => {
             // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
             // 무시되던 자리라 원인을 알 수 있게 서버 메시지를 그대로 보여줌
-            const { code: serverCode, message: serverMessage } = extractServerError(error);
+            const { code: serverCode, message: serverMessage } = extractApiError(error);
             if (import.meta.env.DEV) {
               console.error(`[${cfg.label} 노드 추가 실패]`, serverCode, error);
             }
@@ -3103,7 +3090,7 @@ const FloorPlansDetailPage = () => {
                   setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
                 )
                 .catch((error: unknown) => {
-                  const { message } = extractServerError(error);
+                  const { message } = extractApiError(error);
                   show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
                 });
             }
@@ -3113,7 +3100,7 @@ const FloorPlansDetailPage = () => {
                   setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
                 )
                 .catch((error: unknown) => {
-                  const { message } = extractServerError(error);
+                  const { message } = extractApiError(error);
                   show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
                 });
             }
@@ -3328,7 +3315,7 @@ const FloorPlansDetailPage = () => {
       .then(handleCreated)
       .catch((error: unknown) => {
         // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 본다
-        const { code: serverCode, message: serverMessage } = extractServerError(error);
+        const { code: serverCode, message: serverMessage } = extractApiError(error);
         if (import.meta.env.DEV) {
           console.error('[CCTV 등록 실패]', serverCode, error);
         }
@@ -3445,7 +3432,7 @@ const FloorPlansDetailPage = () => {
         prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
       );
       // 마지막 남은 탈출구는 해제할 수 없는 등 서버가 이유를 message로 내려주므로 그대로 보여줌
-      const { message: serverMessage } = extractServerError(error);
+      const { message: serverMessage } = extractApiError(error);
       show({
         title: serverMessage || '최종 탈출구 지정에 실패했습니다.',
         variant: 'error',
@@ -3500,7 +3487,7 @@ const FloorPlansDetailPage = () => {
       })
       .catch((error: unknown) => {
         // 유도등 판단 노드로 참조 중이거나 마지막 탈출구인 경우 등 서버가 이유를 message로 내려줌
-        const { message: serverMessage } = extractServerError(error);
+        const { message: serverMessage } = extractApiError(error);
         show({
           title: serverMessage || '노드 삭제에 실패했습니다.',
           variant: 'error',
@@ -3610,7 +3597,7 @@ const FloorPlansDetailPage = () => {
           succeeded.push(result.value);
         } else {
           failedCount += 1;
-          firstErrorMessage ??= extractServerError(result.reason).message;
+          firstErrorMessage ??= extractApiError(result.reason).message;
         }
       });
       if (succeeded.length > 0) {
@@ -3748,7 +3735,7 @@ const FloorPlansDetailPage = () => {
         show({ title: '구역을 다시 설정했습니다.', variant: 'success' });
       })
       .catch((error: unknown) => {
-        const { message } = extractServerError(error);
+        const { message } = extractApiError(error);
         if (!deleted) {
           show({ title: message || '구역 재설정에 실패했습니다.', variant: 'error' });
           return;
@@ -4300,7 +4287,7 @@ const FloorPlansDetailPage = () => {
               setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
             )
             .catch((error: unknown) => {
-              const { message } = extractServerError(error);
+              const { message } = extractApiError(error);
               show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
             });
         }
@@ -4311,7 +4298,7 @@ const FloorPlansDetailPage = () => {
               setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
             )
             .catch((error: unknown) => {
-              const { message } = extractServerError(error);
+              const { message } = extractApiError(error);
               show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
             });
         }
@@ -4366,7 +4353,7 @@ const FloorPlansDetailPage = () => {
             void queryClient.invalidateQueries({ queryKey: floorQueryKeys.cctv(floorId) });
           })
           .catch((error: unknown) => {
-            const { message } = extractServerError(error);
+            const { message } = extractApiError(error);
             show({ title: message || 'CCTV 삭제에 실패했습니다.', variant: 'error' });
           })
           .finally(() => setIsDeletingItem(false));
