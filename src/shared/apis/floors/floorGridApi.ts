@@ -41,21 +41,28 @@ export const toFloorGridCell = (response: FloorGridCellResponse): FloorGridCell 
 
 const GRID_CELLS_PAGE_SIZE = 2000;
 
-export const getFloorGridCells = async (floorId: string, signal?: AbortSignal) => {
-  const cells: FloorGridCell[] = [];
-  let page = 0;
-  let isLastPage = false;
+const requestGridCellsPage = (floorId: string, page: number, signal?: AbortSignal) =>
+  request<FloorGridCellPageResponse>({
+    method: HTTP_METHOD.GET,
+    url: API_ENDPOINTS.FLOOR_GRID.CELLS(floorId),
+    query: { page, size: GRID_CELLS_PAGE_SIZE },
+    signal,
+  });
 
-  while (!isLastPage) {
-    const response = await request<FloorGridCellPageResponse>({
-      method: HTTP_METHOD.GET,
-      url: API_ENDPOINTS.FLOOR_GRID.CELLS(floorId),
-      query: { page, size: GRID_CELLS_PAGE_SIZE },
-      signal,
-    });
+export const getFloorGridCells = async (floorId: string, signal?: AbortSignal) => {
+  const first = await requestGridCellsPage(floorId, 0, signal);
+  const cells: FloorGridCell[] = (first.content ?? []).map(toFloorGridCell);
+  if (first.last ?? true) return cells;
+
+  // 이전엔 페이지를 하나씩 순서대로 기다려서, 그리드 배율을 작게 잡아 셀이 많아진 층은
+  // 페이지 수만큼 왕복이 쌓여 "요청이 끝없이 올라오고" 로딩이 멈춘 것처럼 보였음 — 첫 페이지
+  // 응답의 totalElements로 남은 페이지 수를 미리 알 수 있으니, 나머지는 한 번에 병렬로 요청함
+  const totalPages = Math.max(1, Math.ceil((first.totalElements ?? 0) / GRID_CELLS_PAGE_SIZE));
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, i) => requestGridCellsPage(floorId, i + 1, signal)),
+  );
+  for (const response of remainingPages) {
     cells.push(...(response.content ?? []).map(toFloorGridCell));
-    isLastPage = response.last ?? true;
-    page += 1;
   }
 
   return cells;
