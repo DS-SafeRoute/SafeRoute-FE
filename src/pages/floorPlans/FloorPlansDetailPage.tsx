@@ -300,6 +300,16 @@ const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> =
   CUSTOM: '#7c3aed',
 };
 
+// 두 노드 사이에 이미 엣지가 있는지 확인 — 방향은 상관없음(A-B가 있으면 B-A도 같은 구간으로 봄).
+// 체인으로 여러 경로를 잇다 보면 이전에 만든 경로와 구간이 겹칠 수 있는데, 그 구간만 생성에서
+// 자동으로 제외하기 위해 캔버스 미리보기와 검토 화면 양쪽에서 이 함수를 같이 씀
+const hasExistingEdge = (edges: MapEdge[], fromId: string, toId: string): boolean =>
+  edges.some(
+    (e) =>
+      (e.fromNodeId === fromId && e.toNodeId === toId) ||
+      (e.fromNodeId === toId && e.toNodeId === fromId),
+  );
+
 type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: string };
 
 // 그리드(PUT /floors/{id}/grid, GET /floors/{id}/grid/cells)는 두 가지 용도로만 존재함:
@@ -427,6 +437,7 @@ const MockFloorMap3F = ({
   graphEdges,
   edgeAddActive,
   onNodeClickForEdge,
+  edgeChainNodeIds,
   selectedEdgeId,
   onEdgeSelect,
   onEdgeDelete,
@@ -452,6 +463,8 @@ const MockFloorMap3F = ({
   graphEdges: MapEdge[];
   edgeAddActive: boolean;
   onNodeClickForEdge: (id: string) => void;
+  // 순서대로 클릭해 쌓은 엣지 체인 — 골라둔 노드 강조·구간 미리보기에 씀
+  edgeChainNodeIds: string[];
   selectedEdgeId: string | null;
   onEdgeSelect: (id: string) => void;
   onEdgeDelete: (id: string) => void;
@@ -660,6 +673,30 @@ const MockFloorMap3F = ({
         );
       })}
 
+      {/* 순서대로 클릭해 쌓는 중인 엣지 체인 미리보기 — 이미 있는 구간은 회색, 새로 만들 구간은
+          파란 점선으로 구분해서 검토 화면까지 안 가도 겹치는지 바로 알 수 있게 함 */}
+      {edgeChainNodeIds.length > 1 &&
+        edgeChainNodeIds.slice(0, -1).map((fromId, i) => {
+          const toId = edgeChainNodeIds[i + 1];
+          const from = nodePositionById.get(fromId);
+          const to = nodePositionById.get(toId);
+          if (!from || !to) return null;
+          const alreadyExists = hasExistingEdge(graphEdges, fromId, toId);
+          return (
+            <line
+              key={`edge-chain-preview-${fromId}-${toId}-${i}`}
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke={alreadyExists ? '#9ca3af' : '#2563eb'}
+              strokeWidth="2"
+              strokeDasharray="4 3"
+              style={{ pointerEvents: 'none' }}
+            />
+          );
+        })}
+
       {/* 맵그래프 노드 중 ROOM/HALLWAY/EXIT/CUSTOM — 엣지 연결 모드에서만 클릭 가능.
           ROOM/HALLWAY는 경로 계산용 내부 포인트라 엣지 연결 모드일 때만 화면에 표시 —
           평소엔 클릭도 안 되는데 캔버스만 지저분하게 만들어서 숨김. EXIT/CUSTOM은 정보성이라 항상 표시 */}
@@ -681,6 +718,10 @@ const MockFloorMap3F = ({
           >
             {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
             {edgeAddActive && <circle cx={x} cy={y} r={13} fill="transparent" />}
+            {/* 체인에 이미 골라둔 노드는 테두리로 강조해서 클릭했다는 걸 바로 알 수 있게 함 */}
+            {edgeChainNodeIds.includes(n.id) && (
+              <circle cx={x} cy={y} r={9} fill="none" stroke="#2563eb" strokeWidth="2" />
+            )}
             <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : edgeAddActive ? 5 : 3} fill={color} />
             {n.type === 'EXIT' && (
               <text
@@ -737,6 +778,17 @@ const MockFloorMap3F = ({
                 stroke="#2563eb"
                 strokeWidth="2"
                 strokeDasharray="3 2"
+              />
+            )}
+            {/* 체인에 이미 골라둔 노드는 테두리로 강조 — isSelected 링과 헷갈리지 않게 실선으로 구분 */}
+            {edgeChainNodeIds.includes(n.id) && (
+              <circle
+                cx={n.x}
+                cy={n.y}
+                r={(n.isFinalExit ? 7 : isStair ? 6 : 4) + 4}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="2"
               />
             )}
             <circle
@@ -1288,61 +1340,99 @@ const ZoneAddPopup = ({
   );
 };
 
-/* ── 엣지 연결 팝업 — 두 노드를 클릭해서 고른 뒤 거리·양방향 여부를 입력 ── */
-const EdgeAddPopup = ({
+/* ── 엣지 체인 검토 팝업 — 순서대로 고른 노드들 사이 구간을 한 번에 검토·확정.
+   구간이 1개(노드 2개)여도 같은 화면을 씀 — 별도 "한 쌍짜리" 경로를 둘 필요가 없음 ── */
+const EdgeChainReviewPopup = ({
   containerRef,
-  fromLabel,
-  toLabel,
-  suggestedDistance,
-  onCancel,
-  onSave,
+  segments,
+  onBack,
+  onSubmit,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
-  fromLabel: string;
-  toLabel: string;
-  // 두 노드 좌표 + 그리드 배율로 계산한 추정 거리(m). 없으면 수동 입력
-  suggestedDistance: number | null;
-  onCancel: () => void;
-  // distance는 m 단위(백엔드 저장 단위) — 입력창은 cm라 여기서 넘기기 전에 변환함
-  onSave: (distance: number, bidirectional: boolean) => void;
+  segments: {
+    fromId: string;
+    toId: string;
+    fromLabel: string;
+    toLabel: string;
+    // 두 노드 좌표 + 그리드 배율로 계산한 추정 거리(m). 없으면 수동 입력
+    suggestedDistanceM: number | null;
+    // 다른 경로와 겹쳐서 이미 존재하는 구간 — 입력 없이 생성 대상에서만 제외함
+    alreadyExists: boolean;
+  }[];
+  onBack: () => void;
+  onSubmit: (
+    rows: { fromId: string; toId: string; distanceM: number; bidirectional: boolean }[],
+  ) => void;
 }) => {
   // 실내 노드 간 거리는 1m 미만도 흔해서 cm로 입력받음(정수로 편하게 입력, 저장은 m로 환산)
-  const [distanceCm, setDistanceCm] = useState(
-    suggestedDistance !== null ? String(Math.round(suggestedDistance * 100)) : '',
+  const [distancesCm, setDistancesCm] = useState(() =>
+    segments.map((s) =>
+      s.suggestedDistanceM !== null ? String(Math.round(s.suggestedDistanceM * 100)) : '',
+    ),
   );
   const [bidirectional, setBidirectional] = useState(true);
 
-  const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    // 완성된 숫자만 허용하면 "495"를 지우다 "4"처럼 될 때까지 중간 상태(끝자리 삭제 등)가
-    // 거부돼 편집이 막히던 문제 — 타이핑 도중 상태(끝에 점만 있거나 소수부가 빈 경우)도 허용
-    if (raw === '' || /^\d*\.?\d*$/.test(raw)) setDistanceCm(raw);
+  const handleDistanceChange = (index: number, raw: string) => {
+    // 완성된 숫자만 허용하면 편집 중간 상태(끝자리 삭제 등)가 거부돼 편집이 막히던 문제 —
+    // 타이핑 도중 상태(끝에 점만 있거나 소수부가 빈 경우)도 허용
+    if (raw !== '' && !/^\d*\.?\d*$/.test(raw)) return;
+    setDistancesCm((prev) => prev.map((v, i) => (i === index ? raw : v)));
   };
 
-  const isValid = Number(distanceCm) > 0;
+  const newSegmentCount = segments.filter((s) => !s.alreadyExists).length;
+  const allValid =
+    newSegmentCount > 0 && segments.every((s, i) => s.alreadyExists || Number(distancesCm[i]) > 0);
+
+  const handleSubmit = () => {
+    const rows: { fromId: string; toId: string; distanceM: number; bidirectional: boolean }[] = [];
+    segments.forEach((s, i) => {
+      if (s.alreadyExists) return;
+      rows.push({
+        fromId: s.fromId,
+        toId: s.toId,
+        distanceM: Number(distancesCm[i]) / 100,
+        bidirectional,
+      });
+    });
+    onSubmit(rows);
+  };
 
   return (
     <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
       <div className={styles.nodeAddHeader}>
-        <span className={styles.nodeAddTitle}>엣지 연결</span>
+        <span className={styles.nodeAddTitle}>연결 구간 확인</span>
+        <span className={styles.nodeAddStepBadge}>
+          {newSegmentCount < segments.length
+            ? `신규 ${newSegmentCount}개 · 기존 ${segments.length - newSegmentCount}개`
+            : `${segments.length}개 구간`}
+        </span>
       </div>
       <span className={styles.nodeAddHint}>
-        {fromLabel} → {toLabel}
+        {newSegmentCount === 0
+          ? '선택한 구간이 모두 이미 연결되어 있어요'
+          : '새로 만들 구간의 거리(cm)를 확인하고, 필요하면 고쳐주세요'}
       </span>
 
-      <div className={styles.nodeAddField}>
-        <span className={styles.nodeAddLabel}>거리(cm)</span>
-        <input
-          className={styles.nodeAddInput}
-          type="text"
-          inputMode="decimal"
-          value={distanceCm}
-          onChange={handleDistanceChange}
-          placeholder="350"
-        />
-        {suggestedDistance !== null && (
-          <span className={styles.nodeAddSubHint}>좌표 기준 추정값 · 필요하면 수정하세요</span>
-        )}
+      <div className={styles.edgeChainList}>
+        {segments.map((s, i) => (
+          <div key={`${s.fromId}-${s.toId}`} className={styles.edgeChainRow}>
+            <span className={styles.edgeChainRowLabel}>
+              {s.fromLabel} → {s.toLabel}
+            </span>
+            {s.alreadyExists ? (
+              <span className={styles.edgeChainExistingTag}>이미 연결됨</span>
+            ) : (
+              <input
+                className={styles.edgeChainDistanceInput}
+                type="text"
+                inputMode="decimal"
+                value={distancesCm[i]}
+                onChange={(e) => handleDistanceChange(i, e.target.value)}
+                placeholder="350"
+              />
+            )}
+          </div>
+        ))}
       </div>
 
       <label className={styles.edgeBidirectionalField}>
@@ -1351,20 +1441,20 @@ const EdgeAddPopup = ({
           checked={bidirectional}
           onChange={(e) => setBidirectional(e.target.checked)}
         />
-        양방향 통행 가능
+        전체 양방향 통행 가능
       </label>
 
       <div className={styles.nodeAddActions}>
-        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
-          취소
+        <button type="button" className={styles.nodeAddCancelBtn} onClick={onBack}>
+          이전
         </button>
         <button
           type="button"
           className={styles.nodeAddSubmitBtn}
-          disabled={!isValid}
-          onClick={() => onSave(Number(distanceCm) / 100, bidirectional)}
+          disabled={!allValid}
+          onClick={handleSubmit}
         >
-          추가
+          {newSegmentCount}개 연결 추가
         </button>
       </div>
     </div>
@@ -1912,6 +2002,7 @@ const FloorCanvas = ({
   graphEdges,
   edgeAddActive,
   onNodeClickForEdge,
+  edgeChainNodeIds,
   selectedEdgeId,
   onEdgeSelect,
   onEdgeDelete,
@@ -1952,6 +2043,7 @@ const FloorCanvas = ({
   graphEdges: MapEdge[];
   edgeAddActive: boolean;
   onNodeClickForEdge: (id: string) => void;
+  edgeChainNodeIds: string[];
   selectedEdgeId: string | null;
   onEdgeSelect: (id: string) => void;
   onEdgeDelete: (id: string) => void;
@@ -2029,6 +2121,7 @@ const FloorCanvas = ({
         graphEdges={graphEdges}
         edgeAddActive={edgeAddActive}
         onNodeClickForEdge={onNodeClickForEdge}
+        edgeChainNodeIds={edgeChainNodeIds}
         selectedEdgeId={selectedEdgeId}
         onEdgeSelect={onEdgeSelect}
         onEdgeDelete={onEdgeDelete}
@@ -2457,11 +2550,10 @@ const FloorPlansDetailPage = () => {
   const [nodeAddOpen, setNodeAddOpen] = useState(false);
   const [zoneAddOpen, setZoneAddOpen] = useState(false);
   const [edgeAddOpen, setEdgeAddOpen] = useState(false);
-  const [edgeDraftFromId, setEdgeDraftFromId] = useState<string | null>(null);
-  const [edgeDraftToId, setEdgeDraftToId] = useState<string | null>(null);
-  // 엣지 연결 모드는 여러 개를 연달아 만들 수 있게 유지되는데, 그러다 보니 "완료"가 언제
-  // 끝나는지 감이 안 온다는 피드백 — 지금까지 몇 개 만들었는지 패널에 보여주기 위한 카운트
-  const [edgeCreatedCount, setEdgeCreatedCount] = useState(0);
+  // 노드를 한 쌍씩 고르던 방식 대신, 클릭한 순서대로 경로를 쌓아뒀다가 한 번에 구간별로
+  // 검토·확정함(A→B→C→D 클릭 시 A-B, B-C, C-D를 일괄 생성) — 매번 팝업을 반복하던 번거로움을 줄임
+  const [edgeChainNodeIds, setEdgeChainNodeIds] = useState<string[]>([]);
+  const [edgeChainReviewOpen, setEdgeChainReviewOpen] = useState(false);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   // 구역 재설정(재드래그) 중인 기존 구역 id — null이면 zoneAddOpen은 "새 구역 추가" 흐름.
@@ -3248,20 +3340,31 @@ const FloorPlansDetailPage = () => {
     return graphNode?.name ?? id;
   };
 
+  // 클릭한 순서대로 경로에 노드를 쌓음 — 같은 노드를 연속으로 눌러도 무시(실수로 두 번 클릭)
+  // 방금 고른 노드를 실수로 다시 클릭했을 수 있으니, 마지막 노드를 다시 누르면 추가하는 대신
+  // 선택을 취소함(경로 맨 끝을 한 단계 되돌리는 것과 같음)
   const handleEdgeNodeClick = (nodeId: string) => {
-    if (!edgeDraftFromId) {
-      setEdgeDraftFromId(nodeId);
-      return;
-    }
-    if (nodeId === edgeDraftFromId) return;
-    setEdgeDraftToId(nodeId);
+    setEdgeChainNodeIds((prev) =>
+      prev[prev.length - 1] === nodeId ? prev.slice(0, -1) : [...prev, nodeId],
+    );
   };
 
-  // 엣지 거리(m) 자동 추정 — 두 노드의 정규화 좌표(0~1) 차이를 칸 수로 환산한 뒤 그리드 배율(m/칸)을
+  const handleClearEdgeChain = () => {
+    setEdgeChainNodeIds([]);
+  };
+
+  // 엣지 연결 모드 종료
+  const handleExitEdgeMode = () => {
+    setEdgeChainNodeIds([]);
+    setEdgeChainReviewOpen(false);
+    setEdgeAddOpen(false);
+  };
+
+  // 두 노드 사이 거리(m) 추정 — 정규화 좌표(0~1) 차이를 칸 수로 환산한 뒤 그리드 배율(m/칸)을
   // 곱한다. 배율(GRID_SIZE_KEY→PENDING→등록된 CCTV 순으로 탐색)이나 그리드 정보가 없으면 null이라
-  // 팝업은 기존처럼 수동 입력으로 폴백한다.
-  const suggestedEdgeDistanceM = useMemo<number | null>(() => {
-    if (!edgeDraftFromId || !edgeDraftToId || !currentFloor) return null;
+  // 검토 화면에서 그 구간만 수동 입력으로 폴백한다.
+  const estimateEdgeDistanceM = (fromId: string, toId: string): number | null => {
+    if (!currentFloor) return null;
     const cellSizeMeter =
       readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
       readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)) ??
@@ -3277,59 +3380,82 @@ const FloorPlansDetailPage = () => {
       const graphNode = graphNodes.find((n) => n.id === id);
       return graphNode ? { x: graphNode.x, y: graphNode.y } : null;
     };
-    const from = normalizedPos(edgeDraftFromId);
-    const to = normalizedPos(edgeDraftToId);
+    const from = normalizedPos(fromId);
+    const to = normalizedPos(toId);
     if (!from || !to) return null;
     const meters = Math.hypot((from.x - to.x) * cols, (from.y - to.y) * rows) * cellSizeMeter;
     return Math.max(0.1, Math.round(meters * 10) / 10);
-  }, [
-    edgeDraftFromId,
-    edgeDraftToId,
-    currentFloor,
-    floorGridCells,
-    structureNodes,
-    graphNodes,
-    realCctvs,
-    canvasH,
-  ]);
-
-  // 그리던 엣지 한 건만 취소 — 엣지 연결 모드는 유지해서 다음 쌍을 바로 이어 그릴 수 있게 함
-  const handleClearEdgeDraft = () => {
-    setEdgeDraftFromId(null);
-    setEdgeDraftToId(null);
   };
 
-  // 엣지 연결 모드 종료
-  const handleExitEdgeMode = () => {
-    setEdgeDraftFromId(null);
-    setEdgeDraftToId(null);
-    setEdgeAddOpen(false);
-    setEdgeCreatedCount(0);
+  // 클릭한 순서(A→B→C→D)를 연속 구간(A-B, B-C, C-D)으로 풀어 검토 화면에 넘길 목록을 만듦
+  const edgeChainSegments = edgeChainNodeIds.slice(0, -1).map((fromId, i) => {
+    const toId = edgeChainNodeIds[i + 1];
+    return {
+      fromId,
+      toId,
+      fromLabel: getGraphNodeLabel(fromId),
+      toLabel: getGraphNodeLabel(toId),
+      suggestedDistanceM: estimateEdgeDistanceM(fromId, toId),
+      // 다른 경로를 잇다 겹친 구간 — 이미 있는 엣지라 다시 만들 필요가 없어서 검토 화면에서
+      // 자동으로 제외함(사용자가 일일이 안 겹치게 클릭할 필요 없게)
+      alreadyExists: hasExistingEdge(graphEdges, fromId, toId),
+    };
+  });
+
+  const handleProceedToEdgeChainReview = () => {
+    if (edgeChainNodeIds.length < 2) return;
+    setEdgeChainReviewOpen(true);
   };
 
-  const handleCreateEdge = (distance: number, bidirectional: boolean) => {
-    if (!edgeDraftFromId || !edgeDraftToId) return;
-    createMapEdge({
-      fromNodeId: edgeDraftFromId,
-      toNodeId: edgeDraftToId,
-      distance,
-      bidirectional,
-    })
-      .then((newEdge) => {
-        setGraphEdges((prev) => [...prev, newEdge]);
-        setEdgeCreatedCount((prev) => prev + 1);
-      })
-      .catch((error: unknown) => {
-        // 실패해도 조용히 넘어가던 자리라 "노드가 너무 가까우면 연결이 안 되는" 것처럼 보이던
-        // 문제의 원인을 알 수 없었음 — 서버 메시지를 그대로 보여줌
-        const { message } = extractServerError(error);
-        show({ title: message || '엣지 연결에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => {
-        // 모드는 유지 — 연달아 엣지를 그리다가 "완료"로 끝낸다
-        setEdgeDraftFromId(null);
-        setEdgeDraftToId(null);
+  const handleBackFromEdgeChainReview = () => {
+    setEdgeChainReviewOpen(false);
+  };
+
+  // 검토 화면에서 확정한 구간들을 한 번에 생성 — 일부만 실패해도 성공한 구간은 반영하고
+  // 실패한 개수·사유만 토스트로 알림(하나 실패했다고 나머지까지 날아가면 안 됨)
+  const handleSubmitEdgeChain = (
+    rows: { fromId: string; toId: string; distanceM: number; bidirectional: boolean }[],
+  ) => {
+    Promise.allSettled(
+      rows.map((row) =>
+        createMapEdge({
+          fromNodeId: row.fromId,
+          toNodeId: row.toId,
+          distance: row.distanceM,
+          bidirectional: row.bidirectional,
+        }),
+      ),
+    ).then((results) => {
+      const succeeded: MapEdge[] = [];
+      let failedCount = 0;
+      let firstErrorMessage: string | undefined;
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          succeeded.push(result.value);
+        } else {
+          failedCount += 1;
+          firstErrorMessage ??= extractServerError(result.reason).message;
+        }
       });
+      if (succeeded.length > 0) {
+        setGraphEdges((prev) => [...prev, ...succeeded]);
+        show({ title: `${succeeded.length}개 구간이 연결되었습니다.`, variant: 'success' });
+      }
+      if (failedCount > 0) {
+        show({
+          title: `${failedCount}개 구간 연결에 실패했습니다.${
+            firstErrorMessage ? ` (${firstErrorMessage})` : ''
+          }`,
+          variant: 'error',
+        });
+      }
+      // 경로 하나를 확정하면 모드도 함께 종료 — 이어서 계속 뜨면 "안 끝난다"는 인상을 줌.
+      // 다른 경로를 더 잇고 싶으면 "엣지 연결"을 다시 열면 되고, 그때는 방금 만든 구간이
+      // graphEdges에 반영돼 있어 중복 클릭도 곧바로 감지됨
+      setEdgeChainNodeIds([]);
+      setEdgeChainReviewOpen(false);
+      setEdgeAddOpen(false);
+    });
   };
 
   const handleEdgeDelete = (edgeId: string) => {
@@ -3525,7 +3651,8 @@ const FloorPlansDetailPage = () => {
     setZoneAddOpen(false);
     setSelectedEdgeId(null);
     setEdgeAddOpen(true);
-    setEdgeCreatedCount(0);
+    setEdgeChainNodeIds([]);
+    setEdgeChainReviewOpen(false);
   };
 
   // 추가/편집 모드는 이제 바깥 클릭으로 안 닫히므로(캔버스가 아닌 다른 영역을 눌러도 진행
@@ -3547,6 +3674,9 @@ const FloorPlansDetailPage = () => {
         setGridSetupIntent(null);
       } else if (editingCctvId) {
         handleCancelEditCctvCells();
+      } else if (edgeChainReviewOpen) {
+        // 검토 화면에서는 모드 전체를 나가지 말고 경로 편집으로 한 단계만 되돌아감
+        setEdgeChainReviewOpen(false);
       } else if (edgeAddOpen) {
         handleExitEdgeMode();
       } else if (zoneAddOpen) {
@@ -3557,7 +3687,15 @@ const FloorPlansDetailPage = () => {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [gridSetupPromptOpen, gridSetupIntent, editingCctvId, edgeAddOpen, zoneAddOpen, nodeAddOpen]);
+  }, [
+    gridSetupPromptOpen,
+    gridSetupIntent,
+    editingCctvId,
+    edgeChainReviewOpen,
+    edgeAddOpen,
+    zoneAddOpen,
+    nodeAddOpen,
+  ]);
 
   // 시작 후보 중 하나라도 엣지를 따라 최종 탈출구까지 이어지는지 (훈련 준비 체크리스트용).
   // 이 경로가 없으면 경로 탐색기가 EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 —
@@ -4184,54 +4322,60 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {/* 첫/두 번째 노드를 고르는 동안 계속 떠 있는 패널 — 엣지를 만들어도 모드가 닫히지
-                않으므로, 연달아 그리다가 "완료"로 끝낼 수 있게 종료 버튼을 항상 노출한다 */}
-            {edgeAddOpen && !edgeDraftToId && (
+            {/* 노드를 순서대로 계속 클릭해 경로를 쌓는 패널 — 경로 하나를 확정하면 모드도 같이
+                끝나므로(핸들러 쪽 주석 참고), 여기선 항상 "아직 아무 것도 안 만든 상태"만 보여줌 */}
+            {edgeAddOpen && !edgeChainReviewOpen && (
               <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.nodeAddHeader}>
                   <span className={styles.nodeAddTitle}>엣지 연결</span>
-                  {edgeCreatedCount > 0 && (
-                    <span className={styles.nodeAddStepBadge}>{edgeCreatedCount}개 연결됨</span>
-                  )}
                 </div>
                 <span className={styles.nodeAddHint}>
-                  {edgeDraftFromId
-                    ? '연결할 두 번째 노드를 클릭하세요'
-                    : '연결할 첫 번째 노드를 클릭하세요'}
+                  {edgeChainNodeIds.length === 0
+                    ? '연결할 노드를 순서대로 클릭하세요'
+                    : `계속 클릭해서 경로를 잇거나, 다음을 눌러 ${edgeChainNodeIds.length - 1}개 구간을 확정하세요`}
                 </span>
+                {edgeChainNodeIds.length > 0 && (
+                  <span className={styles.edgeChainPath}>
+                    {edgeChainNodeIds.map((id) => getGraphNodeLabel(id)).join(' → ')}
+                  </span>
+                )}
                 <div className={styles.nodeAddActions}>
-                  {edgeDraftFromId && (
+                  {edgeChainNodeIds.length > 0 && (
                     <button
                       type="button"
                       className={styles.nodeAddCancelBtn}
-                      onClick={handleClearEdgeDraft}
+                      onClick={handleClearEdgeChain}
                     >
                       다시 선택
                     </button>
                   )}
-                  <button
-                    type="button"
-                    // 아직 하나도 안 만들었으면 "완료"가 아니라 "취소"가 맞는 표현 — 지금까지
-                    // 만든 게 있어야 완료라는 말이 성립함
-                    className={
-                      edgeCreatedCount > 0 ? styles.nodeAddSubmitBtn : styles.nodeAddCancelBtn
-                    }
-                    onClick={handleExitEdgeMode}
-                  >
-                    {edgeCreatedCount > 0 ? '완료' : '취소'}
-                  </button>
+                  {edgeChainNodeIds.length >= 2 ? (
+                    <button
+                      type="button"
+                      className={styles.nodeAddSubmitBtn}
+                      onClick={handleProceedToEdgeChainReview}
+                    >
+                      다음
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.nodeAddCancelBtn}
+                      onClick={handleExitEdgeMode}
+                    >
+                      취소
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            {edgeAddOpen && edgeDraftFromId && edgeDraftToId && (
-              <EdgeAddPopup
+            {edgeAddOpen && edgeChainReviewOpen && (
+              <EdgeChainReviewPopup
                 containerRef={edgePopupRef}
-                fromLabel={getGraphNodeLabel(edgeDraftFromId)}
-                toLabel={getGraphNodeLabel(edgeDraftToId)}
-                suggestedDistance={suggestedEdgeDistanceM}
-                onCancel={handleClearEdgeDraft}
-                onSave={handleCreateEdge}
+                segments={edgeChainSegments}
+                onBack={handleBackFromEdgeChainReview}
+                onSubmit={handleSubmitEdgeChain}
               />
             )}
 
@@ -4362,8 +4506,9 @@ const FloorPlansDetailPage = () => {
                 onStructureNodeMoveEnd={handleStructureNodeMoveEnd}
                 graphNodes={graphNodes}
                 graphEdges={graphEdges}
-                edgeAddActive={edgeAddOpen}
+                edgeAddActive={edgeAddOpen && !edgeChainReviewOpen}
                 onNodeClickForEdge={handleEdgeNodeClick}
+                edgeChainNodeIds={edgeChainNodeIds}
                 selectedEdgeId={selectedEdgeId}
                 onEdgeSelect={setSelectedEdgeId}
                 onEdgeDelete={handleEdgeDelete}

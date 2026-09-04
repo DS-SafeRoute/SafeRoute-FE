@@ -31,6 +31,12 @@ export const sidebar = style({
   backgroundColor: vars.color.white,
   width: '28rem',
   overflowY: 'auto',
+  // 스크롤은 그대로 되지만 막대는 안 보이게(우측 장비 목록 패널과 동일한 처리)
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
 });
 
 export const sidebarInner = style({
@@ -285,6 +291,66 @@ export const edgeBidirectionalField = style({
   ...vars.typography.body14,
 });
 
+// 순서대로 클릭해 쌓은 경로를 "A → B → C"로 미리 보여주는 텍스트
+export const edgeChainPath = style({
+  wordBreak: 'break-word',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+});
+
+// 엣지 체인 검토 화면 — 구간이 많아질 수 있어 스크롤 가능한 목록으로 둠
+export const edgeChainList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  maxHeight: '24rem',
+  overflowY: 'auto',
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
+});
+
+export const edgeChainRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const edgeChainRowLabel = style({
+  flex: 1,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+});
+
+export const edgeChainDistanceInput = style({
+  flexShrink: 0,
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '6.4rem',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+// 다른 경로와 겹쳐 이미 존재하는 구간 표시 — 입력창 대신 이 태그만 보여줌
+export const edgeChainExistingTag = style({
+  flexShrink: 0,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray50,
+  padding: `0.2rem ${vars.space.s2}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
 export const deviceTypeChips = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -350,6 +416,10 @@ export const nodeAddCancelBtn = style({
   backgroundColor: vars.color.white,
   cursor: 'pointer',
   padding: vars.space.s2,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   color: vars.color.textMid,
   ...vars.typography.body14,
   selectors: {
@@ -364,6 +434,10 @@ export const nodeAddSubmitBtn = style({
   backgroundColor: vars.color.primary,
   cursor: 'pointer',
   padding: vars.space.s2,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   color: vars.color.white,
   ...vars.typography.body14,
   selectors: {
@@ -1023,6 +1097,11 @@ export const canvasBody = style({
   backgroundColor: vars.color.white,
   padding: vars.space.s6,
   overflow: 'auto',
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
 });
 
 export const canvasBodyWithActions = style({
