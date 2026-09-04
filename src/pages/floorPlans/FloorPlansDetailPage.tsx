@@ -437,6 +437,7 @@ const MockFloorMap3F = ({
   zoneAddActive,
   onZoneDraftChange,
   onZoneDragEnd,
+  onZoneDraggingChange,
   savedZones,
   structureNodes,
   editingStructureId,
@@ -466,6 +467,7 @@ const MockFloorMap3F = ({
   zoneAddActive: boolean;
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
+  onZoneDraggingChange: (dragging: boolean) => void;
   savedZones: ZoneEntry[];
   structureNodes: StructureNode[];
   graphNodes: MapNode[];
@@ -492,6 +494,11 @@ const MockFloorMap3F = ({
 }) => {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const structureDragMovedRef = useRef(false);
+  // 구역 드래그 중엔 포인터가 격자 셀·구조 노드 위를 지나가도 그 위에 걸린 개별 커서(pointer 등)로
+  // 안 바뀌고 항상 십자선(crosshair)으로 보여야 함 — 드래그가 아닐 땐 칸 클릭·노드 선택이 여전히
+  // 동작해야 하므로 zoneAddActive 내내가 아니라 실제 드래그 중(mousedown~mouseup)에만 그 레이어의
+  // 포인터 이벤트를 꺼서 아래 svg 배경의 crosshair가 그대로 보이게 함
+  const [isZoneDragging, setIsZoneDragging] = useState(false);
 
   // 엣지(선) 양 끝 좌표를 찾기 위한 노드 id → SVG 좌표 조회 (구조 노드 + 그 외 그래프 노드 통합)
   const nodePositionById = new Map<string, { x: number; y: number }>();
@@ -533,6 +540,8 @@ const MockFloorMap3F = ({
     const svgEl = e.currentTarget;
     const start = svgPoint(e.clientX, e.clientY, svgEl);
     dragStartRef.current = start;
+    setIsZoneDragging(true);
+    onZoneDraggingChange(true);
     onZoneDraftChange({ x: start.x, y: start.y, w: 0, h: 0 });
     let lastRect = { x: start.x, y: start.y, w: 0, h: 0 };
     const applyRect = rafThrottle((rect: typeof lastRect) => onZoneDraftChange(rect));
@@ -549,6 +558,8 @@ const MockFloorMap3F = ({
     };
     const onUp = () => {
       dragStartRef.current = null;
+      setIsZoneDragging(false);
+      onZoneDraggingChange(false);
       // onZoneDragEnd가 마지막으로 반영된 사각형을 기준으로 셀을 계산하므로, 대기 중인 갱신을
       // 취소하고 마지막 사각형을 먼저 동기 반영한 뒤에 종료 처리함
       applyRect.cancel();
@@ -772,7 +783,10 @@ const MockFloorMap3F = ({
               if (editingStructureId) return;
               onZoneRefSelect({ kind: 'node', id: n.id });
             }}
-            style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
+            style={{
+              cursor: isEditingThis ? 'grab' : 'pointer',
+              pointerEvents: isZoneDragging ? 'none' : 'auto',
+            }}
           >
             {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
             {edgeAddActive && !isEditingThis && (
@@ -927,7 +941,10 @@ const MockFloorMap3F = ({
                 width={gridCellPxSize.w}
                 height={gridCellPxSize.h}
                 fill="transparent"
-                style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                style={{
+                  cursor: 'pointer',
+                  pointerEvents: isZoneDragging ? 'none' : 'auto',
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onGridCellToggle(cell.id);
@@ -2105,6 +2122,8 @@ const FloorCanvas = ({
   zoneAddActive,
   onZoneDraftChange,
   onZoneDragEnd,
+  isZoneDragging,
+  onZoneDraggingChange,
   savedZones,
   structureNodes,
   editingStructureId,
@@ -2146,6 +2165,8 @@ const FloorCanvas = ({
   zoneAddActive: boolean;
   onZoneDraftChange: (rect: ZoneRect | null) => void;
   onZoneDragEnd: () => void;
+  isZoneDragging: boolean;
+  onZoneDraggingChange: (dragging: boolean) => void;
   savedZones: ZoneEntry[];
   structureNodes: StructureNode[];
   editingStructureId: string | null;
@@ -2224,6 +2245,7 @@ const FloorCanvas = ({
         zoneAddActive={zoneAddActive}
         onZoneDraftChange={onZoneDraftChange}
         onZoneDragEnd={onZoneDragEnd}
+        onZoneDraggingChange={onZoneDraggingChange}
         savedZones={savedZones}
         structureNodes={structureNodes}
         editingStructureId={editingStructureId}
@@ -2253,39 +2275,45 @@ const FloorCanvas = ({
           style={{ left: `${stagedCameraPosition.x}%`, top: `${stagedCameraPosition.y}%` }}
         />
       )}
-      {floor.devices.map((device) => {
-        const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
-        return (
-          <DevicePin
-            key={device.id}
-            device={device}
-            posX={pos.x}
-            posY={pos.y}
-            selected={selected?.kind === 'device' && selected.data.id === device.id}
-            draggable={editingItemId === device.id}
-            onClick={() => onSelectDevice(device)}
-            onDragEnd={onDeviceMoved}
-          />
-        );
-      })}
+      {/* 구역 드래그 중엔 이 레이어(SVG 밖 HTML 마커)의 포인터 이벤트를 꺼서, 마커 위를
+          지나가도 각자의 cursor(grab/pointer)로 안 바뀌고 아래 SVG 배경의 crosshair가
+          그대로 보이게 함 — 이 wrapper는 position을 안 걸어서 자식들의 absolute 위치
+          기준(mapWrap)에는 영향이 없음 */}
+      <div style={{ pointerEvents: isZoneDragging ? 'none' : undefined }}>
+        {floor.devices.map((device) => {
+          const pos = devicePositions[device.id] ?? { x: device.x, y: device.y };
+          return (
+            <DevicePin
+              key={device.id}
+              device={device}
+              posX={pos.x}
+              posY={pos.y}
+              selected={selected?.kind === 'device' && selected.data.id === device.id}
+              draggable={editingItemId === device.id}
+              onClick={() => onSelectDevice(device)}
+              onDragEnd={onDeviceMoved}
+            />
+          );
+        })}
 
-      {/* 사용자가 추가한 장치 마커 */}
-      {addedDevices.map((d) => {
-        const pos = devicePositions[d.id] ?? { x: d.x, y: d.y };
-        return (
-          <AddedDevicePin
-            key={d.id}
-            device={d}
-            posX={pos.x}
-            posY={pos.y}
-            selected={selected?.kind === 'device' && selected.data.id === d.id}
-            draggable={editingItemId === d.id}
-            onClick={() => onSelectDevice(d as unknown as DeviceMarker)}
-            onDragEnd={onDeviceMoved}
-            onDragMoveEnd={onDeviceMoveEnd}
-          />
-        );
-      })}
+        {/* 사용자가 추가한 장치 마커 */}
+        {addedDevices.map((d) => {
+          const pos = devicePositions[d.id] ?? { x: d.x, y: d.y };
+          return (
+            <AddedDevicePin
+              key={d.id}
+              device={d}
+              posX={pos.x}
+              posY={pos.y}
+              selected={selected?.kind === 'device' && selected.data.id === d.id}
+              draggable={editingItemId === d.id}
+              onClick={() => onSelectDevice(d as unknown as DeviceMarker)}
+              onDragEnd={onDeviceMoved}
+              onDragMoveEnd={onDeviceMoveEnd}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -2677,6 +2705,11 @@ const FloorPlansDetailPage = () => {
     zoneDraftRectRef.current = rect;
     setZoneDraftRectState(rect);
   };
+  // 구역 드래그(사각형 선택) 중엔 캔버스 위 CCTV·유도등 마커(SVG 밖 별도 HTML 마커)와
+  // 격자 셀·구조 노드가 저마다 다른 커서를 걸고 있어도 항상 십자선(crosshair)으로 보이게 함 —
+  // MockFloorMap3F(SVG 내부)에서 드래그 시작/종료 시 이 값을 갱신하고, FloorCanvas가 SVG 밖
+  // 마커의 pointer-events를 같이 꺼서 호버가 아래 SVG 배경(crosshair)으로 그대로 넘어가게 함
+  const [isZoneDragging, setIsZoneDragging] = useState(false);
   const [topFilter, setTopFilter] = useState<'all' | 'device' | 'zone'>('all');
   // 여러 칩을 동시에 켤 수 있는 다중 선택 필터 — 빈 배열이면 "전체"와 같음
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<
@@ -4643,6 +4676,8 @@ const FloorPlansDetailPage = () => {
                 }
                 onZoneDraftChange={setZoneDraftRect}
                 onZoneDragEnd={handleZoneDragEnd}
+                isZoneDragging={isZoneDragging}
+                onZoneDraggingChange={setIsZoneDragging}
                 savedZones={zones}
                 structureNodes={structureNodes}
                 editingStructureId={editingStructureId}
