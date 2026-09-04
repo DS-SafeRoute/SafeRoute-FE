@@ -4470,8 +4470,6 @@ const FloorPlansDetailPage = () => {
             {/* 그리드는 이제 토글 없이 항상 표시함(아래 ensureFloorGridCells 자동 조회 효과 참고) */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <div className={styles.canvasTopRightRow}>
-                <NodeTypeLegendInfo />
-
                 <AddActionMenu
                   onAddNode={() => handleOpenNodeAdd()}
                   onAddZone={handleToggleZoneAdd}
@@ -4548,32 +4546,35 @@ const FloorPlansDetailPage = () => {
             )}
           </div>
 
-          {/* 플로팅 줌 컨트롤 */}
-          <div className={styles.canvasZoomFloat}>
-            <button
-              type="button"
-              className={styles.zoomButton}
-              onClick={() => setZoom((v) => Math.max(50, v - 10))}
-              disabled={zoom <= 50}
-            >
-              −
-            </button>
-            <button
-              type="button"
-              className={zoom !== 100 ? styles.zoomValueClickable : styles.zoomValue}
-              onClick={() => setZoom(100)}
-              title={zoom !== 100 ? '클릭해서 100% 리셋' : undefined}
-            >
-              {zoom}%
-            </button>
-            <button
-              type="button"
-              className={styles.zoomButton}
-              onClick={() => setZoom((v) => Math.min(200, v + 10))}
-              disabled={zoom >= 200}
-            >
-              +
-            </button>
+          {/* 캔버스 우하단 — 범례 정보 아이콘을 줌 컨트롤 바로 위에 세로로 쌓음 */}
+          <div className={styles.canvasBottomRightColumn}>
+            {currentFloor?.segmentationStatus === 'DONE' && <NodeTypeLegendInfo />}
+            <div className={styles.canvasZoomFloat}>
+              <button
+                type="button"
+                className={styles.zoomButton}
+                onClick={() => setZoom((v) => Math.max(50, v - 10))}
+                disabled={zoom <= 50}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                className={zoom !== 100 ? styles.zoomValueClickable : styles.zoomValue}
+                onClick={() => setZoom(100)}
+                title={zoom !== 100 ? '클릭해서 100% 리셋' : undefined}
+              >
+                {zoom}%
+              </button>
+              <button
+                type="button"
+                className={styles.zoomButton}
+                onClick={() => setZoom((v) => Math.min(200, v + 10))}
+                disabled={zoom >= 200}
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
 

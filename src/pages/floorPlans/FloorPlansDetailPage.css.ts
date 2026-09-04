@@ -108,14 +108,14 @@ export const floorNavItemActive = style({
 // (코드래빗 리뷰 반영 — 컴포넌트 스타일을 페이지 스타일 파일에 두면 컴포넌트를 다른 위치로
 // 옮길 때 스타일이 따라오지 않음)
 
-/* ── 캔버스 우상단(범례 + 장비/구역 추가) ── */
+/* ── 캔버스 우상단(장비/구역 추가) ── */
 export const canvasTopRightRow = style({
   position: 'absolute',
   zIndex: 10,
   top: vars.space.s6,
   right: vars.space.s6,
   display: 'flex',
-  alignItems: 'flex-start',
+  alignItems: 'center',
   gap: vars.space.s2,
 });
 
@@ -470,42 +470,46 @@ export const legendInfoContainer = style({
   position: 'relative',
 });
 
+// 테두리 없이 동그란 i 아이콘만 보이게 — 아이콘 자체가 이미 원형(ic-info.svg)이라 버튼은
+// 클릭 영역만 잡아주고 시각적으로는 드러나지 않음(hover/열림 상태는 아이콘 색으로만 표시)
 export const legendInfoButton = style({
   display: 'flex',
   flexShrink: 0,
   alignItems: 'center',
   justifyContent: 'center',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  boxShadow: vars.shadow.sm,
-  backgroundColor: vars.color.white,
+  border: 'none',
+  backgroundColor: 'transparent',
   cursor: 'pointer',
   width: '3.4rem',
   height: '3.4rem',
   color: vars.color.textMid,
   selectors: {
-    '&:hover': { backgroundColor: vars.color.gray25 },
+    '&:hover': { color: vars.color.primary },
     '&[aria-expanded="true"]': {
-      borderColor: vars.color.primary,
       color: vars.color.primary,
     },
   },
 });
 
+// 아이콘이 이제 캔버스 우하단(줌 컨트롤 바로 위)에 있어서, 아래로 펼치면 화면 밖으로
+// 잘려나감 — 위로 펼치게 함(translateY 방향도 아래→위로 뒤집음)
 const legendPopoverIn = keyframes({
-  from: { transform: 'translateY(-0.4rem)', opacity: 0 },
+  from: { transform: 'translateY(0.4rem)', opacity: 0 },
   to: { transform: 'translateY(0)', opacity: 1 },
 });
 
 export const legendPopover = style({
   position: 'absolute',
   zIndex: 20,
-  top: 'calc(100% + 0.4rem)',
-  left: 0,
+  right: 0,
+  // 아이콘이 캔버스 오른쪽 끝 가까이 있어서 왼쪽 기준(left:0)으로 오른쪽으로 펼치면
+  // 캔버스 밖으로 잘려나감 — "+ 추가" 드롭다운(addMenuPanel)과 같은 방식으로 오른쪽
+  // 기준으로 왼쪽으로 펼치게 함
+  bottom: 'calc(100% + 0.4rem)',
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
-  transformOrigin: 'top left',
+  transformOrigin: 'bottom right',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   boxShadow: vars.shadow.lg,
@@ -989,12 +993,19 @@ export const zoneCardIconBtnDelete = style([
   },
 ]);
 
-/* ── 플로팅 줌 컨트롤 ── */
-export const canvasZoomFloat = style({
+/* ── 캔버스 우하단(범례 정보 + 줌 컨트롤을 세로로 쌓음) ── */
+export const canvasBottomRightColumn = style({
   position: 'absolute',
   zIndex: 10,
   right: '2.4rem',
   bottom: '2.4rem',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: vars.space.s2,
+});
+
+export const canvasZoomFloat = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.4rem',
