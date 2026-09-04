@@ -3151,9 +3151,20 @@ const FloorPlansDetailPage = () => {
     deleteMapNode(id)
       .then(() => {
         setStructureNodes((prev) => prev.filter((n) => n.id !== id));
+        // 서버는 이 노드에 붙은 엣지까지 cascade 삭제하므로 로컬 엣지도 같이 정리
+        setGraphEdges((prev) =>
+          prev.filter((edge) => edge.fromNodeId !== id && edge.toNodeId !== id),
+        );
         setEditingStructureId((prev) => (prev === id ? null : prev));
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        // 유도등 판단 노드로 참조 중이거나 마지막 탈출구인 경우 등 서버가 이유를 message로 내려줌
+        const { message: serverMessage } = extractServerError(error);
+        show({
+          title: serverMessage || '노드 삭제에 실패했습니다.',
+          variant: 'error',
+        });
+      });
   };
 
   // 노드 id로 표시용 라벨 조회 (구조 노드 + 그 외 그래프 노드 통합)
