@@ -6,12 +6,15 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
 } from 'recharts';
 
 import EmptyState from '@components/empty';
 
 import { vars } from '@styles/global.css';
+
+import { formatDuration } from '@utils/format';
 
 import * as styles from './ReportCharts.css';
 
@@ -36,8 +39,8 @@ const axisTick = {
   fontSize: vars.typography.caption.fontSize,
 };
 
-const formatSeconds = (value: unknown) =>
-  value === undefined || value === null ? '' : `${value}초`;
+const formatEvacuationTime = (value: unknown) =>
+  typeof value === 'number' ? formatDuration(value) : '';
 
 const ReportCharts = ({ evacuationAccumulation, recentEvacuationTimes }: ReportChartsProps) => (
   <div className={styles.chartGrid}>
@@ -84,6 +87,10 @@ const ReportCharts = ({ evacuationAccumulation, recentEvacuationTimes }: ReportC
             <LineChart data={recentEvacuationTimes} margin={CHART_MARGIN}>
               <CartesianGrid vertical={false} stroke={vars.color.gray100} />
               <XAxis dataKey="label" axisLine={false} tickLine={false} tick={axisTick} />
+              <Tooltip
+                formatter={(value) => [formatEvacuationTime(value), '대피 시간']}
+                labelStyle={{ color: vars.color.textMid }}
+              />
               <Line
                 type="monotone"
                 dataKey="value"
@@ -95,7 +102,7 @@ const ReportCharts = ({ evacuationAccumulation, recentEvacuationTimes }: ReportC
                 <LabelList
                   dataKey="value"
                   position="top"
-                  formatter={formatSeconds}
+                  formatter={formatEvacuationTime}
                   fill={vars.color.textMid}
                   fontSize={12}
                 />
