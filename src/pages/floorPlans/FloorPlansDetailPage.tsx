@@ -11,8 +11,6 @@ import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
-import EyeOffIcon from '@assets/icons/ic-eye-off.svg?react';
-import EyeIcon from '@assets/icons/ic-eye.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
@@ -30,6 +28,7 @@ import {
   getGridCellPxSize,
   getGridDimensions,
 } from '@utils/floorCanvas';
+import { formatAreaM2 } from '@utils/format';
 
 import {
   configureCctvGridCells,
@@ -72,6 +71,7 @@ import {
   getFloorUserZones,
   getUserZoneDetail,
 } from './api/userZoneApi';
+import ReadinessChecklist from './components/ReadinessChecklist';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -147,6 +147,11 @@ const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
   cctvId: '',
 };
 
+// CCTV 등록·시야 재선택·수정 세 곳에서 카드에 보여줄 "모니터링 N칸 · M㎡" 문구를 각자 다시
+// 조립하면 한 줄이 100자를 넘기기 쉽고 표현도 어긋나기 쉬워 하나로 합침
+const formatMonitoredZone = (cctv: Pick<Cctv, 'monitoredGridCellCount' | 'monitoredAreaM2'>) =>
+  `모니터링 ${cctv.monitoredGridCellCount}칸 · ${formatAreaM2(cctv.monitoredAreaM2)}㎡`;
+
 // 도면 마커의 DeviceType('cctv'|'iot'|'fire')을 패널 필터 체계(PanelItem.type)로 변환.
 // 두 군데(패널 목록 만들 때, 지도 클릭으로 필터 이동할 때)에서 각각 다시 구현하면 인식 못하는
 // 값의 처리(fallback)가 서로 어긋날 수 있어 하나로 합침
@@ -221,7 +226,8 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 문·계단에서만 의미 있음(시작 후보·복도는 항상 false — 시작 후보는 서버가
+   isFinalExit은 계단에서만 의미 있음(문/출입구는 층 사이를 잇는 탈출 경로가 아니라 최종
+   탈출구로 지정할 수 없음. 복도·시작 후보도 항상 false — 시작 후보는 서버가
    isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
    에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
    시작점" 확정은 시나리오 설정에서 발화점 셀과 함께 처리함) */
@@ -260,6 +266,9 @@ const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   STAIR: 'stair',
   HALLWAY: 'hallway',
   START: 'start',
+  // 최종 탈출구로 지정하면 서버 노드 타입이 EXIT로 올라옴 — 편집기에선 계속 계단 카드로 다뤄
+  // '최종 탈출구' 배지·해제 토글이 유지되게 함(해제 시 STAIR로 복원)
+  EXIT: 'stair',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
@@ -664,7 +673,9 @@ const MockFloorMap3F = ({
               onNodeClickForEdge(n.id);
             }}
           >
-            <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
+            {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
+            {edgeAddActive && <circle cx={x} cy={y} r={13} fill="transparent" />}
+            <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : edgeAddActive ? 5 : 3} fill={color} />
             {n.type === 'EXIT' && (
               <text
                 x={x}
@@ -707,6 +718,10 @@ const MockFloorMap3F = ({
             }}
             style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
           >
+            {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
+            {edgeAddActive && !isEditingThis && (
+              <circle cx={n.x} cy={n.y} r={16} fill="transparent" />
+            )}
             {isSelected && (
               <circle
                 cx={n.x}
@@ -1167,7 +1182,7 @@ const NodeAddPopup = ({
               className={styles.nodeAddInput}
               value={deviceId}
               onChange={(e) => setDeviceId(e.target.value)}
-              placeholder="CCTV-A3-05"
+              placeholder={isCctv ? 'CCTV-A3-05' : 'IOT-A3-05'}
             />
           </div>
 
@@ -1272,16 +1287,21 @@ const EdgeAddPopup = ({
   containerRef,
   fromLabel,
   toLabel,
+  suggestedDistance,
   onCancel,
   onSave,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
   fromLabel: string;
   toLabel: string;
+  // 두 노드 좌표 + 그리드 배율로 계산한 추정 거리(m). 없으면 수동 입력
+  suggestedDistance: number | null;
   onCancel: () => void;
   onSave: (distance: number, bidirectional: boolean) => void;
 }) => {
-  const [distance, setDistance] = useState('');
+  const [distance, setDistance] = useState(
+    suggestedDistance !== null ? String(suggestedDistance) : '',
+  );
   const [bidirectional, setBidirectional] = useState(true);
 
   const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1310,6 +1330,9 @@ const EdgeAddPopup = ({
           onChange={handleDistanceChange}
           placeholder="3.5"
         />
+        {suggestedDistance !== null && (
+          <span className={styles.nodeAddSubHint}>좌표 기준 추정값 · 필요하면 수정하세요</span>
+        )}
       </div>
 
       <label className={styles.edgeBidirectionalField}>
@@ -1732,14 +1755,14 @@ const DeviceCard = ({
               }}
             >
               {item.monitoredArea
-                ? `${item.monitoredArea.cellCount}칸 · ${item.monitoredArea.areaM2}㎡`
+                ? `${item.monitoredArea.cellCount}칸 · ${formatAreaM2(item.monitoredArea.areaM2)}㎡`
                 : '미지정'}{' '}
               · 재선택
             </button>
           ) : (
             <span className={styles.deviceCardValue}>
               {item.monitoredArea
-                ? `${item.monitoredArea.cellCount}칸 · ${item.monitoredArea.areaM2}㎡`
+                ? `${item.monitoredArea.cellCount}칸 · ${formatAreaM2(item.monitoredArea.areaM2)}㎡`
                 : '미지정'}
             </span>
           )}
@@ -2024,9 +2047,18 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   }, []);
 
+  // CCTV 등록 시 그리드 배율이 서버에서 사라져있어(CCTV006) 재적용 후 재시도할 때, 방금 사용자가
+  // 드래그한 영역을 다시 그리게 하지 않고 같은 영역으로 셀을 재계산하기 위해 rect를 별도로 들고
+  // 있음 — cctvDraftCellIds는 재적용 전 그리드의 셀 id라 그대로 재사용할 수 없음(그리드 재적용 시
+  // 셀이 새로 생성되어 id가 바뀜). 등록 성공뿐 아니라 새 CCTV 시야 선택을 다시 시작할 때·층을
+  // 바꿀 때도 비워야 함 — 안 그러면 취소 후 클릭만으로 새 영역을 고른 다음 CCTV006이 나면
+  // 재시도가 엉뚱한(예전) 드래그 영역을 그대로 써버림(코드래빗 리뷰로 발견)
+  const lastCctvDraftRectRef = useRef<ZoneRect | null>(null);
+
   // 층이 바뀌거나 도면을 다시 올렸을 때, 이전 도면 기준으로 만들어진 노드·장비·구역이
   // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
   const resetFloorScopedState = useCallback(() => {
+    lastCctvDraftRectRef.current = null;
     setStructureNodes([]);
     setGraphNodes([]);
     setGraphEdges([]);
@@ -2051,7 +2083,6 @@ const FloorPlansDetailPage = () => {
     setCctvDraftCellIds([]);
     setZoneDraftCellIds([]);
     setNodeStagedPosition(null);
-    setShowGridOverlay(false);
   }, []);
 
   // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
@@ -2128,6 +2159,16 @@ const FloorPlansDetailPage = () => {
     };
   }, [resolvedMapImageUrl]);
 
+  // 그리드는 더 이상 토글로 켜야만 보이는 게 아니라 항상 표시함 — 층이 준비되면 바로
+  // 조회해둠(floorGridCells가 비어있을 때만 실제로 요청함, ensureFloorGridCells 내부 참고)
+  useEffect(() => {
+    if (!isFloorReady) return;
+    void ensureFloorGridCells();
+    // ensureFloorGridCells는 매 렌더 새로 만들어지는 함수라 의존성에 넣으면 무한 재실행됨.
+    // floorId/isFloorReady가 바뀔 때만 재조회하면 됨
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floorId, isFloorReady]);
+
   // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
   // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
   useEffect(() => {
@@ -2185,7 +2226,9 @@ const FloorPlansDetailPage = () => {
                 type: structureType,
                 x: n.x * CANVAS_W,
                 y: n.y * canvasH,
-                isFinalExit: n.isExitTarget,
+                // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
+                // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
+                isFinalExit: n.type === 'EXIT',
               },
             ];
           });
@@ -2259,7 +2302,7 @@ const FloorPlansDetailPage = () => {
               x: cctv.x * 100,
               y: cctv.y * 100,
               status: 'online',
-              zone: `모니터링 ${cctv.monitoredGridCellCount}칸 · ${cctv.monitoredAreaM2}㎡`,
+              zone: formatMonitoredZone(cctv),
             }),
           ),
         ]);
@@ -2352,6 +2395,28 @@ const FloorPlansDetailPage = () => {
   const [nodeAddType, setNodeAddType] = useState<PlacingDeviceType>('cctv');
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
+
+  // 최종 탈출구는 시나리오 재생에 필수인데(좌측 훈련 준비 카드 참고) 지정을 깜빡하기 쉬워서
+  // 한 번은 눈에 띄게 토스트로 알려줌. 문/계단이 아직 하나도 없으면(설정 초반) 안 띄움 —
+  // 그 경우는 체크리스트가 "문 추가하기"부터 안내하므로 아직 최종 탈출구를 물을 단계가 아님.
+  // 층당 한 번만 뜨게 ref로 기억(재조회로 structureNodes가 여러 번 갱신돼도 반복 알림 방지)
+  const finalExitWarnedFloorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!floorId || structureNodes.length === 0) return;
+    if (finalExitWarnedFloorRef.current === floorId) return;
+    const hasDoorOrStair = structureNodes.some((n) => n.type === 'door' || n.type === 'stair');
+    const hasFinalExit = structureNodes.some((n) => n.isFinalExit);
+    if (!hasDoorOrStair || hasFinalExit) return;
+    finalExitWarnedFloorRef.current = floorId;
+    show({
+      title: '최종 탈출구가 지정되지 않았습니다.',
+      description:
+        '훈련 시나리오를 실행하려면 문/계단 카드에서 최종 탈출구를 하나 이상 지정해주세요.',
+      variant: 'warning',
+      duration: 8000,
+    });
+  }, [floorId, structureNodes, show]);
+
   const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
   const [iotLights, setIotLights] = useState<IoTLight[]>([]);
@@ -2360,11 +2425,10 @@ const FloorPlansDetailPage = () => {
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
-  const [showGridOverlay, setShowGridOverlay] = useState(false);
-  // 그리드 설정 팝업은 "그리드 표시" 토글과 CCTV 등록 흐름 둘 다에서 공유해서 사용 —
+  // 그리드 설정 팝업은 CCTV 등록·구역 추가 흐름에서 공유해서 사용 —
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
-  const [gridSetupIntent, setGridSetupIntent] = useState<'toggle' | 'cctv' | 'zone' | null>(null);
+  const [gridSetupIntent, setGridSetupIntent] = useState<'cctv' | 'zone' | null>(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
   const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
@@ -2470,7 +2534,7 @@ const FloorPlansDetailPage = () => {
             d.id === updated.id
               ? {
                   ...d,
-                  zone: `모니터링 ${updated.monitoredGridCellCount}칸 · ${updated.monitoredAreaM2}㎡`,
+                  zone: formatMonitoredZone(updated),
                 }
               : d,
           ),
@@ -2757,7 +2821,7 @@ const FloorPlansDetailPage = () => {
       .catch(() => []);
   };
 
-  const openGridSetupPrompt = (intent: 'toggle' | 'cctv' | 'zone') => {
+  const openGridSetupPrompt = (intent: 'cctv' | 'zone') => {
     setGridSetupIntent(intent);
     // 업로드 때 정했던 값이 남아 있으면 다시 입력하지 않도록 채워둠
     const remembered = currentFloor
@@ -2828,21 +2892,13 @@ const FloorPlansDetailPage = () => {
     setNodeAddStage('entry');
     setZoneDraftRect(null);
     setCctvDraftCellIds([]);
+    lastCctvDraftRectRef.current = null;
   };
 
-  // 그리드 표시 토글
-  const handleToggleGridOverlay = () => {
-    if (showGridOverlay) {
-      setShowGridOverlay(false);
-      return;
-    }
-    ensureFloorGridCells().then((cells) => {
-      if (cells.length > 0) {
-        setShowGridOverlay(true);
-        return;
-      }
-      openGridSetupPrompt('toggle');
-    });
+  // 팝업을 취소로 닫을 때도 다음 CCTV 등록 시도가 이전 드래그 영역을 이어받지 않게 비움
+  const handleCancelNodeAdd = () => {
+    setNodeAddOpen(false);
+    lastCctvDraftRectRef.current = null;
   };
 
   const handleGridSetupPromptCancel = () => {
@@ -2866,8 +2922,6 @@ const FloorPlansDetailPage = () => {
           setNodeAddStage('fov');
         } else if (gridSetupIntent === 'zone') {
           setZoneAddOpen(true);
-        } else {
-          setShowGridOverlay(true);
         }
         setGridSetupIntent(null);
       })
@@ -2916,67 +2970,106 @@ const FloorPlansDetailPage = () => {
     const label = deviceId || `CCTV-${String(count).padStart(2, '0')}`;
     // x,y는 0~1 정규화 값이어야 함 — 캔버스 경계 밖 클릭 등으로 살짝 벗어나는 경우 클램프
     const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-    createCctv({
-      floorId: currentFloor.id,
-      name: label,
-      x: clamp01(nodeStagedPosition.x / 100),
-      y: clamp01(nodeStagedPosition.y / 100),
-      gridCellIds: cctvDraftCellIds,
-    })
-      .then((newCctv) => {
-        setRealCctvs((prev) => [...prev, newCctv]);
-        setAddedDevices((prev) => [
-          ...prev,
-          {
-            id: newCctv.id,
-            type: 'cctv',
-            placeType: 'cctv',
-            label: newCctv.name,
-            x: nodeStagedPosition.x,
-            y: nodeStagedPosition.y,
-            status: 'online',
-            zone: `모니터링 ${newCctv.monitoredGridCellCount}칸 · ${newCctv.monitoredAreaM2}㎡`,
-          },
-        ]);
-        setNodeAddStage('entry');
-        setNodeStagedPosition(null);
-        setZoneDraftRect(null);
-        setCctvDraftCellIds([]);
-        setNodeAddOpen(false);
-      })
+    const x = clamp01(nodeStagedPosition.x / 100);
+    const y = clamp01(nodeStagedPosition.y / 100);
+
+    // 최초 시도·재시도 둘 다 여기로 옴 — 성공 처리를 한 곳에 모아 둠
+    const handleCreated = (newCctv: Cctv) => {
+      setRealCctvs((prev) => [...prev, newCctv]);
+      setAddedDevices((prev) => [
+        ...prev,
+        {
+          id: newCctv.id,
+          type: 'cctv',
+          placeType: 'cctv',
+          label: newCctv.name,
+          x: nodeStagedPosition.x,
+          y: nodeStagedPosition.y,
+          status: 'online',
+          zone: formatMonitoredZone(newCctv),
+        },
+      ]);
+      lastCctvDraftRectRef.current = null;
+      setNodeAddStage('entry');
+      setNodeStagedPosition(null);
+      setZoneDraftRect(null);
+      setCctvDraftCellIds([]);
+      setNodeAddOpen(false);
+    };
+
+    createCctv({ floorId: currentFloor.id, name: label, x, y, gridCellIds: cctvDraftCellIds })
+      .then(handleCreated)
       .catch((error: unknown) => {
         // HTTP 4xx는 AxiosError로, 200 + isSuccess:false는 ApiError로 올라오므로 둘 다 본다
         const { code: serverCode, message: serverMessage } = extractServerError(error);
         if (import.meta.env.DEV) {
           console.error('[CCTV 등록 실패]', serverCode, error);
         }
-        // CCTV006 = 이 층에 그리드 배율(cellSizeMeter)이 설정 안 됨.
-        // 아는 배율이 있으면 조용히 재적용해서 사용자는 다시 드래그만 하면 되게 하고,
-        // 정말 모를 때만 설정 팝업을 띄운다. (배율 재적용 시 셀이 바뀌므로 선택은 초기화)
+        // CCTV006 = 이 층에 그리드 배율(cellSizeMeter)이 설정 안 됨. AI 재분석 등으로 서버에서
+        // 배율이 사라지는 경우가 있어 드물지 않게 재현됨(알려진 백엔드 이슈).
+        // 아는 배율이 있으면 조용히 재적용하고, 방금 드래그했던 영역(rect)을 새 그리드 기준으로
+        // 다시 계산해서 같은 자리로 한 번 더 등록을 시도한다 — 사용자가 다시 드래그하지 않아도
+        // 대부분 이 자리에서 바로 완료됨("새로고침해야 반영된다"는 문제의 원인이었음).
+        // rect가 없거나(드래그 없이 클릭만 한 경우 등) 재시도도 실패하면 그때만 다시 그려달라고 안내함
         if (serverCode === 'CCTV006' || /GridCell 크기|cellSizeMeter/i.test(serverMessage)) {
-          setCctvDraftCellIds([]);
           const knownSize = readStoredNumber(GRID_SIZE_KEY(currentFloor.id));
-          if (knownSize) {
-            setFloorGrid(currentFloor.id, knownSize)
-              .then(() => getFloorGridCells(currentFloor.id))
-              .then((refreshed) => {
-                setFloorGridCells(refreshed);
+          if (!knownSize) {
+            setCctvDraftCellIds([]);
+            openGridSetupPrompt('cctv');
+            show({
+              title:
+                '이 층의 그리드 배율(m)을 먼저 설정해야 합니다. 설정 후 감시 구역을 다시 드래그해주세요.',
+              variant: 'warning',
+              duration: 7000,
+            });
+            return;
+          }
+          const draftRect = lastCctvDraftRectRef.current;
+          setFloorGrid(currentFloor.id, knownSize)
+            .then(() => getFloorGridCells(currentFloor.id))
+            .then((refreshed) => {
+              setFloorGridCells(refreshed);
+              // gridCellPxSize는 재적용 전 floorGridCells 기준으로 계산된 memo라 그대로 쓰면
+              // 안 됨 — 재생성된 그리드는 행·열 수가 달라질 수 있어(코드래빗 리뷰로 발견),
+              // 새로 조회한 refreshed 기준으로 다시 계산해서 넘김
+              const retryCellIds = draftRect
+                ? cellIdsIntersectingRect(
+                    refreshed,
+                    draftRect,
+                    getGridCellPxSize(refreshed, canvasH),
+                    canvasH,
+                  )
+                : [];
+              if (retryCellIds.length === 0) {
+                setCctvDraftCellIds([]);
                 show({
                   title: `그리드 배율(${knownSize}m)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
                   variant: 'warning',
                   duration: 7000,
                 });
+                return;
+              }
+              return createCctv({
+                floorId: currentFloor.id,
+                name: label,
+                x,
+                y,
+                gridCellIds: retryCellIds,
               })
-              .catch(() => openGridSetupPrompt('cctv'));
-            return;
-          }
-          openGridSetupPrompt('cctv');
-          show({
-            title:
-              '이 층의 그리드 배율(m)을 먼저 설정해야 합니다. 설정 후 감시 구역을 다시 드래그해주세요.',
-            variant: 'warning',
-            duration: 7000,
-          });
+                .then(handleCreated)
+                .catch(() => {
+                  setCctvDraftCellIds([]);
+                  show({
+                    title: `그리드 배율(${knownSize}m)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
+                    variant: 'warning',
+                    duration: 7000,
+                  });
+                });
+            })
+            .catch(() => {
+              setCctvDraftCellIds([]);
+              openGridSetupPrompt('cctv');
+            });
           return;
         }
         show({
@@ -2988,20 +3081,26 @@ const FloorPlansDetailPage = () => {
 
   const handleZoneDragEnd = () => {
     const rect = zoneDraftRectRef.current;
-    const cctvCellSelecting =
-      (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') || !!editingCctvId;
+    const isNewCctvSelecting = nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov';
+    const cctvCellSelecting = isNewCctvSelecting || !!editingCctvId;
     if (cctvCellSelecting || zoneAddOpen) {
       if (rect && rect.w > 0 && rect.h > 0) {
         // 새 드래그가 이전 선택을 대체함(여러 번 드래그해도 마지막 것만 유효). 미세 조정은 셀 클릭 토글로
         setActiveDraftCellIds(
           cellIdsIntersectingRect(floorGridCells, rect, gridCellPxSize, canvasH),
         );
+        // 신규 CCTV 등록 흐름일 때만 rect를 별도 보관 — 그리드 배율이 서버에서 사라져있어
+        // 등록이 실패하면(CCTV006) 이 rect로 같은 영역을 다시 계산해 재시도함
+        if (isNewCctvSelecting) lastCctvDraftRectRef.current = rect;
       }
       setZoneDraftRect(null);
     }
   };
 
-  // 최종 탈출구 지정은 문에서만 의미 있음 — 서버에도 저장(실패 시 롤백)
+  // 최종 탈출구 지정은 계단에서만 가능 — 서버에도 저장(실패 시 롤백).
+  // 경로 탐색기(GET /sessions/{id}/current-route)는 type === 'EXIT'인 노드만 대피 목적지로
+  // 인식함(EVAC005 "도달 가능한 EXIT 노드가 없습니다") — isExitTarget 플래그만으론 안 잡히므로
+  // 지정 시 노드 타입을 EXIT로 승격하고, 해제 시 원래 구조 타입(STAIR)으로 되돌린다.
   const handleToggleFinalExit = (id: string) => {
     const node = structureNodes.find((n) => n.id === id);
     if (!node) return;
@@ -3012,6 +3111,7 @@ const FloorPlansDetailPage = () => {
     updateMapNodePosition(id, {
       x: node.x / CANVAS_W,
       y: node.y / canvasH,
+      type: nextIsFinalExit ? 'EXIT' : STRUCTURE_NODE_API_TYPE[node.type],
       isExitTarget: nextIsFinalExit,
     }).catch((error: unknown) => {
       setStructureNodes((prev) =>
@@ -3065,9 +3165,20 @@ const FloorPlansDetailPage = () => {
     deleteMapNode(id)
       .then(() => {
         setStructureNodes((prev) => prev.filter((n) => n.id !== id));
+        // 서버는 이 노드에 붙은 엣지까지 cascade 삭제하므로 로컬 엣지도 같이 정리
+        setGraphEdges((prev) =>
+          prev.filter((edge) => edge.fromNodeId !== id && edge.toNodeId !== id),
+        );
         setEditingStructureId((prev) => (prev === id ? null : prev));
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        // 유도등 판단 노드로 참조 중이거나 마지막 탈출구인 경우 등 서버가 이유를 message로 내려줌
+        const { message: serverMessage } = extractServerError(error);
+        show({
+          title: serverMessage || '노드 삭제에 실패했습니다.',
+          variant: 'error',
+        });
+      });
   };
 
   // 노드 id로 표시용 라벨 조회 (구조 노드 + 그 외 그래프 노드 통합)
@@ -3087,7 +3198,50 @@ const FloorPlansDetailPage = () => {
     setEdgeDraftToId(nodeId);
   };
 
-  const handleCancelEdgeDraft = () => {
+  // 엣지 거리(m) 자동 추정 — 두 노드의 정규화 좌표(0~1) 차이를 칸 수로 환산한 뒤 그리드 배율(m/칸)을
+  // 곱한다. 배율(GRID_SIZE_KEY→PENDING→등록된 CCTV 순으로 탐색)이나 그리드 정보가 없으면 null이라
+  // 팝업은 기존처럼 수동 입력으로 폴백한다.
+  const suggestedEdgeDistanceM = useMemo<number | null>(() => {
+    if (!edgeDraftFromId || !edgeDraftToId || !currentFloor) return null;
+    const cellSizeMeter =
+      readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
+      readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)) ??
+      realCctvs.find((c) => c.floorId === currentFloor.id && c.gridCellSizeMeter)
+        ?.gridCellSizeMeter ??
+      null;
+    if (!cellSizeMeter) return null;
+    const { cols, rows } = getGridDimensions(floorGridCells);
+    if (!cols || !rows) return null;
+    const normalizedPos = (id: string): { x: number; y: number } | null => {
+      const structure = structureNodes.find((n) => n.id === id);
+      if (structure) return { x: structure.x / CANVAS_W, y: structure.y / canvasH };
+      const graphNode = graphNodes.find((n) => n.id === id);
+      return graphNode ? { x: graphNode.x, y: graphNode.y } : null;
+    };
+    const from = normalizedPos(edgeDraftFromId);
+    const to = normalizedPos(edgeDraftToId);
+    if (!from || !to) return null;
+    const meters = Math.hypot((from.x - to.x) * cols, (from.y - to.y) * rows) * cellSizeMeter;
+    return Math.max(0.1, Math.round(meters * 10) / 10);
+  }, [
+    edgeDraftFromId,
+    edgeDraftToId,
+    currentFloor,
+    floorGridCells,
+    structureNodes,
+    graphNodes,
+    realCctvs,
+    canvasH,
+  ]);
+
+  // 그리던 엣지 한 건만 취소 — 엣지 연결 모드는 유지해서 다음 쌍을 바로 이어 그릴 수 있게 함
+  const handleClearEdgeDraft = () => {
+    setEdgeDraftFromId(null);
+    setEdgeDraftToId(null);
+  };
+
+  // 엣지 연결 모드 종료
+  const handleExitEdgeMode = () => {
     setEdgeDraftFromId(null);
     setEdgeDraftToId(null);
     setEdgeAddOpen(false);
@@ -3106,9 +3260,9 @@ const FloorPlansDetailPage = () => {
       })
       .catch(() => {})
       .finally(() => {
+        // 모드는 유지 — 연달아 엣지를 그리다가 "완료"로 끝낸다
         setEdgeDraftFromId(null);
         setEdgeDraftToId(null);
-        setEdgeAddOpen(false);
       });
   };
 
@@ -3296,6 +3450,8 @@ const FloorPlansDetailPage = () => {
     setZoneAddOpen(false);
     if (presetType) setNodeAddType(presetType);
     setNodeAddOpen(true);
+    // 새로 여는 등록 흐름은 이전 시도의 드래그 영역과 무관해야 함
+    lastCctvDraftRectRef.current = null;
   };
 
   const handleOpenEdgeAdd = () => {
@@ -3304,6 +3460,42 @@ const FloorPlansDetailPage = () => {
     setSelectedEdgeId(null);
     setEdgeAddOpen(true);
   };
+
+  // 시작 후보 중 하나라도 엣지를 따라 최종 탈출구까지 이어지는지 (훈련 준비 체크리스트용).
+  // 이 경로가 없으면 경로 탐색기가 EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 —
+  // 시작 노드가 그래프에 아예 연결 안 돼 있어도 여기서 걸림. graphEdges + structureNodes로 BFS.
+  const hasRouteFromStartToExit = useMemo(() => {
+    const startNodes = structureNodes.filter((n) => n.type === 'start');
+    const exitIds = new Set(structureNodes.filter((n) => n.isFinalExit).map((n) => n.id));
+    if (startNodes.length === 0 || exitIds.size === 0) return false;
+
+    const adjacency = new Map<string, string[]>();
+    const link = (from: string, to: string) => {
+      const list = adjacency.get(from);
+      if (list) list.push(to);
+      else adjacency.set(from, [to]);
+    };
+    for (const edge of graphEdges) {
+      link(edge.fromNodeId, edge.toNodeId);
+      if (edge.bidirectional) link(edge.toNodeId, edge.fromNodeId);
+    }
+
+    return startNodes.some((start) => {
+      const visited = new Set([start.id]);
+      const queue = [start.id];
+      while (queue.length > 0) {
+        const current = queue.shift() as string;
+        if (exitIds.has(current)) return true;
+        for (const next of adjacency.get(current) ?? []) {
+          if (!visited.has(next)) {
+            visited.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      return false;
+    });
+  }, [structureNodes, graphEdges]);
 
   // 다른 삭제(장비/POI)는 전부 확인 모달을 거치는데 구역만 클릭 즉시 삭제되고 있어서 맞춤
   const handleZoneDeleteRequest = (zone: ZoneEntry) => setZoneDeleteTarget(zone);
@@ -3352,7 +3544,8 @@ const FloorPlansDetailPage = () => {
             </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            {(n.type === 'door' || n.type === 'stair') && (
+            {/* 최종 탈출구는 계단에서만 지정 — 문/출입구는 층 내부 통로라 제외 */}
+            {n.type === 'stair' && (
               <button
                 type="button"
                 className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
@@ -3563,16 +3756,16 @@ const FloorPlansDetailPage = () => {
     [floorGridCells, canvasH],
   );
 
-  const cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing' =
+  // 그리드는 더 이상 토글로 껐다 켰다 하지 않고, 선택/조회 중이 아니면 항상 표시함
+  // (floorGridCells가 비어 있으면 어차피 그릴 게 없어서 실질적으로 아무것도 안 보임)
+  const cctvGridCellsMode: 'selecting' | 'viewing' | 'browsing' =
     (nodeAddOpen && nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
     editingCctvId ||
     zoneAddOpen
       ? 'selecting'
       : selectedItem?.kind === 'device' && realCctvs.some((c) => c.id === selectedItem.data.id)
         ? 'viewing'
-        : showGridOverlay
-          ? 'browsing'
-          : 'hidden';
+        : 'browsing';
 
   // 드래그 중에는 미리보기로 "겹치는 셀"을 실시간 표시 → 손을 떼면 그대로 확정됨
   const dragPreviewCellIds =
@@ -3788,8 +3981,24 @@ const FloorPlansDetailPage = () => {
               </div>
             </div>
 
-            {/* 훈련 준비 체크리스트는 더 적합한 위치를 찾는 중이라 여기서는 잠시 뺌 —
-                컴포넌트 자체는 components/ReadinessChecklist.tsx에 그대로 있음 */}
+            {/* 훈련 준비 체크리스트 — 시작 노드·최종 탈출구가 없으면 시나리오 재생이 안 되는데
+                그동안 눈에 띄는 안내가 없었음. 층 목록 바로 아래, 도면 편집을 시작하기 전에
+                가장 먼저 보이는 자리에 둠 */}
+            {currentFloor?.segmentationStatus === 'DONE' && (
+              <ReadinessChecklist
+                hasStartNode={structureNodes.some((n) => n.type === 'start')}
+                hasFinalExit={structureNodes.some((n) => n.isFinalExit)}
+                hasStair={structureNodes.some((n) => n.type === 'stair')}
+                hasRouteToExit={hasRouteFromStartToExit}
+                onAddStartNode={() => handleOpenNodeAdd('start')}
+                onAddStair={() => handleOpenNodeAdd('stair')}
+                onFocusDeviceCards={() => {
+                  setTopFilter('device');
+                  setDeviceTypeFilter([]);
+                }}
+                onConnectEdges={handleOpenEdgeAdd}
+              />
+            )}
           </div>
         </aside>
 
@@ -3821,26 +4030,10 @@ const FloorPlansDetailPage = () => {
               currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
             )}
           >
-            {/* 그리드 표시(뷰 토글)와 추가(노드/구역/엣지) — 편집 도구를 한 곳에 묶어서
-                툴바를 5개에서 2개로 줄임 */}
+            {/* 그리드는 이제 토글 없이 항상 표시함(아래 ensureFloorGridCells 자동 조회 효과 참고) —
+                추가(노드/구역/엣지) 메뉴만 남김 */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <div className={styles.canvasActionFloat}>
-                <button
-                  type="button"
-                  className={clsx(
-                    styles.canvasActionButton,
-                    showGridOverlay && styles.canvasActionButtonActive,
-                  )}
-                  aria-pressed={showGridOverlay}
-                  onClick={handleToggleGridOverlay}
-                >
-                  그리드 표시
-                  {showGridOverlay ? (
-                    <EyeOffIcon width={14} height={14} />
-                  ) : (
-                    <EyeIcon width={14} height={14} />
-                  )}
-                </button>
                 <AddActionMenu
                   onAddNode={() => handleOpenNodeAdd()}
                   onAddZone={handleToggleZoneAdd}
@@ -3892,22 +4085,36 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {edgeAddOpen && edgeDraftFromId && !edgeDraftToId && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '0.8rem',
-                  left: '0.8rem',
-                  zIndex: 5,
-                  background: 'white',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.6rem',
-                  padding: '0.6rem 1rem',
-                  fontSize: '1.2rem',
-                  color: '#374151',
-                }}
-              >
-                연결할 두 번째 노드를 클릭해주세요
+            {/* 첫/두 번째 노드를 고르는 동안 계속 떠 있는 패널 — 엣지를 만들어도 모드가 닫히지
+                않으므로, 연달아 그리다가 "완료"로 끝낼 수 있게 종료 버튼을 항상 노출한다 */}
+            {edgeAddOpen && !edgeDraftToId && (
+              <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.nodeAddHeader}>
+                  <span className={styles.nodeAddTitle}>엣지 연결</span>
+                </div>
+                <span className={styles.nodeAddHint}>
+                  {edgeDraftFromId
+                    ? '연결할 두 번째 노드를 클릭하세요'
+                    : '연결할 첫 번째 노드를 클릭하세요'}
+                </span>
+                <div className={styles.nodeAddActions}>
+                  {edgeDraftFromId && (
+                    <button
+                      type="button"
+                      className={styles.nodeAddCancelBtn}
+                      onClick={handleClearEdgeDraft}
+                    >
+                      다시 선택
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.nodeAddSubmitBtn}
+                    onClick={handleExitEdgeMode}
+                  >
+                    완료
+                  </button>
+                </div>
               </div>
             )}
 
@@ -3916,7 +4123,8 @@ const FloorPlansDetailPage = () => {
                 containerRef={edgePopupRef}
                 fromLabel={getGraphNodeLabel(edgeDraftFromId)}
                 toLabel={getGraphNodeLabel(edgeDraftToId)}
-                onCancel={handleCancelEdgeDraft}
+                suggestedDistance={suggestedEdgeDistanceM}
+                onCancel={handleClearEdgeDraft}
                 onSave={handleCreateEdge}
               />
             )}
@@ -3960,7 +4168,7 @@ const FloorPlansDetailPage = () => {
                 stage={nodeAddStage}
                 hasPosition={!!nodeStagedPosition}
                 selectedCellCount={cctvDraftCellIds.length}
-                onCancel={() => setNodeAddOpen(false)}
+                onCancel={handleCancelNodeAdd}
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
                 onFinalize={handleFinalizeFov}
@@ -4055,10 +4263,6 @@ const FloorPlansDetailPage = () => {
                   <span className={styles.zoneLegendLabel}>CCTV</span>
                 </div>
                 <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotIot)} />
-                  <span className={styles.zoneLegendLabel}>IoT</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
                   <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotLight)} />
                   <span className={styles.zoneLegendLabel}>유도등</span>
                 </div>
@@ -4069,6 +4273,14 @@ const FloorPlansDetailPage = () => {
                 <div className={styles.zoneLegendItem}>
                   <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStair)} />
                   <span className={styles.zoneLegendLabel}>계단</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotHallway)} />
+                  <span className={styles.zoneLegendLabel}>복도</span>
+                </div>
+                <div className={styles.zoneLegendItem}>
+                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStart)} />
+                  <span className={styles.zoneLegendLabel}>시작 후보</span>
                 </div>
               </div>
 

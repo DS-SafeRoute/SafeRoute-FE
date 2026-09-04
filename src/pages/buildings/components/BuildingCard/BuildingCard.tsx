@@ -7,6 +7,7 @@ import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
 import * as styles from './BuildingCard.css';
+import { useBuildingDeviceStatsQuery } from '../../api/useBuildingDeviceStatsQuery';
 
 interface BuildingCardProps {
   building: Building;
@@ -27,11 +28,12 @@ const formatTrainingDate = (date: string | null) => {
 const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const cctvTotal = building.cctvTotal ?? 0;
-  const cctvOnline = building.cctvOnline ?? 0;
-  const iotTotal = building.iotTotal ?? 0;
-  const iotOnline = building.iotOnline ?? 0;
+  // 층별 CCTV/유도등 목록을 합산한 실제 등록 대수 (건물 단위 집계 API가 없어 클라이언트에서 취합)
+  const deviceStats = useBuildingDeviceStatsQuery(building.id);
+  const { cctvTotal, cctvOnline, iotTotal, iotOnline } = deviceStats;
   const isIotWarning = iotOnline < iotTotal;
+  const formatCount = (online: number, total: number) =>
+    deviceStats.isLoading ? '–' : `${online}/${total}`;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -108,9 +110,7 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             <CameraIcon className={styles.cctvIcon} width={14} height={14} />
             CCTV
           </span>
-          <span className={styles.statValue}>
-            {cctvOnline}/{cctvTotal}
-          </span>
+          <span className={styles.statValue}>{formatCount(cctvOnline, cctvTotal)}</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -119,15 +119,13 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
           </span>
           {isIotWarning ? (
             <span className={styles.statValueWarning}>
-              {iotOnline}/{iotTotal}
+              {formatCount(iotOnline, iotTotal)}
               <span role="img" aria-label="경고">
                 ⚠
               </span>
             </span>
           ) : (
-            <span className={styles.statValue}>
-              {iotOnline}/{iotTotal}
-            </span>
+            <span className={styles.statValue}>{formatCount(iotOnline, iotTotal)}</span>
           )}
         </div>
       </div>
