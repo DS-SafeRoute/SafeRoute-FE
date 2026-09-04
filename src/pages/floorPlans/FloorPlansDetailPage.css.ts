@@ -10,15 +10,12 @@ const zoneStartColor = '#DB2777';
 const zoneHallwayColor = '#0891B2';
 
 /* ── 전체 레이아웃 ── */
-// 좌우 패널은 폭 고정인데 가운데 캔버스만 flex: 1로 남는 공간을 다 먹다 보니, 큰 화면에선
-// 도면(고정 크기 SVG) 주변에 빈 공간만 늘어나고 그 여백 구석에 앉은 범례·팝업이 도면과
-// 동떨어져 보이며 화면이 커질수록 상대적으로 작아 보이던 문제 — 전체 폭에 상한을 둬서 방지
+// 폭 상한을 뒀었는데 그러면 큰 화면에서 좌우로 회색 여백만 생기고 정작 캔버스는 안 넓어짐
+// (되돌림) — 범례·팝업이 도면과 동떨어져 보이는 문제는 그 둘을 각각 접을 수 있게 하거나
+// 캔버스 밖으로 옮기는 쪽으로 해결함(nodeTypeLegend 접기, 팝업을 좌측 사이드바로 이동)
 export const layout = style({
   display: 'flex',
   flex: 1,
-  margin: '0 auto',
-  width: '100%',
-  maxWidth: '144rem',
   minHeight: 0,
   overflow: 'hidden',
 });
@@ -207,38 +204,30 @@ export const gridSizeSlider = style({
   },
 });
 
+// 예전엔 캔버스 위에 절대 위치로 떠서 도면을 가려 그 밑을 클릭할 수 없었음 — 좌측 사이드바
+// 안 일반 흐름으로 옮겨서, 도면은 항상 그대로 보이고 클릭도 가능하게 함
 export const gridSetupPopup = style({
-  position: 'absolute',
-  zIndex: 15,
-  top: '5.6rem',
-  right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.lg,
+  boxShadow: vars.shadow.md,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
-  width: '25rem',
 });
 
 /* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({
-  position: 'absolute',
-  zIndex: 15,
-  top: '9.6rem',
-  right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.lg,
+  boxShadow: vars.shadow.md,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
-  width: '25rem',
 });
 
 export const nodeAddHeader = style({
@@ -412,6 +401,18 @@ export const nodeTypeLegend = style({
   backgroundColor: vars.color.white,
   padding: vars.space.s5,
   width: '16rem',
+});
+
+export const nodeTypeLegendHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s3,
+  border: 'none',
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  padding: 0,
+  color: vars.color.textMid,
 });
 
 export const nodeTypeLegendSection = style({

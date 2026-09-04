@@ -2356,6 +2356,8 @@ const FloorPlansDetailPage = () => {
   const [selectedBuildingId] = useState(buildingId ?? '');
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
   const [zoom, setZoom] = useState(100);
+  // 노드/구역 범례가 캔버스 위에 고정으로 떠 있어 도면을 가린다는 피드백 — 접었다 펼 수 있게 함
+  const [isNodeLegendOpen, setIsNodeLegendOpen] = useState(true);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -4048,49 +4050,10 @@ const FloorPlansDetailPage = () => {
                 onConnectEdges={handleOpenEdgeAdd}
               />
             )}
-          </div>
-        </aside>
 
-        {/* ── 중앙 캔버스 ── */}
-        <div className={styles.canvasArea}>
-          {/* 모드 안내 토스트 */}
-          {toastMsg && (
-            <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
-          )}
-
-          {currentFloor && (
-            <div className={styles.canvasHeader}>
-              <button
-                type="button"
-                className={styles.backButton}
-                onClick={() => navigate('/floorPlans')}
-                aria-label="도면 관리 목록으로"
-              >
-                <ChevronRightIcon width={16} height={16} className={styles.backButtonIcon} />
-              </button>
-              <span className={styles.canvasHeaderText}>{currentBuilding?.name ?? ''}</span>
-              <span className={styles.canvasHeaderFloor}>{formatFloor(currentFloor.floorNum)}</span>
-            </div>
-          )}
-
-          <div
-            className={clsx(
-              styles.canvasBody,
-              currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
-            )}
-          >
-            {/* 그리드는 이제 토글 없이 항상 표시함(아래 ensureFloorGridCells 자동 조회 효과 참고) —
-                추가(노드/구역/엣지) 메뉴만 남김 */}
-            {currentFloor?.segmentationStatus === 'DONE' && (
-              <div className={styles.canvasActionFloat}>
-                <AddActionMenu
-                  onAddNode={() => handleOpenNodeAdd()}
-                  onAddZone={handleToggleZoneAdd}
-                  onAddEdge={handleOpenEdgeAdd}
-                />
-              </div>
-            )}
-
+            {/* 노드/구역/엣지 추가 · 그리드 설정 · 감시영역 재선택 팝업 — 예전엔 캔버스 위에
+                떠 있어서 도면을 가려 그 밑을 클릭할 수 없었음. 도면을 보면서 동시에 입력할 수
+                있어야 하는 흐름이라, 캔버스와 겹치지 않는 이 사이드바로 옮김 */}
             {gridSetupPromptOpen && (
               <div className={styles.gridSetupPopup} onClick={(e) => e.stopPropagation()}>
                 <span className={styles.nodeAddTitle}>그리드 설정 필요</span>
@@ -4235,6 +4198,48 @@ const FloorPlansDetailPage = () => {
                 onSave={handleAddZone}
               />
             )}
+          </div>
+        </aside>
+
+        {/* ── 중앙 캔버스 ── */}
+        <div className={styles.canvasArea}>
+          {/* 모드 안내 토스트 */}
+          {toastMsg && (
+            <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
+          )}
+
+          {currentFloor && (
+            <div className={styles.canvasHeader}>
+              <button
+                type="button"
+                className={styles.backButton}
+                onClick={() => navigate('/floorPlans')}
+                aria-label="도면 관리 목록으로"
+              >
+                <ChevronRightIcon width={16} height={16} className={styles.backButtonIcon} />
+              </button>
+              <span className={styles.canvasHeaderText}>{currentBuilding?.name ?? ''}</span>
+              <span className={styles.canvasHeaderFloor}>{formatFloor(currentFloor.floorNum)}</span>
+            </div>
+          )}
+
+          <div
+            className={clsx(
+              styles.canvasBody,
+              currentFloor?.segmentationStatus === 'DONE' && styles.canvasBodyWithActions,
+            )}
+          >
+            {/* 그리드는 이제 토글 없이 항상 표시함(아래 ensureFloorGridCells 자동 조회 효과 참고) —
+                추가(노드/구역/엣지) 메뉴만 남김 */}
+            {currentFloor?.segmentationStatus === 'DONE' && (
+              <div className={styles.canvasActionFloat}>
+                <AddActionMenu
+                  onAddNode={() => handleOpenNodeAdd()}
+                  onAddZone={handleToggleZoneAdd}
+                  onAddEdge={handleOpenEdgeAdd}
+                />
+              </div>
+            )}
 
             {loadingFloor ? (
               <LoadingState message="도면을 불러오는 중..." />
@@ -4305,51 +4310,72 @@ const FloorPlansDetailPage = () => {
 
           {currentFloor?.segmentationStatus === 'DONE' && (
             <div className={styles.nodeTypeLegend}>
-              <div className={styles.nodeTypeLegendSection}>
-                <span className={styles.zoneLegendTitle}>노드 종류</span>
-                <div className={styles.zoneLegendItem}>
-                  <span className={styles.nodeTypeCctvBadge}>CC</span>
-                  <span className={styles.zoneLegendLabel}>CCTV</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotLight)} />
-                  <span className={styles.zoneLegendLabel}>유도등</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotDoor)} />
-                  <span className={styles.zoneLegendLabel}>문 · 출입구</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStair)} />
-                  <span className={styles.zoneLegendLabel}>계단</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotHallway)} />
-                  <span className={styles.zoneLegendLabel}>복도</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStart)} />
-                  <span className={styles.zoneLegendLabel}>시작 후보</span>
-                </div>
-              </div>
+              <button
+                type="button"
+                className={styles.nodeTypeLegendHeader}
+                onClick={() => setIsNodeLegendOpen((prev) => !prev)}
+                aria-expanded={isNodeLegendOpen}
+              >
+                <span className={styles.zoneLegendTitle}>범례</span>
+                {isNodeLegendOpen ? (
+                  <ChevronDownIcon width={14} height={14} />
+                ) : (
+                  <ChevronRightIcon width={14} height={14} />
+                )}
+              </button>
 
-              <div className={styles.nodeTypeLegendDivider} />
+              {isNodeLegendOpen && (
+                <>
+                  <div className={styles.nodeTypeLegendSection}>
+                    <span className={styles.zoneLegendTitle}>노드 종류</span>
+                    <div className={styles.zoneLegendItem}>
+                      <span className={styles.nodeTypeCctvBadge}>CC</span>
+                      <span className={styles.zoneLegendLabel}>CCTV</span>
+                    </div>
+                    <div className={styles.zoneLegendItem}>
+                      <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotLight)} />
+                      <span className={styles.zoneLegendLabel}>유도등</span>
+                    </div>
+                    <div className={styles.zoneLegendItem}>
+                      <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotDoor)} />
+                      <span className={styles.zoneLegendLabel}>문 · 출입구</span>
+                    </div>
+                    <div className={styles.zoneLegendItem}>
+                      <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStair)} />
+                      <span className={styles.zoneLegendLabel}>계단</span>
+                    </div>
+                    <div className={styles.zoneLegendItem}>
+                      <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotHallway)} />
+                      <span className={styles.zoneLegendLabel}>복도</span>
+                    </div>
+                    <div className={styles.zoneLegendItem}>
+                      <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStart)} />
+                      <span className={styles.zoneLegendLabel}>시작 후보</span>
+                    </div>
+                  </div>
 
-              <div className={styles.nodeTypeLegendSection}>
-                <span className={styles.zoneLegendTitle}>구역 종류</span>
-                <div className={styles.zoneLegendItem}>
-                  <span
-                    className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchGeneral)}
-                  />
-                  <span className={styles.zoneLegendLabel}>일반 구역</span>
-                </div>
-                <div className={styles.zoneLegendItem}>
-                  <span
-                    className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchCamera)}
-                  />
-                  <span className={styles.zoneLegendLabel}>카메라 시야</span>
-                </div>
-              </div>
+                  <div className={styles.nodeTypeLegendDivider} />
+
+                  <div className={styles.nodeTypeLegendSection}>
+                    <span className={styles.zoneLegendTitle}>구역 종류</span>
+                    <div className={styles.zoneLegendItem}>
+                      <span
+                        className={clsx(
+                          styles.nodeTypeAreaSwatch,
+                          styles.nodeTypeAreaSwatchGeneral,
+                        )}
+                      />
+                      <span className={styles.zoneLegendLabel}>일반 구역</span>
+                    </div>
+                    <div className={styles.zoneLegendItem}>
+                      <span
+                        className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchCamera)}
+                      />
+                      <span className={styles.zoneLegendLabel}>카메라 시야</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
