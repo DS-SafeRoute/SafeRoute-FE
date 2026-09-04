@@ -119,6 +119,8 @@ export const metaRow = style({
 });
 
 export const metaKey = style({
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
@@ -143,9 +145,10 @@ export const metaValueFailed = style({
   ...vars.typography.caption,
 });
 
-// 등록 요건 진행바 — metaRow 안에서 값 자리만큼만 차지하게 폭을 좁게 고정
+// 등록 요건 진행바 — "등록 요건" 라벨이 잘리지 않을 만큼 폭을 더 좁게 고정
 export const readinessProgressBar = style({
-  width: '6.4rem',
+  flexShrink: 0,
+  width: '4rem',
 });
 
 export const uploadButton = style({
