@@ -701,21 +701,6 @@ export const deviceCardNameInput = style({
   },
 });
 
-export const deviceCardValueInput = style({
-  outline: 'none',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.white,
-  padding: `0 ${vars.space.s2}`,
-  width: '14rem',
-  textAlign: 'right',
-  color: vars.color.textHigh,
-  ...vars.typography.caption,
-  selectors: {
-    '&:focus': { borderColor: vars.color.primary },
-  },
-});
-
 export const deviceCardRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -747,23 +732,6 @@ export const deviceCardFieldEditBtn = style({
   ...vars.typography.caption,
   selectors: {
     '&:hover': { backgroundColor: vars.color.primaryLight2 },
-  },
-});
-
-// 유도등 카드 수정 중 필드(설치 위치 입력)를 담당 CCTV·가이던스 Dropdown과 같은 박스 모양으로
-// 맞춤 — 텍스트 입력과 Dropdown이 서로 다른 크기·정렬로 보이던 문제를 셋 다 "라벨 위,
-// 폭 전체 값" 한 가지 모양으로 통일해서 해결함(치수는 Dropdown의 rounded+fullWidth와 동일)
-export const lightFieldFull = style({
-  outline: 'none',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
-  width: '100%',
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:focus': { borderColor: vars.color.primary },
   },
 });
 
@@ -839,10 +807,11 @@ export const deviceCardDoneBtn = style({
   color: vars.color.white,
   ...vars.typography.caption,
   selectors: {
-    '&:hover': {
+    '&:hover:not(:disabled)': {
       borderColor: vars.color.primaryHover,
       backgroundColor: vars.color.primaryHover,
     },
+    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
   },
 });
 

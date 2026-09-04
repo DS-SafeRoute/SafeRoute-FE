@@ -129,12 +129,14 @@ type PanelItem = {
   cctvName?: string;
 };
 
-// 장비 카드의 "수정" 편집 폼 — CCTV는 label/zone만 쓰고, 유도등은 설정 모달에 있던
+// 장비 카드의 "수정" 편집 폼 — CCTV는 label만 쓰고, 유도등은 설정 모달에 있던
 // 가이던스·담당 CCTV까지 전부 이 폼으로 흡수함(모달 없이 카드 안에서 편집). Pi 엔드포인트는
-// 스웨거상 "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 안 쓰인다"고 명시되어 있어 뺐음
+// 스웨거상 "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 안 쓰인다"고 명시되어 있어 뺐음.
+// "설치 위치"(zone)는 백엔드에 저장 필드가 없어(요청 스키마에 name/x/y뿐) 여기서 편집해도
+// 저장 API로 안 나가고, 새로고침하면 CCTV는 감시영역 문구로·유도등은 고정 문구로 다시
+// 덮어써지던 문제가 있어 편집 항목에서 뺌 — 카드엔 항상 읽기 전용으로만 보여줌
 interface DeviceEditForm {
   label: string;
-  zone: string;
   decisionNodeId: string;
   leftEdgeId: string;
   rightEdgeId: string;
@@ -143,7 +145,6 @@ interface DeviceEditForm {
 
 const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
   label: '',
-  zone: '',
   decisionNodeId: '',
   leftEdgeId: '',
   rightEdgeId: '',
@@ -1435,6 +1436,7 @@ const DeviceCard = ({
   selected,
   editing,
   editForm,
+  hasChanges,
   onEditFormChange,
   onSelect,
   onStartEdit,
@@ -1451,6 +1453,8 @@ const DeviceCard = ({
   selected: boolean;
   editing: boolean;
   editForm: DeviceEditForm;
+  // 폼이 원본과 달라졌는지 — "완료" 버튼을 실제로 바뀐 게 있을 때만 눌리게 하는 데 씀
+  hasChanges: boolean;
   onEditFormChange: (form: DeviceEditForm) => void;
   onSelect: (item: PanelItem) => void;
   onStartEdit: (item: PanelItem) => void;
@@ -1551,29 +1555,17 @@ const DeviceCard = ({
       </div>
       <div className={styles.deviceCardRow}>
         <span className={styles.deviceCardKey}>설치 위치</span>
-        {editing && item.type !== 'light' && (
-          <input
-            className={styles.deviceCardValueInput}
-            aria-label="설치 위치"
-            value={editForm.zone}
-            onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-          />
-        )}
-        {!editing && <span className={styles.deviceCardValue}>{item.zone}</span>}
+        <span
+          className={styles.deviceCardValue}
+          title={
+            item.type === 'cctv'
+              ? '감시 영역에서 자동으로 계산돼요'
+              : '저장되는 값이 아니라 편집할 수 없어요'
+          }
+        >
+          {item.zone}
+        </span>
       </div>
-      {/* 유도등은 필드가 많아서(설치 위치·담당 CCTV·가이던스) 값 칸 크기가 텍스트 입력·
-          드롭다운마다 제각각으로 보이지 않도록, 수정 중엔 전부 "라벨 위 · 값 아래(폭 전체)"
-          한 가지 모양으로 통일함 */}
-      {editing && item.type === 'light' && (
-        <input
-          className={styles.lightFieldFull}
-          value={editForm.zone}
-          onChange={(e) => onEditFormChange({ ...editForm, zone: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-          placeholder="예: 3층 앞 복도"
-        />
-      )}
       {item.type === 'light' && (
         <>
           <div className={styles.deviceCardRow}>
@@ -1776,6 +1768,8 @@ const DeviceCard = ({
           <button
             type="button"
             className={styles.deviceCardDoneBtn}
+            disabled={!hasChanges}
+            title={hasChanges ? undefined : '변경된 내용이 없어요'}
             onClick={(e) => {
               e.stopPropagation();
               onSaveEdit(item);
@@ -3757,6 +3751,21 @@ const FloorPlansDetailPage = () => {
     [realCctvs],
   );
 
+  // 장비 카드 "완료" 버튼 — 실제로 바뀐 값이 있을 때만 눌리게. handleSaveEdit의
+  // guidanceChanged 판정과 같은 기준(원본 값과 폼 값 비교)을 여기서도 씀
+  const editingPanelItem = editingItemId
+    ? allPanelItems.find((item) => item.id === editingItemId)
+    : undefined;
+  const editingLight =
+    editingPanelItem?.type === 'light' ? iotLights.find((l) => l.id === editingItemId) : undefined;
+  const isDeviceEditFormDirty = editingPanelItem
+    ? editForm.label !== editingPanelItem.label ||
+      editForm.decisionNodeId !== (editingLight?.decisionNodeId ?? '') ||
+      editForm.leftEdgeId !== (editingLight?.leftEdgeId ?? '') ||
+      editForm.rightEdgeId !== (editingLight?.rightEdgeId ?? '') ||
+      editForm.cctvId !== (editingLight?.cctvId ?? '')
+    : false;
+
   const gridCellPxSize = useMemo(
     () => getGridCellPxSize(floorGridCells, canvasH),
     [floorGridCells, canvasH],
@@ -3820,7 +3829,6 @@ const FloorPlansDetailPage = () => {
     const light = item.type === 'light' ? iotLights.find((l) => l.id === item.id) : undefined;
     setEditForm({
       label: item.label,
-      zone: item.zone,
       decisionNodeId: light?.decisionNodeId ?? '',
       leftEdgeId: light?.leftEdgeId ?? '',
       rightEdgeId: light?.rightEdgeId ?? '',
@@ -3839,16 +3847,14 @@ const FloorPlansDetailPage = () => {
         prev
           ? {
               ...prev,
-              devices: prev.devices.map((d) =>
-                d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d,
-              ),
+              devices: prev.devices.map((d) => (d.id === item.id ? { ...d, label: newLabel } : d)),
             }
           : prev,
       );
     } else if (item.source === 'added') {
       const prevDevice = addedDevices.find((d) => d.id === item.id);
       setAddedDevices((prev) =>
-        prev.map((d) => (d.id === item.id ? { ...d, label: newLabel, zone: editForm.zone } : d)),
+        prev.map((d) => (d.id === item.id ? { ...d, label: newLabel } : d)),
       );
       // 실패하면 방금 낙관적으로 바꾼 이름/구역을 원래대로 되돌림 — 안 그러면 저장 안 됐는데 화면엔 새 이름이 남음
       const rollback = () => {
@@ -3911,7 +3917,7 @@ const FloorPlansDetailPage = () => {
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
       setSelectedItem({
         kind: 'device',
-        data: { ...selectedItem.data, label: newLabel, zone: editForm.zone },
+        data: { ...selectedItem.data, label: newLabel },
       });
     }
     setEditingItemId(null);
@@ -4440,6 +4446,7 @@ const FloorPlansDetailPage = () => {
                       selected={isPanelItemSelected(item)}
                       editing={editingItemId === item.id}
                       editForm={editForm}
+                      hasChanges={isDeviceEditFormDirty}
                       onEditFormChange={setEditForm}
                       onSelect={handlePanelItemSelect}
                       onStartEdit={handleStartEdit}
