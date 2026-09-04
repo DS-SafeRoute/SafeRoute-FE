@@ -12,7 +12,7 @@ const zoneHallwayColor = '#0891B2';
 /* ── 전체 레이아웃 ── */
 // 폭 상한을 뒀었는데 그러면 큰 화면에서 좌우로 회색 여백만 생기고 정작 캔버스는 안 넓어짐
 // (되돌림) — 범례·팝업이 도면과 동떨어져 보이는 문제는 그 둘을 각각 접을 수 있게 하거나
-// 캔버스 밖으로 옮기는 쪽으로 해결함(nodeTypeLegend 접기, 팝업을 좌측 사이드바로 이동)
+// 캔버스 밖으로 옮기는 쪽으로 해결함(범례는 인포 아이콘 팝오버로, 팝업은 좌측 사이드바로 이동)
 export const layout = style({
   display: 'flex',
   flex: 1,
@@ -100,13 +100,14 @@ export const floorNavItemActive = style({
 // (코드래빗 리뷰 반영 — 컴포넌트 스타일을 페이지 스타일 파일에 두면 컴포넌트를 다른 위치로
 // 옮길 때 스타일이 따라오지 않음)
 
-/* ── 장비/구역 추가 ── */
-export const canvasActionFloat = style({
+/* ── 캔버스 우상단(범례 + 장비/구역 추가) ── */
+export const canvasTopRightRow = style({
   position: 'absolute',
   zIndex: 10,
   top: vars.space.s6,
   right: vars.space.s6,
   display: 'flex',
+  alignItems: 'flex-start',
   gap: vars.space.s2,
 });
 
@@ -386,33 +387,56 @@ export const zoneLegendLabel = style({
   ...vars.typography.caption,
 });
 
-/* ── 마크 설명(노드/구역 종류) 범례 ── */
-export const nodeTypeLegend = style({
+/* ── 마크 설명(노드/구역 종류) 안내 — 인포 아이콘을 누르면 팝오버로 뜨고 바깥을 클릭하면
+   닫힘(지도 툴에서 흔한 on-demand 패턴). "+ 추가" 메뉴(addMenuContainer/Panel)와 같은
+   click-outside 구조를 그대로 따름 ── */
+export const legendInfoContainer = style({
+  position: 'relative',
+});
+
+export const legendInfoButton = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  boxShadow: vars.shadow.sm,
+  backgroundColor: vars.color.white,
+  cursor: 'pointer',
+  width: '3.4rem',
+  height: '3.4rem',
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray25 },
+    '&[aria-expanded="true"]': {
+      borderColor: vars.color.primary,
+      color: vars.color.primary,
+    },
+  },
+});
+
+const legendPopoverIn = keyframes({
+  from: { transform: 'translateY(-0.4rem)', opacity: 0 },
+  to: { transform: 'translateY(0)', opacity: 1 },
+});
+
+export const legendPopover = style({
   position: 'absolute',
-  zIndex: 10,
-  right: vars.space.s6,
-  bottom: '7.6rem',
+  zIndex: 20,
+  top: 'calc(100% + 0.4rem)',
+  left: 0,
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
+  transformOrigin: 'top left',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
+  boxShadow: vars.shadow.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s5,
   width: '16rem',
-});
-
-export const nodeTypeLegendHeader = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: vars.space.s3,
-  border: 'none',
-  backgroundColor: 'transparent',
-  cursor: 'pointer',
-  padding: 0,
-  color: vars.color.textMid,
+  animation: `${legendPopoverIn} 0.15s ease`,
 });
 
 export const nodeTypeLegendSection = style({
@@ -441,7 +465,9 @@ export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
 export const nodeTypeAreaSwatch = style({
   flexShrink: 0,
   border: '1px solid',
-  borderRadius: vars.radius.sm,
+  // vars.radius.sm(6px)은 1.2rem(12px) 박스에서 정확히 50%라 원으로 보였음 — 모서리만
+  // 둥근 사각형이 되도록 더 작은 값으로 낮춤(테두리·채운색 규칙은 그대로 유지)
+  borderRadius: '0.3rem',
   width: '1.2rem',
   height: '1.2rem',
 });
