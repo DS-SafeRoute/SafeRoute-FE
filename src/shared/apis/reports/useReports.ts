@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { dashboardQueryKeys } from '@apis/dashboard/dashboardQueryKeys';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 
 import { reportQueryKeys } from './reportQueryKeys';
@@ -24,6 +25,11 @@ export const useGenerateTrainingReportMutation = () => {
       if (!report.reportId) return;
       queryClient.setQueryData(reportQueryKeys.detail(report.reportId), report);
       void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardQueryKeys.recentTrainings(),
+        refetchType: 'all',
+      });
+      void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.stats() });
     },
   });
 };
