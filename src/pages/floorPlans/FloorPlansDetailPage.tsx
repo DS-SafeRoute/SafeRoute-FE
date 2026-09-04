@@ -1176,7 +1176,7 @@ const NodeAddPopup = ({
               className={styles.nodeAddInput}
               value={deviceId}
               onChange={(e) => setDeviceId(e.target.value)}
-              placeholder="CCTV-A3-05"
+              placeholder={isCctv ? 'CCTV-A3-05' : 'IOT-A3-05'}
             />
           </div>
 
@@ -2740,6 +2740,7 @@ const FloorPlansDetailPage = () => {
               ...prev,
               { id: newNode.id, type, x, y, isFinalExit: false },
             ]);
+            show({ title: `${cfg.label} 노드를 추가했습니다.`, variant: 'success' });
           })
           .catch((error: unknown) => {
             // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
@@ -2781,6 +2782,7 @@ const FloorPlansDetailPage = () => {
                 zone: location || '사용자 등록',
               },
             ]);
+            show({ title: `${newLight.name} 유도등을 등록했습니다.`, variant: 'success' });
           })
           .catch(() => {
             show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
@@ -2981,6 +2983,7 @@ const FloorPlansDetailPage = () => {
       setZoneDraftRect(null);
       setCctvDraftCellIds([]);
       setNodeAddOpen(false);
+      show({ title: `${newCctv.name} CCTV를 등록했습니다.`, variant: 'success' });
     };
 
     createCctv({ floorId: currentFloor.id, name: label, x, y, gridCellIds: cctvDraftCellIds })
@@ -3280,6 +3283,7 @@ const FloorPlansDetailPage = () => {
         ]);
         setZoneAddOpen(false);
         setZoneDraftCellIds([]);
+        show({ title: `'${zone.name}' 구역을 추가했습니다.`, variant: 'success' });
       })
       .catch(() => {
         show({ title: '구역 저장에 실패했습니다.', variant: 'error' });
