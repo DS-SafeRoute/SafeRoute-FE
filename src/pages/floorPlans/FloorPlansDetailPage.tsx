@@ -152,6 +152,15 @@ const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
   cctvId: '',
 };
 
+// 유도등 추가 팝업에서 같이 받는 담당 CCTV·가이던스 값 — DeviceEditForm과 필드 구성은 같지만
+// label이 없고(장치 ID 입력이 대신함) 전부 빈 문자열이면 "아직 안 정함"으로 취급해 생략 가능함
+type LightAddFields = {
+  cctvId: string;
+  decisionNodeId: string;
+  leftEdgeId: string;
+  rightEdgeId: string;
+};
+
 // CCTV 등록·시야 재선택·수정 세 곳에서 카드에 보여줄 "모니터링 N칸 · M㎡" 문구를 각자 다시
 // 조립하면 한 줄이 100자를 넘기기 쉽고 표현도 어긋나기 쉬워 하나로 합침
 const formatMonitoredZone = (cctv: Pick<Cctv, 'monitoredGridCellCount' | 'monitoredAreaM2'>) =>
@@ -1143,6 +1152,9 @@ const NodeAddPopup = ({
   onBack,
   onSubmitEntry,
   onFinalize,
+  lightNodeOptions,
+  lightEdgeOptions,
+  lightCctvOptions,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
   type: PlacingDeviceType;
@@ -1152,14 +1164,30 @@ const NodeAddPopup = ({
   selectedCellCount: number;
   onCancel: () => void;
   onBack: () => void;
-  onSubmitEntry: (type: PlacingDeviceType, deviceId: string, location: string) => void;
+  onSubmitEntry: (
+    type: PlacingDeviceType,
+    deviceId: string,
+    location: string,
+    lightFields: LightAddFields,
+  ) => void;
   onFinalize: (deviceId: string, location: string) => void;
+  lightNodeOptions: { id: string; label: string }[];
+  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
+  lightCctvOptions: { id: string; label: string }[];
 }) => {
   const [deviceId, setDeviceId] = useState('');
   const [location, setLocation] = useState('');
+  // 유도등 추가 시 담당 CCTV·가이던스도 같이 받음 — 수정 카드(DeviceCard)와 채워야 하는 값이
+  // 서로 달라 등록 직후엔 "훈련 준비"에 필요한 guidanceConfigured/cctvId가 항상 비어있던 문제.
+  // 도면에 아직 판단 노드·엣지·CCTV가 없을 수도 있어 필수로 막지는 않음(비워두면 등록 후 카드에서 마저 채움)
+  const [lightCctvId, setLightCctvId] = useState('');
+  const [lightDecisionNodeId, setLightDecisionNodeId] = useState('');
+  const [lightLeftEdgeId, setLightLeftEdgeId] = useState('');
+  const [lightRightEdgeId, setLightRightEdgeId] = useState('');
 
   const isStructureNode = isStructureNodeType(type);
   const isCctv = type === 'cctv';
+  const isLight = type === 'light';
   const totalSteps = isCctv ? 2 : 1;
   const stepNumber = stage === 'entry' ? 1 : totalSteps;
 
@@ -1253,6 +1281,83 @@ const NodeAddPopup = ({
               placeholder="3층 · 복도 동측"
             />
           </div>
+
+          {/* 담당 CCTV·가이던스(판단 노드/좌우 엣지) — 장비 카드 수정에서만 채울 수 있던 값이라
+              등록 직후엔 항상 비어있던 문제(훈련 준비의 guidanceConfigured가 안 채워짐). 도면에
+              아직 판단 노드·엣지·CCTV가 없을 수도 있어 필수는 아니고, 비워두면 등록 후 카드에서
+              마저 채울 수 있음 */}
+          {isLight && (
+            <>
+              <div className={styles.nodeAddField}>
+                <span className={styles.nodeAddLabel}>담당 CCTV</span>
+                <Dropdown
+                  shape="rounded"
+                  fullWidth
+                  ariaLabel="담당 CCTV"
+                  options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
+                  value={lightCctvId}
+                  onChange={setLightCctvId}
+                  placeholder="미지정"
+                />
+              </div>
+              <div className={styles.nodeAddField}>
+                <span className={styles.nodeAddLabel}>판단 노드</span>
+                <Dropdown
+                  shape="rounded"
+                  fullWidth
+                  ariaLabel="판단 노드"
+                  options={lightNodeOptions.map((n) => ({ value: n.id, label: n.label }))}
+                  value={lightDecisionNodeId}
+                  onChange={(v) => {
+                    setLightDecisionNodeId(v);
+                    setLightLeftEdgeId('');
+                    setLightRightEdgeId('');
+                  }}
+                  placeholder="판단 노드 선택"
+                />
+              </div>
+              <div className={styles.nodeAddField}>
+                <span className={styles.nodeAddLabel}>왼쪽 가이던스 엣지</span>
+                <Dropdown
+                  shape="rounded"
+                  fullWidth
+                  ariaLabel="왼쪽 가이던스 엣지"
+                  disabled={!lightDecisionNodeId}
+                  options={lightEdgeOptions
+                    .filter(
+                      (e) =>
+                        (e.fromNodeId === lightDecisionNodeId ||
+                          e.toNodeId === lightDecisionNodeId) &&
+                        e.id !== lightRightEdgeId,
+                    )
+                    .map((e) => ({ value: e.id, label: e.label }))}
+                  value={lightLeftEdgeId}
+                  onChange={setLightLeftEdgeId}
+                  placeholder={lightDecisionNodeId ? '왼쪽 엣지 선택' : '판단 노드를 먼저 선택'}
+                />
+              </div>
+              <div className={styles.nodeAddField}>
+                <span className={styles.nodeAddLabel}>오른쪽 가이던스 엣지</span>
+                <Dropdown
+                  shape="rounded"
+                  fullWidth
+                  ariaLabel="오른쪽 가이던스 엣지"
+                  disabled={!lightDecisionNodeId}
+                  options={lightEdgeOptions
+                    .filter(
+                      (e) =>
+                        (e.fromNodeId === lightDecisionNodeId ||
+                          e.toNodeId === lightDecisionNodeId) &&
+                        e.id !== lightLeftEdgeId,
+                    )
+                    .map((e) => ({ value: e.id, label: e.label }))}
+                  value={lightRightEdgeId}
+                  onChange={setLightRightEdgeId}
+                  placeholder={lightDecisionNodeId ? '오른쪽 엣지 선택' : '판단 노드를 먼저 선택'}
+                />
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -1264,7 +1369,14 @@ const NodeAddPopup = ({
           type="button"
           className={styles.nodeAddSubmitBtn}
           disabled={!canSubmit}
-          onClick={() => onSubmitEntry(type, deviceId.trim(), location.trim())}
+          onClick={() =>
+            onSubmitEntry(type, deviceId.trim(), location.trim(), {
+              cctvId: lightCctvId,
+              decisionNodeId: lightDecisionNodeId,
+              leftEdgeId: lightLeftEdgeId,
+              rightEdgeId: lightRightEdgeId,
+            })
+          }
         >
           {isCctv ? '다음' : '추가'}
         </button>
@@ -2880,6 +2992,7 @@ const FloorPlansDetailPage = () => {
     deviceId: string,
     location: string,
     position: { x: number; y: number },
+    lightFields: LightAddFields,
   ) => {
     const cfg = DEVICE_PLACE_CONFIG[type];
 
@@ -2946,6 +3059,31 @@ const FloorPlansDetailPage = () => {
                 zone: location || '사용자 등록',
               },
             ]);
+
+            // 담당 CCTV·가이던스는 handleSaveEdit(카드 수정)과 같은 방식으로, 값이 채워졌을
+            // 때만 등록 직후 이어서 저장함 — 등록 시점에 판단 노드·엣지가 아직 없으면
+            // 비워둔 채로 넘어가고 나중에 카드에서 채워도 됨
+            const { decisionNodeId, leftEdgeId, rightEdgeId, cctvId } = lightFields;
+            if (decisionNodeId && leftEdgeId && rightEdgeId) {
+              configureLightGuidance(newLight.id, { decisionNodeId, leftEdgeId, rightEdgeId })
+                .then((updated) =>
+                  setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
+                )
+                .catch((error: unknown) => {
+                  const { message } = extractServerError(error);
+                  show({ title: message || '가이던스 저장에 실패했습니다.', variant: 'error' });
+                });
+            }
+            if (cctvId) {
+              assignLightCctv(newLight.id, cctvId)
+                .then((updated) =>
+                  setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
+                )
+                .catch((error: unknown) => {
+                  const { message } = extractServerError(error);
+                  show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
+                });
+            }
           })
           .catch(() => {
             show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
@@ -2986,7 +3124,12 @@ const FloorPlansDetailPage = () => {
   // 입력 단계 제출 — CCTV는 서버가 배율(cellSizeMeter) 없이는 등록을 거부(CCTV006)하는데
   // 배율 조회 API가 없어서, 아는 값이 있으면 조용히 다시 적용하고 정말 모를 때만 사용자에게 묻는다.
   // (드래그를 다 끝낸 뒤에 실패하지 않도록 시야 선택 단계로 넘어가기 전에 처리)
-  const handleSubmitNodeEntry = (type: PlacingDeviceType, deviceId: string, location: string) => {
+  const handleSubmitNodeEntry = (
+    type: PlacingDeviceType,
+    deviceId: string,
+    location: string,
+    lightFields: LightAddFields,
+  ) => {
     if (!nodeStagedPosition) return;
     if (type === 'cctv') {
       // ensureFloorGridCells 호출 전 상태를 기억해둠 — 이미 이번 세션에서 그리드를 확인했다면
@@ -3035,7 +3178,7 @@ const FloorPlansDetailPage = () => {
       });
       return;
     }
-    finalizeNodePlacement(type, deviceId, location, nodeStagedPosition);
+    finalizeNodePlacement(type, deviceId, location, nodeStagedPosition, lightFields);
   };
 
   // 그리드설정/시야구역 단계에서 뒤로 — 입력 단계로 돌아가되 이미 지정한 위치는 유지
@@ -4422,6 +4565,9 @@ const FloorPlansDetailPage = () => {
                 onBack={handleNodeAddBack}
                 onSubmitEntry={handleSubmitNodeEntry}
                 onFinalize={handleFinalizeFov}
+                lightNodeOptions={lightNodeOptions}
+                lightEdgeOptions={lightEdgeOptions}
+                lightCctvOptions={lightCctvOptions}
               />
             )}
 
