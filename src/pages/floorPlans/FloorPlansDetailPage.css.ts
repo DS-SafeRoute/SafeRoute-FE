@@ -8,6 +8,8 @@ const zoneDoorColor = '#2563EB';
 const zoneStairColor = '#F97316';
 const zoneStartColor = '#DB2777';
 const zoneHallwayColor = '#0891B2';
+// 계단(zoneStairColor)과 같은 주황 계열이라 구분이 안 된다는 피드백 — 노란색으로 분리
+const zoneLightColor = '#EAB308';
 
 /* ── 전체 레이아웃 ── */
 // 폭 상한을 뒀었는데 그러면 큰 화면에서 좌우로 회색 여백만 생기고 정작 캔버스는 안 넓어짐
@@ -460,7 +462,7 @@ export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
 export const nodeTypeDotStair = style({ backgroundColor: zoneStairColor });
 export const nodeTypeDotHallway = style({ backgroundColor: zoneHallwayColor });
 export const nodeTypeDotStart = style({ backgroundColor: zoneStartColor });
-export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
+export const nodeTypeDotLight = style({ backgroundColor: zoneLightColor });
 
 export const nodeTypeAreaSwatch = style({
   flexShrink: 0,

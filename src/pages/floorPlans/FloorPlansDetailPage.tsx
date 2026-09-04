@@ -204,7 +204,8 @@ type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallw
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
   cctv: { label: 'CCTV', color: '#8b5cf6' },
-  light: { label: '유도등', color: '#d97706' },
+  // 계단(stair, #f97316)과 같은 주황 계열이라 구분이 안 된다는 피드백 — 노란색으로 분리
+  light: { label: '유도등', color: '#eab308' },
   door: { label: '문 · 출입구', color: '#2563eb' },
   stair: { label: '계단', color: '#f97316' },
   hallway: { label: '복도', color: '#0891b2' },
