@@ -7,6 +7,7 @@ import { vars } from '@styles/global.css';
 const zoneDoorColor = '#2563EB';
 const zoneStairColor = '#F97316';
 const zoneStartColor = '#DB2777';
+const zoneHallwayColor = '#0891B2';
 
 /* ── 전체 레이아웃 ── */
 export const layout = style({
@@ -121,12 +122,6 @@ export const canvasActionButton = style({
   selectors: {
     '&:hover': { backgroundColor: vars.color.gray25 },
   },
-});
-
-export const canvasActionButtonActive = style({
-  borderColor: vars.color.primary,
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
 });
 
 /* ── 툴바 "+ 추가" 메뉴 ── */
@@ -263,6 +258,11 @@ export const nodeAddStepBadge = style({
 
 export const nodeAddHint = style({
   marginTop: `calc(-1 * ${vars.space.s2})`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const nodeAddSubHint = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
@@ -427,7 +427,8 @@ export const nodeTypeDot = style({
 
 export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
 export const nodeTypeDotStair = style({ backgroundColor: zoneStairColor });
-export const nodeTypeDotIot = style({ backgroundColor: vars.color.success });
+export const nodeTypeDotHallway = style({ backgroundColor: zoneHallwayColor });
+export const nodeTypeDotStart = style({ backgroundColor: zoneStartColor });
 export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
 
 export const nodeTypeAreaSwatch = style({
@@ -607,7 +608,7 @@ export const zoneCardDot = style({
 
 export const zoneCardDotDoor = style({ backgroundColor: zoneDoorColor });
 export const zoneCardDotStair = style({ backgroundColor: zoneStairColor });
-export const zoneCardDotHallway = style({ backgroundColor: '#0891B2' });
+export const zoneCardDotHallway = style({ backgroundColor: zoneHallwayColor });
 export const zoneCardDotStart = style({ backgroundColor: zoneStartColor });
 export const zoneCardDotGeneral = style({ backgroundColor: vars.color.gray500 });
 

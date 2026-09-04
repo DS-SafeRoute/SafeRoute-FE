@@ -12,9 +12,6 @@ export interface Building {
   totalFloors: number;
   isActive: boolean;
   lastTrainedAt: string | null;
-  // CCTV/IoT 집계를 내려주는 API가 아직 없어서 당분간 옵셔널로 둠 (팀 논의 대기)
-  cctvTotal?: number;
-  cctvOnline?: number;
-  iotTotal?: number;
-  iotOnline?: number;
+  // CCTV/IoT 등록 대수는 건물 응답에 없음 — BuildingCard가 useBuildingDeviceStatsQuery로
+  // 층별 목록을 합산해 직접 표시함
 }
