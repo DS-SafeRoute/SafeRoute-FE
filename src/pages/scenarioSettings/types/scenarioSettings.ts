@@ -1,3 +1,5 @@
+import type { NodePoint } from '@apis/__generated__/data-contracts';
+
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 
 export interface BasicInfo {
@@ -5,21 +7,6 @@ export interface BasicInfo {
   targetBuilding: string;
   scheduledAt: string;
   expectedParticipants: string;
-}
-
-export type FireConditionKey = 'origin' | 'spread' | 'smoke' | 'guideLight';
-
-export interface FireConditionField {
-  key: FireConditionKey;
-  label: string;
-  value: string;
-}
-
-export interface FireConditionOptions {
-  origin: readonly string[];
-  spread: readonly string[];
-  smoke: readonly string[];
-  guideLight: readonly string[];
 }
 
 export interface PreviewMetric {
@@ -33,3 +20,6 @@ export interface PreviewStatus {
   color: StatusBadgeColor;
   dot?: boolean;
 }
+
+// 서버 current-route 좌표를 도면에 그릴 때 필요한 필드만 필수로 좁힌 렌더링 타입
+export type RoutePoint = Required<Pick<NodePoint, 'x' | 'y'>>;

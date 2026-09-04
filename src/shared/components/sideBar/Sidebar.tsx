@@ -5,6 +5,8 @@ import { useLocation, useNavigate } from 'react-router';
 import LogoutIcon from '@assets/icons/ic-logout.svg?react';
 import LogoIcon from '@assets/icons/logo.svg?react';
 
+import { ROUTES } from '@constants/path';
+
 import * as styles from './Sidebar.css';
 
 interface SidebarProps {
@@ -20,9 +22,10 @@ interface SidebarProps {
     }>;
   }>;
   onLogout?: () => void;
+  isLoggingOut?: boolean;
 }
 
-const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
+const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -34,10 +37,12 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
 
   return (
     <aside className={styles.container}>
-      <header className={styles.header}>
-        <LogoIcon className={styles.logo} aria-hidden="true" focusable="false" />
-        <strong className={styles.brand}>{brand}</strong>
-      </header>
+      <button onClick={() => handleNavigate(ROUTES.HOME)} aria-label="홈으로 이동">
+        <header className={styles.header}>
+          <LogoIcon className={styles.logo} aria-hidden="true" focusable="false" />
+          <strong className={styles.brand}>{brand}</strong>
+        </header>
+      </button>
 
       <nav aria-label="사이드바 메뉴" className={styles.navigation}>
         <ul className={styles.list}>
@@ -113,7 +118,13 @@ const Sidebar = ({ brand, menuItems, onLogout }: SidebarProps) => {
       </nav>
 
       <footer className={styles.footer}>
-        <button type="button" onClick={onLogout} className={styles.item()}>
+        <button
+          type="button"
+          onClick={onLogout}
+          className={styles.item()}
+          disabled={isLoggingOut}
+          aria-busy={isLoggingOut}
+        >
           <LogoutIcon className={styles.icon} aria-hidden="true" focusable="false" />
           <span>로그아웃</span>
         </button>

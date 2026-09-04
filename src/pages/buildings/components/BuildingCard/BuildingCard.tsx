@@ -1,27 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 
+import type { Building } from '@apis/buildings/buildingTypes';
+
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
-import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
-import StatusBadge from '@components/chip/StatusBadge';
-
 import * as styles from './BuildingCard.css';
-
-import type { Building } from '../../types/buildings';
+import { useBuildingDeviceStatsQuery } from '../../api/useBuildingDeviceStatsQuery';
 
 interface BuildingCardProps {
   building: Building;
   onEdit: (building: Building) => void;
   onDelete: (building: Building) => void;
-  onFloorPlan: (building: Building) => void;
 }
 
-const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardProps) => {
+const formatTrainingDate = (date: string | null) => {
+  if (!date) return '-';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+};
+
+const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isIotWarning = building.iotOnline < building.iotTotal;
+  // 층별 CCTV/유도등 목록을 합산한 실제 등록 대수 (건물 단위 집계 API가 없어 클라이언트에서 취합)
+  const deviceStats = useBuildingDeviceStatsQuery(building.id);
+  const { cctvTotal, cctvOnline, iotTotal, iotOnline } = deviceStats;
+  const isIotWarning = iotOnline < iotTotal;
+  const formatCount = (online: number, total: number) =>
+    deviceStats.isLoading ? '–' : `${online}/${total}`;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -38,15 +50,14 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
     <article className={styles.container}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <span className={styles.name}>{building.name}</span>
-          <span className={styles.lastTraining}>최근 훈련 · {building.lastTrainingDate}</span>
+          <div className={styles.nameRow}>
+            <span className={styles.name}>{building.name}</span>
+          </div>
+          <span className={styles.lastTraining}>
+            최근 훈련 · {formatTrainingDate(building.lastTrainedAt)}
+          </span>
         </div>
         <div className={styles.headerRight}>
-          <StatusBadge
-            label={building.status === 'normal' ? '정상' : '점검 필요'}
-            color={building.status === 'normal' ? 'green' : 'yellow'}
-            dot
-          />
           <div ref={menuRef} className={styles.kebabWrapper}>
             <button
               type="button"
@@ -68,7 +79,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
                     onEdit(building);
                   }}
                 >
-                  수정
+                  수정하기
                 </button>
                 <button
                   type="button"
@@ -78,7 +89,7 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
                     onDelete(building);
                   }}
                 >
-                  삭제
+                  삭제하기
                 </button>
               </div>
             )}
@@ -92,18 +103,14 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
             <LayersIcon className={styles.statIcon} width={14} height={14} />
             층수
           </span>
-          <span className={styles.statValue}>
-            {building.aboveFloors}F{building.belowFloors > 0 ? ` / B${building.belowFloors}` : ''}
-          </span>
+          <span className={styles.statValue}>{building.totalFloors}층</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
             <CameraIcon className={styles.cctvIcon} width={14} height={14} />
             CCTV
           </span>
-          <span className={styles.statValue}>
-            {building.cctvOnline}/{building.cctvTotal}
-          </span>
+          <span className={styles.statValue}>{formatCount(cctvOnline, cctvTotal)}</span>
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
@@ -112,26 +119,15 @@ const BuildingCard = ({ building, onEdit, onDelete, onFloorPlan }: BuildingCardP
           </span>
           {isIotWarning ? (
             <span className={styles.statValueWarning}>
-              {building.iotOnline}/{building.iotTotal}
-              <span aria-label="경고">⚠</span>
+              {formatCount(iotOnline, iotTotal)}
+              <span role="img" aria-label="경고">
+                ⚠
+              </span>
             </span>
           ) : (
-            <span className={styles.statValue}>
-              {building.iotOnline}/{building.iotTotal}
-            </span>
+            <span className={styles.statValue}>{formatCount(iotOnline, iotTotal)}</span>
           )}
         </div>
-      </div>
-
-      <div className={styles.footer}>
-        <button
-          type="button"
-          className={styles.floorPlanButton}
-          onClick={() => onFloorPlan(building)}
-        >
-          층별 · 도면 관리
-          <ChevronRightIcon width={14} height={14} />
-        </button>
       </div>
     </article>
   );

@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style, styleVariants } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
@@ -6,131 +6,130 @@ export const container = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
+  minWidth: 0,
 });
 
-export const previewPanel = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+export const conditionFields = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: vars.space.s4,
   marginTop: vars.space.s4,
-  borderRadius: vars.radius.xl,
-  backgroundColor: vars.color.gray25,
-  padding: vars.space.s3,
-  minHeight: '21.2rem',
 });
 
-export const floorPlan = style({
-  position: 'relative',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
+export const conditionFieldsSingle = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  marginTop: vars.space.s4,
   width: '100%',
-  height: '18rem',
-  overflow: 'hidden',
+  maxWidth: '32rem',
 });
 
-export const room = style({
-  position: 'absolute',
-  inset: 0,
-  border: `2px solid  ${vars.color.gray500}`,
+export const lockedSetup = style({
+  marginTop: vars.space.s5,
+  borderTop: `1px solid ${vars.color.gray100}`,
+  paddingTop: vars.space.s5,
 });
 
-export const divider = style({
-  position: 'absolute',
-  top: 0,
-  bottom: 0,
-  borderLeft: `2px solid  ${vars.color.gray500}`,
+export const lockedSetupCard = style({
+  border: `1px solid ${vars.color.gray200}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.gray25,
+  padding: vars.space.s4,
 });
 
-export const firstDivider = style({
-  left: '46%',
+export const lockedSetupDescription = style({
+  marginTop: vars.space.s1,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
 });
 
-export const secondDivider = style({
-  left: '69%',
+export const setupHeading = style({
+  marginTop: vars.space.s5,
+  borderTop: `1px solid ${vars.color.gray100}`,
+  paddingTop: vars.space.s5,
 });
 
-export const roomLabel = style({
-  position: 'absolute',
+export const fireLocationLabel = style({
+  color: vars.color.textHigh,
+  ...vars.typography.body16Bold,
+});
+
+export const setupDescription = style({
+  marginTop: vars.space.s1,
   color: vars.color.textMid,
   ...vars.typography.body14,
 });
 
-export const roomLabel301 = style({
-  top: '58%',
-  left: '25%',
+export const setupSteps = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: vars.space.s2,
+  marginTop: vars.space.s3,
+  marginBottom: vars.space.s2,
 });
 
-export const roomLabel302 = style({
-  top: '58%',
-  left: '53%',
+const setupStepBase = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  padding: vars.space.s3,
 });
 
-export const roomLabel305 = style({
-  top: '58%',
-  right: '12%',
+export const setupStep = styleVariants({
+  active: [
+    setupStepBase,
+    { borderColor: vars.color.primary, backgroundColor: vars.color.primaryLight2 },
+  ],
+  blocked: [setupStepBase, { borderColor: vars.color.gray200, backgroundColor: vars.color.gray25 }],
+  complete: [
+    setupStepBase,
+    { borderColor: vars.color.success, backgroundColor: vars.color.successLight },
+  ],
+  pending: [setupStepBase, { backgroundColor: vars.color.gray25 }],
 });
 
-export const routeLine = style({
-  position: 'absolute',
-  top: '72%',
-  left: '22%',
-  borderBottom: `4px dashed ${vars.color.success}`,
-  width: '43%',
-});
-
-export const routeRise = style({
-  position: 'absolute',
-  top: '30%',
-  left: '64.5%',
-  borderLeft: `4px dashed ${vars.color.success}`,
-  height: '44%',
-});
-
-export const routeTop = style({
-  position: 'absolute',
-  top: '29%',
-  left: '64.5%',
-  borderBottom: `4px dashed ${vars.color.success}`,
-  width: '22%',
-});
-
-export const routeArrow = style({
-  position: 'absolute',
-  top: '69.8%',
-  left: '20.2%',
-  borderTop: '0.6rem solid transparent',
-  borderRight: `1rem solid ${vars.color.success}`,
-  borderBottom: '0.6rem solid transparent',
-  width: 0,
-  height: 0,
-});
-
-export const fireHalo = style({
-  position: 'absolute',
-  top: '2.6rem',
-  right: '6.2rem',
-  borderRadius: '50%',
-  backgroundColor: 'rgba(239, 68, 68, 0.14)',
-  width: '7.2rem',
-  height: '7.2rem',
-});
-
-export const firePin = style({
-  position: 'absolute',
-  top: '4.6rem',
-  right: '8.2rem',
+const stepNumberBase = style({
   display: 'inline-flex',
+  flex: '0 0 auto',
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: '50%',
-  backgroundColor: vars.color.danger,
-  width: '3.2rem',
-  height: '3.2rem',
-  color: vars.color.white,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray200,
+  width: '2.4rem',
+  height: '2.4rem',
+  color: vars.color.textMid,
+  ...vars.typography.captionBold,
 });
 
-globalStyle(`${firePin} svg`, {
-  width: '1.6rem',
-  height: '1.6rem',
+export const stepNumber = styleVariants({
+  active: [stepNumberBase, { backgroundColor: vars.color.primary, color: vars.color.white }],
+  blocked: [stepNumberBase],
+  complete: [stepNumberBase, { backgroundColor: vars.color.success, color: vars.color.white }],
+  pending: [stepNumberBase],
+});
+
+export const stepTitle = style({
+  display: 'block',
+  color: vars.color.textHigh,
+  ...vars.typography.body14Bold,
+});
+
+export const stepDescription = style({
+  marginTop: '0.2rem',
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+export const setupNotice = style({
+  marginTop: vars.space.s3,
+  color: vars.color.textLow,
+  ...vars.typography.body14,
+});
+
+export const setupButton = style({
+  display: 'block',
+  marginTop: vars.space.s3,
+  marginLeft: 'auto',
 });

@@ -41,22 +41,7 @@ export const title = style({
 });
 
 export const body = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s4,
+  whiteSpace: 'pre-line',
   color: vars.color.textMid,
   ...vars.typography.body16,
-});
-
-export const paragraphLabel = style({
-  color: vars.color.textHigh,
-  fontWeight: vars.fontWeight.bold,
-});
-
-export const successText = style({
-  color: vars.color.success,
-});
-
-export const warningText = style({
-  color: vars.color.warning,
 });

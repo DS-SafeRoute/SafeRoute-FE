@@ -1,22 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import { isAxiosError } from 'axios';
 import { useNavigate } from 'react-router';
 
+import BuildingIcon from '@assets/icons/ic-building.svg?react';
+import EyeIcon from '@assets/icons/ic-eye.svg?react';
+import MapIcon from '@assets/icons/ic-map.svg?react';
+import UploadIcon from '@assets/icons/ic-upload.svg?react';
+
+import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
-import ToastContainer from '@components/toast/ToastContainer';
+import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
-import { formatFloor } from '@utils/floor';
+import { ROUTES } from '@constants/path';
 
-import { deleteFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { formatFloor, hasFloorPlan } from '@utils/floor';
+
+import { setFloorGrid } from './api/floorGridApi';
+import { analyzeFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
 import * as styles from './FloorPlansPage.css';
+import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
+import GridAreaSettingModal from './modals/GridAreaSettingModal';
+import { rememberPendingGridSize } from './utils/gridStorage';
 
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
+const NONE_STATUS_BADGE: { label: string; color: StatusBadgeColor } = {
+  label: '미등록',
+  color: 'neutral',
+};
+
 const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBadgeColor }> = {
-  NONE: { label: '미등록', color: 'neutral' },
   PENDING: { label: '대기중', color: 'yellow' },
   PROCESSING: { label: '처리중', color: 'blue' },
   DONE: { label: '완료', color: 'green' },
@@ -25,14 +43,14 @@ const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBa
 
 const formatDate = (iso: string | null) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  const date = new Date(iso);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
-const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
+const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
   if (status === 'DONE') return <span className={styles.metaValueDone}>완료</span>;
   if (status === 'PENDING') return <span className={styles.metaValuePending}>대기중</span>;
   if (status === 'PROCESSING') return <span className={styles.metaValuePending}>처리중</span>;
@@ -40,69 +58,58 @@ const AiStatusText = ({ status }: { status: SegmentationStatus }) => {
   return <span className={styles.metaValue}>—</span>;
 };
 
-type UploadTarget = { buildingId: number; buildingName: string; floorId: number; floorNum: number };
-type DeleteTarget = { buildingId: number; floorId: number; floorNum: number; buildingName: string };
-
-interface FloorCardProps {
-  floor: {
-    id: number;
-    floorNum: number;
-    mapImageUrl: string | null;
-    segmentationStatus: SegmentationStatus;
-    processedAt: string | null;
-  };
-  buildingId: number;
-  onManage: (buildingId: number, floorId: number) => void;
-  onUpload: (target: UploadTarget) => void;
-  onDelete: (target: DeleteTarget) => void;
-  buildingName: string;
+interface FloorSummary {
+  id: string;
+  floorNum: number;
+  mapImageUrl: string | null;
+  segmentationStatus: SegmentationStatus;
+  processedAt: string | null;
 }
 
-const FloorCard = ({
-  floor,
-  buildingId,
-  buildingName,
-  onManage,
-  onUpload,
-  onDelete,
-}: FloorCardProps) => {
-  const { label, color } = STATUS_CONFIG[floor.segmentationStatus];
-  const isProcessing =
-    floor.segmentationStatus === 'PENDING' || floor.segmentationStatus === 'PROCESSING';
-  const isNone = floor.segmentationStatus === 'NONE';
+interface UploadTarget {
+  buildingId: string;
+  buildingName: string;
+  floorId: string;
+  floorNum: number;
+}
+interface FloorActionTarget {
+  buildingId: string;
+  buildingName: string;
+  floor: FloorSummary;
+}
+interface PendingUpload {
+  buildingId: string;
+  buildingName: string;
+  floorId: string;
+  floorNum: number;
+  file: File;
+  previewUrl: string;
+}
+
+interface FloorCardProps {
+  floor: FloorSummary;
+  buildingId: string;
+  buildingName: string;
+  onUpload: (target: UploadTarget) => void;
+  onReupload: (target: FloorActionTarget) => void;
+}
+
+const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: FloorCardProps) => {
+  const navigate = useNavigate();
+  const isNone = !hasFloorPlan(floor);
+  const { label, color } = isNone ? NONE_STATUS_BADGE : STATUS_CONFIG[floor.segmentationStatus];
+  const isDone = floor.segmentationStatus === 'DONE';
 
   return (
     <div className={styles.floorCard}>
       <div className={styles.cardTop}>
-        <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <StatusBadge label={label} color={color} />
-          <button
-            type="button"
-            className={styles.deleteButton}
-            title="층 삭제"
-            onClick={() =>
-              onDelete({ buildingId, floorId: floor.id, floorNum: floor.floorNum, buildingName })
-            }
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6M14 11v6" />
-              <path d="M9 6V4h6v2" />
-            </svg>
-          </button>
+        <div className={styles.cardIcon}>
+          <MapIcon width={16} height={16} />
         </div>
+        <StatusBadge label={label} color={color} />
       </div>
+
+      <span className={styles.floorLabel}>{formatFloor(floor.floorNum)}</span>
 
       <div className={styles.divider} />
 
@@ -113,7 +120,7 @@ const FloorCard = ({
         </div>
         <div className={styles.metaRow}>
           <span className={styles.metaKey}>AI 분석</span>
-          <AiStatusText status={floor.segmentationStatus} />
+          <AiStatusText status={isNone ? null : floor.segmentationStatus} />
         </div>
       </div>
 
@@ -128,14 +135,26 @@ const FloorCard = ({
           도면 업로드
         </button>
       ) : (
-        <button
-          type="button"
-          className={styles.manageButton}
-          disabled={isProcessing}
-          onClick={() => !isProcessing && onManage(buildingId, floor.id)}
-        >
-          {isProcessing ? '처리 중...' : '도면 관리'}
-        </button>
+        <div className={styles.cardActionRow}>
+          {isDone && (
+            <button
+              type="button"
+              className={styles.detailButton}
+              onClick={() => navigate(`/floorPlans/${buildingId}/${floor.id}`)}
+            >
+              <EyeIcon width={14} height={14} />
+              상세보기
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.reuploadButton}
+            onClick={() => onReupload({ buildingId, buildingName, floor })}
+          >
+            <UploadIcon width={14} height={14} />
+            재업로드
+          </button>
+        </div>
       )}
     </div>
   );
@@ -143,87 +162,163 @@ const FloorCard = ({
 
 const FloorPlansPage = () => {
   const navigate = useNavigate();
-  const { toasts, leavingIds, show, dismiss } = useToast();
+  const { show } = useToast();
   const [buildings, setBuildings] = useState<FloorBuilding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [reuploadTarget, setReuploadTarget] = useState<FloorActionTarget | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
+  // 미리보기 objectURL이 명시적으로 취소/제출되지 않고 화면을 벗어나는 경우(뒤로가기 등)를 대비한 안전망
   useEffect(() => {
+    return () => {
+      if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    };
+  }, [pendingUpload]);
+
+  const loadFloorBuildings = useCallback(() => {
     setLoading(true);
-    getFloorBuildings()
+    setHasLoadError(false);
+    return getFloorBuildings()
       .then(setBuildings)
       .catch(() => {
+        setHasLoadError(true);
         show({ title: '도면 목록을 불러오지 못했습니다.', variant: 'error' });
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [show]);
 
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return;
-    deleteFloor(deleteTarget.floorId)
-      .then(() => {
-        setBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== deleteTarget.buildingId
-              ? b
-              : { ...b, floors: b.floors.filter((f) => f.id !== deleteTarget.floorId) },
-          ),
-        );
-        show({
-          title: '층 도면이 삭제되었습니다.',
-          description: `${deleteTarget.buildingName} · ${formatFloor(deleteTarget.floorNum)} 도면이 삭제되었습니다.`,
-          variant: 'success',
-        });
-      })
-      .catch(() => {
-        show({ title: '삭제에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setDeleteTarget(null));
+  useEffect(() => {
+    void loadFloorBuildings();
+  }, [loadFloorBuildings]);
+
+  const handleOpenFloorUpload = (target: FloorActionTarget) => {
+    setUploadTarget({
+      buildingId: target.buildingId,
+      buildingName: target.buildingName,
+      floorId: target.floor.id,
+      floorNum: target.floor.floorNum,
+    });
   };
 
-  const handleManage = (buildingId: number, floorId: number) => {
-    void navigate(`/floorPlans/${buildingId}/${floorId}`);
+  const handleReuploadConfirm = () => {
+    if (reuploadTarget) handleOpenFloorUpload(reuploadTarget);
+    setReuploadTarget(null);
   };
 
-  const handleUploadConfirm = (file: File) => {
+  // 파일 선택 단계 — 실제 업로드는 다음 단계(가로/세로 입력)에서 함께 이뤄짐
+  const handleFileSelected = (file: File) => {
     if (!uploadTarget) return;
-    uploadFloor(uploadTarget.buildingId, uploadTarget.floorNum, file)
-      .then((newFloor) => {
+    setPendingUpload({ ...uploadTarget, file, previewUrl: URL.createObjectURL(file) });
+    setUploadTarget(null);
+  };
+
+  const handleCloseUploadDimensionsModal = () => {
+    if (pendingUpload) URL.revokeObjectURL(pendingUpload.previewUrl);
+    setPendingUpload(null);
+  };
+
+  const handleUploadDimensionsConfirm = (params: {
+    realWidth: number;
+    realHeight: number;
+    cellSizeMeter: number;
+  }) => {
+    if (!pendingUpload || isUploading) return;
+    const { buildingId, buildingName, floorNum, file, previewUrl } = pendingUpload;
+    setIsUploading(true);
+    uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
+      .then(async (newFloor) => {
+        // 그리드 배율을 지금 설정해도, 뒤이어 실행되는 AI 분석이 그리드 셀을 재생성하면서
+        // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 남겨두고(새로고침에도 살아남음)
+        // 상세 화면에서 분석 완료 후 한 번 더 PUT 하게 함 — pending으로 남기고 값 자체도
+        // 기억해둬서 이후 CCTV 등록 때 사용자에게 다시 묻지 않게 함
+        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
+        // 상세 화면의 1회성 그리드 조회가 빈 결과를 캐싱하지 않도록, 이동 전에 한 번은 설정 시도
+        try {
+          await setFloorGrid(newFloor.id, params.cellSizeMeter);
+        } catch {
+          show({
+            title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
+            variant: 'warning',
+          });
+        }
         setBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== uploadTarget.buildingId
-              ? b
-              : {
-                  ...b,
-                  floors: b.floors.map((f) =>
-                    f.id !== uploadTarget.floorId ? f : { ...f, ...newFloor },
-                  ),
-                },
-          ),
+          prev.map((b) => {
+            if (b.id !== buildingId) return b;
+            const exists = b.floors.some((f) => f.floorNum === floorNum);
+            return {
+              ...b,
+              floors: exists
+                ? b.floors.map((f) => (f.floorNum === floorNum ? newFloor : f))
+                : [...b.floors, newFloor],
+            };
+          }),
         );
         show({
           title: '도면이 업로드되었습니다.',
-          description: `${uploadTarget.buildingName} · ${formatFloor(uploadTarget.floorNum)} 도면이 등록되었습니다.`,
+          description: `${buildingName} · ${formatFloor(floorNum)} AI 분석이 진행 중입니다. 완료되면 상세 화면에 자동으로 반영됩니다.`,
           variant: 'success',
         });
-        void navigate(`/floorPlans/${uploadTarget.buildingId}/${uploadTarget.floorId}`);
+        URL.revokeObjectURL(previewUrl);
+        setPendingUpload(null);
+        setIsUploading(false);
+        void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
+        // 분석 요청은 서버에서 오래 걸려 타임아웃되거나(ECONNABORTED), 업로드가 이미 분석을
+        // 트리거해 재요청이 5xx로 떨어질 수 있다. 어느 쪽이든 여기서 "실패"로 단정하지 않는다 —
+        // 실제 진행 상태는 상세 화면이 폴링하며, 필요하면 그곳에서 재시도할 수 있다.
+        analyzeFloor(newFloor.id).catch((error: unknown) => {
+          const timedOut = isAxiosError(error) && error.code === 'ECONNABORTED';
+          show({
+            title: timedOut
+              ? 'AI 분석이 진행 중입니다. 상세 화면에서 완료 여부를 확인해주세요.'
+              : 'AI 분석 상태는 상세 화면에서 확인할 수 있어요. 완료되지 않았다면 그곳에서 다시 시도해주세요.',
+            variant: 'warning',
+          });
+        });
       })
       .catch(() => {
-        show({ title: '업로드에 실패했습니다.', variant: 'error' });
-      })
-      .finally(() => setUploadTarget(null));
+        // 미리보기와 입력값을 유지해 모달을 닫지 않고 바로 재시도할 수 있게 함
+        setIsUploading(false);
+        show({ title: '업로드에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
+      });
   };
+
+  const hasFloors = buildings.some((building) => building.floors.length > 0);
 
   return (
     <>
       <div className={styles.container}>
-        {loading && (
-          <p style={{ color: 'var(--color-textLow)', fontSize: '1.4rem', padding: '2rem 0' }}>
-            불러오는 중...
-          </p>
-        )}
+        {loading && <LoadingState />}
+        {!loading && hasLoadError ? (
+          <EmptyState
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="도면 목록을 불러오지 못했습니다."
+            action={
+              <Button type="button" variant="ghost" onClick={() => void loadFloorBuildings()}>
+                다시 시도
+              </Button>
+            }
+          />
+        ) : null}
+        {!loading && !hasLoadError && !hasFloors ? (
+          <EmptyState
+            className={styles.emptyState}
+            icon={<BuildingIcon />}
+            title="등록된 도면이 없습니다."
+            description="건물과 층 정보를 등록한 뒤 도면을 업로드해 주세요."
+            action={
+              <Button type="button" onClick={() => void navigate(ROUTES.BUILDINGS)}>
+                건물 등록하러 가기
+              </Button>
+            }
+          />
+        ) : null}
         {!loading &&
+          !hasLoadError &&
+          hasFloors &&
           buildings.map((building) => (
             <section key={building.id} className={styles.buildingSection}>
               <div className={styles.buildingHeader}>
@@ -241,9 +336,8 @@ const FloorPlansPage = () => {
                       floor={floor}
                       buildingId={building.id}
                       buildingName={building.name}
-                      onManage={handleManage}
                       onUpload={setUploadTarget}
-                      onDelete={setDeleteTarget}
+                      onReupload={setReuploadTarget}
                     />
                   ))}
               </div>
@@ -257,39 +351,29 @@ const FloorPlansPage = () => {
           onClose={() => setUploadTarget(null)}
           buildingName={uploadTarget.buildingName}
           floorNum={uploadTarget.floorNum}
-          onConfirm={handleUploadConfirm}
+          onConfirm={handleFileSelected}
         />
       )}
 
-      {deleteTarget && (
-        <div className={styles.confirmOverlay} onClick={() => setDeleteTarget(null)}>
-          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.confirmTitle}>층 도면 삭제</p>
-            <p className={styles.confirmDesc}>
-              {deleteTarget.buildingName} · {formatFloor(deleteTarget.floorNum)} 도면을 삭제하면
-              복구할 수 없습니다. 계속하시겠습니까?
-            </p>
-            <div className={styles.confirmActions}>
-              <button
-                type="button"
-                className={styles.confirmCancelBtn}
-                onClick={() => setDeleteTarget(null)}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className={styles.confirmDeleteBtn}
-                onClick={handleDeleteConfirm}
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        </div>
+      {reuploadTarget && (
+        <FloorReuploadConfirmModal
+          open
+          onClose={() => setReuploadTarget(null)}
+          buildingName={reuploadTarget.buildingName}
+          floorNum={reuploadTarget.floor.floorNum}
+          onConfirm={handleReuploadConfirm}
+        />
       )}
 
-      <ToastContainer toasts={toasts} leavingIds={leavingIds} onClose={dismiss} />
+      {pendingUpload && (
+        <GridAreaSettingModal
+          open
+          onClose={handleCloseUploadDimensionsModal}
+          mapImageUrl={pendingUpload.previewUrl}
+          onConfirm={handleUploadDimensionsConfirm}
+          isSubmitting={isUploading}
+        />
+      )}
     </>
   );
 };

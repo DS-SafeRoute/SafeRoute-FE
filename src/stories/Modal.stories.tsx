@@ -244,7 +244,7 @@ export const ReferenceSet: Story = {
             onClose={() => setOpen(false)}
             title="건물 삭제"
             description="정말로 'A동 - 본관'을(를) 삭제하시겠습니까?"
-            warning="경고: 이 작업은 되돌릴 수 없습니다. 건물과 관련된 모든 도면 데이터가 영구적으로 삭제됩니다."
+            warning="이 작업은 되돌릴 수 없습니다. 건물과 관련된 모든 도면 데이터가 영구적으로 삭제됩니다."
             footer={
               <>
                 <Button variant="ghost" onClick={() => setOpen(false)}>

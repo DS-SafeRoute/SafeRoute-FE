@@ -14,10 +14,6 @@ export const label = style({
   ...vars.typography.body14Medium,
 });
 
-export const requiredMark = style({
-  color: vars.color.danger,
-});
-
 export const fieldShell = recipe({
   base: {
     display: 'flex',

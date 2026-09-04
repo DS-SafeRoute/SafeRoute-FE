@@ -1,189 +1,57 @@
-import { useNavigate } from 'react-router';
+import { Navigate } from 'react-router';
 
-import { Button } from '@components/Button';
+import CameraIcon from '@assets/icons/ic-camera.svg?react';
 
-import { ROUTES } from '@constants/path';
+import EmptyState from '@components/empty';
+import LoadingState from '@components/loadingState';
 
-import AnalysisTabNav from './components/AnalysisTabNav/AnalysisTabNav';
-import {
-  mockAnalysisInfo,
-  mockDetectionSummary,
-  mockDetections,
-  mockTimelineEvents,
-} from './mocks/trainingAnalysisData';
+import { getTrainingCamerasPath } from '@constants/path';
+
+import { useRunningTrainingSessionsQuery } from './api/useRunningTrainingSessionsQuery';
 import * as styles from './TrainingAnalysisPage.css';
 
-import type { TimelineEventSeverity } from './types/trainingAnalysis';
-
-const SEVERITY_COLOR: Record<TimelineEventSeverity, string> = {
-  info: '#2563EB',
-  warning: '#F59E0B',
-  danger: '#EF4444',
-  success: '#10B981',
-};
-
-const PROGRESS = 54; // mock: 02:14 / 04:08
-
+// 훈련분석은 시나리오가 시작(RUNNING)돼야만 볼 수 있어서, "볼 수 있는 훈련을 골라 들어가는
+// 목록" 자체가 더 이상 의미가 없어짐(사실상 진행 중인 훈련은 0개 아니면 1개인 경우가 대부분).
+// 그래서 목록 화면 없이, 진행 중인 훈련을 찾자마자 바로 그 카메라 목록으로 넘어감.
+// 여러 건물에서 동시에 훈련이 진행 중이면 그중 가장 최근에 시작된 걸로 감(정렬 기준은
+// useRunningTrainingSessionsQuery 참고) — 동시 진행 중인 훈련을 골라 보는 화면이 다시
+// 필요해지면 그때 목록 UI를 되살리면 됨
 const TrainingAnalysisPage = () => {
-  const navigate = useNavigate();
+  const { sessions, isLoading, isError } = useRunningTrainingSessionsQuery();
 
-  return (
-    <div className={styles.container}>
-      <AnalysisTabNav />
-
-      <div className={styles.body}>
-        {/* 좌측: 비디오 플레이어 */}
-        <div className={styles.videoSection}>
-          <div className={styles.videoWrapper}>
-            {/* 상단 배지 행 */}
-            <div className={styles.videoBadgeRow}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                <div className={styles.liveBadge}>
-                  <span className={styles.liveDot} />
-                  LIVE
-                </div>
-                <span className={styles.cameraLabel}>CAM-A3-B2</span>
-              </div>
-              <span className={styles.yoloLabel}>YOLO v8 · 24fps · 0.18s</span>
-            </div>
-
-            {/* 군중 밀집 감지 레이블 */}
-            <div className={styles.densityLabel}>군중 밀집 감지 · 6명/m²</div>
-
-            {/* 바운딩박스 오버레이 */}
-            <div className={styles.bboxOverlay}>
-              {mockDetections.map((d) => (
-                <div
-                  key={d.id}
-                  className={styles.bbox}
-                  style={{
-                    left: `${d.x}%`,
-                    top: `${d.y}%`,
-                    width: `${d.width}%`,
-                    height: `${d.height}%`,
-                  }}
-                >
-                  <span className={styles.bboxLabel}>{d.id}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* 비디오 컨트롤 바 */}
-            <div className={styles.videoControls}>
-              <span className={styles.timeLabel}>02:14 / 04:08</span>
-              <div className={styles.progressBar}>
-                <div className={styles.progressFill} style={{ width: `${PROGRESS}%` }} />
-                <div className={styles.progressThumb} style={{ left: `${PROGRESS}%` }} />
-              </div>
-              <span className={styles.speedLabel}>1×</span>
-            </div>
-          </div>
-
-          {/* 탐지 결과 요약 */}
-          <div className={styles.summaryBox}>
-            <div className={styles.summaryHeader}>
-              <span className={styles.summaryTitle}>탐지 결과 요약</span>
-              <span className={styles.summaryBadge}>
-                {mockDetectionSummary.modelLabel} · 신뢰도 평균 {mockDetectionSummary.confidence}
-              </span>
-            </div>
-            <div className={styles.summaryGrid}>
-              <div className={styles.summaryCard}>
-                <span className={styles.summaryLabel}>탐지 인원</span>
-                <span className={styles.summaryValue}>
-                  {mockDetectionSummary.detectedCount}
-                  <span className={styles.summaryUnit}>명</span>
-                </span>
-              </div>
-              <div className={styles.summaryCard}>
-                <span className={styles.summaryLabel}>평균 이동 속도</span>
-                <span className={styles.summaryValue}>
-                  {mockDetectionSummary.avgSpeedMs}
-                  <span className={styles.summaryUnit}>m/s</span>
-                </span>
-              </div>
-              <div className={styles.summaryCard}>
-                <span className={styles.summaryLabel}>병목 구역</span>
-                <span className={styles.summaryValue}>
-                  {mockDetectionSummary.bottleneckCount}
-                  <span className={styles.summaryUnit}>곳</span>
-                </span>
-              </div>
-              <div className={styles.summaryCard}>
-                <span className={styles.summaryLabel}>프레임 처리율</span>
-                <span className={styles.summaryValue}>
-                  {mockDetectionSummary.frameProcessRate}
-                  <span className={styles.summaryUnit}>%</span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 우측 패널 */}
-        <div className={styles.sidePanel}>
-          {/* 분석 정보 */}
-          <div className={styles.panel}>
-            <span className={styles.panelTitle}>분석 정보</span>
-            <div className={styles.divider} />
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>원본 영상</span>
-              <span className={styles.infoValue}>{mockAnalysisInfo.fileName}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>해상도</span>
-              <span className={styles.infoValue}>{mockAnalysisInfo.resolution}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>길이</span>
-              <span className={styles.infoValue}>{mockAnalysisInfo.duration}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>모델</span>
-              <span className={styles.infoValue}>{mockAnalysisInfo.model}</span>
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>처리 시간</span>
-              <span className={styles.infoValue}>{mockAnalysisInfo.processedSec}초</span>
-            </div>
-          </div>
-
-          {/* 이벤트 타임라인 */}
-          <div className={styles.panel}>
-            <span className={styles.panelTitle}>이벤트 타임라인</span>
-            <div className={styles.divider} />
-            <ul className={styles.timelineList}>
-              {mockTimelineEvents.map((event) => (
-                <li key={event.time} className={styles.timelineItem}>
-                  <span className={styles.timelineTime}>{event.time}</span>
-                  <span
-                    className={styles.timelineDot}
-                    style={{ backgroundColor: SEVERITY_COLOR[event.severity] }}
-                  />
-                  <span className={styles.timelineLabel}>{event.label}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* 액션 버튼 */}
-          <div className={styles.actionRow}>
-            <Button variant="outlined" size="md" fullWidth>
-              영상 업로드
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              fullWidth
-              onClick={() => void navigate(ROUTES.TRAINING_MONITORING)}
-            >
-              AI 분석 시작
-            </Button>
-          </div>
-        </div>
+  if (isLoading) {
+    return (
+      <div className={styles.container}>
+        <LoadingState />
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={styles.container}>
+        <EmptyState
+          icon={<CameraIcon width={32} height={32} />}
+          title="훈련 정보를 불러오지 못했습니다"
+          description="잠시 후 다시 시도해주세요"
+        />
+      </div>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className={styles.container}>
+        <EmptyState
+          icon={<CameraIcon width={32} height={32} />}
+          title="진행 중인 훈련이 없습니다"
+          description="훈련이 시작되면 자동으로 이 화면에서 카메라 영상을 확인할 수 있습니다"
+        />
+      </div>
+    );
+  }
+
+  return <Navigate to={getTrainingCamerasPath(sessions[0].sessionId)} replace />;
 };
 
 export default TrainingAnalysisPage;

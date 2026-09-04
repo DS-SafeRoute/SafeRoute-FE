@@ -1,19 +1,44 @@
-export const SCENARIO_BUILDING_OPTIONS = [
-  'A동 · 본관 · 3층',
-  'A동 · 본관 · 5층',
-  'B동 · 별관 · 4층',
-  'C동 · 연구동 · 2층',
+import type { PreviewStatus } from '@pages/scenarioSettings/types/scenarioSettings';
+
+import type { ScenarioResponse } from '@apis/__generated__/data-contracts';
+import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
+
+type FireSpreadSpeed = NonNullable<ScenarioResponse['fireSpreadSpeed']>;
+
+export const SCENARIO_STATUS_FILTER_OPTIONS = [
+  { label: '전체 상태', value: 'ALL' },
+  { label: '임시저장', value: SCENARIO_STATUS.DRAFT },
+  { label: '준비완료', value: SCENARIO_STATUS.READY },
+  { label: '진행중', value: SCENARIO_STATUS.IN_PROGRESS },
+  { label: '완료', value: SCENARIO_STATUS.COMPLETED },
+  { label: '에러', value: SCENARIO_STATUS.ERROR },
+  { label: '훈련 실패', value: SCENARIO_STATUS.TIMEOUT_FAILED },
 ] as const;
 
-export const FIRE_ORIGIN_OPTIONS = [
-  '305호 · 동측 창가',
-  '302호 · 중앙 복도',
-  '301호 · 서측 출입문',
-  '복도 천장 센서 구역',
-] as const;
+export const FIRE_SPREAD_OPTIONS = ['느림', '중간', '빠름'] as const;
 
-export const FIRE_SPREAD_OPTIONS = ['낮음 (0.6 m/s)', '중간 (1.2 m/s)', '높음 (1.8 m/s)'] as const;
+export const FIRE_SPREAD_LABEL = {
+  SLOW: '느림',
+  MEDIUM: '중간',
+  FAST: '빠름',
+} as const satisfies Record<FireSpreadSpeed, string>;
 
-export const SMOKE_DENSITY_OPTIONS = ['낮음', '보통', '높음'] as const;
+export type FireSpreadLabel = (typeof FIRE_SPREAD_LABEL)[FireSpreadSpeed];
 
-export const GUIDE_LIGHT_OPTIONS = ['없음', '북측 차단', '서측 차단', '전구간 차단'] as const;
+export const FIRE_SPREAD_VALUE = {
+  느림: 'SLOW',
+  중간: 'MEDIUM',
+  빠름: 'FAST',
+} as const satisfies Record<FireSpreadLabel, FireSpreadSpeed>;
+
+export const PREVIEW_STATUS: PreviewStatus = {
+  label: '준비 완료',
+  color: 'green',
+  dot: true,
+};
+
+export const LIVE_STATUS: PreviewStatus = {
+  label: '진행중',
+  color: 'green',
+  dot: true,
+};

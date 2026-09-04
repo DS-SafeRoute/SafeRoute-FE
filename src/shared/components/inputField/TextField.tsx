@@ -5,6 +5,8 @@ import clsx from 'clsx';
 
 import EyeIcon from '@assets/icons/ic-eye.svg?react';
 
+import RequiredFieldText from '@components/inputField/RequiredFieldText';
+
 import * as styles from './TextField.css';
 
 export interface TextFieldProps extends Omit<ComponentPropsWithoutRef<'input'>, 'children'> {
@@ -45,17 +47,7 @@ const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
       <label className={styles.root}>
         {label ? (
           <span className={styles.label}>
-            {label.includes(' *') ? (
-              <>
-                {label.replace(' *', '')}
-                <span className={styles.requiredMark} aria-hidden="true">
-                  {' '}
-                  *
-                </span>
-              </>
-            ) : (
-              label
-            )}
+            <RequiredFieldText label={label} />
           </span>
         ) : null}
         <span className={styles.fieldShell({ isError, isFocused, disabled })}>

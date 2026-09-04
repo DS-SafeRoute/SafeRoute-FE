@@ -1,17 +1,14 @@
 import BuildingIcon from '@assets/icons/ic-building.svg?react';
 
-import StatusBadge from '@components/chip/StatusBadge';
-
 import * as styles from './OrganizationCard.css';
 
-import type { Organization } from '../../types/buildings';
-
 interface OrganizationCardProps {
-  organization: Organization;
+  schoolName: string;
   buildingCount: number;
 }
 
-const OrganizationCard = ({ organization, buildingCount }: OrganizationCardProps) => (
+// 기관 주소 필드는 백엔드에 아직 없음(project_floorplans_api_mismatch 메모 참고) — 생기면 추가
+const OrganizationCard = ({ schoolName, buildingCount }: OrganizationCardProps) => (
   <div className={styles.container}>
     <div className={styles.left}>
       <div className={styles.iconBox}>
@@ -19,12 +16,8 @@ const OrganizationCard = ({ organization, buildingCount }: OrganizationCardProps
       </div>
       <div className={styles.info}>
         <div className={styles.nameRow}>
-          <span className={styles.name}>{organization.name}</span>
-          {organization.isRepresentative && <StatusBadge label="대표" color="blue" />}
+          <span className={styles.name}>{schoolName}</span>
         </div>
-        <p className={styles.address}>
-          {organization.address} · 등록일 {organization.registeredAt}
-        </p>
       </div>
     </div>
     <div className={styles.right}>

@@ -11,6 +11,11 @@ const DEFAULT_GNB_CONFIG = {
   description: '안전 관리 시스템',
 } as const satisfies GNBConfig;
 
+const SCENARIO_SETTINGS_GNB_CONFIG = {
+  title: '시나리오 설정',
+  description: '화재 발생 위치를 확인하고 시나리오를 시작합니다',
+} as const satisfies GNBConfig;
+
 const GNB_CONFIGS = [
   {
     path: ROUTES.HOME,
@@ -20,16 +25,24 @@ const GNB_CONFIGS = [
     },
   },
   {
-    path: ROUTES.SCENARIO_SETTINGS,
+    path: ROUTES.SCENARIO_CREATE,
+    config: SCENARIO_SETTINGS_GNB_CONFIG,
+  },
+  {
+    path: ROUTES.SCENARIO_DETAIL,
+    config: SCENARIO_SETTINGS_GNB_CONFIG,
+  },
+  {
+    path: ROUTES.SCENARIO_LIST,
     config: {
-      title: '훈련 관리',
-      description: '화재 발생 위치와 조건을 설정하고 시나리오를 시작합니다',
+      title: '시나리오 설정',
+      description: '등록된 훈련 시나리오를 확인하고 관리합니다',
     },
   },
   {
     path: ROUTES.BUILDINGS,
     config: {
-      breadcrumbs: [{ label: '훈련 관리' }],
+      breadcrumbs: [{ label: '관리' }],
       title: '건물 관리',
       description: '등록된 건물과 시설을 관리합니다',
     },
@@ -51,27 +64,33 @@ const GNB_CONFIGS = [
     },
   },
   {
-    path: ROUTES.CAMERAS,
-    config: {
-      breadcrumbs: [{ label: '관리' }],
-      title: '카메라 관리',
-      description: 'CCTV 카메라 등록 및 설정 관리',
-    },
-  },
-  {
+    // 진행 중인 훈련으로 바로 리다이렉트되는 화면이라 거의 순간적으로만 보임 — 그래도 잠깐
+    // 보일 로딩/빈 상태는 카메라 목록(진짜 홈)과 같은 톤으로 맞춰둠
     path: ROUTES.TRAINING_ANALYSIS,
     config: {
-      breadcrumbs: [{ label: '훈련 분석' }],
-      title: '영상 분석',
-      description: '훈련 영상을 업로드하거나 실시간 CCTV를 분석합니다',
+      // 더 상위 단계가 없는 화면이라 빈 배열로 둠 — GNB가 이 경우 "훈련 분석"(title)
+      // 하나만 브레드크럼으로 보여주고, "훈련 분석 › 훈련 분석"처럼 중복되지 않게 함
+      breadcrumbs: [],
+      title: '훈련 분석',
+      description: '진행 중인 훈련의 CCTV 프레임을 실시간으로 확인합니다',
     },
   },
   {
-    path: ROUTES.TRAINING_MONITORING,
+    // 훈련분석의 실질적인 첫 화면(더 이상 목록 페이지가 없음) — 위와 같은 이유로 빈 배열
+    path: ROUTES.TRAINING_CAMERAS,
+    config: {
+      breadcrumbs: [],
+      title: '훈련 분석',
+      description: '선택한 훈련에서 카메라별로 수집된 프레임을 확인합니다',
+    },
+  },
+  {
+    // 카메라 목록에서 한 단계 더 들어간 화면이라 "훈련 분석" 브레드크럼 아래 별도 타이틀을 둠
+    path: ROUTES.TRAINING_CAMERA_FRAMES,
     config: {
       breadcrumbs: [{ label: '훈련 분석' }],
-      title: '모니터링',
-      description: '실시간 카메라 스트림을 확인합니다',
+      title: '영상 상세',
+      description: '선택한 카메라의 CCTV 프레임을 확인합니다',
     },
   },
   {
@@ -79,13 +98,6 @@ const GNB_CONFIGS = [
     config: {
       title: '분석 보고서',
       description: '훈련 분석 보고서를 확인합니다',
-    },
-  },
-  {
-    path: ROUTES.MANAGEMENT,
-    config: {
-      title: '관리',
-      description: '시스템 관리 항목을 확인합니다',
     },
   },
 ] as const satisfies readonly { path: string; config: GNBConfig }[];

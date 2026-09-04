@@ -2,6 +2,7 @@ import { isAxiosError, isCancel } from 'axios';
 
 import axiosInstance from '@apis/config/axiosInstance';
 import { RESPONSE_MESSAGE } from '@apis/constants/response';
+import { ApiError } from '@apis/errors/apiError';
 import type { BaseResponse } from '@apis/types/baseResponse';
 
 import type { Method } from 'axios';
@@ -24,25 +25,46 @@ export interface RequestConfig<TBody = unknown> {
   query?: Record<string, QueryValue>;
   body?: TBody;
   signal?: AbortSignal;
+  responseMode?: 'wrapped' | 'raw';
+  // axiosInstance 기본값(30초)보다 오래 걸리는 게 정상인 요청(예: AI 분석)에서만 개별 지정
+  timeout?: number;
 }
 
 export const request = async <TResponse, TBody = unknown>(
   config: RequestConfig<TBody>,
 ): Promise<TResponse> => {
-  const { method, url, query, body, signal } = config;
+  const { method, url, query, body, signal, responseMode = 'wrapped', timeout } = config;
 
   try {
-    const response = await axiosInstance.request<BaseResponse<TResponse>>({
+    const response = await axiosInstance.request<BaseResponse<TResponse> | TResponse>({
       method,
       url,
       params: query,
       data: body,
       signal,
+      ...(timeout !== undefined && { timeout }),
     });
 
-    return response.data.data;
+    if (responseMode === 'raw') {
+      return response.data as TResponse;
+    }
+
+    const wrappedResponse = response.data as BaseResponse<TResponse>;
+
+    if (!wrappedResponse.isSuccess) {
+      throw new ApiError(wrappedResponse.code, wrappedResponse.message);
+    }
+
+    return wrappedResponse.result;
   } catch (error: unknown) {
     if (isCancel(error)) {
+      throw error;
+    }
+
+    if (error instanceof ApiError) {
+      if (import.meta.env.DEV) {
+        console.error(`[실패] ${url} : ${error.message}`);
+      }
       throw error;
     }
 
@@ -60,9 +82,12 @@ export const request = async <TResponse, TBody = unknown>(
       const { status } = response;
       const message = response.data?.message;
 
+      // 서버가 준 실제 메시지가 있으면 그걸 우선함 — 예전엔 상태코드 기준 범용 문구를 먼저
+      // 체크해서 서버가 뭐라고 보내든(예: "진행 중인 훈련 세션을 찾을 수 없습니다") 항상 같은
+      // 뭉뚱그린 문구("이미 존재하는 데이터입니다" 등)만 콘솔에 찍혀 원인 파악을 방해했음
       const displayMessage =
-        RESPONSE_MESSAGE[status as keyof typeof RESPONSE_MESSAGE] ??
         message ??
+        RESPONSE_MESSAGE[status as keyof typeof RESPONSE_MESSAGE] ??
         '알 수 없는 오류가 발생했습니다.';
 
       if (import.meta.env.DEV) {

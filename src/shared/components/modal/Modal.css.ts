@@ -120,9 +120,9 @@ export const confirmDescription = style({
 });
 
 export const warningBox = style({
-  border: `1px solid ${vars.color.dangerLight}`,
+  border: `1px solid ${vars.color.dangerBorder}`,
   borderRadius: vars.radius.md,
-  backgroundColor: '#FFF5F5',
+  backgroundColor: vars.color.dangerSurface,
   padding: vars.space.s4,
   color: vars.color.danger,
   ...vars.typography.body14,

@@ -31,6 +31,12 @@ export const headerRight = style({
   gap: vars.space.s2,
 });
 
+export const nameRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
 export const name = style({
   letterSpacing: '-0.02em',
   color: vars.color.textHigh,
@@ -81,7 +87,7 @@ export const menu = style({
   borderRadius: vars.radius.lg,
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
   backgroundColor: vars.color.white,
-  minWidth: '7.2rem',
+  width: 'max-content',
   overflow: 'hidden',
 });
 
@@ -89,6 +95,7 @@ export const menuItem = style({
   cursor: 'pointer',
   padding: `${vars.space.s3} ${vars.space.s4}`,
   textAlign: 'center',
+  whiteSpace: 'nowrap',
   color: vars.color.textHigh,
   ...vars.typography.body14,
   selectors: {
@@ -100,6 +107,7 @@ export const menuItemDanger = style({
   cursor: 'pointer',
   padding: `${vars.space.s3} ${vars.space.s4}`,
   textAlign: 'center',
+  whiteSpace: 'nowrap',
   color: vars.color.danger,
   ...vars.typography.body14,
   selectors: {
@@ -160,25 +168,4 @@ export const statValueWarning = style({
   color: vars.color.warning,
   fontSize: '1.8rem',
   fontWeight: vars.fontWeight.bold,
-});
-
-export const footer = style({
-  padding: `${vars.space.s4} ${vars.space.s6}`,
-});
-
-export const floorPlanButton = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: vars.space.s1,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  cursor: 'pointer',
-  width: '100%',
-  height: '3.6rem',
-  color: vars.color.textMid,
-  ...vars.typography.body14,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray50 },
-  },
 });

@@ -1,4 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 
 import { vars } from '@styles/global.css';
 
@@ -14,18 +15,36 @@ export const label = style({
   ...vars.typography.body14Medium,
 });
 
-export const trigger = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s4,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  padding: '0 1.6rem',
-  width: '100%',
-  height: '4.4rem',
-  textAlign: 'left',
-  color: vars.color.textHigh,
+export const trigger = recipe({
+  base: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.s4,
+    border: `1px solid ${vars.color.gray100}`,
+    borderRadius: vars.radius.md,
+    backgroundColor: vars.color.white,
+    cursor: 'pointer',
+    padding: '0 1.6rem',
+    width: '100%',
+    height: '4.4rem',
+    textAlign: 'left',
+    color: vars.color.textHigh,
+  },
+  variants: {
+    disabled: {
+      true: {
+        backgroundColor: vars.color.gray50,
+        cursor: 'not-allowed',
+      },
+      false: {},
+    },
+    readOnly: {
+      true: {
+        cursor: 'default',
+      },
+      false: {},
+    },
+  },
 });
 
 export const icon = style({
@@ -41,9 +60,19 @@ globalStyle(`${icon} svg`, {
   height: '2rem',
 });
 
-export const value = style({
-  color: vars.color.textHigh,
-  ...vars.typography.body14,
+export const value = recipe({
+  base: {
+    color: vars.color.textHigh,
+    ...vars.typography.body14,
+  },
+  variants: {
+    disabled: {
+      true: {
+        color: vars.color.textLow,
+      },
+      false: {},
+    },
+  },
 });
 
 export const hiddenInput = style({

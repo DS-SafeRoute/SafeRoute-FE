@@ -1,0 +1,18 @@
+import type { TrainingSessionStatus } from './trainingSessionConstants';
+
+// 훈련 세션 관련 조회 캐시를 관리하는 쿼리키 팩토리
+export const trainingSessionQueryKeys = {
+  // 훈련 세션 전체 쿼리의 루트 키
+  all: ['training-sessions'] as const,
+
+  // 상태별 세션 목록 쿼리의 공통 키
+  lists: () => [...trainingSessionQueryKeys.all, 'list'] as const,
+  // 특정 상태의 세션 목록 쿼리키
+  list: (status: TrainingSessionStatus) => [...trainingSessionQueryKeys.lists(), status] as const,
+
+  // 현재 유효 대피 경로 쿼리의 공통 키
+  currentRoutes: () => [...trainingSessionQueryKeys.all, 'current-route'] as const,
+  // 특정 세션의 현재 유효 대피 경로 쿼리키
+  currentRoute: (sessionId?: string) =>
+    [...trainingSessionQueryKeys.currentRoutes(), sessionId] as const,
+};

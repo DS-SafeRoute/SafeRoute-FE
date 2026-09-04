@@ -1,7 +1,19 @@
 import { createBrowserRouter } from 'react-router';
 
 import AppLayout from '@/layout/AppLayout';
+import ProtectedRoute from '@/routes/ProtectedRoute';
 import { ROUTES } from '@/shared/constants/path';
+
+const loadScenarioSettingsPage = async () => {
+  const { default: ScenarioSettingsPage } =
+    await import('@/pages/scenarioSettings/ScenarioSettingsPage');
+  return { Component: ScenarioSettingsPage };
+};
+
+const loadReportsPage = async () => {
+  const { default: ReportsPage } = await import('@/pages/reports/ReportsPage');
+  return { Component: ReportsPage };
+};
 
 const router = createBrowserRouter([
   {
@@ -27,7 +39,11 @@ const router = createBrowserRouter([
   },
   {
     path: ROUTES.HOME,
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: ROUTES.HOME,
@@ -37,19 +53,20 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.SCENARIO_SETTINGS,
+        path: ROUTES.SCENARIO_LIST,
         lazy: async () => {
-          const { default: ScenarioSettingsPage } =
-            await import('@/pages/scenarioSettings/ScenarioSettingsPage');
-          return { Component: ScenarioSettingsPage };
+          const { default: ScenarioListPage } =
+            await import('@/pages/scenarioSettings/ScenarioListPage');
+          return { Component: ScenarioListPage };
         },
       },
       {
-        path: ROUTES.MANAGEMENT,
-        lazy: async () => {
-          const { default: ManagementPage } = await import('@/pages/management/ManagementPage');
-          return { Component: ManagementPage };
-        },
+        path: ROUTES.SCENARIO_CREATE,
+        lazy: loadScenarioSettingsPage,
+      },
+      {
+        path: ROUTES.SCENARIO_DETAIL,
+        lazy: loadScenarioSettingsPage,
       },
       {
         path: ROUTES.BUILDINGS,
@@ -74,13 +91,6 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.CAMERAS,
-        lazy: async () => {
-          const { default: CamerasPage } = await import('@/pages/cameras/CamerasPage');
-          return { Component: CamerasPage };
-        },
-      },
-      {
         path: ROUTES.TRAINING_ANALYSIS,
         lazy: async () => {
           const { default: TrainingAnalysisPage } =
@@ -89,19 +99,24 @@ const router = createBrowserRouter([
         },
       },
       {
-        path: ROUTES.TRAINING_MONITORING,
+        path: ROUTES.TRAINING_CAMERAS,
         lazy: async () => {
-          const { default: TrainingMonitoringPage } =
-            await import('@/pages/trainingAnalysis/TrainingMonitoringPage');
-          return { Component: TrainingMonitoringPage };
+          const { default: TrainingCamerasPage } =
+            await import('@/pages/trainingAnalysis/TrainingCamerasPage');
+          return { Component: TrainingCamerasPage };
+        },
+      },
+      {
+        path: ROUTES.TRAINING_CAMERA_FRAMES,
+        lazy: async () => {
+          const { default: TrainingCameraFramesPage } =
+            await import('@/pages/trainingAnalysis/TrainingCameraFramesPage');
+          return { Component: TrainingCameraFramesPage };
         },
       },
       {
         path: ROUTES.REPORTS,
-        lazy: async () => {
-          const { default: ReportsPage } = await import('@/pages/reports/ReportsPage');
-          return { Component: ReportsPage };
-        },
+        lazy: loadReportsPage,
       },
     ],
   },

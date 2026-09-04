@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
+
+import { getStartOfToday } from '@pages/scenarioSettings/utils/scenarioSettings';
 
 import CalendarIcon from '@assets/icons/ic-calendar.svg?react';
 
@@ -6,32 +8,52 @@ import * as styles from './DateTimeField.css';
 
 interface DateTimeFieldProps {
   label: string;
-  defaultValue: string;
+  value: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  onChange: (value: string) => void;
 }
 
 const formatDateTime = (value: string) => {
   if (!value) return '';
 
-  const [datePart] = value.split('T');
-  const isDateFormat = /^\d{4}-\d{2}-\d{2}$/.test(datePart);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
 
-  if (!isDateFormat) return '';
+  const pad = (number: number) => String(number).padStart(2, '0');
 
-  const [year, month, day] = datePart.split('-');
-
-  return `${year}.${month}.${day}`;
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
 };
 
-const DateTimeField = ({ label, defaultValue }: DateTimeFieldProps) => {
+const toInputValue = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+};
+
+const DateTimeField = ({
+  label,
+  value,
+  disabled = false,
+  readOnly = false,
+  onChange,
+}: DateTimeFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState(defaultValue);
+  const isInactive = disabled || readOnly;
+  const inputValue = toInputValue(value);
+  const minimumInputValue = toInputValue(getStartOfToday().toISOString());
 
   return (
     <label className={styles.root}>
       <span className={styles.label}>{label}</span>
       <button
         type="button"
-        className={styles.trigger}
+        className={styles.trigger({ disabled, readOnly })}
+        disabled={isInactive}
         onClick={() => {
           inputRef.current?.showPicker?.();
           inputRef.current?.focus();
@@ -40,15 +62,17 @@ const DateTimeField = ({ label, defaultValue }: DateTimeFieldProps) => {
         <span className={styles.icon}>
           <CalendarIcon />
         </span>
-        <span className={styles.value}>{formatDateTime(value)}</span>
+        <span className={styles.value({ disabled })}>{formatDateTime(value)}</span>
       </button>
       <input
         ref={inputRef}
-        type="date"
-        value={value}
+        type="datetime-local"
+        min={minimumInputValue}
+        disabled={isInactive}
+        value={inputValue}
         className={styles.hiddenInput}
         onChange={(event) => {
-          setValue(event.target.value);
+          onChange(event.target.value);
         }}
       />
     </label>
