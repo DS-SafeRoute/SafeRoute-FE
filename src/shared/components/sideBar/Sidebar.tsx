@@ -5,6 +5,8 @@ import { useLocation, useNavigate } from 'react-router';
 import LogoutIcon from '@assets/icons/ic-logout.svg?react';
 import LogoIcon from '@assets/icons/logo.svg?react';
 
+import { ROUTES } from '@constants/path';
+
 import * as styles from './Sidebar.css';
 
 interface SidebarProps {
@@ -35,10 +37,12 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
 
   return (
     <aside className={styles.container}>
-      <header className={styles.header}>
-        <LogoIcon className={styles.logo} aria-hidden="true" focusable="false" />
-        <strong className={styles.brand}>{brand}</strong>
-      </header>
+      <button onClick={() => handleNavigate(ROUTES.HOME)} aria-label="홈으로 이동">
+        <header className={styles.header}>
+          <LogoIcon className={styles.logo} aria-hidden="true" focusable="false" />
+          <strong className={styles.brand}>{brand}</strong>
+        </header>
+      </button>
 
       <nav aria-label="사이드바 메뉴" className={styles.navigation}>
         <ul className={styles.list}>
