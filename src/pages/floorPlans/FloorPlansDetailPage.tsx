@@ -226,7 +226,8 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
 
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 문·계단에서만 의미 있음(시작 후보·복도는 항상 false — 시작 후보는 서버가
+   isFinalExit은 계단에서만 의미 있음(문/출입구는 층 사이를 잇는 탈출 경로가 아니라 최종
+   탈출구로 지정할 수 없음. 복도·시작 후보도 항상 false — 시작 후보는 서버가
    isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
    에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
    시작점" 확정은 시나리오 설정에서 발화점 셀과 함께 처리함) */
@@ -265,9 +266,9 @@ const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   STAIR: 'stair',
   HALLWAY: 'hallway',
   START: 'start',
-  // 최종 탈출구로 지정하면 서버 노드 타입이 EXIT로 올라옴 — 편집기에선 계속 문 카드로 다뤄
-  // '최종 탈출구' 배지·해제 토글이 유지되게 함(해제 시 DOOR로 복원되므로 계단→문 전환은 감수)
-  EXIT: 'door',
+  // 최종 탈출구로 지정하면 서버 노드 타입이 EXIT로 올라옴 — 편집기에선 계속 계단 카드로 다뤄
+  // '최종 탈출구' 배지·해제 토글이 유지되게 함(해제 시 STAIR로 복원)
+  EXIT: 'stair',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
@@ -2211,8 +2212,9 @@ const FloorPlansDetailPage = () => {
                 type: structureType,
                 x: n.x * CANVAS_W,
                 y: n.y * canvasH,
-                // EXIT 타입은 그 자체가 최종 탈출구 — isExitTarget 값과 무관하게 배지 유지
-                isFinalExit: n.type === 'EXIT' || n.isExitTarget,
+                // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
+                // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
+                isFinalExit: n.type === 'EXIT',
               },
             ];
           });
@@ -3081,10 +3083,10 @@ const FloorPlansDetailPage = () => {
     }
   };
 
-  // 최종 탈출구 지정은 문·계단에서만 의미 있음 — 서버에도 저장(실패 시 롤백).
+  // 최종 탈출구 지정은 계단에서만 가능 — 서버에도 저장(실패 시 롤백).
   // 경로 탐색기(GET /sessions/{id}/current-route)는 type === 'EXIT'인 노드만 대피 목적지로
   // 인식함(EVAC005 "도달 가능한 EXIT 노드가 없습니다") — isExitTarget 플래그만으론 안 잡히므로
-  // 지정 시 노드 타입을 EXIT로 승격하고, 해제 시 원래 구조 타입(DOOR/STAIR)으로 되돌린다.
+  // 지정 시 노드 타입을 EXIT로 승격하고, 해제 시 원래 구조 타입(STAIR)으로 되돌린다.
   const handleToggleFinalExit = (id: string) => {
     const node = structureNodes.find((n) => n.id === id);
     if (!node) return;
@@ -3391,6 +3393,42 @@ const FloorPlansDetailPage = () => {
     setEdgeAddOpen(true);
   };
 
+  // 시작 후보 중 하나라도 엣지를 따라 최종 탈출구까지 이어지는지 (훈련 준비 체크리스트용).
+  // 이 경로가 없으면 경로 탐색기가 EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 —
+  // 시작 노드가 그래프에 아예 연결 안 돼 있어도 여기서 걸림. graphEdges + structureNodes로 BFS.
+  const hasRouteFromStartToExit = useMemo(() => {
+    const startNodes = structureNodes.filter((n) => n.type === 'start');
+    const exitIds = new Set(structureNodes.filter((n) => n.isFinalExit).map((n) => n.id));
+    if (startNodes.length === 0 || exitIds.size === 0) return false;
+
+    const adjacency = new Map<string, string[]>();
+    const link = (from: string, to: string) => {
+      const list = adjacency.get(from);
+      if (list) list.push(to);
+      else adjacency.set(from, [to]);
+    };
+    for (const edge of graphEdges) {
+      link(edge.fromNodeId, edge.toNodeId);
+      if (edge.bidirectional) link(edge.toNodeId, edge.fromNodeId);
+    }
+
+    return startNodes.some((start) => {
+      const visited = new Set([start.id]);
+      const queue = [start.id];
+      while (queue.length > 0) {
+        const current = queue.shift() as string;
+        if (exitIds.has(current)) return true;
+        for (const next of adjacency.get(current) ?? []) {
+          if (!visited.has(next)) {
+            visited.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      return false;
+    });
+  }, [structureNodes, graphEdges]);
+
   // 다른 삭제(장비/POI)는 전부 확인 모달을 거치는데 구역만 클릭 즉시 삭제되고 있어서 맞춤
   const handleZoneDeleteRequest = (zone: ZoneEntry) => setZoneDeleteTarget(zone);
   const handleZoneDeleteCancel = () => setZoneDeleteTarget(null);
@@ -3438,7 +3476,8 @@ const FloorPlansDetailPage = () => {
             </span>
           </span>
           <span className={styles.zoneCardHeaderActions}>
-            {(n.type === 'door' || n.type === 'stair') && (
+            {/* 최종 탈출구는 계단에서만 지정 — 문/출입구는 층 내부 통로라 제외 */}
+            {n.type === 'stair' && (
               <button
                 type="button"
                 className={n.isFinalExit ? styles.finalExitBadge : styles.finalExitToggle}
@@ -3881,13 +3920,15 @@ const FloorPlansDetailPage = () => {
               <ReadinessChecklist
                 hasStartNode={structureNodes.some((n) => n.type === 'start')}
                 hasFinalExit={structureNodes.some((n) => n.isFinalExit)}
-                hasDoorOrStair={structureNodes.some((n) => n.type === 'door' || n.type === 'stair')}
+                hasStair={structureNodes.some((n) => n.type === 'stair')}
+                hasRouteToExit={hasRouteFromStartToExit}
                 onAddStartNode={() => handleOpenNodeAdd('start')}
-                onAddDoor={() => handleOpenNodeAdd('door')}
+                onAddStair={() => handleOpenNodeAdd('stair')}
                 onFocusDeviceCards={() => {
                   setTopFilter('device');
                   setDeviceTypeFilter([]);
                 }}
+                onConnectEdges={handleOpenEdgeAdd}
               />
             )}
           </div>
