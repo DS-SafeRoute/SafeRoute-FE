@@ -2459,6 +2459,9 @@ const FloorPlansDetailPage = () => {
   const [edgeAddOpen, setEdgeAddOpen] = useState(false);
   const [edgeDraftFromId, setEdgeDraftFromId] = useState<string | null>(null);
   const [edgeDraftToId, setEdgeDraftToId] = useState<string | null>(null);
+  // 엣지 연결 모드는 여러 개를 연달아 만들 수 있게 유지되는데, 그러다 보니 "완료"가 언제
+  // 끝나는지 감이 안 온다는 피드백 — 지금까지 몇 개 만들었는지 패널에 보여주기 위한 카운트
+  const [edgeCreatedCount, setEdgeCreatedCount] = useState(0);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneEntry[]>([]);
   // 구역 재설정(재드래그) 중인 기존 구역 id — null이면 zoneAddOpen은 "새 구역 추가" 흐름.
@@ -3301,6 +3304,7 @@ const FloorPlansDetailPage = () => {
     setEdgeDraftFromId(null);
     setEdgeDraftToId(null);
     setEdgeAddOpen(false);
+    setEdgeCreatedCount(0);
   };
 
   const handleCreateEdge = (distance: number, bidirectional: boolean) => {
@@ -3313,6 +3317,7 @@ const FloorPlansDetailPage = () => {
     })
       .then((newEdge) => {
         setGraphEdges((prev) => [...prev, newEdge]);
+        setEdgeCreatedCount((prev) => prev + 1);
       })
       .catch((error: unknown) => {
         // 실패해도 조용히 넘어가던 자리라 "노드가 너무 가까우면 연결이 안 되는" 것처럼 보이던
@@ -3520,6 +3525,7 @@ const FloorPlansDetailPage = () => {
     setZoneAddOpen(false);
     setSelectedEdgeId(null);
     setEdgeAddOpen(true);
+    setEdgeCreatedCount(0);
   };
 
   // 추가/편집 모드는 이제 바깥 클릭으로 안 닫히므로(캔버스가 아닌 다른 영역을 눌러도 진행
@@ -4184,6 +4190,9 @@ const FloorPlansDetailPage = () => {
               <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.nodeAddHeader}>
                   <span className={styles.nodeAddTitle}>엣지 연결</span>
+                  {edgeCreatedCount > 0 && (
+                    <span className={styles.nodeAddStepBadge}>{edgeCreatedCount}개 연결됨</span>
+                  )}
                 </div>
                 <span className={styles.nodeAddHint}>
                   {edgeDraftFromId
@@ -4202,10 +4211,14 @@ const FloorPlansDetailPage = () => {
                   )}
                   <button
                     type="button"
-                    className={styles.nodeAddSubmitBtn}
+                    // 아직 하나도 안 만들었으면 "완료"가 아니라 "취소"가 맞는 표현 — 지금까지
+                    // 만든 게 있어야 완료라는 말이 성립함
+                    className={
+                      edgeCreatedCount > 0 ? styles.nodeAddSubmitBtn : styles.nodeAddCancelBtn
+                    }
                     onClick={handleExitEdgeMode}
                   >
-                    완료
+                    {edgeCreatedCount > 0 ? '완료' : '취소'}
                   </button>
                 </div>
               </div>
