@@ -265,14 +265,15 @@ const FloorPlansPage = () => {
         setPendingUpload(null);
         setIsUploading(false);
         void navigate(`/floorPlans/${buildingId}/${newFloor.id}`);
-        // 분석 요청은 서버에서 오래 걸려 타임아웃될 수 있는데, 타임아웃은 '분석이 시작됐다'는 증거가
-        // 아니므로 성공으로 넘기지 않는다. 상세 화면이 상태를 폴링하니 그쪽에서 확인하도록 안내만 구분
+        // 분석 요청은 서버에서 오래 걸려 타임아웃되거나(ECONNABORTED), 업로드가 이미 분석을
+        // 트리거해 재요청이 5xx로 떨어질 수 있다. 어느 쪽이든 여기서 "실패"로 단정하지 않는다 —
+        // 실제 진행 상태는 상세 화면이 폴링하며, 필요하면 그곳에서 재시도할 수 있다.
         analyzeFloor(newFloor.id).catch((error: unknown) => {
           const timedOut = isAxiosError(error) && error.code === 'ECONNABORTED';
           show({
             title: timedOut
-              ? '분석 요청 응답이 지연되고 있습니다. 상세 화면에서 진행 상태를 확인해주세요.'
-              : '도면 분석 요청에 실패했습니다. 상세 화면에서 다시 시도해주세요.',
+              ? 'AI 분석이 진행 중입니다. 상세 화면에서 완료 여부를 확인해주세요.'
+              : 'AI 분석 상태는 상세 화면에서 확인할 수 있어요. 완료되지 않았다면 그곳에서 다시 시도해주세요.',
             variant: 'warning',
           });
         });
