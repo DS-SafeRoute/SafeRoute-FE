@@ -265,6 +265,9 @@ const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
   STAIR: 'stair',
   HALLWAY: 'hallway',
   START: 'start',
+  // 최종 탈출구로 지정하면 서버 노드 타입이 EXIT로 올라옴 — 편집기에선 계속 문 카드로 다뤄
+  // '최종 탈출구' 배지·해제 토글이 유지되게 함(해제 시 DOOR로 복원되므로 계단→문 전환은 감수)
+  EXIT: 'door',
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
@@ -2208,7 +2211,8 @@ const FloorPlansDetailPage = () => {
                 type: structureType,
                 x: n.x * CANVAS_W,
                 y: n.y * canvasH,
-                isFinalExit: n.isExitTarget,
+                // EXIT 타입은 그 자체가 최종 탈출구 — isExitTarget 값과 무관하게 배지 유지
+                isFinalExit: n.type === 'EXIT' || n.isExitTarget,
               },
             ];
           });
@@ -3077,7 +3081,10 @@ const FloorPlansDetailPage = () => {
     }
   };
 
-  // 최종 탈출구 지정은 문에서만 의미 있음 — 서버에도 저장(실패 시 롤백)
+  // 최종 탈출구 지정은 문·계단에서만 의미 있음 — 서버에도 저장(실패 시 롤백).
+  // 경로 탐색기(GET /sessions/{id}/current-route)는 type === 'EXIT'인 노드만 대피 목적지로
+  // 인식함(EVAC005 "도달 가능한 EXIT 노드가 없습니다") — isExitTarget 플래그만으론 안 잡히므로
+  // 지정 시 노드 타입을 EXIT로 승격하고, 해제 시 원래 구조 타입(DOOR/STAIR)으로 되돌린다.
   const handleToggleFinalExit = (id: string) => {
     const node = structureNodes.find((n) => n.id === id);
     if (!node) return;
@@ -3088,6 +3095,7 @@ const FloorPlansDetailPage = () => {
     updateMapNodePosition(id, {
       x: node.x / CANVAS_W,
       y: node.y / canvasH,
+      type: nextIsFinalExit ? 'EXIT' : STRUCTURE_NODE_API_TYPE[node.type],
       isExitTarget: nextIsFinalExit,
     }).catch((error: unknown) => {
       setStructureNodes((prev) =>
