@@ -9,7 +9,6 @@ export const ROUTES = {
   BUILDINGS: '/buildings',
   FLOOR_PLANS: '/floorPlans',
   FLOOR_PLANS_DETAIL: '/floorPlans/:buildingId/:floorId',
-  CAMERAS: '/cameras',
   // 훈련분석: 종료된 훈련 목록 → 훈련(세션)별 카메라 목록 → 카메라별 프레임 상세, 3단 drill-down
   TRAINING_ANALYSIS: '/trainingAnalysis',
   TRAINING_CAMERAS: '/trainingAnalysis/:sessionId/cameras',
