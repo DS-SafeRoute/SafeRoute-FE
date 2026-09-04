@@ -765,6 +765,8 @@ export type DeactivateBuildingData = ApiResponseVoid;
 
 export type DeleteBuildingData = ApiResponseVoid;
 
+export type DeleteCctvData = ApiResponseVoid;
+
 export type DeleteEdgeData = ApiResponseVoid;
 
 export type DeleteFloorData = ApiResponseVoid;

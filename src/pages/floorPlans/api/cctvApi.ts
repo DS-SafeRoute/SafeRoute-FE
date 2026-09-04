@@ -43,6 +43,13 @@ export async function updateCctv(cctvId: string, body: UpdateCctvRequest): Promi
   return toCctv(cctv);
 }
 
+export async function deleteCctv(cctvId: string): Promise<void> {
+  await apiRequest<void>({
+    method: HTTP_METHOD.DELETE,
+    url: API_ENDPOINTS.CCTV.DETAIL(cctvId),
+  });
+}
+
 export async function enableCctv(cctvId: string): Promise<Cctv> {
   const cctv = await apiRequest<CctvResponse>({
     method: HTTP_METHOD.PATCH,
