@@ -10,6 +10,12 @@ export const container = style({
   padding: vars.space.s8,
   minHeight: '100%',
   overflowY: 'auto',
+  // 스크롤은 그대로 되지만 막대는 안 보이게(도면 관리 상세 페이지와 동일한 처리)
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
 });
 
 export const stateMessage = style({
