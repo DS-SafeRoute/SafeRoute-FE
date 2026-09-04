@@ -72,3 +72,16 @@ export const readinessActionBtn = style({
     '&:hover': { backgroundColor: vars.color.primaryLight2 },
   },
 });
+
+// 앞 단계(시작 노드·최종 탈출구)가 안 끝나 지금은 누를 수 없는 상태 — 항목 자체는 계속
+// 보여주되, 버튼을 회색으로 바꾸고 라벨에 뭘 먼저 해야 하는지 안내함
+export const readinessActionBtnDisabled = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray50,
+  cursor: 'not-allowed',
+  padding: `0.2rem ${vars.space.s3}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});

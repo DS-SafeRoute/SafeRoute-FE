@@ -12,8 +12,8 @@ import * as styles from './ReadinessChecklist.css';
 // 발화점을 다루지 않음.
 //
 // 경로(엣지) 항목: 시작 노드·최종 탈출구가 있어도 둘을 잇는 엣지가 없으면 경로 탐색기가
-// EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 — 시작/탈출구가 준비된 뒤에만
-// 의미가 있어 그 전에는 표시하지 않음.
+// EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 — 세 항목이 뭐가 필요한지 한눈에
+// 보이도록 앞 단계가 안 끝났어도 항목 자체는 항상 보여주고, 버튼만 비활성화해서 안내함
 interface ReadinessChecklistProps {
   hasStartNode: boolean;
   hasFinalExit: boolean;
@@ -35,8 +35,15 @@ const ReadinessChecklist = ({
   onFocusDeviceCards,
   onConnectEdges,
 }: ReadinessChecklistProps) => {
-  // 시작/탈출구가 모두 준비돼야 경로 연결을 물을 단계 — 그 전엔 위 두 항목부터 안내
-  const showRouteItem = hasStartNode && hasFinalExit;
+  // 시작/탈출구가 모두 준비돼야 엣지 연결 버튼을 누를 수 있음 — 그 전엔 항목은 보이되
+  // 버튼을 비활성화하고 뭘 먼저 해야 하는지 안내함
+  const canConnectRoute = hasStartNode && hasFinalExit;
+  const routeBlockedLabel =
+    !hasStartNode && !hasFinalExit
+      ? '시작 노드·최종 탈출구 먼저 설정'
+      : !hasStartNode
+        ? '시작 노드 먼저 설정'
+        : '최종 탈출구 먼저 설정';
 
   return (
     <div className={styles.readinessCard}>
@@ -77,23 +84,23 @@ const ReadinessChecklist = ({
         )}
       </div>
 
-      {showRouteItem && (
-        <div className={styles.readinessItem}>
-          <div className={styles.readinessItemLabel}>
-            <span
-              className={clsx(styles.readinessDot, hasRouteToExit && styles.readinessDotDone)}
-            />
-            시작 지점 → 탈출구 경로
-          </div>
-          {hasRouteToExit ? (
-            <span className={styles.readinessDoneText}>완료</span>
-          ) : (
-            <button type="button" className={styles.readinessActionBtn} onClick={onConnectEdges}>
-              엣지 연결
-            </button>
-          )}
+      <div className={styles.readinessItem}>
+        <div className={styles.readinessItemLabel}>
+          <span className={clsx(styles.readinessDot, hasRouteToExit && styles.readinessDotDone)} />
+          탈출 경로
         </div>
-      )}
+        {hasRouteToExit ? (
+          <span className={styles.readinessDoneText}>완료</span>
+        ) : canConnectRoute ? (
+          <button type="button" className={styles.readinessActionBtn} onClick={onConnectEdges}>
+            엣지 연결
+          </button>
+        ) : (
+          <button type="button" className={styles.readinessActionBtnDisabled} disabled>
+            {routeBlockedLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
