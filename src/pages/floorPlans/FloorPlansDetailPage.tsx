@@ -1301,19 +1301,23 @@ const EdgeAddPopup = ({
   // 두 노드 좌표 + 그리드 배율로 계산한 추정 거리(m). 없으면 수동 입력
   suggestedDistance: number | null;
   onCancel: () => void;
+  // distance는 m 단위(백엔드 저장 단위) — 입력창은 cm라 여기서 넘기기 전에 변환함
   onSave: (distance: number, bidirectional: boolean) => void;
 }) => {
-  const [distance, setDistance] = useState(
-    suggestedDistance !== null ? String(suggestedDistance) : '',
+  // 실내 노드 간 거리는 1m 미만도 흔해서 cm로 입력받음(정수로 편하게 입력, 저장은 m로 환산)
+  const [distanceCm, setDistanceCm] = useState(
+    suggestedDistance !== null ? String(Math.round(suggestedDistance * 100)) : '',
   );
   const [bidirectional, setBidirectional] = useState(true);
 
   const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    if (raw === '' || /^\d+(\.\d+)?$/.test(raw)) setDistance(raw);
+    // 완성된 숫자만 허용하면 "495"를 지우다 "4"처럼 될 때까지 중간 상태(끝자리 삭제 등)가
+    // 거부돼 편집이 막히던 문제 — 타이핑 도중 상태(끝에 점만 있거나 소수부가 빈 경우)도 허용
+    if (raw === '' || /^\d*\.?\d*$/.test(raw)) setDistanceCm(raw);
   };
 
-  const isValid = Number(distance) > 0;
+  const isValid = Number(distanceCm) > 0;
 
   return (
     <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
@@ -1325,14 +1329,14 @@ const EdgeAddPopup = ({
       </span>
 
       <div className={styles.nodeAddField}>
-        <span className={styles.nodeAddLabel}>거리(m)</span>
+        <span className={styles.nodeAddLabel}>거리(cm)</span>
         <input
           className={styles.nodeAddInput}
           type="text"
           inputMode="decimal"
-          value={distance}
+          value={distanceCm}
           onChange={handleDistanceChange}
-          placeholder="3.5"
+          placeholder="350"
         />
         {suggestedDistance !== null && (
           <span className={styles.nodeAddSubHint}>좌표 기준 추정값 · 필요하면 수정하세요</span>
@@ -1356,7 +1360,7 @@ const EdgeAddPopup = ({
           type="button"
           className={styles.nodeAddSubmitBtn}
           disabled={!isValid}
-          onClick={() => onSave(Number(distance), bidirectional)}
+          onClick={() => onSave(Number(distanceCm) / 100, bidirectional)}
         >
           추가
         </button>
@@ -3258,7 +3262,12 @@ const FloorPlansDetailPage = () => {
       .then((newEdge) => {
         setGraphEdges((prev) => [...prev, newEdge]);
       })
-      .catch(() => {})
+      .catch((error: unknown) => {
+        // 실패해도 조용히 넘어가던 자리라 "노드가 너무 가까우면 연결이 안 되는" 것처럼 보이던
+        // 문제의 원인을 알 수 없었음 — 서버 메시지를 그대로 보여줌
+        const { message } = extractServerError(error);
+        show({ title: message || '엣지 연결에 실패했습니다.', variant: 'error' });
+      })
       .finally(() => {
         // 모드는 유지 — 연달아 엣지를 그리다가 "완료"로 끝낸다
         setEdgeDraftFromId(null);
