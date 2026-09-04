@@ -14,6 +14,7 @@ import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import SegmentedProgressBar from '@components/progress/SegmentedProgressBar';
+import Skeleton from '@components/skeleton/Skeleton';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
@@ -56,7 +57,11 @@ const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
 // 진행바로 "3개 중 몇 개 완료"만 한눈에 보여줌 — 3/3이면 완료와 같은 초록, 일부만 됐으면
 // 진행중과 같은 주황, 하나도 안 됐으면 무채색(공용 컴포넌트: SegmentedProgressBar)
 const ReadinessProgress = ({ readiness }: { readiness: FloorReadiness }) => {
-  if (readiness.isLoading) return <span className={styles.metaValue}>—</span>;
+  // 카드마다 조회가 따로 돌아 완료 시점이 제각각이라, 로딩 중엔 빈 값(—) 대신 자리표시자를
+  // 보여줘서 도착한 카드부터 하나씩 팝업하는 느낌 대신 "다 같이 준비 중"으로 보이게 함
+  if (readiness.isLoading) {
+    return <Skeleton width="4rem" height="0.5rem" className={styles.readinessProgressBar} />;
+  }
   const doneCount = [
     readiness.hasStartNode,
     readiness.hasFinalExit,

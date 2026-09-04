@@ -6,6 +6,8 @@ import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import LayersIcon from '@assets/icons/ic-layers.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
 
+import Skeleton from '@components/skeleton/Skeleton';
+
 import * as styles from './BuildingCard.css';
 import { useBuildingDeviceStatsQuery } from '../../api/useBuildingDeviceStatsQuery';
 
@@ -33,12 +35,10 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const { cctvTotal, cctvOnline, iotTotal, iotOnline } = deviceStats;
   const isIotWarning = iotOnline < iotTotal;
   // 등록된 장비가 없는 층/건물에서 "0/0"이 마치 오류값처럼 보인다는 피드백 — 등록 대수가
-  // 아예 없을 땐 "없음"을 뜻하는 "-"로 보여줌(같은 카드의 최근 훈련일 미기록 표기와 통일)
-  const formatCount = (online: number, total: number) => {
-    if (deviceStats.isLoading) return '–';
-    if (total === 0) return '-';
-    return `${online}/${total}`;
-  };
+  // 아예 없을 땐 "없음"을 뜻하는 "-"로 보여줌(같은 카드의 최근 훈련일 미기록 표기와 통일).
+  // 로딩 중엔 formatCount가 아니라 Skeleton으로 따로 표시함(건물 카드마다 조회가 따로 돌아
+  // 완료 시점이 제각각이라, 텍스트가 카드별로 들쭉날쭉 팝업되는 것보다 자리표시자가 나음)
+  const formatCount = (online: number, total: number) => (total === 0 ? '-' : `${online}/${total}`);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -115,14 +115,20 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
             <CameraIcon className={styles.cctvIcon} width={14} height={14} />
             CCTV
           </span>
-          <span className={styles.statValue}>{formatCount(cctvOnline, cctvTotal)}</span>
+          {deviceStats.isLoading ? (
+            <Skeleton width="3.2rem" height="1.4rem" />
+          ) : (
+            <span className={styles.statValue}>{formatCount(cctvOnline, cctvTotal)}</span>
+          )}
         </div>
         <div className={styles.statItem}>
           <span className={styles.statLabel}>
             <WifiIcon className={styles.iotIcon} width={14} height={14} />
             IoT 유도등
           </span>
-          {isIotWarning ? (
+          {deviceStats.isLoading ? (
+            <Skeleton width="3.2rem" height="1.4rem" />
+          ) : isIotWarning ? (
             <span className={styles.statValueWarning}>
               {formatCount(iotOnline, iotTotal)}
               <span role="img" aria-label="경고">
