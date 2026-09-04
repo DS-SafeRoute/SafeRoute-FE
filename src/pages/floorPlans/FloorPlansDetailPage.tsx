@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
 import { ApiError } from '@apis/errors/apiError';
+import { floorQueryKeys } from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -33,6 +35,7 @@ import { formatAreaM2 } from '@utils/format';
 import {
   configureCctvGridCells,
   createCctv,
+  deleteCctv,
   disableCctv,
   enableCctv,
   getFloorCctvs,
@@ -2005,6 +2008,7 @@ const FloorCanvas = ({
 /* ── 메인 페이지 ── */
 const FloorPlansDetailPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
   const { show } = useToast();
 
@@ -2073,6 +2077,7 @@ const FloorPlansDetailPage = () => {
     setSelectedItem(null);
     setSelectedZoneRef(null);
     setSelectedEdgeId(null);
+    setDeleteConfirmTarget(null);
     setEditingItemId(null);
     setEditingStructureId(null);
     setEditingZoneId(null);
@@ -2637,6 +2642,7 @@ const FloorPlansDetailPage = () => {
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
     setSelectedItem(null);
+    setDeleteConfirmTarget(null);
     setNodeAddOpen(false);
     setZoneAddOpen(false);
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
@@ -3918,8 +3924,36 @@ const FloorPlansDetailPage = () => {
   const handleDeleteConfirm = () => {
     const item = deleteConfirmTarget;
     if (!item || isDeletingItem) return;
+    if (
+      item.source === 'added' &&
+      item.type === 'cctv' &&
+      !realCctvs.some((cctv) => cctv.id === item.id && cctv.floorId === floorId)
+    ) {
+      setDeleteConfirmTarget(null);
+      return;
+    }
     if (editingItemId === item.id) setEditingItemId(null);
     if (item.source === 'added') {
+      if (item.type === 'cctv') {
+        setIsDeletingItem(true);
+        deleteCctv(item.id)
+          .then(() => {
+            handleAddedDeviceDelete(item.id);
+            setRealCctvs((prev) => prev.filter((cctv) => cctv.id !== item.id));
+            setSelectedItem((prev) =>
+              prev?.kind === 'device' && prev.data.id === item.id ? null : prev,
+            );
+            if (editingCctvId === item.id) handleCancelEditCctvCells();
+            setDeleteConfirmTarget(null);
+            void queryClient.invalidateQueries({ queryKey: floorQueryKeys.cctv(floorId) });
+          })
+          .catch((error: unknown) => {
+            const { message } = extractServerError(error);
+            show({ title: message || 'CCTV 삭제에 실패했습니다.', variant: 'error' });
+          })
+          .finally(() => setIsDeletingItem(false));
+        return;
+      }
       if (item.type === 'light') {
         // 서버에서 이 유도등이 붙어있던 노드·엣지까지 cascade로 함께 삭제됨
         setIsDeletingItem(true);
