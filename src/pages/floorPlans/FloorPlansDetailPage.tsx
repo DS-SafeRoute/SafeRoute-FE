@@ -2077,6 +2077,7 @@ const FloorPlansDetailPage = () => {
     setSelectedItem(null);
     setSelectedZoneRef(null);
     setSelectedEdgeId(null);
+    setDeleteConfirmTarget(null);
     setEditingItemId(null);
     setEditingStructureId(null);
     setEditingZoneId(null);
@@ -2641,6 +2642,7 @@ const FloorPlansDetailPage = () => {
   const handleFloorChange = (newId: string) => {
     setSelectedFloorId(newId);
     setSelectedItem(null);
+    setDeleteConfirmTarget(null);
     setNodeAddOpen(false);
     setZoneAddOpen(false);
     void navigate(`/floorPlans/${selectedBuildingId}/${newId}`);
@@ -3922,6 +3924,14 @@ const FloorPlansDetailPage = () => {
   const handleDeleteConfirm = () => {
     const item = deleteConfirmTarget;
     if (!item || isDeletingItem) return;
+    if (
+      item.source === 'added' &&
+      item.type === 'cctv' &&
+      !realCctvs.some((cctv) => cctv.id === item.id && cctv.floorId === floorId)
+    ) {
+      setDeleteConfirmTarget(null);
+      return;
+    }
     if (editingItemId === item.id) setEditingItemId(null);
     if (item.source === 'added') {
       if (item.type === 'cctv') {

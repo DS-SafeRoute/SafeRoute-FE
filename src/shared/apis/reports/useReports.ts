@@ -22,8 +22,9 @@ export const useGenerateTrainingReportMutation = () => {
   return useMutation({
     mutationFn: postTrainingReport,
     onSuccess: (report) => {
-      if (!report.reportId) return;
-      queryClient.setQueryData(reportQueryKeys.detail(report.reportId), report);
+      if (report.reportId) {
+        queryClient.setQueryData(reportQueryKeys.detail(report.reportId), report);
+      }
       void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all });
       void queryClient.invalidateQueries({
         queryKey: dashboardQueryKeys.recentTrainings(),
