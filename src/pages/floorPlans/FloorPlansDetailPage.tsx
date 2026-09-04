@@ -1334,11 +1334,11 @@ const NodeAddPopup = ({
                 />
               </div>
               <div className={styles.nodeAddField}>
-                <span className={styles.nodeAddLabel}>왼쪽 가이던스 엣지</span>
+                <span className={styles.nodeAddLabel}>왼쪽 경로 엣지</span>
                 <Dropdown
                   shape="rounded"
                   fullWidth
-                  ariaLabel="왼쪽 가이던스 엣지"
+                  ariaLabel="왼쪽 경로 엣지"
                   disabled={!lightDecisionNodeId}
                   options={lightEdgeOptions
                     .filter(
@@ -1354,11 +1354,11 @@ const NodeAddPopup = ({
                 />
               </div>
               <div className={styles.nodeAddField}>
-                <span className={styles.nodeAddLabel}>오른쪽 가이던스 엣지</span>
+                <span className={styles.nodeAddLabel}>오른쪽 경로 엣지</span>
                 <Dropdown
                   shape="rounded"
                   fullWidth
-                  ariaLabel="오른쪽 가이던스 엣지"
+                  ariaLabel="오른쪽 경로 엣지"
                   disabled={!lightDecisionNodeId}
                   options={lightEdgeOptions
                     .filter(
@@ -1896,7 +1896,7 @@ const DeviceCard = ({
             className={styles.deviceCardRow}
             title="화재 시 이 유도등이 갈림길(판단 노드)에서 왼쪽/오른쪽 중 어느 통로로 사람들을 안내할지 정해요"
           >
-            <span className={styles.deviceCardKey}>가이던스 · 방향</span>
+            <span className={styles.deviceCardKey}>경로 · 방향</span>
             {editing ? (
               <button
                 type="button"
@@ -1942,7 +1942,7 @@ const DeviceCard = ({
               <Dropdown
                 shape="rounded"
                 fullWidth
-                ariaLabel="왼쪽 가이던스 엣지"
+                ariaLabel="왼쪽 경로 엣지"
                 disabled={!editForm.decisionNodeId}
                 options={lightEdgeOptions
                   .filter(
@@ -1959,7 +1959,7 @@ const DeviceCard = ({
               <Dropdown
                 shape="rounded"
                 fullWidth
-                ariaLabel="오른쪽 가이던스 엣지"
+                ariaLabel="오른쪽 경로 엣지"
                 disabled={!editForm.decisionNodeId}
                 options={lightEdgeOptions
                   .filter(
@@ -3104,7 +3104,7 @@ const FloorPlansDetailPage = () => {
                 )
                 .catch((error: unknown) => {
                   const { message } = extractServerError(error);
-                  show({ title: message || '가이던스 저장에 실패했습니다.', variant: 'error' });
+                  show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
                 });
             }
             if (cctvId) {
@@ -4301,7 +4301,7 @@ const FloorPlansDetailPage = () => {
             )
             .catch((error: unknown) => {
               const { message } = extractServerError(error);
-              show({ title: message || '가이던스 저장에 실패했습니다.', variant: 'error' });
+              show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
             });
         }
 
