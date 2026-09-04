@@ -64,6 +64,16 @@ const BuildingAddModal = ({
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
+  // validate()와 판정 기준을 그대로 따름(에러 문구를 만들지 않고 통과 여부만 봄) —
+  // 두 곳이 서로 다른 기준으로 갈라지면 "추가" 버튼은 켜졌는데 제출은 막히는 등 어긋날 수 있음
+  const isFormValid =
+    form.name.trim().length >= 2 &&
+    form.name.trim().length <= 20 &&
+    form.address.trim().length >= 8 &&
+    form.address.trim().length <= 100 &&
+    isPositiveInt(form.aboveFloors) &&
+    (!form.belowFloors.trim() || isNonNegativeInt(form.belowFloors));
+
   const validate = () => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) next.name = '건물명을 입력해 주세요';
@@ -114,8 +124,8 @@ const BuildingAddModal = ({
           <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
             취소
           </Button>
-          <Button onClick={handleConfirm} isLoading={isSubmitting}>
-            추가 완료
+          <Button onClick={handleConfirm} isLoading={isSubmitting} disabled={!isFormValid}>
+            추가
           </Button>
         </>
       }

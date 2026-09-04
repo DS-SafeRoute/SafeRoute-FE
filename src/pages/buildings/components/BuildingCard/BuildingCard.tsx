@@ -32,8 +32,13 @@ const BuildingCard = ({ building, onEdit, onDelete }: BuildingCardProps) => {
   const deviceStats = useBuildingDeviceStatsQuery(building.id);
   const { cctvTotal, cctvOnline, iotTotal, iotOnline } = deviceStats;
   const isIotWarning = iotOnline < iotTotal;
-  const formatCount = (online: number, total: number) =>
-    deviceStats.isLoading ? '–' : `${online}/${total}`;
+  // 등록된 장비가 없는 층/건물에서 "0/0"이 마치 오류값처럼 보인다는 피드백 — 등록 대수가
+  // 아예 없을 땐 "없음"을 뜻하는 "-"로 보여줌(같은 카드의 최근 훈련일 미기록 표기와 통일)
+  const formatCount = (online: number, total: number) => {
+    if (deviceStats.isLoading) return '–';
+    if (total === 0) return '-';
+    return `${online}/${total}`;
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
