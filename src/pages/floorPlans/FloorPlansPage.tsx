@@ -21,12 +21,14 @@ import { formatFloor, hasFloorPlan } from '@utils/floor';
 
 import { setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { useFloorReadinessQuery } from './api/useFloorReadinessQuery';
 import * as styles from './FloorPlansPage.css';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import { rememberPendingGridSize } from './utils/gridStorage';
 
+import type { FloorReadiness } from './api/useFloorReadinessQuery';
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
 const NONE_STATUS_BADGE: { label: string; color: StatusBadgeColor } = {
@@ -41,21 +43,28 @@ const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBa
   FAILED: { label: '실패', color: 'red' },
 };
 
-const formatDate = (iso: string | null) => {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
   if (status === 'DONE') return <span className={styles.metaValueDone}>완료</span>;
   if (status === 'PENDING') return <span className={styles.metaValuePending}>대기중</span>;
   if (status === 'PROCESSING') return <span className={styles.metaValuePending}>처리중</span>;
   if (status === 'FAILED') return <span className={styles.metaValueFailed}>실패</span>;
   return <span className={styles.metaValue}>—</span>;
+};
+
+// 항목별 내역(시작 노드·최종 탈출구·탈출 경로)은 상세보기에서 보여주고, 카드에서는 AI 분석과
+// 같은 한 줄 형태로 개수만 요약함 — 3/3이면 완료와 같은 초록, 일부만 됐으면 진행중과 같은
+// 주황, 하나도 안 됐으면 무채색
+const ReadinessCountText = ({ readiness }: { readiness: FloorReadiness }) => {
+  if (readiness.isLoading) return <span className={styles.metaValue}>—</span>;
+  const doneCount = [
+    readiness.hasStartNode,
+    readiness.hasFinalExit,
+    readiness.hasRouteToExit,
+  ].filter(Boolean).length;
+  const text = `${doneCount}/3`;
+  if (doneCount === 3) return <span className={styles.metaValueDone}>{text}</span>;
+  if (doneCount === 0) return <span className={styles.metaValue}>{text}</span>;
+  return <span className={styles.metaValuePending}>{text}</span>;
 };
 
 interface FloorSummary {
@@ -99,6 +108,8 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
   const isNone = !hasFloorPlan(floor);
   const { label, color } = isNone ? NONE_STATUS_BADGE : STATUS_CONFIG[floor.segmentationStatus];
   const isDone = floor.segmentationStatus === 'DONE';
+  // AI 분석이 끝나야 노드를 등록할 수 있어서, 그 전 층은 그래프를 조회할 필요가 없음
+  const readiness = useFloorReadinessQuery(floor.id, isDone);
 
   return (
     <div className={styles.floorCard}>
@@ -115,13 +126,15 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
 
       <div className={styles.cardMeta}>
         <div className={styles.metaRow}>
-          <span className={styles.metaKey}>업로드</span>
-          <span className={styles.metaValue}>{formatDate(floor.processedAt)}</span>
-        </div>
-        <div className={styles.metaRow}>
           <span className={styles.metaKey}>AI 분석</span>
           <AiStatusText status={isNone ? null : floor.segmentationStatus} />
         </div>
+        {isDone && (
+          <div className={styles.metaRow}>
+            <span className={styles.metaKey}>등록 요건</span>
+            <ReadinessCountText readiness={readiness} />
+          </div>
+        )}
       </div>
 
       {isNone ? (
