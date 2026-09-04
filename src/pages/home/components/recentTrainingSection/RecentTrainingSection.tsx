@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import FileTextIcon from '@assets/icons/ic-filetext.svg?react';
 
@@ -16,16 +16,6 @@ type RecentTrainingSectionProps = {
   actionIcon: ReactNode;
   onViewAll: () => void;
   onOpenReport: (reportId: string) => void;
-};
-
-const handleRowKeyDown = (
-  event: KeyboardEvent<HTMLTableRowElement>,
-  reportId: string,
-  onOpenReport: (reportId: string) => void,
-) => {
-  if (event.key !== 'Enter' && event.key !== ' ') return;
-  event.preventDefault();
-  onOpenReport(reportId);
 };
 
 const RecentTrainingSection = ({
@@ -66,18 +56,21 @@ const RecentTrainingSection = ({
             const reportId = record.reportId;
 
             return (
-              <tr
-                key={record.id}
-                className={styles.tableRow({ interactive: Boolean(reportId) })}
-                role={reportId ? 'link' : undefined}
-                tabIndex={reportId ? 0 : undefined}
-                aria-label={reportId ? `${record.name} 분석 보고서 보기` : undefined}
-                onClick={reportId ? () => onOpenReport(reportId) : undefined}
-                onKeyDown={
-                  reportId ? (event) => handleRowKeyDown(event, reportId, onOpenReport) : undefined
-                }
-              >
-                <td className={styles.tableCell({ tone: 'emphasis' })}>{record.name}</td>
+              <tr key={record.id} className={styles.tableRow({ interactive: Boolean(reportId) })}>
+                <td className={styles.tableCell({ tone: 'emphasis' })}>
+                  {reportId ? (
+                    <button
+                      type="button"
+                      className={styles.reportButton}
+                      aria-label={`${record.name} 분석 보고서 보기`}
+                      onClick={() => onOpenReport(reportId)}
+                    >
+                      {record.name}
+                    </button>
+                  ) : (
+                    record.name
+                  )}
+                </td>
                 <td className={styles.tableCell({ tone: 'date' })}>{record.date}</td>
                 <td className={styles.tableCell()}>{record.participants}</td>
                 <td className={styles.tableCell({ tone: 'emphasis' })}>{record.evacuationTime}</td>

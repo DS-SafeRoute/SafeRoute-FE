@@ -66,6 +66,7 @@ export const recordsTable = style({
 
 export const tableRow = recipe({
   base: {
+    position: 'relative',
     transition: `background-color 150ms ease, box-shadow 150ms ease`,
   },
   variants: {
@@ -74,7 +75,7 @@ export const tableRow = recipe({
         cursor: 'pointer',
         selectors: {
           '&:hover': { backgroundColor: vars.color.primaryLight2 },
-          '&:focus-visible': {
+          '&:focus-within': {
             outline: 'none',
             boxShadow: `inset 0 0 0 2px ${vars.color.primary}`,
           },
@@ -84,6 +85,24 @@ export const tableRow = recipe({
     },
   },
   defaultVariants: { interactive: false },
+});
+
+export const reportButton = style({
+  border: 0,
+  background: 'transparent',
+  cursor: 'pointer',
+  padding: 0,
+  color: 'inherit',
+  font: 'inherit',
+  fontWeight: 'inherit',
+  selectors: {
+    '&:focus-visible': { outline: 'none' },
+    '&::after': {
+      position: 'absolute',
+      inset: 0,
+      content: '',
+    },
+  },
 });
 
 globalStyle(`${recordsTable} th:nth-child(1)`, { width: '30%' });

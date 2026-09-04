@@ -49,21 +49,35 @@ const TrainingEndModal = ({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const parsedSurvivorCount = Number(survivorCount);
+    const normalizedSurvivorCount = survivorCount.trim();
+    let parsedSurvivorCount: number | undefined;
     const nextErrors: FieldErrors = {};
 
     if (!Number.isInteger(participantCount) || participantCount < 1) {
       nextErrors.participantCount = '총 참가 인원을 1명 이상 입력해 주세요.';
     }
 
-    if (!Number.isInteger(parsedSurvivorCount) || parsedSurvivorCount < 0) {
+    if (!normalizedSurvivorCount) {
+      nextErrors.survivorCount = '생존 인원을 입력해 주세요.';
+    } else {
+      parsedSurvivorCount = Number(normalizedSurvivorCount);
+    }
+
+    if (
+      parsedSurvivorCount !== undefined &&
+      (!Number.isInteger(parsedSurvivorCount) || parsedSurvivorCount < 0)
+    ) {
       nextErrors.survivorCount = '생존 인원을 0명 이상 입력해 주세요.';
-    } else if (Number.isInteger(participantCount) && parsedSurvivorCount > participantCount) {
+    } else if (
+      parsedSurvivorCount !== undefined &&
+      Number.isInteger(participantCount) &&
+      parsedSurvivorCount > participantCount
+    ) {
       nextErrors.survivorCount = '생존 인원은 총 참가 인원보다 많을 수 없습니다.';
     }
 
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0 || parsedSurvivorCount === undefined) return;
 
     await onSubmit({
       participantCount,

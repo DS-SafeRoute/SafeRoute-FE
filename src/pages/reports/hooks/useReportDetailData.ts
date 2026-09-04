@@ -48,6 +48,14 @@ export const useReportDetailData = (reportId: string) => {
       }
     : null;
 
+  const refetchReport = () =>
+    Promise.all([
+      reportQuery.refetch(),
+      scenariosQuery.refetch(),
+      buildingsQuery.refetch(),
+      profileQuery.refetch(),
+    ]);
+
   return {
     content,
     isPending:
@@ -55,7 +63,11 @@ export const useReportDetailData = (reportId: string) => {
       scenariosQuery.isPending ||
       buildingsQuery.isPending ||
       profileQuery.isPending,
-    isError: reportQuery.isError,
-    refetchReport: reportQuery.refetch,
+    isError:
+      reportQuery.isError ||
+      scenariosQuery.isError ||
+      buildingsQuery.isError ||
+      profileQuery.isError,
+    refetchReport,
   };
 };
