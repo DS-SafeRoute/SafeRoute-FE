@@ -36,14 +36,9 @@ const ReadinessChecklist = ({
   onConnectEdges,
 }: ReadinessChecklistProps) => {
   // 시작/탈출구가 모두 준비돼야 엣지 연결 버튼을 누를 수 있음 — 그 전엔 항목은 보이되
-  // 버튼을 비활성화하고 뭘 먼저 해야 하는지 안내함
+  // 버튼을 비활성화함. 안내 문구는 "탈출 경로" 라벨과 한 줄에 나란히 있어 길면 라벨 쪽이
+  // 깨져 보이므로 짧게 고정된 문구만 씀(뭐가 부족한지는 위 두 항목에서 이미 보임)
   const canConnectRoute = hasStartNode && hasFinalExit;
-  const routeBlockedLabel =
-    !hasStartNode && !hasFinalExit
-      ? '시작 노드·최종 탈출구 먼저 설정'
-      : !hasStartNode
-        ? '시작 노드 먼저 설정'
-        : '최종 탈출구 먼저 설정';
 
   return (
     <div className={styles.readinessCard}>
@@ -97,7 +92,7 @@ const ReadinessChecklist = ({
           </button>
         ) : (
           <button type="button" className={styles.readinessActionBtnDisabled} disabled>
-            {routeBlockedLabel}
+            엣지 추가하기
           </button>
         )}
       </div>
