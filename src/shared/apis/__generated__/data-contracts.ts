@@ -1528,6 +1528,7 @@ export interface RecentTrainingReportResponse {
   grade?: "A" | "B" | "C" | "D" | "F";
   /** @format int32 */
   participantCount?: number;
+  reportId?: string;
   scenarioName?: string;
   /** @format date-time */
   startedAt?: string;

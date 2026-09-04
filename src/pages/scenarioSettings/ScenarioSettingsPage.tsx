@@ -102,6 +102,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   // 기본 정보 편집과 훈련 종료 모달은 독립적인 화면 상태
   const [isEditing, setIsEditing] = useState(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+  const [trainingTimerStoppedAt, setTrainingTimerStoppedAt] = useState<number | null>(null);
   const [hasEndedSession, setHasEndedSession] = useState(false);
   const [isTrainingCompleted, setIsTrainingCompleted] = useState(false);
   const [generatedReportId, setGeneratedReportId] = useState<string | null>(null);
@@ -238,21 +239,29 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  // 서버가 최대 진행 시간 초과로 종료하면 정상 종료와 같은 결과 입력 모달을 표시
+  const timeLimitSessionId = training.timedOutSessionId ?? training.timeLimitReachedSessionId;
+
+  // 시작 시각 기준 10분이 지나거나 서버가 FAILED를 알리면 결과 입력 모달을 표시
   useEffect(() => {
-    if (!training.timedOutSessionId) return;
-    setHasEndedSession(true);
+    if (!timeLimitSessionId) return;
+    setTrainingTimerStoppedAt(Date.now());
     setIsEndModalOpen(true);
     show({
       title: '최대 훈련 시간이 초과되었습니다.',
       description: '생존 인원을 입력해 분석 보고서를 생성해 주세요.',
       variant: 'default',
     });
-  }, [show, training.timedOutSessionId]);
+  }, [show, timeLimitSessionId]);
+
+  // 서버 FAILED 이벤트를 받은 경우에는 종료 API를 중복 호출하지 않음
+  useEffect(() => {
+    if (!training.timedOutSessionId) return;
+    setHasEndedSession(true);
+  }, [training.timedOutSessionId]);
 
   // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
   const handleCompleteTraining = async (values: GenerateReportRequest) => {
-    const sessionId = training.sessionId ?? training.timedOutSessionId;
+    const sessionId = training.sessionId ?? timeLimitSessionId;
     if (!sessionId) return;
     let sessionEnded = hasEndedSession || Boolean(training.timedOutSessionId);
 
@@ -331,10 +340,14 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         {training.isRunning && training.startedAt !== null ? (
           <TrainingControlPanel
             startedAt={training.startedAt}
+            timerStoppedAt={trainingTimerStoppedAt}
             currentRoute={training.route.currentRouteMessage}
             liveMetrics={floorView.previewMetrics}
             isEnding={training.isEnding}
-            onEnd={() => setIsEndModalOpen(true)}
+            onEnd={() => {
+              setTrainingTimerStoppedAt(Date.now());
+              setIsEndModalOpen(true);
+            }}
             routeDecision={{
               proposal: training.route.routeProposal,
               isApplying: training.route.isApplyingRouteProposal,
@@ -376,8 +389,11 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
         completed={isTrainingCompleted}
         participantCount={scenario?.expectedParticipants ?? 0}
         isSubmitting={training.isEnding || generateTrainingReportMutation.isPending}
-        canClose={!hasEndedSession}
-        onClose={() => setIsEndModalOpen(false)}
+        canClose={!hasEndedSession && !timeLimitSessionId}
+        onClose={() => {
+          setTrainingTimerStoppedAt(null);
+          setIsEndModalOpen(false);
+        }}
         onSubmit={handleCompleteTraining}
         onHome={() => void navigate(ROUTES.HOME)}
         onReport={() => {

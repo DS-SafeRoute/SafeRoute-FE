@@ -1,7 +1,6 @@
 import type {
   HomeMetric,
   HomeTrainingStatusResponse,
-  DashboardRecentTrainingReport,
   RunningTrainingStatusResponse,
   ScheduledTraining,
   ScheduledTrainingStatusResponse,
@@ -10,6 +9,7 @@ import type {
 
 import type {
   DashboardStatsResponse,
+  RecentTrainingReportResponse,
   TrainingSessionSummaryResponse,
 } from '@apis/__generated__/data-contracts';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
@@ -59,7 +59,7 @@ export const toHomeMetrics = (stats: DashboardStatsResponse): HomeMetric[] => [
   {
     id: 'survival-rate',
     title: '평균 생존율',
-    value: String(stats.avgSurvivalRate ?? 0),
+    value: (stats.avgSurvivalRate ?? 0).toFixed(1),
     valueSuffix: '%',
     iconTone: 'green',
     iconKey: 'trend',
@@ -74,7 +74,7 @@ export const toHomeMetrics = (stats: DashboardStatsResponse): HomeMetric[] => [
 ];
 
 export const toTrainingRecord = (
-  training: DashboardRecentTrainingReport,
+  training: RecentTrainingReportResponse,
   index: number,
 ): TrainingRecord => ({
   id: index,
