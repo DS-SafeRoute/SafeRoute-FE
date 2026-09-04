@@ -2668,20 +2668,6 @@ const FloorPlansDetailPage = () => {
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [focusedPanelId]);
 
-  // 장비 추가 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 클릭은 배치로 처리)
-  // 위치를 한 번이라도 지정한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함
-  useEffect(() => {
-    if (!nodeAddOpen || nodeStagedPosition) return;
-    const handleOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (nodePopupRef.current?.contains(target)) return;
-      if (mapWrapRef.current?.contains(target)) return;
-      setNodeAddOpen(false);
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [nodeAddOpen, nodeStagedPosition]);
-
   // 장비 추가 팝업이 닫히면 배치 진행 상태 초기화
   useEffect(() => {
     if (!nodeAddOpen) {
@@ -2690,22 +2676,6 @@ const FloorPlansDetailPage = () => {
       setZoneDraftRect(null);
     }
   }, [nodeAddOpen]);
-
-  // 구역 설정 팝업: 팝업 및 도면 영역 바깥 클릭 시 닫기 (도면 드래그는 구역 선택으로 처리)
-  // 셀을 이미 선택한 뒤에는 진행 상태를 실수로 잃지 않도록 바깥 클릭으로 닫히지 않게 함.
-  // 기존 구역을 수정 중(zoneResetTargetId)일 때도 마찬가지 — 카드의 완료를 눌러야만
-  // 끝나게 하고, 다른 곳을 잘못 눌러서 조용히 편집이 날아가지 않게 함
-  useEffect(() => {
-    if (!zoneAddOpen || zoneResetTargetId || zoneDraftCellIds.length > 0) return;
-    const handleOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (zonePopupRef.current?.contains(target)) return;
-      if (mapWrapRef.current?.contains(target)) return;
-      setZoneAddOpen(false);
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [zoneAddOpen, zoneResetTargetId, zoneDraftCellIds]);
 
   // 구역 설정 팝업이 닫히면 드래그로 선택한 임시 영역/셀과 재설정 대상도 함께 초기화
   useEffect(() => {
@@ -3551,6 +3521,37 @@ const FloorPlansDetailPage = () => {
     setSelectedEdgeId(null);
     setEdgeAddOpen(true);
   };
+
+  // 추가/편집 모드는 이제 바깥 클릭으로 안 닫히므로(캔버스가 아닌 다른 영역을 눌러도 진행
+  // 중인 폼이 사라지지 않게 하기 위함), 마우스 없이도 빠져나갈 수 있도록 Esc로 지금 열려 있는
+  // 모드 하나를 명시적으로 종료함. 이 모드들은 서로 배타적으로 열리므로 우선순위만 정해두면 됨
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (gridSetupPromptOpen) {
+        // handleGridSetupPromptCancel과 같은 동작 — 매 렌더마다 새로 만들어지는 함수라
+        // 의존성 배열에 넣으면 리스너가 렌더마다 재구독되므로 여기선 로직만 그대로 옮겨 씀
+        setGridSetupPromptOpen(false);
+        if (gridSetupIntent === 'cctv') {
+          setNodeAddStage('entry');
+          setZoneDraftRect(null);
+          setCctvDraftCellIds([]);
+          lastCctvDraftRectRef.current = null;
+        }
+        setGridSetupIntent(null);
+      } else if (editingCctvId) {
+        handleCancelEditCctvCells();
+      } else if (edgeAddOpen) {
+        handleExitEdgeMode();
+      } else if (zoneAddOpen) {
+        setZoneAddOpen(false);
+      } else if (nodeAddOpen) {
+        handleCancelNodeAdd();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [gridSetupPromptOpen, gridSetupIntent, editingCctvId, edgeAddOpen, zoneAddOpen, nodeAddOpen]);
 
   // 시작 후보 중 하나라도 엣지를 따라 최종 탈출구까지 이어지는지 (훈련 준비 체크리스트용).
   // 이 경로가 없으면 경로 탐색기가 EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 —
