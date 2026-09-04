@@ -143,6 +143,11 @@ export const metaValueFailed = style({
   ...vars.typography.caption,
 });
 
+// 등록 요건 진행바 — metaRow 안에서 값 자리만큼만 차지하게 폭을 좁게 고정
+export const readinessProgressBar = style({
+  width: '6.4rem',
+});
+
 export const uploadButton = style({
   border: `1px solid ${vars.color.primary}`,
   borderRadius: vars.radius.md,

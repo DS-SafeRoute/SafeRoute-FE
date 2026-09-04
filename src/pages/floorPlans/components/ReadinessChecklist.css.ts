@@ -24,35 +24,6 @@ export const readinessHint = style({
   ...vars.typography.caption,
 });
 
-export const readinessItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: vars.space.s2,
-  borderTop: `1px solid ${vars.color.gray50}`,
-  paddingTop: vars.space.s2,
-});
-
-export const readinessItemLabel = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  color: vars.color.textHigh,
-  ...vars.typography.body14,
-});
-
-export const readinessDot = style({
-  flexShrink: 0,
-  borderRadius: '50%',
-  backgroundColor: vars.color.gray300,
-  width: '0.7rem',
-  height: '0.7rem',
-});
-
-export const readinessDotDone = style({
-  backgroundColor: vars.color.success,
-});
-
 export const readinessDoneText = style({
   flexShrink: 0,
   color: vars.color.textLow,

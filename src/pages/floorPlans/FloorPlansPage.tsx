@@ -13,6 +13,7 @@ import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
+import SegmentedProgressBar from '@components/progress/SegmentedProgressBar';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
@@ -51,20 +52,26 @@ const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
   return <span className={styles.metaValue}>—</span>;
 };
 
-// 항목별 내역(시작 노드·최종 탈출구·탈출 경로)은 상세보기에서 보여주고, 카드에서는 AI 분석과
-// 같은 한 줄 형태로 개수만 요약함 — 3/3이면 완료와 같은 초록, 일부만 됐으면 진행중과 같은
-// 주황, 하나도 안 됐으면 무채색
-const ReadinessCountText = ({ readiness }: { readiness: FloorReadiness }) => {
+// 항목별 내역(시작 노드·최종 탈출구·탈출 경로)은 상세보기에서 보여주고, 카드에서는 구간형
+// 진행바로 "3개 중 몇 개 완료"만 한눈에 보여줌 — 3/3이면 완료와 같은 초록, 일부만 됐으면
+// 진행중과 같은 주황, 하나도 안 됐으면 무채색(공용 컴포넌트: SegmentedProgressBar)
+const ReadinessProgress = ({ readiness }: { readiness: FloorReadiness }) => {
   if (readiness.isLoading) return <span className={styles.metaValue}>—</span>;
   const doneCount = [
     readiness.hasStartNode,
     readiness.hasFinalExit,
     readiness.hasRouteToExit,
   ].filter(Boolean).length;
-  const text = `${doneCount}/3`;
-  if (doneCount === 3) return <span className={styles.metaValueDone}>{text}</span>;
-  if (doneCount === 0) return <span className={styles.metaValue}>{text}</span>;
-  return <span className={styles.metaValuePending}>{text}</span>;
+  const tone = doneCount === 3 ? 'done' : doneCount === 0 ? 'neutral' : 'progress';
+  return (
+    <SegmentedProgressBar
+      total={3}
+      completed={doneCount}
+      tone={tone}
+      className={styles.readinessProgressBar}
+      aria-label={`등록 요건 ${doneCount}/3 완료`}
+    />
+  );
 };
 
 interface FloorSummary {
@@ -132,7 +139,7 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
         {isDone && (
           <div className={styles.metaRow}>
             <span className={styles.metaKey}>등록 요건</span>
-            <ReadinessCountText readiness={readiness} />
+            <ReadinessProgress readiness={readiness} />
           </div>
         )}
       </div>
