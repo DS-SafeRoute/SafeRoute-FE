@@ -673,7 +673,9 @@ const MockFloorMap3F = ({
               onNodeClickForEdge(n.id);
             }}
           >
-            <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : 3} fill={color} />
+            {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
+            {edgeAddActive && <circle cx={x} cy={y} r={13} fill="transparent" />}
+            <circle cx={x} cy={y} r={n.type === 'EXIT' ? 6 : edgeAddActive ? 5 : 3} fill={color} />
             {n.type === 'EXIT' && (
               <text
                 x={x}
@@ -716,6 +718,10 @@ const MockFloorMap3F = ({
             }}
             style={{ cursor: isEditingThis ? 'grab' : 'pointer' }}
           >
+            {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
+            {edgeAddActive && !isEditingThis && (
+              <circle cx={n.x} cy={n.y} r={16} fill="transparent" />
+            )}
             {isSelected && (
               <circle
                 cx={n.x}
@@ -1281,16 +1287,21 @@ const EdgeAddPopup = ({
   containerRef,
   fromLabel,
   toLabel,
+  suggestedDistance,
   onCancel,
   onSave,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
   fromLabel: string;
   toLabel: string;
+  // 두 노드 좌표 + 그리드 배율로 계산한 추정 거리(m). 없으면 수동 입력
+  suggestedDistance: number | null;
   onCancel: () => void;
   onSave: (distance: number, bidirectional: boolean) => void;
 }) => {
-  const [distance, setDistance] = useState('');
+  const [distance, setDistance] = useState(
+    suggestedDistance !== null ? String(suggestedDistance) : '',
+  );
   const [bidirectional, setBidirectional] = useState(true);
 
   const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1319,6 +1330,9 @@ const EdgeAddPopup = ({
           onChange={handleDistanceChange}
           placeholder="3.5"
         />
+        {suggestedDistance !== null && (
+          <span className={styles.nodeAddSubHint}>좌표 기준 추정값 · 필요하면 수정하세요</span>
+        )}
       </div>
 
       <label className={styles.edgeBidirectionalField}>
@@ -2740,7 +2754,6 @@ const FloorPlansDetailPage = () => {
               ...prev,
               { id: newNode.id, type, x, y, isFinalExit: false },
             ]);
-            show({ title: `${cfg.label} 노드를 추가했습니다.`, variant: 'success' });
           })
           .catch((error: unknown) => {
             // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
@@ -2782,7 +2795,6 @@ const FloorPlansDetailPage = () => {
                 zone: location || '사용자 등록',
               },
             ]);
-            show({ title: `${newLight.name} 유도등을 등록했습니다.`, variant: 'success' });
           })
           .catch(() => {
             show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
@@ -2983,7 +2995,6 @@ const FloorPlansDetailPage = () => {
       setZoneDraftRect(null);
       setCctvDraftCellIds([]);
       setNodeAddOpen(false);
-      show({ title: `${newCctv.name} CCTV를 등록했습니다.`, variant: 'success' });
     };
 
     createCctv({ floorId: currentFloor.id, name: label, x, y, gridCellIds: cctvDraftCellIds })
@@ -3187,7 +3198,50 @@ const FloorPlansDetailPage = () => {
     setEdgeDraftToId(nodeId);
   };
 
-  const handleCancelEdgeDraft = () => {
+  // 엣지 거리(m) 자동 추정 — 두 노드의 정규화 좌표(0~1) 차이를 칸 수로 환산한 뒤 그리드 배율(m/칸)을
+  // 곱한다. 배율(GRID_SIZE_KEY→PENDING→등록된 CCTV 순으로 탐색)이나 그리드 정보가 없으면 null이라
+  // 팝업은 기존처럼 수동 입력으로 폴백한다.
+  const suggestedEdgeDistanceM = useMemo<number | null>(() => {
+    if (!edgeDraftFromId || !edgeDraftToId || !currentFloor) return null;
+    const cellSizeMeter =
+      readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
+      readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)) ??
+      realCctvs.find((c) => c.floorId === currentFloor.id && c.gridCellSizeMeter)
+        ?.gridCellSizeMeter ??
+      null;
+    if (!cellSizeMeter) return null;
+    const { cols, rows } = getGridDimensions(floorGridCells);
+    if (!cols || !rows) return null;
+    const normalizedPos = (id: string): { x: number; y: number } | null => {
+      const structure = structureNodes.find((n) => n.id === id);
+      if (structure) return { x: structure.x / CANVAS_W, y: structure.y / canvasH };
+      const graphNode = graphNodes.find((n) => n.id === id);
+      return graphNode ? { x: graphNode.x, y: graphNode.y } : null;
+    };
+    const from = normalizedPos(edgeDraftFromId);
+    const to = normalizedPos(edgeDraftToId);
+    if (!from || !to) return null;
+    const meters = Math.hypot((from.x - to.x) * cols, (from.y - to.y) * rows) * cellSizeMeter;
+    return Math.max(0.1, Math.round(meters * 10) / 10);
+  }, [
+    edgeDraftFromId,
+    edgeDraftToId,
+    currentFloor,
+    floorGridCells,
+    structureNodes,
+    graphNodes,
+    realCctvs,
+    canvasH,
+  ]);
+
+  // 그리던 엣지 한 건만 취소 — 엣지 연결 모드는 유지해서 다음 쌍을 바로 이어 그릴 수 있게 함
+  const handleClearEdgeDraft = () => {
+    setEdgeDraftFromId(null);
+    setEdgeDraftToId(null);
+  };
+
+  // 엣지 연결 모드 종료
+  const handleExitEdgeMode = () => {
     setEdgeDraftFromId(null);
     setEdgeDraftToId(null);
     setEdgeAddOpen(false);
@@ -3206,9 +3260,9 @@ const FloorPlansDetailPage = () => {
       })
       .catch(() => {})
       .finally(() => {
+        // 모드는 유지 — 연달아 엣지를 그리다가 "완료"로 끝낸다
         setEdgeDraftFromId(null);
         setEdgeDraftToId(null);
-        setEdgeAddOpen(false);
       });
   };
 
@@ -3283,7 +3337,6 @@ const FloorPlansDetailPage = () => {
         ]);
         setZoneAddOpen(false);
         setZoneDraftCellIds([]);
-        show({ title: `'${zone.name}' 구역을 추가했습니다.`, variant: 'success' });
       })
       .catch(() => {
         show({ title: '구역 저장에 실패했습니다.', variant: 'error' });
@@ -4032,22 +4085,36 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {edgeAddOpen && edgeDraftFromId && !edgeDraftToId && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '0.8rem',
-                  left: '0.8rem',
-                  zIndex: 5,
-                  background: 'white',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.6rem',
-                  padding: '0.6rem 1rem',
-                  fontSize: '1.2rem',
-                  color: '#374151',
-                }}
-              >
-                연결할 두 번째 노드를 클릭해주세요
+            {/* 첫/두 번째 노드를 고르는 동안 계속 떠 있는 패널 — 엣지를 만들어도 모드가 닫히지
+                않으므로, 연달아 그리다가 "완료"로 끝낼 수 있게 종료 버튼을 항상 노출한다 */}
+            {edgeAddOpen && !edgeDraftToId && (
+              <div className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.nodeAddHeader}>
+                  <span className={styles.nodeAddTitle}>엣지 연결</span>
+                </div>
+                <span className={styles.nodeAddHint}>
+                  {edgeDraftFromId
+                    ? '연결할 두 번째 노드를 클릭하세요'
+                    : '연결할 첫 번째 노드를 클릭하세요'}
+                </span>
+                <div className={styles.nodeAddActions}>
+                  {edgeDraftFromId && (
+                    <button
+                      type="button"
+                      className={styles.nodeAddCancelBtn}
+                      onClick={handleClearEdgeDraft}
+                    >
+                      다시 선택
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.nodeAddSubmitBtn}
+                    onClick={handleExitEdgeMode}
+                  >
+                    완료
+                  </button>
+                </div>
               </div>
             )}
 
@@ -4056,7 +4123,8 @@ const FloorPlansDetailPage = () => {
                 containerRef={edgePopupRef}
                 fromLabel={getGraphNodeLabel(edgeDraftFromId)}
                 toLabel={getGraphNodeLabel(edgeDraftToId)}
-                onCancel={handleCancelEdgeDraft}
+                suggestedDistance={suggestedEdgeDistanceM}
+                onCancel={handleClearEdgeDraft}
                 onSave={handleCreateEdge}
               />
             )}

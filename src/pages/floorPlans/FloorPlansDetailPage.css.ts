@@ -262,6 +262,11 @@ export const nodeAddHint = style({
   ...vars.typography.caption,
 });
 
+export const nodeAddSubHint = style({
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
 export const nodeAddField = style({
   display: 'flex',
   flexDirection: 'column',
