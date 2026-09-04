@@ -482,7 +482,7 @@ export const legendInfoButton = style({
   cursor: 'pointer',
   width: '3.4rem',
   height: '3.4rem',
-  color: vars.color.textMid,
+  color: vars.color.textLow,
   selectors: {
     '&:hover': { color: vars.color.primary },
     '&[aria-expanded="true"]': {
@@ -997,12 +997,12 @@ export const zoneCardIconBtnDelete = style([
 export const canvasBottomRightColumn = style({
   position: 'absolute',
   zIndex: 10,
-  right: '2.4rem',
-  bottom: '2.4rem',
+  right: vars.space.s8,
+  bottom: vars.space.s8,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-end',
-  gap: vars.space.s2,
+  gap: vars.space.s1,
 });
 
 export const canvasZoomFloat = style({
