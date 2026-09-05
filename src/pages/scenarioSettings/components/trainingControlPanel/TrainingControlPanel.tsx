@@ -136,7 +136,7 @@ const TrainingControlPanel = ({
         </section>
       )}
 
-      <TrainingPreviewCard title="실시간 도면 상태" status={LIVE_STATUS} metrics={liveMetrics} />
+      <TrainingPreviewCard title="등록된 도면 상태" status={LIVE_STATUS} metrics={liveMetrics} />
 
       <div className={styles.lockNotice}>
         🔒 훈련 진행 중에는 도면의 노드·구역 편집이 제한됩니다
