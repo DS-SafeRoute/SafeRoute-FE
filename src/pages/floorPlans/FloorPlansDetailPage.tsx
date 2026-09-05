@@ -850,6 +850,10 @@ const MockFloorMap3F = ({
         const baseColor = STRUCTURE_NODE_COLOR[n.type];
         const isLightPreview = !!lightPreviewNodeId && n.id === lightPreviewNodeId;
         const isNodePickMode = lightPickField === 'decisionNode';
+        // 왼쪽/오른쪽 통로(엣지)를 캔버스에서 고르는 중엔 노드는 고를 대상이 아닌데, 이 원이
+        // 계속 클릭을 가로채고 있었음 — 엣지가 노드 바로 옆에 붙어있으면 SVG 상 나중에 그려지는
+        // 이 노드 원이 클릭을 먼저 받아가서 엣지를 못 고르던 문제의 원인
+        const isEdgePickMode = lightPickField === 'leftEdge' || lightPickField === 'rightEdge';
         return (
           <g
             key={n.id}
@@ -873,7 +877,7 @@ const MockFloorMap3F = ({
             }}
             style={{
               cursor: isEditingThis ? 'grab' : 'pointer',
-              pointerEvents: isZoneDragging ? 'none' : 'auto',
+              pointerEvents: isZoneDragging || isEdgePickMode ? 'none' : 'auto',
             }}
           >
             {/* 엣지 연결 모드에선 작은 점을 정확히 겨냥하기 어려워, 넓은 투명 히트영역을 겹쳐 둔다 */}
