@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router';
 
 import { monitoringQueryKeys } from '@pages/trainingAnalysis/api/monitoringQueryKeys';
 import { useSessionContextQuery } from '@pages/trainingAnalysis/api/useSessionContextQuery';
-import { LIVE_SESSION_POLL_INTERVAL_MS } from '@pages/trainingAnalysis/constants/trainingAnalysis';
 import type { TrainingSessionContext } from '@pages/trainingAnalysis/types/trainingAnalysis';
 
 import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
-import { getScenario } from '@apis/scenarios/scenariosApi';
-import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
 import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
@@ -31,6 +28,9 @@ interface SessionNotificationProps {
   onEnded: (sessionId: string) => void;
 }
 
+const isActiveSessionStatus = (status: TrainingStatusEventData['status'] | undefined) =>
+  status === TRAINING_SESSION_STATUS.RUNNING || status === TRAINING_SESSION_STATUS.SCHEDULED;
+
 // RUNNING 목록에서 사라져도 상세 조회로 실제 종료 상태를 확인할 때까지 구독을 유지한다.
 const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => {
   const { show } = useToast();
@@ -38,32 +38,11 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: context } = useSessionContextQuery(session.sessionId);
-  const sessionFailed = context?.status === TRAINING_SESSION_STATUS.FAILED;
+  const timedOut = context?.status === TRAINING_SESSION_STATUS.FAILED;
   const interrupted =
     context?.status === TRAINING_SESSION_STATUS.STOPPED ||
     context?.status === TRAINING_SESSION_STATUS.CANCELLED;
-  const { data: trackedScenario } = useQuery({
-    queryKey: scenarioQueryKeys.detail(session.scenarioId ?? ''),
-    queryFn: () => getScenario(session.scenarioId as string),
-    enabled: Boolean(session.scenarioId),
-    staleTime: 0,
-    // WebSocket을 놓쳐도 서버의 시나리오 종료 상태로 모든 페이지가 같은 결과에 수렴한다.
-    refetchInterval: (query) => {
-      const scenarioStatus = query.state.data?.status;
-      const scenarioEnded =
-        scenarioStatus === SCENARIO_STATUS.COMPLETED ||
-        scenarioStatus === SCENARIO_STATUS.ERROR ||
-        scenarioStatus === SCENARIO_STATUS.TIMEOUT_FAILED;
-      return scenarioEnded ? false : LIVE_SESSION_POLL_INTERVAL_MS;
-    },
-    refetchIntervalInBackground: true,
-  });
-  const scenarioStatus = trackedScenario?.status;
-  const errored = scenarioStatus === SCENARIO_STATUS.ERROR;
-  const timedOut = scenarioStatus === SCENARIO_STATUS.TIMEOUT_FAILED || (sessionFailed && !errored);
-  const completed =
-    scenarioStatus === SCENARIO_STATUS.COMPLETED ||
-    context?.status === TRAINING_SESSION_STATUS.COMPLETED;
+  const completed = context?.status === TRAINING_SESSION_STATUS.COMPLETED;
   const lastRouteEvent = useRef<string>();
   const isScenarioPage = Boolean(
     session.scenarioId && pathname === getScenarioDetailPath(session.scenarioId),
@@ -76,10 +55,7 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
     onEvent: (event) => {
       if (event.eventType === TRAINING_EVENT_TYPE.STATUS_UPDATED) {
         const statusEvent = event as TrainingSessionEvent<TrainingStatusEventData>;
-        if (
-          statusEvent.data.status !== TRAINING_SESSION_STATUS.RUNNING &&
-          statusEvent.data.status !== TRAINING_SESSION_STATUS.SCHEDULED
-        ) {
+        if (!isActiveSessionStatus(statusEvent.data.status)) {
           queryClient.setQueryData<TrainingSessionSummaryResponse[]>(
             trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.RUNNING),
             (sessions) =>
@@ -121,12 +97,7 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
   });
 
   useEffect(() => {
-    if (
-      !context?.status ||
-      context.status === TRAINING_SESSION_STATUS.RUNNING ||
-      context.status === TRAINING_SESSION_STATUS.SCHEDULED
-    )
-      return;
+    if (!context?.status || isActiveSessionStatus(context.status)) return;
     queryClient.setQueryData<TrainingSessionSummaryResponse[]>(
       trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.RUNNING),
       (sessions) => sessions?.filter((item) => item.sessionId !== session.sessionId) ?? sessions,
@@ -137,12 +108,8 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
 
   useEffect(() => {
     if (!session.sessionId) return;
-    const sessionEnded = Boolean(
-      context?.status &&
-      context.status !== TRAINING_SESSION_STATUS.RUNNING &&
-      context.status !== TRAINING_SESSION_STATUS.SCHEDULED,
-    );
-    if (!sessionEnded && !timedOut && !errored && !completed) return;
+    const sessionEnded = Boolean(context?.status && !isActiveSessionStatus(context.status));
+    if (!sessionEnded) return;
 
     const scenarioPath = session.scenarioId ? getScenarioDetailPath(session.scenarioId) : undefined;
 
@@ -156,7 +123,7 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
       return;
     }
 
-    if (errored && isTrainingAnalysisPage) {
+    if (interrupted && isTrainingAnalysisPage) {
       show({ title: '오류로 인해 훈련이 종료되었습니다.', variant: 'error' });
       void navigate(ROUTES.TRAINING_ANALYSIS, { replace: true });
       onEnded(session.sessionId);
@@ -171,23 +138,17 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
     }
 
     // 시나리오 화면에서는 오류 안내 또는 결과 입력 모달이 안내한다.
-    if (!isScenarioPage && (sessionFailed || errored || interrupted || completed)) {
+    if (!isScenarioPage && (timedOut || interrupted || completed)) {
       show({
         title: timedOut
           ? '최대 훈련 시간 초과로 훈련이 종료되었습니다.'
-          : interrupted || errored
+          : interrupted
             ? '오류로 인해 훈련이 종료되었습니다.'
-            : sessionFailed
-              ? '훈련이 실패하여 종료되었습니다.'
-              : '훈련이 완료되었습니다.',
+            : '훈련이 완료되었습니다.',
         description: timedOut
           ? `${session.scenarioName ?? '훈련'} 훈련이 종료되었습니다. 생존 인원을 입력해 분석 보고서를 생성해 주세요.`
           : `${session.scenarioName ?? '훈련'}의 시나리오 화면에서 결과를 확인해 주세요.`,
-        variant: timedOut
-          ? 'warning'
-          : sessionFailed || errored || interrupted
-            ? 'error'
-            : 'success',
+        variant: timedOut ? 'warning' : interrupted ? 'error' : 'success',
         duration: 10000,
         actionLabel: timedOut && scenarioPath ? '결과 입력하러 가기' : undefined,
         onAction:
@@ -204,15 +165,12 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
   }, [
     context,
     completed,
-    errored,
     interrupted,
     isScenarioPage,
     isTrainingAnalysisPage,
     navigate,
     onEnded,
     session,
-    sessionFailed,
-    scenarioStatus,
     show,
     timedOut,
   ]);

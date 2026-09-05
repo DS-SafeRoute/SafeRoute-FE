@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
@@ -74,7 +75,7 @@ const TrainingCamerasPage = () => {
 
   const floorGroups = useMemo(() => groupCamerasByFloor(cameras), [cameras]);
 
-  if (session?.status === 'FAILED' && scenarioId) {
+  if (session?.status === TRAINING_SESSION_STATUS.FAILED && scenarioId) {
     return (
       <Navigate
         to={getScenarioDetailPath(scenarioId)}

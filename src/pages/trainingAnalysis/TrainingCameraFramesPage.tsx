@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
+import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
 
 import AlertIcon from '@assets/icons/ic-alert.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
@@ -163,7 +164,7 @@ const TrainingCameraFramesPage = () => {
     }
   }, [frameIndex]);
 
-  if (session?.status === 'FAILED' && scenarioId) {
+  if (session?.status === TRAINING_SESSION_STATUS.FAILED && scenarioId) {
     return (
       <Navigate
         to={getScenarioDetailPath(scenarioId)}
