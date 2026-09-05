@@ -76,6 +76,7 @@ import {
   getUserZoneDetail,
 } from './api/userZoneApi';
 import ReadinessChecklist from './components/ReadinessChecklist';
+import { DEVICE_COLOR } from './constants/deviceColors';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -199,14 +200,13 @@ type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'star
 type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
 
 const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
-  cctv: { label: 'CCTV', color: '#8b5cf6' },
-  // 계단(stair, #f97316)과 같은 주황 계열이라 구분이 안 된다는 피드백 — 노란색으로 분리
-  light: { label: '유도등', color: '#eab308' },
-  door: { label: '문 · 출입구', color: '#2563eb' },
-  stair: { label: '계단', color: '#f97316' },
-  hallway: { label: '복도', color: '#0891b2' },
+  cctv: { label: 'CCTV', color: DEVICE_COLOR.cctv },
+  light: { label: '유도등', color: DEVICE_COLOR.light },
+  door: { label: '문 · 출입구', color: DEVICE_COLOR.door },
+  stair: { label: '계단', color: DEVICE_COLOR.stair },
+  hallway: { label: '복도', color: DEVICE_COLOR.hallway },
   // "시작 노드"가 아니라 "시작 후보"로 부름 — 실제 훈련 시작점 확정은 시나리오설정에서 함
-  start: { label: '시작 후보', color: '#db2777' },
+  start: { label: '시작 후보', color: DEVICE_COLOR.start },
 };
 
 type AddedDevice = {
@@ -274,10 +274,10 @@ const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
 };
 
 const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
-  door: '#2563eb',
-  stair: '#f97316',
-  hallway: '#0891b2',
-  start: '#db2777',
+  door: DEVICE_COLOR.door,
+  stair: DEVICE_COLOR.stair,
+  hallway: DEVICE_COLOR.hallway,
+  start: DEVICE_COLOR.start,
 };
 
 // 우측 패널 구조 노드 카드의 점 색상 클래스 — 위 색상표를 그대로 벡터-엑스트랙트 클래스로 옮긴 것
@@ -1477,7 +1477,14 @@ const EdgeChainReviewPopup = ({
   }[];
   onBack: () => void;
   onSubmit: (
-    rows: { fromId: string; toId: string; distanceM: number; bidirectional: boolean }[],
+    rows: {
+      fromId: string;
+      toId: string;
+      fromLabel: string;
+      toLabel: string;
+      distanceM: number;
+      bidirectional: boolean;
+    }[],
   ) => void;
 }) => {
   // 실내 노드 간 거리는 1m 미만도 흔해서 cm로 입력받음(정수로 편하게 입력, 저장은 m로 환산)
@@ -1500,12 +1507,21 @@ const EdgeChainReviewPopup = ({
     newSegmentCount > 0 && segments.every((s, i) => s.alreadyExists || Number(distancesCm[i]) > 0);
 
   const handleSubmit = () => {
-    const rows: { fromId: string; toId: string; distanceM: number; bidirectional: boolean }[] = [];
+    const rows: {
+      fromId: string;
+      toId: string;
+      fromLabel: string;
+      toLabel: string;
+      distanceM: number;
+      bidirectional: boolean;
+    }[] = [];
     segments.forEach((s, i) => {
       if (s.alreadyExists) return;
       rows.push({
         fromId: s.fromId,
         toId: s.toId,
+        fromLabel: s.fromLabel,
+        toLabel: s.toLabel,
         distanceM: Number(distancesCm[i]) / 100,
         bidirectional,
       });
@@ -2641,17 +2657,19 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
-  // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용
+  // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용.
+  // 층을 빠르게 옮기거나 화면을 벗어나면(언마운트) 응답을 무시하는 것뿐 아니라 실제로 요청도
+  // 중단해야, 배율이 작아 페이지가 많은 층에서 안 쓸 응답까지 끝까지 받아오는 낭비가 없음
   useEffect(() => {
     if (!floorId) return;
-    let cancelled = false;
-    getFloorGridCells(floorId)
+    const controller = new AbortController();
+    getFloorGridCells(floorId, controller.signal)
       .then((cells) => {
-        if (!cancelled) setFloorGridCells(cells);
+        setFloorGridCells(cells);
       })
       .catch(() => {});
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [floorId]);
 
@@ -3577,7 +3595,14 @@ const FloorPlansDetailPage = () => {
   // 검토 화면에서 확정한 구간들을 한 번에 생성 — 일부만 실패해도 성공한 구간은 반영하고
   // 실패한 개수·사유만 토스트로 알림(하나 실패했다고 나머지까지 날아가면 안 됨)
   const handleSubmitEdgeChain = (
-    rows: { fromId: string; toId: string; distanceM: number; bidirectional: boolean }[],
+    rows: {
+      fromId: string;
+      toId: string;
+      fromLabel: string;
+      toLabel: string;
+      distanceM: number;
+      bidirectional: boolean;
+    }[],
   ) => {
     Promise.allSettled(
       rows.map((row) =>
@@ -3590,13 +3615,15 @@ const FloorPlansDetailPage = () => {
       ),
     ).then((results) => {
       const succeeded: MapEdge[] = [];
-      let failedCount = 0;
+      // 실패한 구간의 라벨을 같이 모아둠 — 전체 실패 개수만 알려주면 어느 구간이 안 됐는지
+      // 몰라서 성공한 구간까지 처음부터 다시 골라야 했던 문제
+      const failedLabels: string[] = [];
       let firstErrorMessage: string | undefined;
-      results.forEach((result) => {
+      results.forEach((result, i) => {
         if (result.status === 'fulfilled') {
           succeeded.push(result.value);
         } else {
-          failedCount += 1;
+          failedLabels.push(`${rows[i].fromLabel} → ${rows[i].toLabel}`);
           firstErrorMessage ??= extractApiError(result.reason).message;
         }
       });
@@ -3604,11 +3631,12 @@ const FloorPlansDetailPage = () => {
         setGraphEdges((prev) => [...prev, ...succeeded]);
         show({ title: `${succeeded.length}개 구간이 연결되었습니다.`, variant: 'success' });
       }
-      if (failedCount > 0) {
+      if (failedLabels.length > 0) {
         show({
-          title: `${failedCount}개 구간 연결에 실패했습니다.${
+          title: `${failedLabels.length}개 구간 연결에 실패했습니다.${
             firstErrorMessage ? ` (${firstErrorMessage})` : ''
           }`,
+          description: failedLabels.join(', '),
           variant: 'error',
         });
       }
@@ -4723,6 +4751,7 @@ const FloorPlansDetailPage = () => {
                 className={styles.zoomButton}
                 onClick={() => setZoom((v) => Math.max(50, v - 10))}
                 disabled={zoom <= 50}
+                aria-label="축소"
               >
                 −
               </button>
@@ -4739,6 +4768,7 @@ const FloorPlansDetailPage = () => {
                 className={styles.zoomButton}
                 onClick={() => setZoom((v) => Math.min(200, v + 10))}
                 disabled={zoom >= 200}
+                aria-label="확대"
               >
                 +
               </button>

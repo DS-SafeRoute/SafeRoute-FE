@@ -56,3 +56,15 @@ export const readinessActionBtnDisabled = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
 });
+
+// 비활성 버튼이 왜 눌리지 않는지 설명하는 문구 — title 속성은 비활성 버튼에서 포커스를 못 받아
+// 스크린리더·키보드 사용자에게 일관되게 노출되지 않으므로, aria-describedby로 항상 연결되는
+// 화면에서만 숨긴(시각적으로는 안 보이는) 문구로 대신함
+export const readinessDisabledHint = style({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  clip: 'rect(0, 0, 0, 0)',
+});

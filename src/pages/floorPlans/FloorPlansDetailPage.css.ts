@@ -2,14 +2,16 @@ import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-/* 도면 상 구역 의미 색상 — 문·출입구/계단/시작 후보 표시에서 반복 사용되므로 한 곳에서만 정의
-   (코드래빗 리뷰 반영 — 시작 후보 색상도 하드코딩 대신 이 파일 안에서 단일 소스로 관리) */
-const zoneDoorColor = '#2563EB';
-const zoneStairColor = '#F97316';
-const zoneStartColor = '#DB2777';
-const zoneHallwayColor = '#0891B2';
-// 계단(zoneStairColor)과 같은 주황 계열이라 구분이 안 된다는 피드백 — 노란색으로 분리
-const zoneLightColor = '#EAB308';
+import { DEVICE_COLOR } from './constants/deviceColors';
+
+/* 도면 상 구역 의미 색상 — 문·출입구/계단/시작 후보 표시에서 반복 사용되므로 한 곳에서만 정의.
+   FloorPlansDetailPage.tsx의 DEVICE_PLACE_CONFIG/STRUCTURE_NODE_COLOR와 값이 어긋나지 않도록
+   같은 공용 상수(deviceColors.ts)를 가져다 씀(코드래빗 리뷰 반영 — 값 중복 제거) */
+const zoneDoorColor = DEVICE_COLOR.door;
+const zoneStairColor = DEVICE_COLOR.stair;
+const zoneStartColor = DEVICE_COLOR.start;
+const zoneHallwayColor = DEVICE_COLOR.hallway;
+const zoneLightColor = DEVICE_COLOR.light;
 
 /* ── 전체 레이아웃 ── */
 // 폭 상한을 뒀었는데 그러면 큰 화면에서 좌우로 회색 여백만 생기고 정작 캔버스는 안 넓어짐

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 
 import type {
   CreateBuildingRequest,
@@ -45,7 +46,12 @@ type ModalState =
 // 여기서는 서버 응답의 원본 code·message를 공용 헬퍼로 직접 꺼내 진짜 서버 메시지를 보여줌)
 const describeError = (error: unknown): string => {
   const { code, message } = extractApiError(error);
-  return message ? `${message}${code ? ` (${code})` : ''}` : '알 수 없는 오류';
+  if (message) return `${message}${code ? ` (${code})` : ''}`;
+  // 서버 응답 바디가 없는 4xx/5xx는 extractApiError가 code/message를 둘 다 빈 문자열로
+  // 돌려주므로, 그때만 HTTP 상태코드라도 보여줘서 "알 수 없는 오류"보다 단서를 남김
+  if (isAxiosError(error) && error.response?.status)
+    return `알 수 없는 오류 (HTTP ${error.response.status})`;
+  return '알 수 없는 오류';
 };
 
 interface FloorSyncTarget {

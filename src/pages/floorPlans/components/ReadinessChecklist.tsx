@@ -78,9 +78,19 @@ const ReadinessChecklist = ({
           엣지 연결
         </button>
       ) : (
-        <button type="button" className={styles.readinessActionBtnDisabled} disabled>
-          엣지 추가하기
-        </button>
+        <>
+          <button
+            type="button"
+            className={styles.readinessActionBtnDisabled}
+            disabled
+            aria-describedby="readiness-edge-disabled-hint"
+          >
+            엣지 추가하기
+          </button>
+          <span id="readiness-edge-disabled-hint" className={styles.readinessDisabledHint}>
+            시작 노드와 최종 탈출구를 먼저 지정해주세요
+          </span>
+        </>
       ),
     },
   ];

@@ -53,14 +53,27 @@ const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
   return <span className={styles.metaValue}>—</span>;
 };
 
+interface ReadinessProgressProps {
+  readiness: FloorReadiness;
+}
+
 // 항목별 내역(시작 노드·최종 탈출구·탈출 경로)은 상세보기에서 보여주고, 카드에서는 구간형
 // 진행바로 "3개 중 몇 개 완료"만 한눈에 보여줌 — 3/3이면 완료와 같은 초록, 일부만 됐으면
 // 진행중과 같은 주황, 하나도 안 됐으면 무채색(공용 컴포넌트: SegmentedProgressBar)
-const ReadinessProgress = ({ readiness }: { readiness: FloorReadiness }) => {
+const ReadinessProgress = ({ readiness }: ReadinessProgressProps) => {
   // 카드마다 조회가 따로 돌아 완료 시점이 제각각이라, 로딩 중엔 빈 값(—) 대신 자리표시자를
   // 보여줘서 도착한 카드부터 하나씩 팝업하는 느낌 대신 "다 같이 준비 중"으로 보이게 함
   if (readiness.isLoading) {
     return <Skeleton width="4rem" height="0.5rem" className={styles.readinessProgressBar} />;
+  }
+  // 조회 자체가 실패한 경우 "0/3 미완료"처럼 보이면 실제로 요건이 하나도 없는 것과 헷갈림 —
+  // 별도로 실패를 알려주고 0/3으로 단정하지 않음
+  if (readiness.isError) {
+    return (
+      <span className={styles.metaValueFailed} title="등록 요건을 불러오지 못했어요">
+        조회 실패
+      </span>
+    );
   }
   const doneCount = [
     readiness.hasStartNode,
