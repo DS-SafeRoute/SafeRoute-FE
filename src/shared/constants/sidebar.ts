@@ -18,5 +18,5 @@ export const sidebarItems = [
       { label: '도면 관리', icon: MapIcon, path: ROUTES.FLOOR_PLANS },
     ],
   },
-  { label: '훈련 분석', icon: VideoIcon, path: ROUTES.TRAINING_ANALYSIS },
+  { label: '훈련 모니터링', icon: VideoIcon, path: ROUTES.TRAINING_ANALYSIS },
 ];

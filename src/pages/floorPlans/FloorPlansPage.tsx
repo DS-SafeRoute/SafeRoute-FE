@@ -13,6 +13,8 @@ import StatusBadge from '@components/chip/StatusBadge';
 import type { StatusBadgeColor } from '@components/chip/StatusBadge';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
+import SegmentedProgressBar from '@components/progress/SegmentedProgressBar';
+import Skeleton from '@components/skeleton/Skeleton';
 import useToast from '@components/toast/useToast';
 
 import { ROUTES } from '@constants/path';
@@ -21,12 +23,14 @@ import { formatFloor, hasFloorPlan } from '@utils/floor';
 
 import { setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorBuildings, uploadFloor } from './api/floorPlansApi';
+import { useFloorReadinessQuery } from './api/useFloorReadinessQuery';
 import * as styles from './FloorPlansPage.css';
 import FloorReuploadConfirmModal from './modals/FloorReuploadConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
 import { rememberPendingGridSize } from './utils/gridStorage';
 
+import type { FloorReadiness } from './api/useFloorReadinessQuery';
 import type { FloorBuilding, SegmentationStatus } from './types/floorPlans';
 
 const NONE_STATUS_BADGE: { label: string; color: StatusBadgeColor } = {
@@ -41,21 +45,51 @@ const STATUS_CONFIG: Record<SegmentationStatus, { label: string; color: StatusBa
   FAILED: { label: '실패', color: 'red' },
 };
 
-const formatDate = (iso: string | null) => {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const AiStatusText = ({ status }: { status: SegmentationStatus | null }) => {
   if (status === 'DONE') return <span className={styles.metaValueDone}>완료</span>;
   if (status === 'PENDING') return <span className={styles.metaValuePending}>대기중</span>;
   if (status === 'PROCESSING') return <span className={styles.metaValuePending}>처리중</span>;
   if (status === 'FAILED') return <span className={styles.metaValueFailed}>실패</span>;
   return <span className={styles.metaValue}>—</span>;
+};
+
+interface ReadinessProgressProps {
+  readiness: FloorReadiness;
+}
+
+// 항목별 내역(시작 노드·최종 탈출구·탈출 경로)은 상세보기에서 보여주고, 카드에서는 구간형
+// 진행바로 "3개 중 몇 개 완료"만 한눈에 보여줌 — 3/3이면 완료와 같은 초록, 일부만 됐으면
+// 진행중과 같은 주황, 하나도 안 됐으면 무채색(공용 컴포넌트: SegmentedProgressBar)
+const ReadinessProgress = ({ readiness }: ReadinessProgressProps) => {
+  // 카드마다 조회가 따로 돌아 완료 시점이 제각각이라, 로딩 중엔 빈 값(—) 대신 자리표시자를
+  // 보여줘서 도착한 카드부터 하나씩 팝업하는 느낌 대신 "다 같이 준비 중"으로 보이게 함
+  if (readiness.isLoading) {
+    return <Skeleton width="4rem" height="0.5rem" className={styles.readinessProgressBar} />;
+  }
+  // 조회 자체가 실패한 경우 "0/3 미완료"처럼 보이면 실제로 요건이 하나도 없는 것과 헷갈림 —
+  // 별도로 실패를 알려주고 0/3으로 단정하지 않음
+  if (readiness.isError) {
+    return (
+      <span className={styles.metaValueFailed} title="등록 요건을 불러오지 못했어요">
+        조회 실패
+      </span>
+    );
+  }
+  const doneCount = [
+    readiness.hasStartNode,
+    readiness.hasFinalExit,
+    readiness.hasRouteToExit,
+  ].filter(Boolean).length;
+  const tone = doneCount === 3 ? 'done' : doneCount === 0 ? 'neutral' : 'progress';
+  return (
+    <SegmentedProgressBar
+      total={3}
+      completed={doneCount}
+      tone={tone}
+      className={styles.readinessProgressBar}
+      aria-label={`등록 요건 ${doneCount}/3 완료`}
+    />
+  );
 };
 
 interface FloorSummary {
@@ -99,6 +133,8 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
   const isNone = !hasFloorPlan(floor);
   const { label, color } = isNone ? NONE_STATUS_BADGE : STATUS_CONFIG[floor.segmentationStatus];
   const isDone = floor.segmentationStatus === 'DONE';
+  // AI 분석이 끝나야 노드를 등록할 수 있어서, 그 전 층은 그래프를 조회할 필요가 없음
+  const readiness = useFloorReadinessQuery(floor.id, isDone);
 
   return (
     <div className={styles.floorCard}>
@@ -115,13 +151,15 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
 
       <div className={styles.cardMeta}>
         <div className={styles.metaRow}>
-          <span className={styles.metaKey}>업로드</span>
-          <span className={styles.metaValue}>{formatDate(floor.processedAt)}</span>
-        </div>
-        <div className={styles.metaRow}>
           <span className={styles.metaKey}>AI 분석</span>
           <AiStatusText status={isNone ? null : floor.segmentationStatus} />
         </div>
+        {isDone && (
+          <div className={styles.metaRow}>
+            <span className={styles.metaKey}>등록 요건</span>
+            <ReadinessProgress readiness={readiness} />
+          </div>
+        )}
       </div>
 
       {isNone ? (

@@ -42,6 +42,14 @@ const toFormState = (building: Building): FormState => ({
   belowFloors: String(building.basementFloorCount),
 });
 
+// 원래 값과 하나라도 다른 게 있어야 수정할 내용이 있는 것 — 앞뒤 공백만 다른 건 무시함
+const isFormDirty = (form: FormState, original: FormState): boolean =>
+  form.name.trim() !== original.name.trim() ||
+  form.address.trim() !== original.address.trim() ||
+  form.buildingType !== original.buildingType ||
+  form.aboveFloors.trim() !== original.aboveFloors.trim() ||
+  form.belowFloors.trim() !== original.belowFloors.trim();
+
 const BuildingEditModal = ({
   open,
   onClose,
@@ -51,6 +59,7 @@ const BuildingEditModal = ({
 }: BuildingEditModalProps) => {
   const [form, setForm] = useState<FormState>(toFormState(building));
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const isDirty = isFormDirty(form, toFormState(building));
 
   useEffect(() => {
     if (open) {
@@ -115,8 +124,8 @@ const BuildingEditModal = ({
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
             취소
           </Button>
-          <Button onClick={handleConfirm} isLoading={isSubmitting}>
-            수정 완료
+          <Button onClick={handleConfirm} isLoading={isSubmitting} disabled={!isDirty}>
+            수정
           </Button>
         </>
       }

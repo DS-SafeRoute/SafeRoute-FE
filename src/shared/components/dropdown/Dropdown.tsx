@@ -12,7 +12,15 @@ interface PanelRect {
   top: number;
   left: number;
   width: number;
+  maxHeight: number;
 }
+
+const PANEL_GAP = 4;
+// 옵션이 많을 때 패널이 화면 아래로 무한정 늘어나지 않도록 잡아두는 상한 — 트리거 위/아래
+// 여유 공간이 이보다 넓으면 이 값을, 좁으면 실제 여유 공간을 그대로 씀(아래 계산 참고)
+const PANEL_MAX_HEIGHT_CAP = 280;
+// 트리거 아래 공간이 이보다 좁으면 위로 뒤집어 여는 편이 나음
+const PANEL_FLIP_THRESHOLD = 160;
 
 export interface DropdownOption<T extends string = string> {
   label: string;
@@ -66,7 +74,17 @@ const Dropdown = <T extends string = string>({
     const updatePanelRect = () => {
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      setPanelRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      const spaceBelow = window.innerHeight - rect.bottom - PANEL_GAP;
+      const spaceAbove = rect.top - PANEL_GAP;
+      const openUpward = spaceBelow < PANEL_FLIP_THRESHOLD && spaceAbove > spaceBelow;
+      const availableSpace = openUpward ? spaceAbove : spaceBelow;
+      const maxHeight = Math.max(120, Math.min(PANEL_MAX_HEIGHT_CAP, availableSpace));
+      setPanelRect({
+        top: openUpward ? rect.top - PANEL_GAP - maxHeight : rect.bottom + PANEL_GAP,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+      });
     };
     updatePanelRect();
 
@@ -185,7 +203,12 @@ const Dropdown = <T extends string = string>({
             aria-label={ariaLabel ?? '선택 옵션'}
             aria-activedescendant={`${listboxId}-option-${activeIndex}`}
             onKeyDown={handleListKeyDown}
-            style={{ top: panelRect.top, left: panelRect.left, width: panelRect.width }}
+            style={{
+              top: panelRect.top,
+              left: panelRect.left,
+              width: panelRect.width,
+              maxHeight: panelRect.maxHeight,
+            }}
           >
             {options.map((option, index) => (
               <li

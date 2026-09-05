@@ -334,10 +334,15 @@ export const emptyEvents = style({
   ...vars.typography.body14,
 });
 
+// 이벤트가 쌓일수록 패널이 끝없이 길어져 페이지 전체가 늘어지던 문제 — 높이를 고정하고
+// 목록 안에서만 스크롤되게 함
 export const timelineList = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
+  paddingRight: vars.space.s2,
+  maxHeight: '28rem',
+  overflowY: 'auto',
 });
 
 export const timelineItem = style({

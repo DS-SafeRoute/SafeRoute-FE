@@ -3,12 +3,6 @@ export type SegmentationStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
 
 export type DeviceType = 'cctv' | 'iot' | 'fire';
 
-export type PoiType = 'exit' | 'stair' | 'fire_zone';
-
-export type EditMode = 'view' | 'poi' | 'simulation';
-
-export type AiLayer = 'wall' | 'corridor' | 'stairwell' | 'exit' | 'room';
-
 export interface DeviceMarker {
   id: string;
   type: DeviceType;
@@ -21,14 +15,6 @@ export interface DeviceMarker {
   zone: string;
 }
 
-export interface PoiMarker {
-  id: string;
-  type: PoiType;
-  label: string;
-  x: number;
-  y: number;
-}
-
 export interface Floor {
   id: string;
   buildingId: string;
@@ -37,7 +23,6 @@ export interface Floor {
   segmentationStatus: SegmentationStatus;
   processedAt: string | null;
   devices: DeviceMarker[];
-  pois: PoiMarker[];
 }
 
 export interface FloorBuilding {

@@ -9,7 +9,7 @@ import {
 
 import type { Floor, FloorBuilding } from '../types/floorPlans';
 
-// devices/pois는 CCTV·IoT·맵그래프 API 연동 전까지 빈 배열로 둠 (다음 단위에서 채울 예정)
+// devices는 CCTV·IoT·맵그래프 API 연동 전까지 빈 배열로 둠 (다음 단위에서 채울 예정)
 interface FloorSource {
   id?: string;
   floorNum?: number;
@@ -34,7 +34,6 @@ export const toFloor = (response: FloorSource, buildingId: string): Floor => {
     segmentationStatus,
     processedAt: processedAt ?? null,
     devices: [],
-    pois: [],
   };
 };
 
@@ -115,4 +114,3 @@ export async function analyzeFloor(floorId: string): Promise<void> {
 }
 
 export { getFloorImageUrl };
-export type { FloorImageUrl } from '@apis/floors/floorsApi';
