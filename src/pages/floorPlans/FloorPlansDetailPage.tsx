@@ -2947,6 +2947,11 @@ const FloorPlansDetailPage = () => {
   const graphEdges = graphData.edges;
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
+  // 시작 후보 PATCH가 진행 중인 노드 id — 같은 노드를 응답 전에 다시 토글하면 요청이
+  // 뒤바뀐 순서로 끝나며 롤백이 최신 값을 덮어쓸 수 있어, 노드 단위로 버튼을 잠근다.
+  const [startCandidatePendingIds, setStartCandidatePendingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
@@ -3163,6 +3168,8 @@ const FloorPlansDetailPage = () => {
       }
     : null;
   const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
+  // 실시간 상세 조회(floor)를 우선, 없으면 목록 캐시(currentFloor)로 폴백 — 캔버스·체크리스트 공통
+  const resolvedFloor = floor ?? currentFloor;
 
   const handleFloorChange = (newId: string) => {
     // selectedFloorId는 아래 navigate로 URL이 바뀌면 useParams를 통해 자동으로 갱신됨
@@ -3682,24 +3689,43 @@ const FloorPlansDetailPage = () => {
   // isStartCandidate 플래그만 토글됨 — 최종 탈출구와 달리 별도 엔드포인트(PATCH
   // /nodes/{id}/start-candidate). 낙관적으로 캐시를 바꾸고 실패 시 되돌린다.
   const handleToggleStartCandidate = (id: string) => {
+    if (startCandidatePendingIds.has(id)) return;
     const node = structureNodes.find((n) => n.id === id);
     if (!node) return;
     const next = !node.isStartCandidate;
+    setStartCandidatePendingIds((prev) => new Set(prev).add(id));
     updateGraphCache((prev) => ({
       ...prev,
       nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: next } : n)),
     }));
-    updateNodeStartCandidate(id, next).catch((error: unknown) => {
-      updateGraphCache((prev) => ({
-        ...prev,
-        nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: !next } : n)),
-      }));
-      const { message: serverMessage } = extractApiError(error);
-      show({
-        title: serverMessage || '시작 후보 지정에 실패했습니다.',
-        variant: 'error',
+    updateNodeStartCandidate(id, next)
+      .then((updated) => {
+        // 서버가 확정한 값으로 캐시를 맞춘다 — 낙관적 값과 어긋났을 때를 대비
+        updateGraphCache((prev) => ({
+          ...prev,
+          nodes: prev.nodes.map((n) =>
+            n.id === id ? { ...n, isStartCandidate: updated.isStartCandidate } : n,
+          ),
+        }));
+      })
+      .catch((error: unknown) => {
+        updateGraphCache((prev) => ({
+          ...prev,
+          nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: !next } : n)),
+        }));
+        const { message: serverMessage } = extractApiError(error);
+        show({
+          title: serverMessage || '시작 후보 지정에 실패했습니다.',
+          variant: 'error',
+        });
+      })
+      .finally(() => {
+        setStartCandidatePendingIds((prev) => {
+          const nextSet = new Set(prev);
+          nextSet.delete(id);
+          return nextSet;
+        });
       });
-    });
   };
 
   const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean =>
@@ -4264,6 +4290,7 @@ const FloorPlansDetailPage = () => {
               <button
                 type="button"
                 className={n.isStartCandidate ? styles.finalExitBadge : styles.finalExitToggle}
+                disabled={startCandidatePendingIds.has(n.id)}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleToggleStartCandidate(n.id);
@@ -4837,8 +4864,8 @@ const FloorPlansDetailPage = () => {
                 가장 먼저 보이는 자리에 둠.
                 상태는 currentFloor(목록 캐시)가 아니라 실시간으로 폴링되는 상세 조회(floor)를
                 우선으로 봄 — 업로드 후 분석이 끝나도 목록 캐시는 안 갱신돼서 체크리스트만
-                새로고침 전엔 안 뜨던 문제. 캔버스도 아래에서 `floor ?? currentFloor`로 판단함 */}
-            {(floor ?? currentFloor)?.segmentationStatus === 'DONE' && (
+                새로고침 전엔 안 뜨던 문제. 캔버스도 아래에서 resolvedFloor로 판단함 */}
+            {resolvedFloor?.segmentationStatus === 'DONE' && (
               <ReadinessChecklist
                 hasStartNode={structureNodes.some((n) => n.type === 'start' || n.isStartCandidate)}
                 hasFinalExit={structureNodes.some((n) => n.isFinalExit)}
@@ -5074,10 +5101,10 @@ const FloorPlansDetailPage = () => {
                 <div className={styles.canvasPlaceholder}>
                   <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
                 </div>
-              ) : (floor ?? currentFloor) ? (
+              ) : resolvedFloor ? (
                 <FloorCanvas
                   mapWrapRef={mapWrapRef}
-                  floor={floor ?? currentFloor}
+                  floor={resolvedFloor}
                   resolvedImageUrl={resolvedMapImageUrl}
                   canvasH={canvasH}
                   selected={selectedItem}
