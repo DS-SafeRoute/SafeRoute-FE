@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 
-import LogoIcon from '@assets/icons/logo.svg?react';
+import logoImg from '@assets/icons/logo.webp';
 
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
@@ -61,7 +61,7 @@ const SignupPage = () => {
     <main className={styles.page}>
       <form noValidate className={styles.signupCard} onSubmit={handleSignup}>
         <Link className={styles.brand} to={ROUTES.LANDING} aria-label="SAFE ROUTE 홈">
-          <LogoIcon className={styles.logoIcon} />
+          <img src={logoImg} className={styles.logoIcon} alt="" aria-hidden="true" />
           <span>SAFE ROUTE</span>
         </Link>
 
