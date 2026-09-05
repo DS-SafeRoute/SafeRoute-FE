@@ -131,12 +131,19 @@ export const actionButton = recipe({
   base: {
     alignSelf: 'flex-start',
     marginTop: vars.space.s1,
+    outline: 'none',
     border: '1px solid currentColor',
     borderRadius: vars.radius.md,
+    backgroundColor: 'transparent',
     cursor: 'pointer',
     padding: `${vars.space.s1} ${vars.space.s3}`,
-    fontSize: '1.2rem',
-    fontWeight: vars.fontWeight.semibold,
+    ...vars.typography.captionMedium,
+    selectors: {
+      '&:focus-visible': {
+        outline: '2px solid currentColor',
+        outlineOffset: '2px',
+      },
+    },
   },
   variants: {
     variant: {

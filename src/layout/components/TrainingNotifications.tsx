@@ -9,7 +9,10 @@ import type { TrainingSessionContext } from '@pages/trainingAnalysis/types/train
 
 import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import {
+  SESSION_DISCOVERY_POLL_INTERVAL_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
@@ -181,7 +184,7 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
 const TrainingNotifications = () => {
   const [trackedSessions, setTrackedSessions] = useState<TrainingSessionSummaryResponse[]>([]);
   const { data: runningSessions } = useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, {
-    shouldPoll: trackedSessions.length > 0,
+    refetchIntervalMs: trackedSessions.length > 0 ? undefined : SESSION_DISCOVERY_POLL_INTERVAL_MS,
   });
   const endedSessionIds = useRef(new Set<string>());
 

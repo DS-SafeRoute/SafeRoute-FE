@@ -11,16 +11,21 @@ const SESSION_REFETCH_INTERVAL_MS = 10_000;
 interface UseGetTrainingSessionsQueryOptions {
   enabled?: boolean;
   shouldPoll?: boolean;
+  refetchIntervalMs?: number;
 }
 
 // 특정 상태의 훈련 세션 목록 조회 Query
 export const useGetTrainingSessionsQuery = (
   status: TrainingSessionStatus,
-  { enabled = true, shouldPoll = true }: UseGetTrainingSessionsQueryOptions = {},
+  {
+    enabled = true,
+    shouldPoll = true,
+    refetchIntervalMs = SESSION_REFETCH_INTERVAL_MS,
+  }: UseGetTrainingSessionsQueryOptions = {},
 ) =>
   useQuery({
     queryKey: trainingSessionQueryKeys.list(status),
     queryFn: ({ signal }) => getTrainingSessions(status, signal),
     enabled,
-    refetchInterval: shouldPoll ? SESSION_REFETCH_INTERVAL_MS : false,
+    refetchInterval: shouldPoll ? refetchIntervalMs : false,
   });

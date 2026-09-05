@@ -31,6 +31,7 @@ import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useTrainingSessionQuery } from './api/useSessionContextQuery';
 import { useSessionEventsQuery } from './api/useSessionEventsQuery';
 import { useTrainingMonitoringSocket } from './api/useTrainingMonitoringSocket';
+import { useTrainingScenarioId } from './api/useTrainingScenarioId';
 import CameraSidebar from './components/CameraSidebar/CameraSidebar';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -64,7 +65,7 @@ const TrainingCameraFramesPage = () => {
   const { sessionId, cctvId } = useParams<{ sessionId: string; cctvId: string }>();
   const { state: navigationState } = useLocation();
   const navigate = useNavigate();
-  const scenarioId = getScenarioIdFromNavigationState(navigationState);
+  const routedScenarioId = getScenarioIdFromNavigationState(navigationState);
   // 인덱스가 아니라 frameId로 선택 프레임을 추적함 — 과거 페이지를 더 불러오면 배열 앞쪽에
   // 프레임이 추가되는데(아래 frames 설명 참고), 고정된 숫자 인덱스로 추적하면 그 순간
   // 사용자가 보던 프레임이 페이지 크기만큼 과거로 밀려버림(실측으로 확인한 버그).
@@ -90,6 +91,11 @@ const TrainingCameraFramesPage = () => {
     isError: isSessionError,
     error: sessionError,
   } = useTrainingSessionQuery(sessionId);
+  const { scenarioId, isResolvingScenarioId } = useTrainingScenarioId({
+    sessionId,
+    status: session?.status,
+    routedScenarioId,
+  });
   // 진행 중 훈련이면 카메라·프레임·이벤트를 주기적으로 다시 조회해 최신 프레임을 반영
   const isLive = isLiveSessionStatus(session?.status);
   const {
@@ -179,6 +185,14 @@ const TrainingCameraFramesPage = () => {
         replace
         state={{ timedOutSessionId: session.sessionId }}
       />
+    );
+  }
+
+  if (session?.status === TRAINING_SESSION_STATUS.FAILED && isResolvingScenarioId) {
+    return (
+      <div className={styles.container}>
+        <LoadingState />
+      </div>
     );
   }
 

@@ -4,7 +4,7 @@ export type { TrainingSessionStatus } from '@apis/trainingSessions/trainingSessi
 
 export interface TrainingSessionSummary {
   sessionId: string;
-  scenarioId: string;
+  scenarioId?: string;
   scenarioName: string;
   buildingId: string;
   buildingName: string;

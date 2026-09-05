@@ -6,7 +6,10 @@ import { LIVE_SESSION_POLL_INTERVAL_MS } from '@pages/trainingAnalysis/constants
 import type { TrainingSessionSummary } from '@pages/trainingAnalysis/types/trainingAnalysis';
 
 import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import {
+  SESSION_DISCOVERY_POLL_INTERVAL_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi';
 
@@ -17,15 +20,7 @@ const toTrainingSessionSummary = (
 ): TrainingSessionSummary | null => {
   const { sessionId, scenarioId, scenarioName, buildingId, buildingName, status, startedAt } =
     response;
-  if (
-    !sessionId ||
-    !scenarioId ||
-    !scenarioName ||
-    !buildingId ||
-    !buildingName ||
-    !status ||
-    !startedAt
-  ) {
+  if (!sessionId || !scenarioName || !buildingId || !buildingName || !status || !startedAt) {
     return null;
   }
   return { sessionId, scenarioId, scenarioName, buildingId, buildingName, status, startedAt };
@@ -43,9 +38,10 @@ export const useRunningTrainingSessionsQuery = () => {
   const { data, isLoading, isError } = useQuery({
     queryKey: trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.RUNNING),
     queryFn: ({ signal }) => getTrainingSessions(TRAINING_SESSION_STATUS.RUNNING, signal),
-    // 실행 세션이 모두 종료되면 빈 목록을 받은 시점부터 불필요한 폴링을 중지한다.
-    // 새 훈련 시작 mutation이 이 쿼리를 무효화하면 다시 조회되고 폴링도 재개된다.
-    refetchInterval: (query) => (query.state.data?.length ? LIVE_SESSION_POLL_INTERVAL_MS : false),
+    // 실행 세션이나 정상 응답이 없을 때도 낮은 빈도로 조회해 다른 클라이언트의 시작과
+    // 일시적인 조회 오류를 자동 복구한다.
+    refetchInterval: (query) =>
+      query.state.data?.length ? LIVE_SESSION_POLL_INTERVAL_MS : SESSION_DISCOVERY_POLL_INTERVAL_MS,
     // 기본값(false)이면 창이 포커스를 잃는 순간 폴링이 멈춤 — 관제 화면처럼 띄워만 두는 경우
     // "자동 갱신"이라고 안내해놓고 실제로는 멈춰 있게 되어서 백그라운드에서도 계속 돌게 함
     refetchIntervalInBackground: true,

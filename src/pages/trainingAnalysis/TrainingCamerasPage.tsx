@@ -21,6 +21,7 @@ import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useTrainingSessionQuery } from './api/useSessionContextQuery';
 import { useSessionCurrentStatesQuery } from './api/useSessionCurrentStatesQuery';
 import { useTrainingMonitoringSocket } from './api/useTrainingMonitoringSocket';
+import { useTrainingScenarioId } from './api/useTrainingScenarioId';
 import CameraCard from './components/CameraCard/CameraCard';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -45,7 +46,7 @@ const TrainingCamerasPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { state: navigationState } = useLocation();
   const navigate = useNavigate();
-  const scenarioId = getScenarioIdFromNavigationState(navigationState);
+  const routedScenarioId = getScenarioIdFromNavigationState(navigationState);
 
   const {
     session,
@@ -53,6 +54,11 @@ const TrainingCamerasPage = () => {
     isError: isSessionError,
     error: sessionError,
   } = useTrainingSessionQuery(sessionId);
+  const { scenarioId, isResolvingScenarioId } = useTrainingScenarioId({
+    sessionId,
+    status: session?.status,
+    routedScenarioId,
+  });
   const isLive = isLiveSessionStatus(session?.status);
   const {
     data: cameras = [],
@@ -90,6 +96,14 @@ const TrainingCamerasPage = () => {
         replace
         state={{ timedOutSessionId: session.sessionId }}
       />
+    );
+  }
+
+  if (session?.status === TRAINING_SESSION_STATUS.FAILED && isResolvingScenarioId) {
+    return (
+      <div className={styles.container}>
+        <LoadingState />
+      </div>
     );
   }
 
