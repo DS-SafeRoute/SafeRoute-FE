@@ -8,6 +8,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import { extractApiError } from '@apis/errors/apiError';
 import {
+  floorGraphQueryOptions,
   floorQueryKeys,
   useBuildingFloorsQuery,
   useFloorCctvsQuery,
@@ -68,7 +69,6 @@ import {
   createMapNode,
   deleteMapEdge,
   deleteMapNode,
-  getFloorGraph,
   updateMapNodePosition,
 } from './api/mapGraphApi';
 import { createUserZone, deleteUserZone } from './api/userZoneApi';
@@ -335,6 +335,7 @@ const EMPTY_CCTVS: Cctv[] = [];
 const EMPTY_LIGHTS: IoTLight[] = [];
 const EMPTY_GRID_CELLS: FloorGridCell[] = [];
 const EMPTY_USER_ZONES: UserZoneWithCells[] = [];
+const EMPTY_GRAPH: FloorGraph = { nodes: [], edges: [] };
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
@@ -2594,12 +2595,6 @@ const FloorPlansDetailPage = () => {
   // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
   const resetFloorScopedState = useCallback(() => {
     lastCctvDraftRectRef.current = null;
-    // 층을 바꿨는데 이전 층의 원본 그래프가 남아있으면, 새 층 그래프가 도착하기 전에 canvasH가
-    // 바뀔 때 이전 층 데이터로 구조 노드를 잘못 재계산할 수 있어 같이 비움
-    lastGraphRef.current = null;
-    setStructureNodes([]);
-    setGraphNodes([]);
-    setGraphEdges([]);
     setAddedDevices([]);
     // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
     // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
@@ -2688,15 +2683,35 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId, isFloorReady, show, queryClient]);
 
-  // canvasH(그리드/이미지 로드가 끝나야 확정)는 구조 노드의 비율 좌표를 픽셀로 바꾸는 데만
-  // 쓰이고 그래프 데이터 자체와는 무관한데, 예전엔 이 값이 fetch effect의 의존성에 들어있어서
-  // canvasH가 바뀔 때마다(그리드가 늦게 로드되는 등) 서버에서 노드·엣지를 통째로 다시 조회했음
-  // (실측 확인된 중복 요청의 주 원인). 원본(비율 좌표) 그래프를 ref에 남겨두고, canvasH가
-  // 나중에 바뀌면 재조회 없이 이 ref로 구조 노드 픽셀 좌표만 다시 계산함
-  const lastGraphRef = useRef<FloorGraph | null>(null);
+  // 맵그래프(노드/엣지) 조회 — 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기
+  // 전이라 빈 그래프가 올 수 있어서, 비어 있으면 짧은 간격으로 몇 번 더 조회한다(최대
+  // GRAPH_RETRY_LIMIT회 — dataUpdateCount로 세서 floorId가 바뀌면 자동으로 초기화됨)
+  const graphQuery = useQuery({
+    ...floorGraphQueryOptions(floorId),
+    enabled: Boolean(floorId) && isFloorReady,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      return data.nodes.length === 0 && query.state.dataUpdateCount <= GRAPH_RETRY_LIMIT
+        ? GRAPH_RETRY_INTERVAL_MS
+        : false;
+    },
+  });
+  const graphData = graphQuery.data ?? EMPTY_GRAPH;
 
-  const applyStructureNodes = (graph: FloorGraph, h: number) => {
-    const structureFromGraph: StructureNode[] = graph.nodes.flatMap((n) => {
+  const updateGraphCache = (updater: (prev: FloorGraph) => FloorGraph) => {
+    queryClient.setQueryData<FloorGraph>(floorQueryKeys.graph(floorId), (prev) =>
+      updater(prev ?? EMPTY_GRAPH),
+    );
+  };
+
+  // 문/계단/복도/시작 후보는 구조 노드 편집 상태(비율 좌표 → 픽셀)로 별도로 들고, 나머지는
+  // graphNodes로 조회 전용 보관 — canvasH(그리드/이미지 로드가 끝나야 확정)가 나중에 바뀌어도
+  // 서버 재조회 없이 이 조회 결과(graphData)로 픽셀 좌표만 다시 계산함(예전엔 canvasH가 fetch
+  // effect의 의존성에 들어있어서 canvasH가 바뀔 때마다 노드·엣지를 통째로 다시 조회했었음 —
+  // 실측 확인된 중복 요청의 주 원인)
+  useEffect(() => {
+    const structureFromGraph: StructureNode[] = graphData.nodes.flatMap((n) => {
       const structureType = API_TYPE_TO_STRUCTURE[n.type];
       if (!structureType) return [];
       return [
@@ -2704,7 +2719,7 @@ const FloorPlansDetailPage = () => {
           id: n.id,
           type: structureType,
           x: n.x * CANVAS_W,
-          y: n.y * h,
+          y: n.y * canvasH,
           // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
           // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
           isFinalExit: n.type === 'EXIT',
@@ -2712,51 +2727,7 @@ const FloorPlansDetailPage = () => {
       ];
     });
     setStructureNodes(structureFromGraph);
-  };
-
-  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
-  // 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기 전이라 빈 그래프가 올 수 있어서,
-  // 비어 있으면 짧은 간격으로 몇 번 더 조회한다. (예전에는 이 자리에서 페이지를 통째로
-  // 새로고침했는데, 편집 중이던 상태가 날아가고 깜빡임이 커서 재조회 방식으로 바꿈)
-  useEffect(() => {
-    if (!floorId || !isFloorReady) return;
-    let cancelled = false;
-    let attempts = 0;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const load = () => {
-      getFloorGraph(floorId)
-        .then((graph) => {
-          if (cancelled) return;
-          lastGraphRef.current = graph;
-          applyStructureNodes(graph, canvasH);
-          setGraphNodes(graph.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]));
-          setGraphEdges(graph.edges);
-
-          // 분석 직후 아직 노드가 안 만들어졌으면 잠시 뒤 다시 시도(최대 GRAPH_RETRY_LIMIT회)
-          if (graph.nodes.length === 0 && attempts < GRAPH_RETRY_LIMIT) {
-            attempts += 1;
-            timer = setTimeout(load, GRAPH_RETRY_INTERVAL_MS);
-          }
-        })
-        .catch(() => {});
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-    // canvasH는 의도적으로 뺌 — 바뀔 때마다 재조회하던 걸 없애는 게 이 effect 분리의 목적이라,
-    // 픽셀 재계산은 아래 별도 effect가 맡음(applyStructureNodes 안에서만 canvasH를 씀)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorId, isFloorReady]);
-
-  // canvasH가 나중에 확정되거나 바뀌면(그리드 로드 등), 서버 재조회 없이 이미 받아둔 원본
-  // 그래프로 구조 노드 픽셀 좌표만 다시 계산함
-  useEffect(() => {
-    if (lastGraphRef.current) applyStructureNodes(lastGraphRef.current, canvasH);
-  }, [canvasH]);
+  }, [graphData, canvasH]);
 
   const { data: iotLights = EMPTY_LIGHTS } = useFloorLightsQuery(floorId);
 
@@ -2903,8 +2874,12 @@ const FloorPlansDetailPage = () => {
     });
   }, [floorId, structureNodes, show]);
 
-  const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
-  const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
+  // 문/계단 등 구조 노드가 아닌 나머지 그래프 노드 — graphData(위 graphQuery)에서 조회 전용으로만 씀
+  const graphNodes = useMemo(
+    () => graphData.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]),
+    [graphData],
+  );
+  const graphEdges = graphData.edges;
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -3196,8 +3171,6 @@ const FloorPlansDetailPage = () => {
       // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음). position은 0~100(%) 기준
       const ratioX = position.x / 100;
       const ratioY = position.y / 100;
-      const x = ratioX * CANVAS_W;
-      const y = ratioY * canvasH;
       if (currentFloor) {
         const apiType = STRUCTURE_NODE_API_TYPE[type];
         const count = structureNodes.filter((n) => n.type === type).length + 1;
@@ -3210,10 +3183,7 @@ const FloorPlansDetailPage = () => {
           isExitTarget: false,
         })
           .then((newNode) => {
-            setStructureNodes((prev) => [
-              ...prev,
-              { id: newNode.id, type, x, y, isFinalExit: false },
-            ]);
+            updateGraphCache((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
           })
           .catch((error: unknown) => {
             // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
@@ -3575,18 +3545,24 @@ const FloorPlansDetailPage = () => {
     const node = structureNodes.find((n) => n.id === id);
     if (!node) return;
     const nextIsFinalExit = !node.isFinalExit;
-    setStructureNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isFinalExit: nextIsFinalExit } : n)),
-    );
+    const originalType: MapNodeType = node.isFinalExit
+      ? 'EXIT'
+      : STRUCTURE_NODE_API_TYPE[node.type];
+    const nextType: MapNodeType = nextIsFinalExit ? 'EXIT' : STRUCTURE_NODE_API_TYPE[node.type];
+    updateGraphCache((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === id ? { ...n, type: nextType } : n)),
+    }));
     updateMapNodePosition(id, {
       x: node.x / CANVAS_W,
       y: node.y / canvasH,
-      type: nextIsFinalExit ? 'EXIT' : STRUCTURE_NODE_API_TYPE[node.type],
+      type: nextType,
       isExitTarget: nextIsFinalExit,
     }).catch((error: unknown) => {
-      setStructureNodes((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
-      );
+      updateGraphCache((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === id ? { ...n, type: originalType } : n)),
+      }));
       // 마지막 남은 탈출구는 해제할 수 없는 등 서버가 이유를 message로 내려주므로 그대로 보여줌
       const { message: serverMessage } = extractApiError(error);
       show({
@@ -3625,9 +3601,14 @@ const FloorPlansDetailPage = () => {
     );
   };
 
-  // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
+  // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만.
+  // 픽셀 좌표를 그래프 캐시의 비율 좌표로 바로 바꿔 써서, structureNodes 동기화 effect가
+  // canvasH로 다시 픽셀 변환해 그대로 반영함
   const handleStructureNodeMove = (id: string, x: number, y: number) => {
-    setStructureNodes((prev) => prev.map((n) => (n.id === id ? { ...n, x, y } : n)));
+    updateGraphCache((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === id ? { ...n, x: x / CANVAS_W, y: y / canvasH } : n)),
+    }));
   };
 
   const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
@@ -3640,11 +3621,11 @@ const FloorPlansDetailPage = () => {
   const handleStructureNodeDelete = (id: string) => {
     deleteMapNode(id)
       .then(() => {
-        setStructureNodes((prev) => prev.filter((n) => n.id !== id));
-        // 서버는 이 노드에 붙은 엣지까지 cascade 삭제하므로 로컬 엣지도 같이 정리
-        setGraphEdges((prev) =>
-          prev.filter((edge) => edge.fromNodeId !== id && edge.toNodeId !== id),
-        );
+        // 서버는 이 노드에 붙은 엣지까지 cascade 삭제하므로 로컬 캐시의 엣지도 같이 정리
+        updateGraphCache((prev) => ({
+          nodes: prev.nodes.filter((n) => n.id !== id),
+          edges: prev.edges.filter((edge) => edge.fromNodeId !== id && edge.toNodeId !== id),
+        }));
         setEditingStructureId((prev) => (prev === id ? null : prev));
       })
       .catch((error: unknown) => {
@@ -3780,7 +3761,7 @@ const FloorPlansDetailPage = () => {
         }
       });
       if (succeeded.length > 0) {
-        setGraphEdges((prev) => [...prev, ...succeeded]);
+        updateGraphCache((prev) => ({ ...prev, edges: [...prev.edges, ...succeeded] }));
         show({ title: `${succeeded.length}개 구간이 연결되었습니다.`, variant: 'success' });
       }
       if (failedLabels.length > 0) {
@@ -3804,7 +3785,7 @@ const FloorPlansDetailPage = () => {
   const handleEdgeDelete = (edgeId: string) => {
     deleteMapEdge(edgeId)
       .then(() => {
-        setGraphEdges((prev) => prev.filter((e) => e.id !== edgeId));
+        updateGraphCache((prev) => ({ ...prev, edges: prev.edges.filter((e) => e.id !== edgeId) }));
         setSelectedEdgeId((prev) => (prev === edgeId ? null : prev));
       })
       .catch(() => {});
