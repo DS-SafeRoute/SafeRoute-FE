@@ -284,6 +284,70 @@ export const nodeAddLabel = style({
   ...vars.typography.caption,
 });
 
+// 갈림길 위치·좌우 통로 라벨 옆에 "캔버스에서 선택" 버튼을 나란히 두기 위함 — 드롭다운에서
+// 같은 이름 노드가 많아 고르기 혼란스럽다는 피드백으로, 도면에서 직접 클릭해 고르는 대안 제공
+export const nodeAddLabelRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+});
+
+export const nodeAddPickBtn = style({
+  flexShrink: 0,
+  border: 'none',
+  background: 'none',
+  cursor: 'pointer',
+  padding: 0,
+  color: vars.color.primary,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { textDecoration: 'underline' },
+    '&:disabled': { cursor: 'not-allowed', color: vars.color.gray300 },
+  },
+});
+
+// 갈림길 위치·좌우 통로는 드롭다운을 없애고 캔버스 클릭으로만 고르게 함(같은 이름의 노드가
+// 많아 드롭다운으로는 뭐가 뭔지 구분이 안 된다는 피드백) — 이 박스는 클릭 대상이 아니라
+// 현재 고른 값을 보여주기만 하는 정적 표시 영역
+export const nodeAddPickDisplay = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const nodeAddPickDisplayEmpty = style({
+  color: vars.color.textLow,
+});
+
+// 지금 이 필드가 "캔버스에서 선택" 중임을 표시 — 드롭다운의 aria-expanded 강조 테두리와 같은 색
+export const nodeAddPickDisplayActive = style({
+  borderColor: vars.color.primary,
+});
+
+export const nodeAddPickClearBtn = style({
+  display: 'inline-flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: vars.radius.pill,
+  background: 'none',
+  cursor: 'pointer',
+  padding: 0,
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray50, color: vars.color.textHigh },
+  },
+});
+
 export const edgeBidirectionalField = style({
   display: 'flex',
   alignItems: 'center',
@@ -793,7 +857,17 @@ export const cctvEnableSwitchThumb = style({
   },
 });
 
+// 기기명(입력창 또는 텍스트) + 삭제 아이콘 버튼을 한 줄에 나란히 둠 — 삭제가 하단 버튼 행에
+// 있던 걸 여기로 옮겨서, 아래는 취소/완료(또는 수정)만 남게 함
+export const deviceCardNameRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
 export const deviceCardName = style({
+  flex: 1,
+  minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -802,12 +876,12 @@ export const deviceCardName = style({
 });
 
 export const deviceCardNameInput = style({
+  flex: 1,
   outline: 'none',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.sm,
   backgroundColor: vars.color.white,
   padding: `${vars.space.s1} ${vars.space.s2}`,
-  width: '100%',
   minWidth: 0,
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
@@ -857,41 +931,6 @@ export const lightFieldGroup = style({
   gap: vars.space.s2,
 });
 
-// 카드 폭에 맞춰 버튼 3개가 한 줄에 다 들어가도록 폭 전체를 씀 — deviceCardRow의
-// space-between 안에 끼워 넣으면 "방향"라벨에 밀려 좁아져서 글자가 줄바꿈되던 문제가 있었음
-export const lightDirectionRow = style({
-  display: 'flex',
-  gap: vars.space.s1,
-});
-
-export const lightDirectionBtn = style({
-  flex: 1,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s1} 0`,
-  whiteSpace: 'nowrap',
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray25 },
-    '&:disabled': {
-      opacity: 0.4,
-      backgroundColor: vars.color.white,
-      cursor: 'not-allowed',
-    },
-  },
-});
-
-// 방향은 서버가 현재 상태를 내려주지 않아 "지금 이 방향임"을 표시할 수 없음 — 대신 "방금 이걸
-// 눌렀다"는 클릭 자체를 눈에 보이게 남겨서, 눌렀는지 안 눌렀는지 헷갈리지 않게 함
-export const lightDirectionBtnActive = style({
-  borderColor: vars.color.primary,
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
-});
-
 export const deviceCardActions = style({
   display: 'flex',
   gap: vars.space.s2,
@@ -927,20 +966,6 @@ export const deviceCardDoneBtn = style({
       backgroundColor: vars.color.primaryHover,
     },
     '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
-  },
-});
-
-export const deviceCardDeleteBtn = style({
-  flex: 1,
-  border: `1px solid ${vars.color.dangerLight}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: vars.space.s2,
-  color: vars.color.danger,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: '#FFF5F5' },
   },
 });
 
@@ -1139,15 +1164,33 @@ export const mapImage = style({
 });
 
 /* ── 마커 공통 ── */
+// 마커 위치의 기준점(0,0)만 잡음 — 크기가 없는 점이라 자식(원 아이콘·라벨)이 뭘 보여주든
+// 이 기준점 자체는 흔들리지 않음
 export const markerWrap = style({
   position: 'absolute',
   zIndex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '0.3rem',
-  transform: 'translate(-50%, -50%)',
   cursor: 'pointer',
+});
+
+// 원 아이콘은 markerWrap의 (0,0)을 기준으로 항상 자기 자신의 고정 크기(2.4rem)만으로
+// -50%/-50% 이동해 중앙 정렬함 — 라벨(선택 시에만 나타남)과 같은 flex 박스에 있지 않아서,
+// 수정 모드 진입으로 라벨이 나타나거나 사라져도 원 아이콘 위치는 안 바뀜(전엔 라벨 유무로
+// markerWrap 전체 높이가 바뀌어 translate(-50%,-50%) 기준도 같이 바뀌면서 수정 시작하자마자
+// 마커가 위로 튀어 보이던 버그의 원인이었음)
+export const markerPin = style({
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  transform: 'translate(-50%, -50%)',
+});
+
+// 라벨도 markerWrap의 (0,0) 기준으로 원 아이콘 반지름(1.2rem) + 기존 간격(0.3rem)만큼
+// 아래로 고정 오프셋 — 원 아이콘 쪽 레이아웃과 완전히 분리돼 있어 서로 영향을 안 줌
+export const markerLabelPin = style({
+  position: 'absolute',
+  top: '1.5rem',
+  left: 0,
+  transform: 'translateX(-50%)',
 });
 
 export const markerCircle = style({
