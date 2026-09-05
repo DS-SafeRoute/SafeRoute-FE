@@ -5,11 +5,17 @@ import { getFloorGridCells } from './floorGridApi';
 import { getBuildingFloors, getFloorImageUrl } from './floorsApi';
 import { getFloorLights } from './iotLightsApi';
 import { getFloorGraph } from './mapGraphApi';
+import { getFloorUserZones, getUserZoneDetail } from './userZoneApi';
+
+import type { UserZone } from './userZoneApi';
 
 export const floorQueryKeys = {
   all: ['floors'] as const,
   lists: () => [...floorQueryKeys.all, 'list'] as const,
   list: (buildingId?: string) => [...floorQueryKeys.lists(), buildingId] as const,
+  details: () => [...floorQueryKeys.all, 'detail'] as const,
+  detail: (buildingId?: string, floorId?: string) =>
+    [...floorQueryKeys.details(), buildingId, floorId] as const,
   images: () => [...floorQueryKeys.all, 'image'] as const,
   image: (buildingId?: string, floorId?: string) =>
     [...floorQueryKeys.images(), buildingId, floorId] as const,
@@ -21,7 +27,14 @@ export const floorQueryKeys = {
   cctv: (floorId?: string) => [...floorQueryKeys.cctvs(), floorId] as const,
   lights: () => [...floorQueryKeys.all, 'light'] as const,
   light: (floorId?: string) => [...floorQueryKeys.lights(), floorId] as const,
+  zones: () => [...floorQueryKeys.all, 'zone'] as const,
+  zone: (floorId?: string) => [...floorQueryKeys.zones(), floorId] as const,
 };
+
+// 목록 API가 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로 조회해 합쳐야 함
+export interface UserZoneWithCells extends UserZone {
+  cellIds: string[];
+}
 
 export const buildingFloorsQueryOptions = (buildingId?: string) =>
   queryOptions({
@@ -83,6 +96,24 @@ export const floorLightsQueryOptions = (floorId?: string) =>
     },
   });
 
+export const floorUserZonesQueryOptions = (floorId?: string) =>
+  queryOptions({
+    queryKey: floorQueryKeys.zone(floorId),
+    queryFn: async ({ signal }): Promise<UserZoneWithCells[]> => {
+      if (!floorId) throw new Error('사용자 지정 영역 조회 조건이 필요합니다.');
+      const zoneList = await getFloorUserZones(floorId, signal);
+      const details = await Promise.all(
+        zoneList.map((zone) => getUserZoneDetail(floorId, zone.id, signal)),
+      );
+      return details.map((d) => ({
+        id: d.id,
+        name: d.name,
+        floorNum: d.floorNum,
+        cellIds: d.cells.map((c) => c.cellId),
+      }));
+    },
+  });
+
 export const useFloorGraphQuery = (floorId?: string, enabled = true) =>
   useQuery({
     ...floorGraphQueryOptions(floorId),
@@ -110,5 +141,11 @@ export const useFloorCctvsQuery = (floorId?: string, enabled = true) =>
 export const useFloorLightsQuery = (floorId?: string, enabled = true) =>
   useQuery({
     ...floorLightsQueryOptions(floorId),
+    enabled: enabled && Boolean(floorId),
+  });
+
+export const useFloorUserZonesQuery = (floorId?: string, enabled = true) =>
+  useQuery({
+    ...floorUserZonesQueryOptions(floorId),
     enabled: enabled && Boolean(floorId),
   });

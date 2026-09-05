@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
+import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import { extractApiError } from '@apis/errors/apiError';
-import { floorQueryKeys } from '@apis/floors/floorQueries';
+import {
+  floorGraphQueryOptions,
+  floorQueryKeys,
+  useBuildingFloorsQuery,
+  useFloorCctvsQuery,
+  useFloorGridCellsQuery,
+  useFloorImageUrlQuery,
+  useFloorLightsQuery,
+  useFloorUserZonesQuery,
+} from '@apis/floors/floorQueries';
+import type { UserZoneWithCells } from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -40,17 +51,10 @@ import {
   deleteCctv,
   disableCctv,
   enableCctv,
-  getFloorCctvs,
   updateCctv,
 } from './api/cctvApi';
 import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
-import {
-  analyzeFloor,
-  getFloorBuildings,
-  getFloorDetail,
-  getFloorImageUrl,
-  uploadFloor,
-} from './api/floorPlansApi';
+import { analyzeFloor, getFloorDetail, toFloor, uploadFloor } from './api/floorPlansApi';
 import {
   assignLightCctv,
   configureLightGuidance,
@@ -58,7 +62,6 @@ import {
   deleteIoTLight,
   disableIoTLight,
   enableIoTLight,
-  getFloorLights,
   updateIoTLight,
 } from './api/iotLightsApi';
 import {
@@ -66,15 +69,9 @@ import {
   createMapNode,
   deleteMapEdge,
   deleteMapNode,
-  getFloorGraph,
   updateMapNodePosition,
 } from './api/mapGraphApi';
-import {
-  createUserZone,
-  deleteUserZone,
-  getFloorUserZones,
-  getUserZoneDetail,
-} from './api/userZoneApi';
+import { createUserZone, deleteUserZone } from './api/userZoneApi';
 import ReadinessChecklist from './components/ReadinessChecklist';
 import { DEVICE_COLOR } from './constants/deviceColors';
 import * as styles from './FloorPlansDetailPage.css';
@@ -92,7 +89,7 @@ import {
 import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
-import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
+import type { FloorGraph, MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
@@ -331,6 +328,14 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 그리드 좌표계 기준값·순수 계산 함수는 shared/utils/floorCanvas에서 관리한다.
 // 시나리오 설정 캔버스도 같은 계산을 사용해 셀 경계가 어긋나지 않게 한다.
 const DEFAULT_CANVAS_H = 420;
+
+// react-query data가 아직 없을 때(로딩 중) 쓰는 안정적인 빈 배열 — `data ?? []`처럼 매 렌더
+// 새 배열을 만들면 그 값을 의존성으로 쓰는 effect가 로딩 중에 계속 재실행돼버림
+const EMPTY_CCTVS: Cctv[] = [];
+const EMPTY_LIGHTS: IoTLight[] = [];
+const EMPTY_GRID_CELLS: FloorGridCell[] = [];
+const EMPTY_USER_ZONES: UserZoneWithCells[] = [];
+const EMPTY_GRAPH: FloorGraph = { nodes: [], edges: [] };
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
@@ -2535,11 +2540,28 @@ const FloorPlansDetailPage = () => {
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
   const { show } = useToast();
 
-  const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
-  const [floor, setFloor] = useState<Floor | null>(null);
-  const [loadingFloor, setLoadingFloor] = useState(false);
-  const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
-  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  const { data: floorGridCells = EMPTY_GRID_CELLS } = useFloorGridCellsQuery(floorId);
+
+  // 현재 층 상세 — 세그멘테이션이 끝날 때까지(isAnalyzing) 짧은 간격으로 다시 조회해 상태 전환을
+  // 감지해야 해서, 폴링 여부를 방금 받은 데이터 기준으로 매번 다시 판단하는 refetchInterval에 맡김
+  const floorDetailQuery = useQuery({
+    queryKey: floorQueryKeys.detail(buildingId, floorId),
+    queryFn: ({ signal }) => {
+      if (!buildingId || !floorId) throw new Error('층 상세 조회 조건이 필요합니다.');
+      return getFloorDetail(buildingId, floorId, signal);
+    },
+    enabled: Boolean(buildingId && floorId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const settled = data.segmentationStatus === 'DONE' || data.segmentationStatus === 'FAILED';
+      const analyzing = Boolean(data.mapImageUrl) && !settled;
+      return analyzing ? 4000 : false;
+    },
+  });
+  const floor = floorDetailQuery.data ?? null;
+  const loadingFloor = floorDetailQuery.isLoading;
+
   // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
   const [imageAspect, setImageAspect] = useState<number | null>(null);
 
@@ -2559,20 +2581,7 @@ const FloorPlansDetailPage = () => {
     return DEFAULT_CANVAS_H;
   }, [imageAspect, floorGridCells]);
 
-  // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
-  // 이미지가 올라온 층에서 DONE/FAILED가 아니면 "분석 중"으로 보고(업로드 전 층은 제외),
-  // 완료로 바뀌는 순간 화면을 자동 새로고침함
   const isFloorReady = floor?.segmentationStatus === 'DONE';
-  const isAnalysisSettled =
-    floor?.segmentationStatus === 'DONE' || floor?.segmentationStatus === 'FAILED';
-  const isAnalyzing = Boolean(floor?.mapImageUrl) && !isAnalysisSettled;
-
-  // 빌딩 목록 (사이드바 셀렉터용)
-  useEffect(() => {
-    getFloorBuildings()
-      .then(setFloorBuildings)
-      .catch(() => {});
-  }, []);
 
   // CCTV 등록 시 그리드 배율이 서버에서 사라져있어(CCTV006) 재적용 후 재시도할 때, 방금 사용자가
   // 드래그한 영역을 다시 그리게 하지 않고 같은 영역으로 셀을 재계산하기 위해 rect를 별도로 들고
@@ -2586,17 +2595,10 @@ const FloorPlansDetailPage = () => {
   // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
   const resetFloorScopedState = useCallback(() => {
     lastCctvDraftRectRef.current = null;
-    setStructureNodes([]);
-    setGraphNodes([]);
-    setGraphEdges([]);
     setAddedDevices([]);
-    setRealCctvs([]);
-    setIotLights([]);
     // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
     // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
     setDevicePositions({});
-    setZones([]);
-    setFloorGridCells([]);
     setSelectedItem(null);
     setSelectedZoneRef(null);
     setSelectedEdgeId(null);
@@ -2613,62 +2615,22 @@ const FloorPlansDetailPage = () => {
     setNodeStagedPosition(null);
   }, []);
 
-  // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
+  // 층이 바뀌면(라우트 전환) 이전 층 기준으로 만들어진 노드·장비·구역이 화면에 남지 않도록 즉시 비움
+  // (각 조회는 floorDetailQuery 등 react-query 훅들이 쿼리 키 변경으로 알아서 새로 받아옴)
   useEffect(() => {
-    if (!buildingId || !floorId) return;
-    let cancelled = false;
-    setFloor(null);
     resetFloorScopedState();
-    setLoadingFloor(true);
-    getFloorDetail(buildingId, floorId)
-      .then((data) => {
-        if (!cancelled) setFloor(data);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingFloor(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [buildingId, floorId, resetFloorScopedState]);
-
-  // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회해서 상태 전환을 감지
-  useEffect(() => {
-    if (!buildingId || !floorId || !isAnalyzing) return;
-    let cancelled = false;
-    const timer = setInterval(() => {
-      getFloorDetail(buildingId, floorId)
-        .then((data) => {
-          // clearInterval은 다음 틱만 막아서, 층 전환 중 이미 보낸 요청이 늦게 응답하면
-          // 새 층 데이터를 이전 층 데이터로 덮어쓸 수 있음 — cancelled로 막음
-          if (!cancelled) setFloor(data);
-        })
-        .catch(() => {});
-    }, 4000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [buildingId, floorId, isAnalyzing]);
 
   // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
   // 그리드 셀은 배율 재적용 effect가 다시 받아온다 — 별도의 페이지 새로고침은 필요 없음
 
   // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
-  useEffect(() => {
-    setResolvedMapImageUrl(null);
-    if (!buildingId || !floorId || !floor?.mapImageUrl) return;
-    let cancelled = false;
-    getFloorImageUrl(buildingId, floorId)
-      .then(({ imageUrl }) => {
-        if (!cancelled) setResolvedMapImageUrl(imageUrl);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [buildingId, floorId, floor?.mapImageUrl]);
+  const { data: floorImageData } = useFloorImageUrlQuery(
+    buildingId,
+    floorId,
+    Boolean(floor?.mapImageUrl),
+  );
+  const resolvedMapImageUrl = floorImageData?.imageUrl ?? null;
 
   // 도면 이미지 원본 비율 측정 — 그리드가 없을 때 canvasH 계산의 기준으로 씀
   useEffect(() => {
@@ -2687,16 +2649,6 @@ const FloorPlansDetailPage = () => {
     };
   }, [resolvedMapImageUrl]);
 
-  // 그리드는 더 이상 토글로 켜야만 보이는 게 아니라 항상 표시함 — 층이 준비되면 바로
-  // 조회해둠(floorGridCells가 비어있을 때만 실제로 요청함, ensureFloorGridCells 내부 참고)
-  useEffect(() => {
-    if (!isFloorReady) return;
-    void ensureFloorGridCells();
-    // ensureFloorGridCells는 매 렌더 새로 만들어지는 함수라 의존성에 넣으면 무한 재실행됨.
-    // floorId/isFloorReady가 바뀔 때만 재조회하면 됨
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorId, isFloorReady]);
-
   // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
   // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
   useEffect(() => {
@@ -2708,7 +2660,7 @@ const FloorPlansDetailPage = () => {
       .then(() => getFloorGridCells(floorId))
       .then((cells) => {
         if (cancelled) return;
-        setFloorGridCells(cells);
+        queryClient.setQueryData(floorQueryKeys.grid(floorId), cells);
         rememberGridSize(floorId, cellSizeMeter);
         show({
           title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
@@ -2729,159 +2681,117 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [floorId, isFloorReady, show]);
+  }, [floorId, isFloorReady, show, queryClient]);
 
-  // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
-  // 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기 전이라 빈 그래프가 올 수 있어서,
-  // 비어 있으면 짧은 간격으로 몇 번 더 조회한다. (예전에는 이 자리에서 페이지를 통째로
-  // 새로고침했는데, 편집 중이던 상태가 날아가고 깜빡임이 커서 재조회 방식으로 바꿈)
+  // 맵그래프(노드/엣지) 조회 — 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기
+  // 전이라 빈 그래프가 올 수 있어서, 비어 있으면 짧은 간격으로 몇 번 더 조회한다(최대
+  // GRAPH_RETRY_LIMIT회 — dataUpdateCount로 세서 floorId가 바뀌면 자동으로 초기화됨)
+  const graphQuery = useQuery({
+    ...floorGraphQueryOptions(floorId),
+    enabled: Boolean(floorId) && isFloorReady,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      return data.nodes.length === 0 && query.state.dataUpdateCount <= GRAPH_RETRY_LIMIT
+        ? GRAPH_RETRY_INTERVAL_MS
+        : false;
+    },
+  });
+  const graphData = graphQuery.data ?? EMPTY_GRAPH;
+
+  const updateGraphCache = (updater: (prev: FloorGraph) => FloorGraph) => {
+    queryClient.setQueryData<FloorGraph>(floorQueryKeys.graph(floorId), (prev) =>
+      updater(prev ?? EMPTY_GRAPH),
+    );
+  };
+
+  // 문/계단/복도/시작 후보는 구조 노드 편집 상태(비율 좌표 → 픽셀)로 별도로 들고, 나머지는
+  // graphNodes로 조회 전용 보관 — canvasH(그리드/이미지 로드가 끝나야 확정)가 나중에 바뀌어도
+  // 서버 재조회 없이 이 조회 결과(graphData)로 픽셀 좌표만 다시 계산함(예전엔 canvasH가 fetch
+  // effect의 의존성에 들어있어서 canvasH가 바뀔 때마다 노드·엣지를 통째로 다시 조회했었음 —
+  // 실측 확인된 중복 요청의 주 원인)
   useEffect(() => {
-    if (!floorId || !isFloorReady) return;
-    let cancelled = false;
-    let attempts = 0;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    const structureFromGraph: StructureNode[] = graphData.nodes.flatMap((n) => {
+      const structureType = API_TYPE_TO_STRUCTURE[n.type];
+      if (!structureType) return [];
+      return [
+        {
+          id: n.id,
+          type: structureType,
+          x: n.x * CANVAS_W,
+          y: n.y * canvasH,
+          // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
+          // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
+          isFinalExit: n.type === 'EXIT',
+        },
+      ];
+    });
+    setStructureNodes(structureFromGraph);
+  }, [graphData, canvasH]);
 
-    const load = () => {
-      getFloorGraph(floorId)
-        .then((graph) => {
-          if (cancelled) return;
-          const structureFromGraph: StructureNode[] = graph.nodes.flatMap((n) => {
-            const structureType = API_TYPE_TO_STRUCTURE[n.type];
-            if (!structureType) return [];
-            return [
-              {
-                id: n.id,
-                type: structureType,
-                x: n.x * CANVAS_W,
-                y: n.y * canvasH,
-                // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
-                // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
-                isFinalExit: n.type === 'EXIT',
-              },
-            ];
-          });
-          setStructureNodes(structureFromGraph);
-          setGraphNodes(graph.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]));
-          setGraphEdges(graph.edges);
+  const { data: iotLights = EMPTY_LIGHTS } = useFloorLightsQuery(floorId);
 
-          // 분석 직후 아직 노드가 안 만들어졌으면 잠시 뒤 다시 시도(최대 GRAPH_RETRY_LIMIT회)
-          if (graph.nodes.length === 0 && attempts < GRAPH_RETRY_LIMIT) {
-            attempts += 1;
-            timer = setTimeout(load, GRAPH_RETRY_INTERVAL_MS);
-          }
-        })
-        .catch(() => {});
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-    // canvasH가 확정되면(그리드/이미지 로드) 구조 노드 px 좌표를 그 기준으로 다시 계산해야 함
-  }, [floorId, isFloorReady, canvasH]);
-
-  // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
+  // 유도등은 useFloorLightsQuery가 조회를 맡고(바로 위), 실제 등록된 유도등이 바뀔 때마다(조회·
+  // 생성·수정·삭제 등 무엇으로 바뀌었든) 장비 마커 목록에 그대로 반영되게 동기화만 함
   useEffect(() => {
-    if (!floorId) return;
-    let cancelled = false;
-    getFloorLights(floorId)
-      .then((lights) => {
-        if (cancelled) return;
-        setIotLights(lights);
-        setAddedDevices((prev) => [
-          ...prev.filter((d) => d.placeType !== 'light'),
-          ...lights.map(
-            (light): AddedDevice => ({
-              id: light.id,
-              type: 'iot',
-              placeType: 'light',
-              label: light.name,
-              x: light.x * 100,
-              y: light.y * 100,
-              status: 'online',
-              zone: '사용자 등록',
-            }),
-          ),
-        ]);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [floorId]);
+    setAddedDevices((prev) => [
+      ...prev.filter((d) => d.placeType !== 'light'),
+      ...iotLights.map(
+        (light): AddedDevice => ({
+          id: light.id,
+          type: 'iot',
+          placeType: 'light',
+          label: light.name,
+          x: light.x * 100,
+          y: light.y * 100,
+          status: 'online',
+          zone: '사용자 등록',
+        }),
+      ),
+    ]);
+  }, [iotLights]);
 
-  // CCTV 조회 — 실제 등록된 CCTV를 장비 마커 목록에 채워 넣음
+  const { data: realCctvs = EMPTY_CCTVS } = useFloorCctvsQuery(floorId);
+
+  // CCTV는 useFloorCctvsQuery가 조회를 맡고(바로 위), 실제 등록된 CCTV가 바뀔 때마다(조회·생성·
+  // 수정·삭제 등 무엇으로 바뀌었든) 장비 마커 목록에 그대로 반영되게 동기화만 함
   useEffect(() => {
-    if (!floorId) return;
-    let cancelled = false;
-    getFloorCctvs(floorId)
-      .then((cctvs) => {
-        if (cancelled) return;
-        setRealCctvs(cctvs);
-        setAddedDevices((prev) => [
-          ...prev.filter((d) => d.type !== 'cctv'),
-          ...cctvs.map(
-            (cctv): AddedDevice => ({
-              id: cctv.id,
-              type: 'cctv',
-              placeType: 'cctv',
-              label: cctv.name,
-              x: cctv.x * 100,
-              y: cctv.y * 100,
-              status: 'online',
-              zone: formatMonitoredZone(cctv),
-            }),
-          ),
-        ]);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [floorId]);
+    setAddedDevices((prev) => [
+      ...prev.filter((d) => d.type !== 'cctv'),
+      ...realCctvs.map(
+        (cctv): AddedDevice => ({
+          id: cctv.id,
+          type: 'cctv',
+          placeType: 'cctv',
+          label: cctv.name,
+          x: cctv.x * 100,
+          y: cctv.y * 100,
+          status: 'online',
+          zone: formatMonitoredZone(cctv),
+        }),
+      ),
+    ]);
+  }, [realCctvs]);
 
-  // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로 조회
-  useEffect(() => {
-    if (!floorId) return;
-    let cancelled = false;
-    getFloorUserZones(floorId)
-      .then((zoneList) => Promise.all(zoneList.map((zone) => getUserZoneDetail(floorId, zone.id))))
-      .then((details) => {
-        if (cancelled) return;
-        setZones(
-          details.map((d) => ({
-            id: d.id,
-            type: 'general',
-            label: d.name,
-            cellIds: d.cells.map((c) => c.cellId),
-          })),
-        );
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [floorId]);
+  // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로
+  // 조회해야 함(useFloorUserZonesQuery 내부에서 합쳐서 내려줌)
+  const { data: userZones = EMPTY_USER_ZONES } = useFloorUserZonesQuery(floorId);
+  const zones: ZoneEntry[] = useMemo(
+    () => userZones.map((z) => ({ id: z.id, type: 'general', label: z.name, cellIds: z.cellIds })),
+    [userZones],
+  );
 
-  // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용.
-  // 층을 빠르게 옮기거나 화면을 벗어나면(언마운트) 응답을 무시하는 것뿐 아니라 실제로 요청도
-  // 중단해야, 배율이 작아 페이지가 많은 층에서 안 쓸 응답까지 끝까지 받아오는 낭비가 없음
-  useEffect(() => {
-    if (!floorId) return;
-    const controller = new AbortController();
-    getFloorGridCells(floorId, controller.signal)
-      .then((cells) => {
-        setFloorGridCells(cells);
-      })
-      .catch(() => {});
-    return () => {
-      controller.abort();
-    };
-  }, [floorId]);
-
-  const [selectedBuildingId] = useState(buildingId ?? '');
-  const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
+  // 라우트 파라미터를 그대로 씀 — useState로 복제해두면 뒤로가기/외부 링크처럼 handleFloorChange를
+  // 거치지 않고 URL만 바뀌는 경우 값이 낡아, 실제 조회(floorId 기반 쿼리)와 currentFloor 메타데이터가
+  // 서로 다른 층을 가리키게 됨
+  const selectedBuildingId = buildingId ?? '';
+  const selectedFloorId = floorId ?? '';
+  // 이 화면엔 건물 하나(이름)와 그 건물의 층 목록만 필요한데, 예전엔 getFloorBuildings()가
+  // 전체 건물 목록 + 건물마다 층 목록을 다 조회했음(건물 N개면 요청 N+1개, 건물이 늘수록
+  // 이 화면이 계속 느려지는 구조였음) — 건물 이름은 이미 캐시돼 있을 가능성이 높은 건물
+  // 목록 조회 1번, 층 목록은 이 건물 것만 조회 1번으로 나눔
+  const { data: buildingsForName } = useGetBuildingsQuery();
+  const { data: buildingFloors } = useBuildingFloorsQuery(selectedBuildingId);
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
@@ -2907,7 +2817,6 @@ const FloorPlansDetailPage = () => {
   const [edgeChainNodeIds, setEdgeChainNodeIds] = useState<string[]>([]);
   const [edgeChainReviewOpen, setEdgeChainReviewOpen] = useState(false);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [zones, setZones] = useState<ZoneEntry[]>([]);
   // 구역 재설정(재드래그) 중인 기존 구역 id — null이면 zoneAddOpen은 "새 구역 추가" 흐름.
   // 구역은 PATCH가 없어 새로 만들고 기존 걸 지우는 방식으로만 "수정"할 수 있음(스웨거 확인)
   const [zoneResetTargetId, setZoneResetTargetId] = useState<string | null>(null);
@@ -2968,9 +2877,12 @@ const FloorPlansDetailPage = () => {
     });
   }, [floorId, structureNodes, show]);
 
-  const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
-  const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
-  const [iotLights, setIotLights] = useState<IoTLight[]>([]);
+  // 문/계단 등 구조 노드가 아닌 나머지 그래프 노드 — graphData(위 graphQuery)에서 조회 전용으로만 씀
+  const graphNodes = useMemo(
+    () => graphData.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]),
+    [graphData],
+  );
+  const graphEdges = graphData.edges;
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -2981,7 +2893,6 @@ const FloorPlansDetailPage = () => {
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
   const [gridSetupIntent, setGridSetupIntent] = useState<'cctv' | 'zone' | null>(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
-  const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
   const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
   const [zoneDeleteTarget, setZoneDeleteTarget] = useState<ZoneEntry | null>(null);
@@ -3000,6 +2911,70 @@ const FloorPlansDetailPage = () => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
 
+  // realCctvs는 useFloorCctvsQuery 캐시라, 서버 응답으로 갱신하려면 로컬 setState가 아니라
+  // 이 캐시를 직접 patch해야 함(여러 핸들러가 반복해서 쓰는 패턴이라 하나로 모음)
+  const patchCctvCache = (updated: Cctv) => {
+    queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) =>
+      prev?.map((c) => (c.id === updated.id ? updated : c)),
+    );
+  };
+
+  // iotLights도 useFloorLightsQuery 캐시라 같은 방식으로 patch함
+  const patchLightCache = (updated: IoTLight) => {
+    queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) =>
+      prev?.map((l) => (l.id === updated.id ? updated : l)),
+    );
+  };
+
+  // configureLightGuidance와 assignLightCctv는 같은 IoTLight를 건드리는데, 각자 응답으로
+  // patchLightCache를 부르면 나중에 도착한 응답이 다른 mutation의 변경분을 덮어쓸 수 있음
+  // (코드래빗 리뷰). 둘을 병렬로 보내되 에러만 각자 알리고, 모두 끝난 뒤 캐시를 한 번
+  // 무효화해서 서버 기준 최신 상태로 맞춤
+  const runLightFollowups = async (
+    lightId: string,
+    opts: {
+      guidance?: { decisionNodeId: string; leftEdgeId: string; rightEdgeId: string };
+      cctvId?: string;
+    },
+  ) => {
+    const tasks: Promise<unknown>[] = [];
+    if (opts.guidance) {
+      tasks.push(
+        configureLightGuidance(lightId, opts.guidance).catch((error: unknown) => {
+          const { message } = extractApiError(error);
+          show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
+        }),
+      );
+    }
+    if (opts.cctvId) {
+      tasks.push(
+        assignLightCctv(lightId, opts.cctvId).catch((error: unknown) => {
+          const { message } = extractApiError(error);
+          show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
+        }),
+      );
+    }
+    if (tasks.length === 0) return;
+    await Promise.allSettled(tasks);
+    void queryClient.invalidateQueries({ queryKey: floorQueryKeys.light(floorId) });
+  };
+
+  // zones(위 useMemo)도 useFloorUserZonesQuery 캐시에서 파생된 값이라 로컬 setState 대신
+  // 이 캐시를 직접 갱신해야 반영됨
+  const updateZonesCache = (updater: (prev: UserZoneWithCells[]) => UserZoneWithCells[]) => {
+    queryClient.setQueryData<UserZoneWithCells[]>(floorQueryKeys.zone(floorId), (prev) =>
+      updater(prev ?? []),
+    );
+  };
+
+  // floor(위 floorDetailQuery)도 쿼리 캐시에서 파생된 값이라 로컬 setState 대신 이 캐시를 직접
+  // 갱신해야 반영됨
+  const updateFloorCache = (updater: (prev: Floor | null) => Floor | null) => {
+    queryClient.setQueryData<Floor | null>(floorQueryKeys.detail(buildingId, floorId), (prev) =>
+      updater(prev ?? null),
+    );
+  };
+
   // CCTV/유도등 카드의 활성화 스위치 — 둘 다 enabled 필드와 활성화/비활성화 PATCH API 모양이
   // 같아서 한 핸들러에서 타입만 보고 갈라 처리함
   const handleToggleEnabled = (item: PanelItem) => {
@@ -3010,7 +2985,7 @@ const FloorPlansDetailPage = () => {
       const request = enabled ? enableCctv : disableCctv;
       request(cctv.id)
         .then((updated) => {
-          setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          patchCctvCache(updated);
           show({
             title: enabled ? 'CCTV를 활성화했습니다.' : 'CCTV를 비활성화했습니다.',
             variant: 'success',
@@ -3028,7 +3003,7 @@ const FloorPlansDetailPage = () => {
       const request = enabled ? enableIoTLight : disableIoTLight;
       request(light.id)
         .then((updated) => {
-          setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          patchLightCache(updated);
           show({
             title: enabled ? '유도등을 활성화했습니다.' : '유도등을 비활성화했습니다.',
             variant: 'success',
@@ -3059,17 +3034,8 @@ const FloorPlansDetailPage = () => {
     if (!editingCctvId || cctvDraftCellIds.length === 0) return;
     configureCctvGridCells(editingCctvId, cctvDraftCellIds)
       .then((updated) => {
-        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        setAddedDevices((prev) =>
-          prev.map((d) =>
-            d.id === updated.id
-              ? {
-                  ...d,
-                  zone: formatMonitoredZone(updated),
-                }
-              : d,
-          ),
-        );
+        // addedDevices의 zone(감시 영역 문구)은 realCctvs 동기화 effect가 알아서 다시 채움
+        patchCctvCache(updated);
         setEditingCctvId(null);
         setCctvDraftCellIds([]);
       })
@@ -3122,11 +3088,22 @@ const FloorPlansDetailPage = () => {
     }
   }, [zoneAddOpen]);
 
-  const currentBuilding = floorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
+  const currentBuildingName =
+    buildingsForName?.find((b) => b.id === selectedBuildingId)?.name ?? '';
+  // buildingFloors는 공용 훅(useBuildingFloorsQuery)이 내려주는 얕은 응답 형태(mapImageKey 등)라,
+  // 이 페이지가 기대하는 Floor 형태(mapImageUrl·devices 포함)로 그대로 쓰면 hasFloorPlan 판정이
+  // 항상 false가 돼(필드 이름이 달라 늘 "미등록"으로 보임) 이 파일의 toFloor로 다시 변환해줘야 함
+  const currentBuilding: FloorBuilding | null = selectedBuildingId
+    ? {
+        id: selectedBuildingId,
+        name: currentBuildingName,
+        floors: (buildingFloors ?? []).map((f) => toFloor(f, selectedBuildingId)),
+      }
+    : null;
   const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
 
   const handleFloorChange = (newId: string) => {
-    setSelectedFloorId(newId);
+    // selectedFloorId는 아래 navigate로 URL이 바뀌면 useParams를 통해 자동으로 갱신됨
     setSelectedItem(null);
     setDeleteConfirmTarget(null);
     setNodeAddOpen(false);
@@ -3168,21 +3145,23 @@ const FloorPlansDetailPage = () => {
         rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
-          setFloorGridCells(await getFloorGridCells(newFloor.id));
+          queryClient.setQueryData(
+            floorQueryKeys.grid(newFloor.id),
+            await getFloorGridCells(newFloor.id),
+          );
         } catch {
           show({
             title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
             variant: 'warning',
           });
         }
-        setFloorBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== selectedBuildingId
-              ? b
-              : { ...b, floors: b.floors.map((f) => (f.id !== currentFloor.id ? f : newFloor)) },
-          ),
-        );
-        setFloor(newFloor);
+        // newFloor는 이 파일 기준 Floor 형태(mapImageUrl)라, 공용 훅의 캐시(BuildingFloor 형태,
+        // mapImageKey)에 그대로 patch하면 다른 화면(시나리오설정 등)이 같은 캐시를 읽을 때 모양이
+        // 깨짐 — 직접 patch하지 않고 무효화해서 서버에서 올바른 모양으로 다시 받아오게 함
+        void queryClient.invalidateQueries({
+          queryKey: floorQueryKeys.list(selectedBuildingId),
+        });
+        queryClient.setQueryData(floorQueryKeys.detail(buildingId, floorId), newFloor);
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
@@ -3228,8 +3207,6 @@ const FloorPlansDetailPage = () => {
       // 클릭해 지정한 위치 그대로 저장 (격자 스냅 없음). position은 0~100(%) 기준
       const ratioX = position.x / 100;
       const ratioY = position.y / 100;
-      const x = ratioX * CANVAS_W;
-      const y = ratioY * canvasH;
       if (currentFloor) {
         const apiType = STRUCTURE_NODE_API_TYPE[type];
         const count = structureNodes.filter((n) => n.type === type).length + 1;
@@ -3242,10 +3219,7 @@ const FloorPlansDetailPage = () => {
           isExitTarget: false,
         })
           .then((newNode) => {
-            setStructureNodes((prev) => [
-              ...prev,
-              { id: newNode.id, type, x, y, isFinalExit: false },
-            ]);
+            updateGraphCache((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }));
           })
           .catch((error: unknown) => {
             // 지금까지 문/계단/복도가 실패한 적이 없어서 안 드러났을 뿐, 실패해도 조용히
@@ -3272,48 +3246,23 @@ const FloorPlansDetailPage = () => {
           y: position.y / 100,
         })
           .then((newLight) => {
-            // 설정 모달·활성화 표시가 iotLights를 참조하므로 여기에도 반영해야 함
-            setIotLights((prev) => [...prev, newLight]);
-            setAddedDevices((prev) => [
-              ...prev,
-              {
-                id: newLight.id,
-                type: 'iot',
-                placeType: 'light',
-                label: newLight.name,
-                x: position.x,
-                y: position.y,
-                status: 'online',
-                // 유도등의 "설치 위치"는 실제 좌표(x/y)로 표시하므로(formatInstallLocation) 여기
-                // 값은 안 쓰임 — AddedDevice.zone 타입을 맞추기 위한 자리만 채움
-                zone: '',
-              },
+            // addedDevices에 새 마커를 추가하는 것도 iotLights 동기화 effect가 알아서 처리함
+            queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) => [
+              ...(prev ?? []),
+              newLight,
             ]);
 
             // 담당 CCTV·가이던스는 handleSaveEdit(카드 수정)과 같은 방식으로, 값이 채워졌을
             // 때만 등록 직후 이어서 저장함 — 등록 시점에 판단 노드·엣지가 아직 없으면
             // 비워둔 채로 넘어가고 나중에 카드에서 채워도 됨
             const { decisionNodeId, leftEdgeId, rightEdgeId, cctvId } = lightFields;
-            if (decisionNodeId && leftEdgeId && rightEdgeId) {
-              configureLightGuidance(newLight.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-                .then((updated) =>
-                  setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-                )
-                .catch((error: unknown) => {
-                  const { message } = extractApiError(error);
-                  show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
-                });
-            }
-            if (cctvId) {
-              assignLightCctv(newLight.id, cctvId)
-                .then((updated) =>
-                  setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-                )
-                .catch((error: unknown) => {
-                  const { message } = extractApiError(error);
-                  show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
-                });
-            }
+            void runLightFollowups(newLight.id, {
+              guidance:
+                decisionNodeId && leftEdgeId && rightEdgeId
+                  ? { decisionNodeId, leftEdgeId, rightEdgeId }
+                  : undefined,
+              cctvId: cctvId || undefined,
+            });
           })
           .catch(() => {
             show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
@@ -3335,7 +3284,7 @@ const FloorPlansDetailPage = () => {
     if (!currentFloor) return Promise.resolve([]);
     return getFloorGridCells(currentFloor.id)
       .then((cells) => {
-        setFloorGridCells(cells);
+        queryClient.setQueryData(floorQueryKeys.grid(currentFloor.id), cells);
         return cells;
       })
       .catch(() => []);
@@ -3396,7 +3345,7 @@ const FloorPlansDetailPage = () => {
         setFloorGrid(floorIdForGrid, knownSize)
           .then(() => getFloorGridCells(floorIdForGrid))
           .then((refreshed) => {
-            setFloorGridCells(refreshed);
+            queryClient.setQueryData(floorQueryKeys.grid(floorIdForGrid), refreshed);
             rememberGridSize(floorIdForGrid, knownSize);
             setNodeAddStage('fov');
           })
@@ -3442,7 +3391,7 @@ const FloorPlansDetailPage = () => {
     setFloorGrid(floorIdForGrid, cellSizeMeter)
       .then(() => getFloorGridCells(floorIdForGrid))
       .then((cells) => {
-        setFloorGridCells(cells);
+        queryClient.setQueryData(floorQueryKeys.grid(floorIdForGrid), cells);
         rememberGridSize(floorIdForGrid, cellSizeMeter);
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
@@ -3502,19 +3451,10 @@ const FloorPlansDetailPage = () => {
 
     // 최초 시도·재시도 둘 다 여기로 옴 — 성공 처리를 한 곳에 모아 둠
     const handleCreated = (newCctv: Cctv) => {
-      setRealCctvs((prev) => [...prev, newCctv]);
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id: newCctv.id,
-          type: 'cctv',
-          placeType: 'cctv',
-          label: newCctv.name,
-          x: nodeStagedPosition.x,
-          y: nodeStagedPosition.y,
-          status: 'online',
-          zone: formatMonitoredZone(newCctv),
-        },
+      // addedDevices에 새 마커를 추가하는 것도 realCctvs 동기화 effect가 알아서 처리함
+      queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) => [
+        ...(prev ?? []),
+        newCctv,
       ]);
       lastCctvDraftRectRef.current = null;
       setNodeAddStage('entry');
@@ -3555,7 +3495,7 @@ const FloorPlansDetailPage = () => {
           setFloorGrid(currentFloor.id, knownSize)
             .then(() => getFloorGridCells(currentFloor.id))
             .then((refreshed) => {
-              setFloorGridCells(refreshed);
+              queryClient.setQueryData(floorQueryKeys.grid(currentFloor.id), refreshed);
               // gridCellPxSize는 재적용 전 floorGridCells 기준으로 계산된 memo라 그대로 쓰면
               // 안 됨 — 재생성된 그리드는 행·열 수가 달라질 수 있어(코드래빗 리뷰로 발견),
               // 새로 조회한 refreshed 기준으로 다시 계산해서 넘김
@@ -3632,18 +3572,24 @@ const FloorPlansDetailPage = () => {
     const node = structureNodes.find((n) => n.id === id);
     if (!node) return;
     const nextIsFinalExit = !node.isFinalExit;
-    setStructureNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isFinalExit: nextIsFinalExit } : n)),
-    );
+    const originalType: MapNodeType = node.isFinalExit
+      ? 'EXIT'
+      : STRUCTURE_NODE_API_TYPE[node.type];
+    const nextType: MapNodeType = nextIsFinalExit ? 'EXIT' : STRUCTURE_NODE_API_TYPE[node.type];
+    updateGraphCache((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === id ? { ...n, type: nextType } : n)),
+    }));
     updateMapNodePosition(id, {
       x: node.x / CANVAS_W,
       y: node.y / canvasH,
-      type: nextIsFinalExit ? 'EXIT' : STRUCTURE_NODE_API_TYPE[node.type],
+      type: nextType,
       isExitTarget: nextIsFinalExit,
     }).catch((error: unknown) => {
-      setStructureNodes((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isFinalExit: !nextIsFinalExit } : n)),
-      );
+      updateGraphCache((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === id ? { ...n, type: originalType } : n)),
+      }));
       // 마지막 남은 탈출구는 해제할 수 없는 등 서버가 이유를 message로 내려주므로 그대로 보여줌
       const { message: serverMessage } = extractApiError(error);
       show({
@@ -3682,26 +3628,35 @@ const FloorPlansDetailPage = () => {
     );
   };
 
-  // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만
+  // 드래그 중 미리보기용 — API 호출은 드래그가 끝났을 때(handleStructureNodeMoveEnd)만.
+  // 픽셀 좌표를 그래프 캐시의 비율 좌표로 바로 바꿔 써서, structureNodes 동기화 effect가
+  // canvasH로 다시 픽셀 변환해 그대로 반영함
   const handleStructureNodeMove = (id: string, x: number, y: number) => {
-    setStructureNodes((prev) => prev.map((n) => (n.id === id ? { ...n, x, y } : n)));
+    updateGraphCache((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === id ? { ...n, x: x / CANVAS_W, y: y / canvasH } : n)),
+    }));
   };
 
   const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
     updateMapNodePosition(id, { x: x / CANVAS_W, y: y / canvasH }).catch((error: unknown) => {
       const { message } = extractApiError(error);
       show({ title: message || '위치 저장에 실패했습니다.', variant: 'error' });
+      // 드래그 미리보기가 캐시에 이미 새 좌표를 써둔 상태 — 저장이 실패했는데 그래프가 비어있지
+      // 않으면 폴링도 멈춰서, 그대로 두면 저장 안 된 좌표가 화면·엣지 거리 계산에 계속 쓰임.
+      // 서버 기준으로 다시 받아와 되돌림
+      void queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
     });
   };
 
   const handleStructureNodeDelete = (id: string) => {
     deleteMapNode(id)
       .then(() => {
-        setStructureNodes((prev) => prev.filter((n) => n.id !== id));
-        // 서버는 이 노드에 붙은 엣지까지 cascade 삭제하므로 로컬 엣지도 같이 정리
-        setGraphEdges((prev) =>
-          prev.filter((edge) => edge.fromNodeId !== id && edge.toNodeId !== id),
-        );
+        // 서버는 이 노드에 붙은 엣지까지 cascade 삭제하므로 로컬 캐시의 엣지도 같이 정리
+        updateGraphCache((prev) => ({
+          nodes: prev.nodes.filter((n) => n.id !== id),
+          edges: prev.edges.filter((edge) => edge.fromNodeId !== id && edge.toNodeId !== id),
+        }));
         setEditingStructureId((prev) => (prev === id ? null : prev));
       })
       .catch((error: unknown) => {
@@ -3837,7 +3792,7 @@ const FloorPlansDetailPage = () => {
         }
       });
       if (succeeded.length > 0) {
-        setGraphEdges((prev) => [...prev, ...succeeded]);
+        updateGraphCache((prev) => ({ ...prev, edges: [...prev.edges, ...succeeded] }));
         show({ title: `${succeeded.length}개 구간이 연결되었습니다.`, variant: 'success' });
       }
       if (failedLabels.length > 0) {
@@ -3861,7 +3816,7 @@ const FloorPlansDetailPage = () => {
   const handleEdgeDelete = (edgeId: string) => {
     deleteMapEdge(edgeId)
       .then(() => {
-        setGraphEdges((prev) => prev.filter((e) => e.id !== edgeId));
+        updateGraphCache((prev) => ({ ...prev, edges: prev.edges.filter((e) => e.id !== edgeId) }));
         setSelectedEdgeId((prev) => (prev === edgeId ? null : prev));
       })
       .catch(() => {});
@@ -3914,7 +3869,7 @@ const FloorPlansDetailPage = () => {
       return;
     }
     if (trimmed) {
-      setZones((prev) => prev.map((z) => (z.id === id ? { ...z, label: trimmed } : z)));
+      updateZonesCache((prev) => prev.map((z) => (z.id === id ? { ...z, name: trimmed } : z)));
     }
     setEditingZoneId(null);
   };
@@ -3923,9 +3878,9 @@ const FloorPlansDetailPage = () => {
     if (!currentFloor || zoneDraftCellIds.length === 0) return;
     createUserZone(currentFloor.id, { name: label, cellIds: zoneDraftCellIds })
       .then((zone) => {
-        setZones((prev) => [
+        updateZonesCache((prev) => [
           ...prev,
-          { id: zone.id, type: 'general', label: zone.name, cellIds: zoneDraftCellIds },
+          { id: zone.id, name: zone.name, floorNum: zone.floorNum, cellIds: zoneDraftCellIds },
         ]);
         setZoneAddOpen(false);
         setZoneDraftCellIds([]);
@@ -3959,9 +3914,9 @@ const FloorPlansDetailPage = () => {
         return createUserZone(floorId, { name: label, cellIds: nextCellIds });
       })
       .then((zone) => {
-        setZones((prev) => [
+        updateZonesCache((prev) => [
           ...prev.filter((z) => z.id !== targetId),
-          { id: zone.id, type: 'general', label: zone.name, cellIds: nextCellIds },
+          { id: zone.id, name: zone.name, floorNum: zone.floorNum, cellIds: nextCellIds },
         ]);
         if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === targetId) {
           setSelectedZoneRef(null);
@@ -3979,7 +3934,7 @@ const FloorPlansDetailPage = () => {
         }
         if (!original) {
           // 원본 정보가 없으면(이론상 거의 없음) 복구를 시도할 수 없음 — 기존 안내로 대체
-          setZones((prev) => prev.filter((z) => z.id !== targetId));
+          updateZonesCache((prev) => prev.filter((z) => z.id !== targetId));
           show({
             title:
               message || '기존 구역은 삭제됐지만 새 구역 생성에 실패했습니다. 다시 만들어주세요.',
@@ -3992,12 +3947,12 @@ const FloorPlansDetailPage = () => {
         // 실패 범위를 줄임(이름만 바꾸는 흔한 경우 특히 유효)
         createUserZone(floorId, { name: original.label, cellIds: original.cellIds })
           .then((restored) => {
-            setZones((prev) => [
+            updateZonesCache((prev) => [
               ...prev.filter((z) => z.id !== targetId),
               {
                 id: restored.id,
-                type: 'general',
-                label: original.label,
+                name: original.label,
+                floorNum: restored.floorNum,
                 cellIds: original.cellIds,
               },
             ]);
@@ -4009,7 +3964,7 @@ const FloorPlansDetailPage = () => {
           })
           .catch(() => {
             // 복구 재시도까지 실패한 경우에만 진짜로 사라짐 — 목록에서 지우고 명확히 알림
-            setZones((prev) => prev.filter((z) => z.id !== targetId));
+            updateZonesCache((prev) => prev.filter((z) => z.id !== targetId));
             show({
               title: '기존 구역이 삭제됐고 복구에도 실패했습니다. 구역을 다시 만들어주세요.',
               variant: 'error',
@@ -4143,7 +4098,7 @@ const FloorPlansDetailPage = () => {
     setIsDeletingZone(true);
     deleteUserZone(currentFloor.id, id)
       .then(() => {
-        setZones((prev) => prev.filter((z) => z.id !== id));
+        updateZonesCache((prev) => prev.filter((z) => z.id !== id));
         if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) {
           setSelectedZoneRef(null);
         }
@@ -4556,7 +4511,7 @@ const FloorPlansDetailPage = () => {
     if (editingCctvId === item.id) handleCancelEditCctvCells();
     const newLabel = editForm.label;
     if (item.source === 'floor') {
-      setFloor((prev) =>
+      updateFloorCache((prev) =>
         prev
           ? {
               ...prev,
@@ -4600,32 +4555,17 @@ const FloorPlansDetailPage = () => {
           decisionNodeId !== (prevLight?.decisionNodeId ?? '') ||
           leftEdgeId !== (prevLight?.leftEdgeId ?? '') ||
           rightEdgeId !== (prevLight?.rightEdgeId ?? '');
-        if (decisionNodeId && leftEdgeId && rightEdgeId && guidanceChanged) {
-          configureLightGuidance(item.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-            .then((updated) =>
-              setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-            )
-            .catch((error: unknown) => {
-              const { message } = extractApiError(error);
-              show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
-            });
-        }
-
-        if (editForm.cctvId && editForm.cctvId !== (prevLight?.cctvId ?? '')) {
-          assignLightCctv(item.id, editForm.cctvId)
-            .then((updated) =>
-              setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-            )
-            .catch((error: unknown) => {
-              const { message } = extractApiError(error);
-              show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
-            });
-        }
+        const cctvChanged = !!editForm.cctvId && editForm.cctvId !== (prevLight?.cctvId ?? '');
+        void runLightFollowups(item.id, {
+          guidance:
+            decisionNodeId && leftEdgeId && rightEdgeId && guidanceChanged
+              ? { decisionNodeId, leftEdgeId, rightEdgeId }
+              : undefined,
+          cctvId: cctvChanged ? editForm.cctvId : undefined,
+        });
       } else if (item.type === 'cctv' && prevDevice) {
         updateCctv(item.id, { name: newLabel, x: finalX / 100, y: finalY / 100 })
-          .then((updated) => {
-            setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-          })
+          .then(patchCctvCache)
           .catch(() => {
             rollback();
             show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
@@ -4685,7 +4625,9 @@ const FloorPlansDetailPage = () => {
         deleteCctv(item.id)
           .then(() => {
             handleAddedDeviceDelete(item.id);
-            setRealCctvs((prev) => prev.filter((cctv) => cctv.id !== item.id));
+            queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) =>
+              prev?.filter((cctv) => cctv.id !== item.id),
+            );
             setSelectedItem((prev) =>
               prev?.kind === 'device' && prev.data.id === item.id ? null : prev,
             );
@@ -4706,7 +4648,9 @@ const FloorPlansDetailPage = () => {
         deleteIoTLight(item.id)
           .then(() => {
             handleAddedDeviceDelete(item.id);
-            setIotLights((prev) => prev.filter((l) => l.id !== item.id));
+            queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) =>
+              prev?.filter((l) => l.id !== item.id),
+            );
             setDeleteConfirmTarget(null);
           })
           .catch((error: unknown) => {
@@ -4722,7 +4666,7 @@ const FloorPlansDetailPage = () => {
       setDeleteConfirmTarget(null);
       return;
     }
-    setFloor((prev) =>
+    updateFloorCache((prev) =>
       prev ? { ...prev, devices: prev.devices.filter((d) => d.id !== item.id) } : prev,
     );
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {
