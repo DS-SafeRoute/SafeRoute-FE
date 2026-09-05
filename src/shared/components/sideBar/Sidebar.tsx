@@ -39,7 +39,7 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
     <aside className={styles.container}>
       <button onClick={() => handleNavigate(ROUTES.HOME)} aria-label="홈으로 이동">
         <header className={styles.header}>
-          <img src={logoImg} className={styles.logo} alt="로고" aria-hidden="true" />
+          <img src={logoImg} className={styles.logo} alt="" aria-hidden="true" />
           <strong className={styles.brand}>{brand}</strong>
         </header>
       </button>
