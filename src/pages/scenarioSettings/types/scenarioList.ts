@@ -11,5 +11,5 @@ export const SCENARIO_STATUS_VIEW: Record<
   IN_PROGRESS: { label: '진행중', color: 'yellow' },
   COMPLETED: { label: '완료', color: 'neutral' },
   ERROR: { label: '오류', color: 'red' },
-  TIMEOUT_FAILED: { label: '훈련 실패', color: 'red' },
+  TIMEOUT_FAILED: { label: '훈련 실패', color: 'orange' },
 };
