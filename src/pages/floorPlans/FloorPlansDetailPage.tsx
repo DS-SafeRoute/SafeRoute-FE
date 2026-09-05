@@ -2569,6 +2569,12 @@ const FloorPlansDetailPage = () => {
 
   const { data: floorGridCells = EMPTY_GRID_CELLS } = useFloorGridCellsQuery(floorId);
 
+  // 업로드 직후 백엔드가 mapImageKey를 아직 안 채워 보낼 수 있는데(한두 사이클), 예전엔 키가
+  // 비면 "분석 중"이 아니라고 보고 상세 폴링을 멈춰서 — 이후 상태가 DONE으로 바뀌어도, 실제
+  // 이미지 URL을 발급받게 해주는 mapImageKey가 채워져도 — 화면을 새로고침해야 반영되던 문제.
+  // 업로드→분석 요청을 우리가 방금 걸었으면 키가 잠깐 비어도 계속 폴링하도록 이 플래그를 본다.
+  const awaitingUploadAnalysisRef = useRef(false);
+
   // 현재 층 상세 — 세그멘테이션이 끝날 때까지(isAnalyzing) 짧은 간격으로 다시 조회해 상태 전환을
   // 감지해야 해서, 폴링 여부를 방금 받은 데이터 기준으로 매번 다시 판단하는 refetchInterval에 맡김
   const floorDetailQuery = useQuery({
@@ -2582,12 +2588,15 @@ const FloorPlansDetailPage = () => {
       const data = query.state.data;
       if (!data) return false;
       const settled = data.segmentationStatus === 'DONE' || data.segmentationStatus === 'FAILED';
-      const analyzing = Boolean(data.mapImageUrl) && !settled;
+      const analyzing =
+        !settled &&
+        (data.segmentationStatus === 'PROCESSING' ||
+          Boolean(data.mapImageUrl) ||
+          awaitingUploadAnalysisRef.current);
       return analyzing ? 4000 : false;
     },
   });
   const floor = floorDetailQuery.data ?? null;
-  const loadingFloor = floorDetailQuery.isLoading;
 
   // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
   const [imageAspect, setImageAspect] = useState<number | null>(null);
@@ -2651,11 +2660,14 @@ const FloorPlansDetailPage = () => {
   // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
   // 그리드 셀은 배율 재적용 effect가 다시 받아온다 — 별도의 페이지 새로고침은 필요 없음
 
-  // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
+  // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면 키가 잡혔거나(대부분) 분석이
+  // 끝난 층이면 조회. 분석 완료 직후 상세 응답에 mapImageKey가 한두 사이클 늦게 실려도
+  // (isFloorReady로) 곧바로 URL을 받으러 가도록 함 — 이 엔드포인트는 서버가 층 기준으로
+  // 현재 이미지를 돌려줘서 키를 클라이언트가 몰라도 됨.
   const { data: floorImageData } = useFloorImageUrlQuery(
     buildingId,
     floorId,
-    Boolean(floor?.mapImageUrl),
+    Boolean(floor?.mapImageUrl) || isFloorReady,
   );
   const resolvedMapImageUrl = floorImageData?.imageUrl ?? null;
 
@@ -2726,15 +2738,21 @@ const FloorPlansDetailPage = () => {
     const prev = prevSegStatusRef.current;
     const curr = floor?.segmentationStatus;
     prevSegStatusRef.current = curr;
+    if (curr === 'DONE' || curr === 'FAILED') awaitingUploadAnalysisRef.current = false;
     const justFinished = (prev === 'PENDING' || prev === 'PROCESSING') && curr === 'DONE';
     if (justFinished) {
       graphSettleUntilRef.current = Date.now() + GRAPH_SETTLE_WINDOW_MS;
       graphNodeStreakRef.current = { count: -1, streak: 0, updateCount: -1 };
+      // 분석이 끝나면 이 층에 걸린 모든 조회(이미지 URL·그래프·그리드·CCTV·유도등·구역·목록)를
+      // 한 번에 무효화한다. 캐시마다 갱신 트리거(폴링/enabled 전환/staleTime)가 제각각이라
+      // 업로드마다 어떤 건 뜨고 어떤 건 새로고침해야 뜨는 문제가 반복됐음 — 완료 시점에
+      // 서버는 이미 일관된 상태이므로, 통째로 다시 받아오는 게 가장 확실하다.
+      void queryClient.invalidateQueries({ queryKey: floorQueryKeys.all });
     } else if (curr && curr !== 'DONE') {
       graphSettleUntilRef.current = 0;
       graphNodeStreakRef.current = { count: -1, streak: 0, updateCount: -1 };
     }
-  }, [floor?.segmentationStatus]);
+  }, [floor?.segmentationStatus, queryClient]);
 
   // 맵그래프(노드/엣지) 조회. 노드가 아예 안 온 상태면 GRAPH_RETRY_LIMIT회까지 빠르게 재시도하고,
   // 노드가 오기 시작했으면 위 settle 창이 살아있는 동안 노드 수가 GRAPH_SETTLE_STABLE_TICKS번
@@ -3205,6 +3223,9 @@ const FloorPlansDetailPage = () => {
         void queryClient.invalidateQueries({
           queryKey: floorQueryKeys.list(selectedBuildingId),
         });
+        // 방금 업로드→분석을 걸었으니, mapImageKey가 한두 사이클 비어 와도 상세 폴링이
+        // 끊기지 않게 한다(refetchInterval이 이 플래그를 봄). DONE/FAILED에서 해제됨.
+        awaitingUploadAnalysisRef.current = true;
         // 이미지가 바로 보이도록 상세 캐시에 새 도면을 먼저 반영하고,
         // 곧바로 무효화해 재조회를 태운다 — setQueryData만으로는 segmentationStatus 폴링
         // (floorDetailQuery의 refetchInterval)이 다시 시작되지 않아, 분석이 끝나도(DONE)
@@ -4813,8 +4834,11 @@ const FloorPlansDetailPage = () => {
 
             {/* 훈련 준비 체크리스트 — 시작 노드·최종 탈출구가 없으면 시나리오 재생이 안 되는데
                 그동안 눈에 띄는 안내가 없었음. 층 목록 바로 아래, 도면 편집을 시작하기 전에
-                가장 먼저 보이는 자리에 둠 */}
-            {currentFloor?.segmentationStatus === 'DONE' && (
+                가장 먼저 보이는 자리에 둠.
+                상태는 currentFloor(목록 캐시)가 아니라 실시간으로 폴링되는 상세 조회(floor)를
+                우선으로 봄 — 업로드 후 분석이 끝나도 목록 캐시는 안 갱신돼서 체크리스트만
+                새로고침 전엔 안 뜨던 문제. 캔버스도 아래에서 `floor ?? currentFloor`로 판단함 */}
+            {(floor ?? currentFloor)?.segmentationStatus === 'DONE' && (
               <ReadinessChecklist
                 hasStartNode={structureNodes.some((n) => n.type === 'start' || n.isStartCandidate)}
                 hasFinalExit={structureNodes.some((n) => n.isFinalExit)}
@@ -5044,9 +5068,13 @@ const FloorPlansDetailPage = () => {
             )}
 
             <div className={styles.canvasScrollArea}>
-              {loadingFloor ? (
-                <LoadingState message="도면을 불러오는 중..." />
-              ) : currentFloor ? (
+              {floorDetailQuery.isError && !currentFloor ? (
+                // 실제로 없는 층(404 등)일 때만 안내. 목록 캐시에 아직 안 들어온 층을 직접
+                // 열었거나 방금 만든 직후엔 잠깐 둘 다 비어 있을 수 있어, 그 사이엔 로딩만 보여줌
+                <div className={styles.canvasPlaceholder}>
+                  <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
+                </div>
+              ) : (floor ?? currentFloor) ? (
                 <FloorCanvas
                   mapWrapRef={mapWrapRef}
                   floor={floor ?? currentFloor}
@@ -5116,9 +5144,7 @@ const FloorPlansDetailPage = () => {
                   onUpload={() => setUploadModalOpen(true)}
                 />
               ) : (
-                <div className={styles.canvasPlaceholder}>
-                  <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
-                </div>
+                <LoadingState message="도면을 불러오는 중..." />
               )}
             </div>
           </div>
