@@ -11,6 +11,7 @@ import {
   floorQueryKeys,
   useBuildingFloorsQuery,
   useFloorCctvsQuery,
+  useFloorLightsQuery,
 } from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
@@ -62,7 +63,6 @@ import {
   deleteIoTLight,
   disableIoTLight,
   enableIoTLight,
-  getFloorLights,
   updateIoTLight,
 } from './api/iotLightsApi';
 import {
@@ -339,6 +339,7 @@ const DEFAULT_CANVAS_H = 420;
 // react-query data가 아직 없을 때(로딩 중) 쓰는 안정적인 빈 배열 — `data ?? []`처럼 매 렌더
 // 새 배열을 만들면 그 값을 의존성으로 쓰는 effect가 로딩 중에 계속 재실행돼버림
 const EMPTY_CCTVS: Cctv[] = [];
+const EMPTY_LIGHTS: IoTLight[] = [];
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
@@ -2593,7 +2594,6 @@ const FloorPlansDetailPage = () => {
     setGraphNodes([]);
     setGraphEdges([]);
     setAddedDevices([]);
-    setIotLights([]);
     // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
     // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
     setDevicePositions({});
@@ -2803,35 +2803,27 @@ const FloorPlansDetailPage = () => {
     if (lastGraphRef.current) applyStructureNodes(lastGraphRef.current, canvasH);
   }, [canvasH]);
 
-  // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
+  const { data: iotLights = EMPTY_LIGHTS } = useFloorLightsQuery(floorId);
+
+  // 유도등은 useFloorLightsQuery가 조회를 맡고(바로 위), 실제 등록된 유도등이 바뀔 때마다(조회·
+  // 생성·수정·삭제 등 무엇으로 바뀌었든) 장비 마커 목록에 그대로 반영되게 동기화만 함
   useEffect(() => {
-    if (!floorId) return;
-    let cancelled = false;
-    getFloorLights(floorId)
-      .then((lights) => {
-        if (cancelled) return;
-        setIotLights(lights);
-        setAddedDevices((prev) => [
-          ...prev.filter((d) => d.placeType !== 'light'),
-          ...lights.map(
-            (light): AddedDevice => ({
-              id: light.id,
-              type: 'iot',
-              placeType: 'light',
-              label: light.name,
-              x: light.x * 100,
-              y: light.y * 100,
-              status: 'online',
-              zone: '사용자 등록',
-            }),
-          ),
-        ]);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [floorId]);
+    setAddedDevices((prev) => [
+      ...prev.filter((d) => d.placeType !== 'light'),
+      ...iotLights.map(
+        (light): AddedDevice => ({
+          id: light.id,
+          type: 'iot',
+          placeType: 'light',
+          label: light.name,
+          x: light.x * 100,
+          y: light.y * 100,
+          status: 'online',
+          zone: '사용자 등록',
+        }),
+      ),
+    ]);
+  }, [iotLights]);
 
   const { data: realCctvs = EMPTY_CCTVS } = useFloorCctvsQuery(floorId);
 
@@ -2990,7 +2982,6 @@ const FloorPlansDetailPage = () => {
 
   const [graphNodes, setGraphNodes] = useState<MapNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<MapEdge[]>([]);
-  const [iotLights, setIotLights] = useState<IoTLight[]>([]);
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -3027,6 +3018,13 @@ const FloorPlansDetailPage = () => {
     );
   };
 
+  // iotLights도 useFloorLightsQuery 캐시라 같은 방식으로 patch함
+  const patchLightCache = (updated: IoTLight) => {
+    queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) =>
+      prev?.map((l) => (l.id === updated.id ? updated : l)),
+    );
+  };
+
   // CCTV/유도등 카드의 활성화 스위치 — 둘 다 enabled 필드와 활성화/비활성화 PATCH API 모양이
   // 같아서 한 핸들러에서 타입만 보고 갈라 처리함
   const handleToggleEnabled = (item: PanelItem) => {
@@ -3055,7 +3053,7 @@ const FloorPlansDetailPage = () => {
       const request = enabled ? enableIoTLight : disableIoTLight;
       request(light.id)
         .then((updated) => {
-          setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          patchLightCache(updated);
           show({
             title: enabled ? '유도등을 활성화했습니다.' : '유도등을 비활성화했습니다.',
             variant: 'success',
@@ -3300,22 +3298,10 @@ const FloorPlansDetailPage = () => {
           y: position.y / 100,
         })
           .then((newLight) => {
-            // 설정 모달·활성화 표시가 iotLights를 참조하므로 여기에도 반영해야 함
-            setIotLights((prev) => [...prev, newLight]);
-            setAddedDevices((prev) => [
-              ...prev,
-              {
-                id: newLight.id,
-                type: 'iot',
-                placeType: 'light',
-                label: newLight.name,
-                x: position.x,
-                y: position.y,
-                status: 'online',
-                // 유도등의 "설치 위치"는 실제 좌표(x/y)로 표시하므로(formatInstallLocation) 여기
-                // 값은 안 쓰임 — AddedDevice.zone 타입을 맞추기 위한 자리만 채움
-                zone: '',
-              },
+            // addedDevices에 새 마커를 추가하는 것도 iotLights 동기화 effect가 알아서 처리함
+            queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) => [
+              ...(prev ?? []),
+              newLight,
             ]);
 
             // 담당 CCTV·가이던스는 handleSaveEdit(카드 수정)과 같은 방식으로, 값이 채워졌을
@@ -3324,9 +3310,7 @@ const FloorPlansDetailPage = () => {
             const { decisionNodeId, leftEdgeId, rightEdgeId, cctvId } = lightFields;
             if (decisionNodeId && leftEdgeId && rightEdgeId) {
               configureLightGuidance(newLight.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-                .then((updated) =>
-                  setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-                )
+                .then(patchLightCache)
                 .catch((error: unknown) => {
                   const { message } = extractApiError(error);
                   show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
@@ -3334,9 +3318,7 @@ const FloorPlansDetailPage = () => {
             }
             if (cctvId) {
               assignLightCctv(newLight.id, cctvId)
-                .then((updated) =>
-                  setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-                )
+                .then(patchLightCache)
                 .catch((error: unknown) => {
                   const { message } = extractApiError(error);
                   show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
@@ -4621,9 +4603,7 @@ const FloorPlansDetailPage = () => {
           rightEdgeId !== (prevLight?.rightEdgeId ?? '');
         if (decisionNodeId && leftEdgeId && rightEdgeId && guidanceChanged) {
           configureLightGuidance(item.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-            .then((updated) =>
-              setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-            )
+            .then(patchLightCache)
             .catch((error: unknown) => {
               const { message } = extractApiError(error);
               show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
@@ -4632,9 +4612,7 @@ const FloorPlansDetailPage = () => {
 
         if (editForm.cctvId && editForm.cctvId !== (prevLight?.cctvId ?? '')) {
           assignLightCctv(item.id, editForm.cctvId)
-            .then((updated) =>
-              setIotLights((prev) => prev.map((l) => (l.id === updated.id ? updated : l))),
-            )
+            .then(patchLightCache)
             .catch((error: unknown) => {
               const { message } = extractApiError(error);
               show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
@@ -4725,7 +4703,9 @@ const FloorPlansDetailPage = () => {
         deleteIoTLight(item.id)
           .then(() => {
             handleAddedDeviceDelete(item.id);
-            setIotLights((prev) => prev.filter((l) => l.id !== item.id));
+            queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) =>
+              prev?.filter((l) => l.id !== item.id),
+            );
             setDeleteConfirmTarget(null);
           })
           .catch((error: unknown) => {
