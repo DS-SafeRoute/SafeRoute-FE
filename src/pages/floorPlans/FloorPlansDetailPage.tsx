@@ -2705,6 +2705,42 @@ const FloorPlansDetailPage = () => {
     );
   };
 
+  // 세그멘테이션이 방금 끝났을 때(PENDING/PROCESSING → DONE) 서버가 노드를 순차 생성 중이라
+  // 그래프가 비었거나 방(ROOM)만 오고 문/계단은 아직 없는 상태로 올 수 있음. graphQuery의
+  // refetchInterval은 "노드가 완전히 비었을 때만" 재시도해서, 노드가 하나라도 오면 멈춰버림 →
+  // 우측 노드 카드 목록·훈련 준비 체크리스트(둘 다 structureNodes 기준)가 새로고침 전엔
+  // 안 채워지던 문제. 분석 완료 직후 노드 수가 두 번 연속 같아질 때까지(최대 ~60초) 다시 받아온다.
+  // 이미 DONE인 층을 여는 경우엔 이 전환이 없으므로 추가 요청이 나가지 않는다.
+  const prevSegStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevSegStatusRef.current;
+    prevSegStatusRef.current = floor?.segmentationStatus;
+    const justFinished =
+      (prev === 'PENDING' || prev === 'PROCESSING') && floor?.segmentationStatus === 'DONE';
+    if (!justFinished || !floorId) return;
+
+    let cancelled = false;
+    let ticks = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const graphNodeCount = () =>
+      queryClient.getQueryData<FloorGraph>(floorQueryKeys.graph(floorId))?.nodes.length ?? -1;
+    const tick = async () => {
+      if (cancelled || ticks >= 24) return;
+      ticks += 1;
+      const before = graphNodeCount();
+      await queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
+      if (cancelled) return;
+      const after = graphNodeCount();
+      if (after > 0 && after === before) return; // 노드 수 안정 → 종료
+      timer = setTimeout(tick, 2500);
+    };
+    timer = setTimeout(tick, 2500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [floor?.segmentationStatus, floorId, queryClient]);
+
   // 문/계단/복도/시작 후보는 구조 노드 편집 상태(비율 좌표 → 픽셀)로 별도로 들고, 나머지는
   // graphNodes로 조회 전용 보관 — canvasH(그리드/이미지 로드가 끝나야 확정)가 나중에 바뀌어도
   // 서버 재조회 없이 이 조회 결과(graphData)로 픽셀 좌표만 다시 계산함(예전엔 canvasH가 fetch
