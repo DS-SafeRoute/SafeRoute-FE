@@ -7,7 +7,10 @@ import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
 import { getScenario } from '@apis/scenarios/scenariosApi';
 import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
 import type { Scenario } from '@apis/scenarios/scenarioTypes';
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import {
+  MAX_TRAINING_DURATION_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi';
 import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
@@ -31,8 +34,6 @@ interface UseScenarioTrainingParams {
   scenario?: Scenario;
   adminId?: string;
 }
-
-const MAX_TRAINING_DURATION_MS = 10 * 60 * 1000;
 
 const getSessionEndedAt = (endedAt?: string | null) => {
   const parsedEndedAt = endedAt ? Date.parse(endedAt) : Number.NaN;

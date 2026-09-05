@@ -3,7 +3,10 @@ import { useMemo } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import {
+  MAX_TRAINING_DURATION_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
@@ -65,6 +68,11 @@ const TrainingCamerasPage = () => {
 
   // 진행 중일 때만 1초 단위로 이어서 증가시키고, 종료됐으면 서버가 마지막으로 준 값을 그대로 표시
   const tickingElapsed = useElapsedTrainingTime(isLive ? (session?.startedAt ?? null) : null);
+  const isAwaitingServerEnd =
+    isLive &&
+    session?.startedAt !== null &&
+    session?.startedAt !== undefined &&
+    Date.now() >= session.startedAt + MAX_TRAINING_DURATION_MS;
   const elapsedDisplay = isLive ? tickingElapsed : formatDuration(session?.elapsedSeconds ?? 0);
 
   const cameraRefs = useMemo(
@@ -124,9 +132,11 @@ const TrainingCamerasPage = () => {
         statusColor={statusView.color}
         meta={session.buildingName}
         notice={
-          isLive
-            ? `실시간 모니터링 중 · 카메라별 최신 프레임이 ${session.snapshotIntervalSec}초 간격으로 자동 갱신됩니다.`
-            : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 프레임 기록입니다.`
+          isAwaitingServerEnd
+            ? '10분이 경과했습니다. 서버에서 훈련 종료 상태를 확인하고 있습니다.'
+            : isLive
+              ? `실시간 모니터링 중 · 카메라별 최신 프레임이 ${session.snapshotIntervalSec}초 간격으로 자동 갱신됩니다.`
+              : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 프레임 기록입니다.`
         }
         live={isLive}
         stats={[

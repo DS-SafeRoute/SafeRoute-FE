@@ -4,7 +4,10 @@ import clsx from 'clsx';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import {
+  MAX_TRAINING_DURATION_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 
 import AlertIcon from '@assets/icons/ic-alert.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
@@ -138,6 +141,11 @@ const TrainingCameraFramesPage = () => {
 
   // 진행 중일 때만 1초 단위로 이어서 증가시키고, 종료됐으면 서버가 마지막으로 준 값을 그대로 표시
   const tickingElapsed = useElapsedTrainingTime(isLive ? (session?.startedAt ?? null) : null);
+  const isAwaitingServerEnd =
+    isLive &&
+    session?.startedAt !== null &&
+    session?.startedAt !== undefined &&
+    Date.now() >= session.startedAt + MAX_TRAINING_DURATION_MS;
   const elapsedDisplay = isLive ? tickingElapsed : formatDuration(session?.elapsedSeconds ?? 0);
 
   const cameraRefs = useMemo(
@@ -239,9 +247,11 @@ const TrainingCameraFramesPage = () => {
         statusColor={statusView.color}
         meta={`${camera.location} · ${camera.code}`}
         notice={
-          isLive
-            ? `실시간 모니터링 중 · ${session.snapshotIntervalSec}초 간격으로 최신 CCTV 프레임이 수신됩니다.`
-            : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.`
+          isAwaitingServerEnd
+            ? '10분이 경과했습니다. 서버에서 훈련 종료 상태를 확인하고 있습니다.'
+            : isLive
+              ? `실시간 모니터링 중 · ${session.snapshotIntervalSec}초 간격으로 최신 CCTV 프레임이 수신됩니다.`
+              : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.`
         }
         live={isLive}
         onBack={() =>

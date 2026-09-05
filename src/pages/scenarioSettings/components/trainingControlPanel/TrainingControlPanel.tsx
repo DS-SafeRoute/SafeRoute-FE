@@ -4,6 +4,8 @@ import { LIVE_STATUS } from '@pages/scenarioSettings/constants/scenarioSettings'
 import { sideColumn } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
 
+import { MAX_TRAINING_DURATION_MS } from '@apis/trainingSessions/trainingSessionConstants';
+
 import PauseIcon from '@assets/icons/ic-pause.svg?react';
 import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
@@ -51,6 +53,8 @@ const TrainingControlPanel = ({
   routeDecision,
 }: TrainingControlPanelProps) => {
   const elapsedTime = useElapsedTrainingTime(startedAt, timerStoppedAt);
+  const isAwaitingServerEnd =
+    timerStoppedAt === null && Date.now() >= startedAt + MAX_TRAINING_DURATION_MS;
   const { proposal, isApplying, isRejecting, onReject, onApply } = routeDecision;
   const isPending = isApplying || isRejecting;
 
@@ -86,8 +90,10 @@ const TrainingControlPanel = ({
         </span>
         <strong className={styles.timerValue}>{elapsedTime}</strong>
       </div>
-      <p className={styles.durationNotice}>
-        훈련은 최대 10분간 진행되며, 종료 후 보고서가 생성됩니다.
+      <p className={styles.durationNotice} role={isAwaitingServerEnd ? 'status' : undefined}>
+        {isAwaitingServerEnd
+          ? '10분이 경과했습니다. 서버에서 훈련 종료 상태를 확인하고 있습니다.'
+          : '훈련은 최대 10분간 진행되며, 서버 처리에 따라 종료까지 잠시 걸릴 수 있습니다.'}
       </p>
 
       <RecommendationCard icon={<SparklesIcon />} title="현재 경로" message={currentRoute} />
