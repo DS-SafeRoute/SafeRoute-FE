@@ -33,7 +33,9 @@ interface TrainingControlPanelProps {
   currentRoute: string;
   liveMetrics: PreviewMetric[];
   isEnding: boolean;
+  isForceEnding: boolean;
   onEnd: () => void;
+  onForceEnd: () => void;
   routeDecision: RouteDecision;
 }
 
@@ -43,7 +45,9 @@ const TrainingControlPanel = ({
   currentRoute,
   liveMetrics,
   isEnding,
+  isForceEnding,
   onEnd,
+  onForceEnd,
   routeDecision,
 }: TrainingControlPanelProps) => {
   const elapsedTime = useElapsedTrainingTime(startedAt, timerStoppedAt);
@@ -52,17 +56,28 @@ const TrainingControlPanel = ({
 
   return (
     <aside className={sideColumn}>
-      <Button
-        type="button"
-        variant="danger"
-        size="lg"
-        fullWidth
-        leftIcon={<PauseIcon />}
-        onClick={onEnd}
-        isLoading={isEnding}
-      >
-        종료
-      </Button>
+      <div className={styles.trainingActions}>
+        <Button
+          type="button"
+          variant="danger"
+          size="lg"
+          fullWidth
+          leftIcon={<PauseIcon />}
+          onClick={onEnd}
+          isLoading={isEnding}
+          disabled={isForceEnding}
+        >
+          종료
+        </Button>
+        <button
+          type="button"
+          className={styles.forceEndLink}
+          onClick={onForceEnd}
+          disabled={isEnding || isForceEnding}
+        >
+          {isForceEnding ? '중단 중...' : '훈련 강제 종료'}
+        </button>
+      </div>
 
       <div className={styles.elapsedTimer}>
         <span className={styles.timerLabel}>

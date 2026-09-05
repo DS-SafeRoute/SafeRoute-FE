@@ -4,6 +4,33 @@ import { sectionCardBase } from '@pages/scenarioSettings/ScenarioSettingsPage.cs
 
 import { vars } from '@styles/global.css';
 
+export const trainingActions = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const forceEndLink = style({
+  border: 0,
+  background: 'none',
+  cursor: 'pointer',
+  padding: 0,
+  textDecoration: 'underline',
+  color: vars.color.textLow,
+  textUnderlineOffset: '0.2rem',
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      color: vars.color.danger,
+    },
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
 export const elapsedTimer = style({
   display: 'flex',
   alignItems: 'center',
