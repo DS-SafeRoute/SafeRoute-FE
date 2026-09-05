@@ -93,7 +93,7 @@ import {
 import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
-import type { MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
+import type { FloorGraph, MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
@@ -2579,6 +2579,9 @@ const FloorPlansDetailPage = () => {
   // 화면에 남지 않도록 층 단위 상태를 한 번에 비움 (각 조회 effect가 새 데이터로 다시 채움)
   const resetFloorScopedState = useCallback(() => {
     lastCctvDraftRectRef.current = null;
+    // 층을 바꿨는데 이전 층의 원본 그래프가 남아있으면, 새 층 그래프가 도착하기 전에 canvasH가
+    // 바뀔 때 이전 층 데이터로 구조 노드를 잘못 재계산할 수 있어 같이 비움
+    lastGraphRef.current = null;
     setStructureNodes([]);
     setGraphNodes([]);
     setGraphEdges([]);
@@ -2724,6 +2727,32 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId, isFloorReady, show]);
 
+  // canvasH(그리드/이미지 로드가 끝나야 확정)는 구조 노드의 비율 좌표를 픽셀로 바꾸는 데만
+  // 쓰이고 그래프 데이터 자체와는 무관한데, 예전엔 이 값이 fetch effect의 의존성에 들어있어서
+  // canvasH가 바뀔 때마다(그리드가 늦게 로드되는 등) 서버에서 노드·엣지를 통째로 다시 조회했음
+  // (실측 확인된 중복 요청의 주 원인). 원본(비율 좌표) 그래프를 ref에 남겨두고, canvasH가
+  // 나중에 바뀌면 재조회 없이 이 ref로 구조 노드 픽셀 좌표만 다시 계산함
+  const lastGraphRef = useRef<FloorGraph | null>(null);
+
+  const applyStructureNodes = (graph: FloorGraph, h: number) => {
+    const structureFromGraph: StructureNode[] = graph.nodes.flatMap((n) => {
+      const structureType = API_TYPE_TO_STRUCTURE[n.type];
+      if (!structureType) return [];
+      return [
+        {
+          id: n.id,
+          type: structureType,
+          x: n.x * CANVAS_W,
+          y: n.y * h,
+          // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
+          // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
+          isFinalExit: n.type === 'EXIT',
+        },
+      ];
+    });
+    setStructureNodes(structureFromGraph);
+  };
+
   // 맵그래프(노드/엣지) 조회 — 문/계단은 기존 구조 노드 편집 상태로, 나머지는 조회 전용으로 보관.
   // 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기 전이라 빈 그래프가 올 수 있어서,
   // 비어 있으면 짧은 간격으로 몇 번 더 조회한다. (예전에는 이 자리에서 페이지를 통째로
@@ -2738,22 +2767,8 @@ const FloorPlansDetailPage = () => {
       getFloorGraph(floorId)
         .then((graph) => {
           if (cancelled) return;
-          const structureFromGraph: StructureNode[] = graph.nodes.flatMap((n) => {
-            const structureType = API_TYPE_TO_STRUCTURE[n.type];
-            if (!structureType) return [];
-            return [
-              {
-                id: n.id,
-                type: structureType,
-                x: n.x * CANVAS_W,
-                y: n.y * canvasH,
-                // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
-                // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
-                isFinalExit: n.type === 'EXIT',
-              },
-            ];
-          });
-          setStructureNodes(structureFromGraph);
+          lastGraphRef.current = graph;
+          applyStructureNodes(graph, canvasH);
           setGraphNodes(graph.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]));
           setGraphEdges(graph.edges);
 
@@ -2771,8 +2786,16 @@ const FloorPlansDetailPage = () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-    // canvasH가 확정되면(그리드/이미지 로드) 구조 노드 px 좌표를 그 기준으로 다시 계산해야 함
-  }, [floorId, isFloorReady, canvasH]);
+    // canvasH는 의도적으로 뺌 — 바뀔 때마다 재조회하던 걸 없애는 게 이 effect 분리의 목적이라,
+    // 픽셀 재계산은 아래 별도 effect가 맡음(applyStructureNodes 안에서만 canvasH를 씀)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floorId, isFloorReady]);
+
+  // canvasH가 나중에 확정되거나 바뀌면(그리드 로드 등), 서버 재조회 없이 이미 받아둔 원본
+  // 그래프로 구조 노드 픽셀 좌표만 다시 계산함
+  useEffect(() => {
+    if (lastGraphRef.current) applyStructureNodes(lastGraphRef.current, canvasH);
+  }, [canvasH]);
 
   // IoT 유도등 조회 — 기존 장비 마커 목록(addedDevices)에 실제 데이터로 채워 넣음
   useEffect(() => {
