@@ -97,7 +97,7 @@ const ReadinessChecklist = ({
 
   return (
     <div className={styles.readinessCard}>
-      <div className={styles.readinessHeader}>훈련 준비</div>
+      <div className={styles.readinessHeader}>훈련 준비 체크리스트</div>
       <span className={styles.readinessHint}>
         시나리오를 재생하려면 이 층에 아래 항목이 필요해요
       </span>
