@@ -13,7 +13,9 @@ import {
   useFloorCctvsQuery,
   useFloorGridCellsQuery,
   useFloorLightsQuery,
+  useFloorUserZonesQuery,
 } from '@apis/floors/floorQueries';
+import type { UserZoneWithCells } from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -74,12 +76,7 @@ import {
   getFloorGraph,
   updateMapNodePosition,
 } from './api/mapGraphApi';
-import {
-  createUserZone,
-  deleteUserZone,
-  getFloorUserZones,
-  getUserZoneDetail,
-} from './api/userZoneApi';
+import { createUserZone, deleteUserZone } from './api/userZoneApi';
 import ReadinessChecklist from './components/ReadinessChecklist';
 import { DEVICE_COLOR } from './constants/deviceColors';
 import * as styles from './FloorPlansDetailPage.css';
@@ -342,6 +339,7 @@ const DEFAULT_CANVAS_H = 420;
 const EMPTY_CCTVS: Cctv[] = [];
 const EMPTY_LIGHTS: IoTLight[] = [];
 const EMPTY_GRID_CELLS: FloorGridCell[] = [];
+const EMPTY_USER_ZONES: UserZoneWithCells[] = [];
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
@@ -2599,7 +2597,6 @@ const FloorPlansDetailPage = () => {
     // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
     // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
     setDevicePositions({});
-    setZones([]);
     setSelectedItem(null);
     setSelectedZoneRef(null);
     setSelectedEdgeId(null);
@@ -2838,28 +2835,13 @@ const FloorPlansDetailPage = () => {
     ]);
   }, [realCctvs]);
 
-  // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로 조회
-  useEffect(() => {
-    if (!floorId) return;
-    let cancelled = false;
-    getFloorUserZones(floorId)
-      .then((zoneList) => Promise.all(zoneList.map((zone) => getUserZoneDetail(floorId, zone.id))))
-      .then((details) => {
-        if (cancelled) return;
-        setZones(
-          details.map((d) => ({
-            id: d.id,
-            type: 'general',
-            label: d.name,
-            cellIds: d.cells.map((c) => c.cellId),
-          })),
-        );
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [floorId]);
+  // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로
+  // 조회해야 함(useFloorUserZonesQuery 내부에서 합쳐서 내려줌)
+  const { data: userZones = EMPTY_USER_ZONES } = useFloorUserZonesQuery(floorId);
+  const zones: ZoneEntry[] = useMemo(
+    () => userZones.map((z) => ({ id: z.id, type: 'general', label: z.name, cellIds: z.cellIds })),
+    [userZones],
+  );
 
   const [selectedBuildingId] = useState(buildingId ?? '');
   // 이 화면엔 건물 하나(이름)와 그 건물의 층 목록만 필요한데, 예전엔 getFloorBuildings()가
@@ -2894,7 +2876,6 @@ const FloorPlansDetailPage = () => {
   const [edgeChainNodeIds, setEdgeChainNodeIds] = useState<string[]>([]);
   const [edgeChainReviewOpen, setEdgeChainReviewOpen] = useState(false);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [zones, setZones] = useState<ZoneEntry[]>([]);
   // 구역 재설정(재드래그) 중인 기존 구역 id — null이면 zoneAddOpen은 "새 구역 추가" 흐름.
   // 구역은 PATCH가 없어 새로 만들고 기존 걸 지우는 방식으로만 "수정"할 수 있음(스웨거 확인)
   const [zoneResetTargetId, setZoneResetTargetId] = useState<string | null>(null);
@@ -2997,6 +2978,14 @@ const FloorPlansDetailPage = () => {
   const patchLightCache = (updated: IoTLight) => {
     queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) =>
       prev?.map((l) => (l.id === updated.id ? updated : l)),
+    );
+  };
+
+  // zones(위 useMemo)도 useFloorUserZonesQuery 캐시에서 파생된 값이라 로컬 setState 대신
+  // 이 캐시를 직접 갱신해야 반영됨
+  const updateZonesCache = (updater: (prev: UserZoneWithCells[]) => UserZoneWithCells[]) => {
+    queryClient.setQueryData<UserZoneWithCells[]>(floorQueryKeys.zone(floorId), (prev) =>
+      updater(prev ?? []),
     );
   };
 
@@ -3893,7 +3882,7 @@ const FloorPlansDetailPage = () => {
       return;
     }
     if (trimmed) {
-      setZones((prev) => prev.map((z) => (z.id === id ? { ...z, label: trimmed } : z)));
+      updateZonesCache((prev) => prev.map((z) => (z.id === id ? { ...z, name: trimmed } : z)));
     }
     setEditingZoneId(null);
   };
@@ -3902,9 +3891,9 @@ const FloorPlansDetailPage = () => {
     if (!currentFloor || zoneDraftCellIds.length === 0) return;
     createUserZone(currentFloor.id, { name: label, cellIds: zoneDraftCellIds })
       .then((zone) => {
-        setZones((prev) => [
+        updateZonesCache((prev) => [
           ...prev,
-          { id: zone.id, type: 'general', label: zone.name, cellIds: zoneDraftCellIds },
+          { id: zone.id, name: zone.name, floorNum: zone.floorNum, cellIds: zoneDraftCellIds },
         ]);
         setZoneAddOpen(false);
         setZoneDraftCellIds([]);
@@ -3938,9 +3927,9 @@ const FloorPlansDetailPage = () => {
         return createUserZone(floorId, { name: label, cellIds: nextCellIds });
       })
       .then((zone) => {
-        setZones((prev) => [
+        updateZonesCache((prev) => [
           ...prev.filter((z) => z.id !== targetId),
-          { id: zone.id, type: 'general', label: zone.name, cellIds: nextCellIds },
+          { id: zone.id, name: zone.name, floorNum: zone.floorNum, cellIds: nextCellIds },
         ]);
         if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === targetId) {
           setSelectedZoneRef(null);
@@ -3958,7 +3947,7 @@ const FloorPlansDetailPage = () => {
         }
         if (!original) {
           // 원본 정보가 없으면(이론상 거의 없음) 복구를 시도할 수 없음 — 기존 안내로 대체
-          setZones((prev) => prev.filter((z) => z.id !== targetId));
+          updateZonesCache((prev) => prev.filter((z) => z.id !== targetId));
           show({
             title:
               message || '기존 구역은 삭제됐지만 새 구역 생성에 실패했습니다. 다시 만들어주세요.',
@@ -3971,12 +3960,12 @@ const FloorPlansDetailPage = () => {
         // 실패 범위를 줄임(이름만 바꾸는 흔한 경우 특히 유효)
         createUserZone(floorId, { name: original.label, cellIds: original.cellIds })
           .then((restored) => {
-            setZones((prev) => [
+            updateZonesCache((prev) => [
               ...prev.filter((z) => z.id !== targetId),
               {
                 id: restored.id,
-                type: 'general',
-                label: original.label,
+                name: original.label,
+                floorNum: restored.floorNum,
                 cellIds: original.cellIds,
               },
             ]);
@@ -3988,7 +3977,7 @@ const FloorPlansDetailPage = () => {
           })
           .catch(() => {
             // 복구 재시도까지 실패한 경우에만 진짜로 사라짐 — 목록에서 지우고 명확히 알림
-            setZones((prev) => prev.filter((z) => z.id !== targetId));
+            updateZonesCache((prev) => prev.filter((z) => z.id !== targetId));
             show({
               title: '기존 구역이 삭제됐고 복구에도 실패했습니다. 구역을 다시 만들어주세요.',
               variant: 'error',
@@ -4122,7 +4111,7 @@ const FloorPlansDetailPage = () => {
     setIsDeletingZone(true);
     deleteUserZone(currentFloor.id, id)
       .then(() => {
-        setZones((prev) => prev.filter((z) => z.id !== id));
+        updateZonesCache((prev) => prev.filter((z) => z.id !== id));
         if (selectedZoneRef?.kind === 'zone' && selectedZoneRef.id === id) {
           setSelectedZoneRef(null);
         }
