@@ -5,8 +5,9 @@ import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
 
+import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import { extractApiError } from '@apis/errors/apiError';
-import { floorQueryKeys } from '@apis/floors/floorQueries';
+import { floorQueryKeys, useBuildingFloorsQuery } from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -46,9 +47,9 @@ import {
 import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
 import {
   analyzeFloor,
-  getFloorBuildings,
   getFloorDetail,
   getFloorImageUrl,
+  toFloor,
   uploadFloor,
 } from './api/floorPlansApi';
 import {
@@ -2535,7 +2536,6 @@ const FloorPlansDetailPage = () => {
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
   const { show } = useToast();
 
-  const [floorBuildings, setFloorBuildings] = useState<FloorBuilding[]>([]);
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
@@ -2566,13 +2566,6 @@ const FloorPlansDetailPage = () => {
   const isAnalysisSettled =
     floor?.segmentationStatus === 'DONE' || floor?.segmentationStatus === 'FAILED';
   const isAnalyzing = Boolean(floor?.mapImageUrl) && !isAnalysisSettled;
-
-  // 빌딩 목록 (사이드바 셀렉터용)
-  useEffect(() => {
-    getFloorBuildings()
-      .then(setFloorBuildings)
-      .catch(() => {});
-  }, []);
 
   // CCTV 등록 시 그리드 배율이 서버에서 사라져있어(CCTV006) 재적용 후 재시도할 때, 방금 사용자가
   // 드래그한 영역을 다시 그리게 하지 않고 같은 영역으로 셀을 재계산하기 위해 rect를 별도로 들고
@@ -2881,6 +2874,12 @@ const FloorPlansDetailPage = () => {
   }, [floorId]);
 
   const [selectedBuildingId] = useState(buildingId ?? '');
+  // 이 화면엔 건물 하나(이름)와 그 건물의 층 목록만 필요한데, 예전엔 getFloorBuildings()가
+  // 전체 건물 목록 + 건물마다 층 목록을 다 조회했음(건물 N개면 요청 N+1개, 건물이 늘수록
+  // 이 화면이 계속 느려지는 구조였음) — 건물 이름은 이미 캐시돼 있을 가능성이 높은 건물
+  // 목록 조회 1번, 층 목록은 이 건물 것만 조회 1번으로 나눔
+  const { data: buildingsForName } = useGetBuildingsQuery();
+  const { data: buildingFloors } = useBuildingFloorsQuery(selectedBuildingId);
   const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
@@ -3122,7 +3121,18 @@ const FloorPlansDetailPage = () => {
     }
   }, [zoneAddOpen]);
 
-  const currentBuilding = floorBuildings.find((b) => b.id === selectedBuildingId) ?? null;
+  const currentBuildingName =
+    buildingsForName?.find((b) => b.id === selectedBuildingId)?.name ?? '';
+  // buildingFloors는 공용 훅(useBuildingFloorsQuery)이 내려주는 얕은 응답 형태(mapImageKey 등)라,
+  // 이 페이지가 기대하는 Floor 형태(mapImageUrl·devices 포함)로 그대로 쓰면 hasFloorPlan 판정이
+  // 항상 false가 돼(필드 이름이 달라 늘 "미등록"으로 보임) 이 파일의 toFloor로 다시 변환해줘야 함
+  const currentBuilding: FloorBuilding | null = selectedBuildingId
+    ? {
+        id: selectedBuildingId,
+        name: currentBuildingName,
+        floors: (buildingFloors ?? []).map((f) => toFloor(f, selectedBuildingId)),
+      }
+    : null;
   const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
 
   const handleFloorChange = (newId: string) => {
@@ -3175,13 +3185,12 @@ const FloorPlansDetailPage = () => {
             variant: 'warning',
           });
         }
-        setFloorBuildings((prev) =>
-          prev.map((b) =>
-            b.id !== selectedBuildingId
-              ? b
-              : { ...b, floors: b.floors.map((f) => (f.id !== currentFloor.id ? f : newFloor)) },
-          ),
-        );
+        // newFloor는 이 파일 기준 Floor 형태(mapImageUrl)라, 공용 훅의 캐시(BuildingFloor 형태,
+        // mapImageKey)에 그대로 patch하면 다른 화면(시나리오설정 등)이 같은 캐시를 읽을 때 모양이
+        // 깨짐 — 직접 patch하지 않고 무효화해서 서버에서 올바른 모양으로 다시 받아오게 함
+        void queryClient.invalidateQueries({
+          queryKey: floorQueryKeys.list(selectedBuildingId),
+        });
         setFloor(newFloor);
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
