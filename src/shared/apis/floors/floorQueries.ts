@@ -13,6 +13,9 @@ export const floorQueryKeys = {
   all: ['floors'] as const,
   lists: () => [...floorQueryKeys.all, 'list'] as const,
   list: (buildingId?: string) => [...floorQueryKeys.lists(), buildingId] as const,
+  details: () => [...floorQueryKeys.all, 'detail'] as const,
+  detail: (buildingId?: string, floorId?: string) =>
+    [...floorQueryKeys.details(), buildingId, floorId] as const,
   images: () => [...floorQueryKeys.all, 'image'] as const,
   image: (buildingId?: string, floorId?: string) =>
     [...floorQueryKeys.images(), buildingId, floorId] as const,

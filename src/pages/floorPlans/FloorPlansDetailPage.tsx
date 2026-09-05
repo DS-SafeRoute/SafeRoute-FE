@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import clsx from 'clsx';
 import { useNavigate, useParams } from 'react-router';
@@ -12,6 +12,7 @@ import {
   useBuildingFloorsQuery,
   useFloorCctvsQuery,
   useFloorGridCellsQuery,
+  useFloorImageUrlQuery,
   useFloorLightsQuery,
   useFloorUserZonesQuery,
 } from '@apis/floors/floorQueries';
@@ -52,13 +53,7 @@ import {
   updateCctv,
 } from './api/cctvApi';
 import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
-import {
-  analyzeFloor,
-  getFloorDetail,
-  getFloorImageUrl,
-  toFloor,
-  uploadFloor,
-} from './api/floorPlansApi';
+import { analyzeFloor, getFloorDetail, toFloor, uploadFloor } from './api/floorPlansApi';
 import {
   assignLightCctv,
   configureLightGuidance,
@@ -2544,10 +2539,28 @@ const FloorPlansDetailPage = () => {
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
   const { show } = useToast();
 
-  const [floor, setFloor] = useState<Floor | null>(null);
-  const [loadingFloor, setLoadingFloor] = useState(false);
-  const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
   const { data: floorGridCells = EMPTY_GRID_CELLS } = useFloorGridCellsQuery(floorId);
+
+  // 현재 층 상세 — 세그멘테이션이 끝날 때까지(isAnalyzing) 짧은 간격으로 다시 조회해 상태 전환을
+  // 감지해야 해서, 폴링 여부를 방금 받은 데이터 기준으로 매번 다시 판단하는 refetchInterval에 맡김
+  const floorDetailQuery = useQuery({
+    queryKey: floorQueryKeys.detail(buildingId, floorId),
+    queryFn: ({ signal }) => {
+      if (!buildingId || !floorId) throw new Error('층 상세 조회 조건이 필요합니다.');
+      return getFloorDetail(buildingId, floorId, signal);
+    },
+    enabled: Boolean(buildingId && floorId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const settled = data.segmentationStatus === 'DONE' || data.segmentationStatus === 'FAILED';
+      const analyzing = Boolean(data.mapImageUrl) && !settled;
+      return analyzing ? 4000 : false;
+    },
+  });
+  const floor = floorDetailQuery.data ?? null;
+  const loadingFloor = floorDetailQuery.isLoading;
+
   // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
   const [imageAspect, setImageAspect] = useState<number | null>(null);
 
@@ -2567,13 +2580,7 @@ const FloorPlansDetailPage = () => {
     return DEFAULT_CANVAS_H;
   }, [imageAspect, floorGridCells]);
 
-  // 업로드 직후엔 AI 세그멘테이션이 아직 진행 중(PENDING/PROCESSING)이라 노드/도면이 안 뜸.
-  // 이미지가 올라온 층에서 DONE/FAILED가 아니면 "분석 중"으로 보고(업로드 전 층은 제외),
-  // 완료로 바뀌는 순간 화면을 자동 새로고침함
   const isFloorReady = floor?.segmentationStatus === 'DONE';
-  const isAnalysisSettled =
-    floor?.segmentationStatus === 'DONE' || floor?.segmentationStatus === 'FAILED';
-  const isAnalyzing = Boolean(floor?.mapImageUrl) && !isAnalysisSettled;
 
   // CCTV 등록 시 그리드 배율이 서버에서 사라져있어(CCTV006) 재적용 후 재시도할 때, 방금 사용자가
   // 드래그한 영역을 다시 그리게 하지 않고 같은 영역으로 셀을 재계산하기 위해 rect를 별도로 들고
@@ -2613,62 +2620,22 @@ const FloorPlansDetailPage = () => {
     setNodeStagedPosition(null);
   }, []);
 
-  // 현재 층 상세 — 층 전환 시 이전 층 데이터가 남아있지 않도록 즉시 초기화
+  // 층이 바뀌면(라우트 전환) 이전 층 기준으로 만들어진 노드·장비·구역이 화면에 남지 않도록 즉시 비움
+  // (각 조회는 floorDetailQuery 등 react-query 훅들이 쿼리 키 변경으로 알아서 새로 받아옴)
   useEffect(() => {
-    if (!buildingId || !floorId) return;
-    let cancelled = false;
-    setFloor(null);
     resetFloorScopedState();
-    setLoadingFloor(true);
-    getFloorDetail(buildingId, floorId)
-      .then((data) => {
-        if (!cancelled) setFloor(data);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingFloor(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [buildingId, floorId, resetFloorScopedState]);
-
-  // 세그멘테이션이 끝날 때까지 층 상세를 주기적으로 다시 조회해서 상태 전환을 감지
-  useEffect(() => {
-    if (!buildingId || !floorId || !isAnalyzing) return;
-    let cancelled = false;
-    const timer = setInterval(() => {
-      getFloorDetail(buildingId, floorId)
-        .then((data) => {
-          // clearInterval은 다음 틱만 막아서, 층 전환 중 이미 보낸 요청이 늦게 응답하면
-          // 새 층 데이터를 이전 층 데이터로 덮어쓸 수 있음 — cancelled로 막음
-          if (!cancelled) setFloor(data);
-        })
-        .catch(() => {});
-    }, 4000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [buildingId, floorId, isAnalyzing]);
 
   // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
   // 그리드 셀은 배율 재적용 effect가 다시 받아온다 — 별도의 페이지 새로고침은 필요 없음
 
   // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
-  useEffect(() => {
-    setResolvedMapImageUrl(null);
-    if (!buildingId || !floorId || !floor?.mapImageUrl) return;
-    let cancelled = false;
-    getFloorImageUrl(buildingId, floorId)
-      .then(({ imageUrl }) => {
-        if (!cancelled) setResolvedMapImageUrl(imageUrl);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [buildingId, floorId, floor?.mapImageUrl]);
+  const { data: floorImageData } = useFloorImageUrlQuery(
+    buildingId,
+    floorId,
+    Boolean(floor?.mapImageUrl),
+  );
+  const resolvedMapImageUrl = floorImageData?.imageUrl ?? null;
 
   // 도면 이미지 원본 비율 측정 — 그리드가 없을 때 canvasH 계산의 기준으로 씀
   useEffect(() => {
@@ -2989,6 +2956,14 @@ const FloorPlansDetailPage = () => {
     );
   };
 
+  // floor(위 floorDetailQuery)도 쿼리 캐시에서 파생된 값이라 로컬 setState 대신 이 캐시를 직접
+  // 갱신해야 반영됨
+  const updateFloorCache = (updater: (prev: Floor | null) => Floor | null) => {
+    queryClient.setQueryData<Floor | null>(floorQueryKeys.detail(buildingId, floorId), (prev) =>
+      updater(prev ?? null),
+    );
+  };
+
   // CCTV/유도등 카드의 활성화 스위치 — 둘 다 enabled 필드와 활성화/비활성화 PATCH API 모양이
   // 같아서 한 핸들러에서 타입만 보고 갈라 처리함
   const handleToggleEnabled = (item: PanelItem) => {
@@ -3175,7 +3150,7 @@ const FloorPlansDetailPage = () => {
         void queryClient.invalidateQueries({
           queryKey: floorQueryKeys.list(selectedBuildingId),
         });
-        setFloor(newFloor);
+        queryClient.setQueryData(floorQueryKeys.detail(buildingId, floorId), newFloor);
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
@@ -4524,7 +4499,7 @@ const FloorPlansDetailPage = () => {
     if (editingCctvId === item.id) handleCancelEditCctvCells();
     const newLabel = editForm.label;
     if (item.source === 'floor') {
-      setFloor((prev) =>
+      updateFloorCache((prev) =>
         prev
           ? {
               ...prev,
@@ -4688,7 +4663,7 @@ const FloorPlansDetailPage = () => {
       setDeleteConfirmTarget(null);
       return;
     }
-    setFloor((prev) =>
+    updateFloorCache((prev) =>
       prev ? { ...prev, devices: prev.devices.filter((d) => d.id !== item.id) } : prev,
     );
     if (selectedItem?.kind === 'device' && selectedItem.data.id === item.id) {

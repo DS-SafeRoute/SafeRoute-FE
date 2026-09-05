@@ -2,10 +2,7 @@ import type { FloorResponse } from '@apis/__generated__/data-contracts';
 import { getBuildings } from '@apis/buildings/buildingsApi';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
 import { API_ENDPOINTS } from '@apis/constants/endpoints';
-import {
-  getBuildingFloors as getSharedBuildingFloors,
-  getFloorImageUrl,
-} from '@apis/floors/floorsApi';
+import { getBuildingFloors as getSharedBuildingFloors } from '@apis/floors/floorsApi';
 
 import type { Floor, FloorBuilding } from '../types/floorPlans';
 
@@ -42,10 +39,15 @@ export async function getBuildingFloors(buildingId: string): Promise<Floor[]> {
   return floors.map((f) => toFloor(f, buildingId));
 }
 
-export async function getFloorDetail(buildingId: string, floorId: string): Promise<Floor> {
+export async function getFloorDetail(
+  buildingId: string,
+  floorId: string,
+  signal?: AbortSignal,
+): Promise<Floor> {
   const floor = await apiRequest<FloorResponse>({
     method: HTTP_METHOD.GET,
     url: API_ENDPOINTS.FLOORS.DETAIL(buildingId, floorId),
+    signal,
   });
   return toFloor(floor, buildingId);
 }
@@ -112,5 +114,3 @@ export async function analyzeFloor(floorId: string): Promise<void> {
     timeout: ANALYZE_TIMEOUT_MS,
   });
 }
-
-export { getFloorImageUrl };
