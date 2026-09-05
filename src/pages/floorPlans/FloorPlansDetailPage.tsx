@@ -344,6 +344,13 @@ const EMPTY_GRAPH: FloorGraph = { nodes: [], edges: [] };
 const GRAPH_RETRY_LIMIT = 5;
 const GRAPH_RETRY_INTERVAL_MS = 2000;
 
+// DONE 전환 후에도 서버가 문/계단 노드를 순차 생성하는 동안(방만 먼저 오는 경우가 많음)
+// 그래프를 계속 다시 받아온다. 전환 시점부터 GRAPH_SETTLE_WINDOW_MS 동안, 노드 수가
+// GRAPH_SETTLE_STABLE_TICKS번 연속(=실제 재조회 기준) 같아지면 생성이 끝난 것으로 보고 멈춘다.
+const GRAPH_SETTLE_WINDOW_MS = 180_000;
+const GRAPH_SETTLE_POLL_MS = 3000;
+const GRAPH_SETTLE_STABLE_TICKS = 3;
+
 // 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
 // 드래그 미리보기와 실제 잡히는 셀이 일치하도록 드래그 중/드래그 종료 양쪽에서 같은 로직을 씀
 const cellIdsIntersectingRect = (
@@ -929,10 +936,12 @@ const MockFloorMap3F = ({
             <circle
               cx={n.x}
               cy={n.y}
-              r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
-              fill={n.isFinalExit ? '#16a34a' : baseColor}
-              stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
-              strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
+              r={n.isFinalExit ? 7 : n.isStartCandidate ? 6 : isEditingThis ? 6 : isStair ? 5 : 4}
+              fill={n.isFinalExit ? '#16a34a' : n.isStartCandidate ? DEVICE_COLOR.start : baseColor}
+              stroke={
+                isEditingThis ? '#f59e0b' : n.isFinalExit || n.isStartCandidate ? 'white' : 'none'
+              }
+              strokeWidth={isEditingThis ? 3 : n.isFinalExit || n.isStartCandidate ? 2 : 0}
             />
             {isStair && (
               <text
@@ -960,6 +969,20 @@ const MockFloorMap3F = ({
                 style={{ pointerEvents: 'none' }}
               >
                 최종 탈출구
+              </text>
+            )}
+            {n.isStartCandidate && !n.isFinalExit && (
+              <text
+                x={n.x}
+                y={n.y - 14}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill={DEVICE_COLOR.start}
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                시작 후보
               </text>
             )}
           </g>
@@ -2687,18 +2710,55 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId, isFloorReady, show, queryClient]);
 
-  // 맵그래프(노드/엣지) 조회 — 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기
-  // 전이라 빈 그래프가 올 수 있어서, 비어 있으면 짧은 간격으로 몇 번 더 조회한다(최대
-  // GRAPH_RETRY_LIMIT회 — dataUpdateCount로 세서 floorId가 바뀌면 자동으로 초기화됨)
+  // 세그멘테이션이 방금 끝났을 때(PENDING/PROCESSING → DONE) 서버가 노드를 순차 생성 중이라
+  // 그래프가 비었거나 방(ROOM)만 오고 문/계단은 아직 없는 상태로 올 수 있음. 그 전환 시점부터
+  // GRAPH_SETTLE_WINDOW_MS 동안 아래 graphQuery.refetchInterval이 그래프를 계속 다시 받아온다.
+  // 이미 DONE인 층을 그냥 열 때(undefined → DONE)는 창을 안 열어 불필요한 폴링을 막고,
+  // 재업로드로 DONE이 잠깐 풀렸다가(PENDING) 다시 붙으면 창을 새로 연다.
+  const graphSettleUntilRef = useRef<number>(0);
+  const graphNodeStreakRef = useRef<{ count: number; streak: number; updateCount: number }>({
+    count: -1,
+    streak: 0,
+    updateCount: -1,
+  });
+  const prevSegStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevSegStatusRef.current;
+    const curr = floor?.segmentationStatus;
+    prevSegStatusRef.current = curr;
+    const justFinished = (prev === 'PENDING' || prev === 'PROCESSING') && curr === 'DONE';
+    if (justFinished) {
+      graphSettleUntilRef.current = Date.now() + GRAPH_SETTLE_WINDOW_MS;
+      graphNodeStreakRef.current = { count: -1, streak: 0, updateCount: -1 };
+    } else if (curr && curr !== 'DONE') {
+      graphSettleUntilRef.current = 0;
+      graphNodeStreakRef.current = { count: -1, streak: 0, updateCount: -1 };
+    }
+  }, [floor?.segmentationStatus]);
+
+  // 맵그래프(노드/엣지) 조회. 노드가 아예 안 온 상태면 GRAPH_RETRY_LIMIT회까지 빠르게 재시도하고,
+  // 노드가 오기 시작했으면 위 settle 창이 살아있는 동안 노드 수가 GRAPH_SETTLE_STABLE_TICKS번
+  // 연속(실제 재조회 기준 — dataUpdateCount로 셈) 같아질 때까지 GRAPH_SETTLE_POLL_MS 간격으로 폴링.
   const graphQuery = useQuery({
     ...floorGraphQueryOptions(floorId),
     enabled: Boolean(floorId) && isFloorReady,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
-      return data.nodes.length === 0 && query.state.dataUpdateCount <= GRAPH_RETRY_LIMIT
-        ? GRAPH_RETRY_INTERVAL_MS
-        : false;
+      if (data.nodes.length === 0) {
+        return query.state.dataUpdateCount <= GRAPH_RETRY_LIMIT ? GRAPH_RETRY_INTERVAL_MS : false;
+      }
+      if (Date.now() >= graphSettleUntilRef.current) return false;
+      const s = graphNodeStreakRef.current;
+      if (query.state.dataUpdateCount !== s.updateCount) {
+        s.updateCount = query.state.dataUpdateCount;
+        if (data.nodes.length === s.count) s.streak += 1;
+        else {
+          s.count = data.nodes.length;
+          s.streak = 1;
+        }
+      }
+      return s.streak >= GRAPH_SETTLE_STABLE_TICKS ? false : GRAPH_SETTLE_POLL_MS;
     },
   });
   const graphData = graphQuery.data ?? EMPTY_GRAPH;
@@ -2708,42 +2768,6 @@ const FloorPlansDetailPage = () => {
       updater(prev ?? EMPTY_GRAPH),
     );
   };
-
-  // 세그멘테이션이 방금 끝났을 때(PENDING/PROCESSING → DONE) 서버가 노드를 순차 생성 중이라
-  // 그래프가 비었거나 방(ROOM)만 오고 문/계단은 아직 없는 상태로 올 수 있음. graphQuery의
-  // refetchInterval은 "노드가 완전히 비었을 때만" 재시도해서, 노드가 하나라도 오면 멈춰버림 →
-  // 우측 노드 카드 목록·훈련 준비 체크리스트(둘 다 structureNodes 기준)가 새로고침 전엔
-  // 안 채워지던 문제. 분석 완료 직후 노드 수가 두 번 연속 같아질 때까지(최대 ~60초) 다시 받아온다.
-  // 이미 DONE인 층을 여는 경우엔 이 전환이 없으므로 추가 요청이 나가지 않는다.
-  const prevSegStatusRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const prev = prevSegStatusRef.current;
-    prevSegStatusRef.current = floor?.segmentationStatus;
-    const justFinished =
-      (prev === 'PENDING' || prev === 'PROCESSING') && floor?.segmentationStatus === 'DONE';
-    if (!justFinished || !floorId) return;
-
-    let cancelled = false;
-    let ticks = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const graphNodeCount = () =>
-      queryClient.getQueryData<FloorGraph>(floorQueryKeys.graph(floorId))?.nodes.length ?? -1;
-    const tick = async () => {
-      if (cancelled || ticks >= 24) return;
-      ticks += 1;
-      const before = graphNodeCount();
-      await queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
-      if (cancelled) return;
-      const after = graphNodeCount();
-      if (after > 0 && after === before) return; // 노드 수 안정 → 종료
-      timer = setTimeout(tick, 2500);
-    };
-    timer = setTimeout(tick, 2500);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [floor?.segmentationStatus, floorId, queryClient]);
 
   // 문/계단/복도/시작 후보는 구조 노드 편집 상태(비율 좌표 → 픽셀)로 별도로 들고, 나머지는
   // graphNodes로 조회 전용 보관 — canvasH(그리드/이미지 로드가 끝나야 확정)가 나중에 바뀌어도
@@ -3191,6 +3215,11 @@ const FloorPlansDetailPage = () => {
           queryKey: floorQueryKeys.detail(buildingId, floorId),
         });
         void queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
+        // presigned 이미지 URL 캐시는 이전 도면 것을 그대로 들고 있어(staleTime 5분) 무효화하지
+        // 않으면 새 도면이 새로고침 전엔 안 보였음
+        void queryClient.invalidateQueries({
+          queryKey: floorQueryKeys.image(buildingId, floorId),
+        });
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
@@ -4183,7 +4212,14 @@ const FloorPlansDetailPage = () => {
       >
         <div className={styles.zoneCardHeader}>
           <span className={styles.zoneCardTitleGroup}>
-            <span className={clsx(styles.zoneCardDot, ZONE_CARD_DOT_CLASS[n.type])} />
+            <span
+              className={clsx(
+                styles.zoneCardDot,
+                n.type === 'door' && n.isStartCandidate
+                  ? ZONE_CARD_DOT_CLASS.start
+                  : ZONE_CARD_DOT_CLASS[n.type],
+              )}
+            />
             <span className={styles.deviceCardName}>
               {STRUCTURE_NODE_LABEL[n.type]} {sameTypeIndex + 1}
             </span>
