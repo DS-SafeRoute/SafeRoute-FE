@@ -7,7 +7,11 @@ import { useNavigate, useParams } from 'react-router';
 
 import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
 import { extractApiError } from '@apis/errors/apiError';
-import { floorQueryKeys, useBuildingFloorsQuery } from '@apis/floors/floorQueries';
+import {
+  floorQueryKeys,
+  useBuildingFloorsQuery,
+  useFloorCctvsQuery,
+} from '@apis/floors/floorQueries';
 
 import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
@@ -41,7 +45,6 @@ import {
   deleteCctv,
   disableCctv,
   enableCctv,
-  getFloorCctvs,
   updateCctv,
 } from './api/cctvApi';
 import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
@@ -332,6 +335,10 @@ type ZoneRefSelection = { kind: 'node'; id: string } | { kind: 'zone'; id: strin
 // 그리드 좌표계 기준값·순수 계산 함수는 shared/utils/floorCanvas에서 관리한다.
 // 시나리오 설정 캔버스도 같은 계산을 사용해 셀 경계가 어긋나지 않게 한다.
 const DEFAULT_CANVAS_H = 420;
+
+// react-query data가 아직 없을 때(로딩 중) 쓰는 안정적인 빈 배열 — `data ?? []`처럼 매 렌더
+// 새 배열을 만들면 그 값을 의존성으로 쓰는 effect가 로딩 중에 계속 재실행돼버림
+const EMPTY_CCTVS: Cctv[] = [];
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
@@ -2586,7 +2593,6 @@ const FloorPlansDetailPage = () => {
     setGraphNodes([]);
     setGraphEdges([]);
     setAddedDevices([]);
-    setRealCctvs([]);
     setIotLights([]);
     // 드래그로 옮긴 위치를 담아두는 오버레이 — 층을 바꿔도 안 비우면 다른 층에서 우연히
     // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
@@ -2827,35 +2833,27 @@ const FloorPlansDetailPage = () => {
     };
   }, [floorId]);
 
-  // CCTV 조회 — 실제 등록된 CCTV를 장비 마커 목록에 채워 넣음
+  const { data: realCctvs = EMPTY_CCTVS } = useFloorCctvsQuery(floorId);
+
+  // CCTV는 useFloorCctvsQuery가 조회를 맡고(바로 위), 실제 등록된 CCTV가 바뀔 때마다(조회·생성·
+  // 수정·삭제 등 무엇으로 바뀌었든) 장비 마커 목록에 그대로 반영되게 동기화만 함
   useEffect(() => {
-    if (!floorId) return;
-    let cancelled = false;
-    getFloorCctvs(floorId)
-      .then((cctvs) => {
-        if (cancelled) return;
-        setRealCctvs(cctvs);
-        setAddedDevices((prev) => [
-          ...prev.filter((d) => d.type !== 'cctv'),
-          ...cctvs.map(
-            (cctv): AddedDevice => ({
-              id: cctv.id,
-              type: 'cctv',
-              placeType: 'cctv',
-              label: cctv.name,
-              x: cctv.x * 100,
-              y: cctv.y * 100,
-              status: 'online',
-              zone: formatMonitoredZone(cctv),
-            }),
-          ),
-        ]);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [floorId]);
+    setAddedDevices((prev) => [
+      ...prev.filter((d) => d.type !== 'cctv'),
+      ...realCctvs.map(
+        (cctv): AddedDevice => ({
+          id: cctv.id,
+          type: 'cctv',
+          placeType: 'cctv',
+          label: cctv.name,
+          x: cctv.x * 100,
+          y: cctv.y * 100,
+          status: 'online',
+          zone: formatMonitoredZone(cctv),
+        }),
+      ),
+    ]);
+  }, [realCctvs]);
 
   // 사용자 지정 영역 조회 — 목록 API는 이름만 내려줘서, 화면에 그리려면 구역마다 셀 상세를 따로 조회
   useEffect(() => {
@@ -3003,7 +3001,6 @@ const FloorPlansDetailPage = () => {
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
   const [gridSetupIntent, setGridSetupIntent] = useState<'cctv' | 'zone' | null>(null);
   const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
-  const [realCctvs, setRealCctvs] = useState<Cctv[]>([]);
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
   const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
   const [zoneDeleteTarget, setZoneDeleteTarget] = useState<ZoneEntry | null>(null);
@@ -3022,6 +3019,14 @@ const FloorPlansDetailPage = () => {
     setDevicePositions((prev) => ({ ...prev, [id]: { x, y } }));
   };
 
+  // realCctvs는 useFloorCctvsQuery 캐시라, 서버 응답으로 갱신하려면 로컬 setState가 아니라
+  // 이 캐시를 직접 patch해야 함(여러 핸들러가 반복해서 쓰는 패턴이라 하나로 모음)
+  const patchCctvCache = (updated: Cctv) => {
+    queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) =>
+      prev?.map((c) => (c.id === updated.id ? updated : c)),
+    );
+  };
+
   // CCTV/유도등 카드의 활성화 스위치 — 둘 다 enabled 필드와 활성화/비활성화 PATCH API 모양이
   // 같아서 한 핸들러에서 타입만 보고 갈라 처리함
   const handleToggleEnabled = (item: PanelItem) => {
@@ -3032,7 +3037,7 @@ const FloorPlansDetailPage = () => {
       const request = enabled ? enableCctv : disableCctv;
       request(cctv.id)
         .then((updated) => {
-          setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          patchCctvCache(updated);
           show({
             title: enabled ? 'CCTV를 활성화했습니다.' : 'CCTV를 비활성화했습니다.',
             variant: 'success',
@@ -3081,17 +3086,8 @@ const FloorPlansDetailPage = () => {
     if (!editingCctvId || cctvDraftCellIds.length === 0) return;
     configureCctvGridCells(editingCctvId, cctvDraftCellIds)
       .then((updated) => {
-        setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        setAddedDevices((prev) =>
-          prev.map((d) =>
-            d.id === updated.id
-              ? {
-                  ...d,
-                  zone: formatMonitoredZone(updated),
-                }
-              : d,
-          ),
-        );
+        // addedDevices의 zone(감시 영역 문구)은 realCctvs 동기화 effect가 알아서 다시 채움
+        patchCctvCache(updated);
         setEditingCctvId(null);
         setCctvDraftCellIds([]);
       })
@@ -3534,19 +3530,10 @@ const FloorPlansDetailPage = () => {
 
     // 최초 시도·재시도 둘 다 여기로 옴 — 성공 처리를 한 곳에 모아 둠
     const handleCreated = (newCctv: Cctv) => {
-      setRealCctvs((prev) => [...prev, newCctv]);
-      setAddedDevices((prev) => [
-        ...prev,
-        {
-          id: newCctv.id,
-          type: 'cctv',
-          placeType: 'cctv',
-          label: newCctv.name,
-          x: nodeStagedPosition.x,
-          y: nodeStagedPosition.y,
-          status: 'online',
-          zone: formatMonitoredZone(newCctv),
-        },
+      // addedDevices에 새 마커를 추가하는 것도 realCctvs 동기화 effect가 알아서 처리함
+      queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) => [
+        ...(prev ?? []),
+        newCctv,
       ]);
       lastCctvDraftRectRef.current = null;
       setNodeAddStage('entry');
@@ -4655,9 +4642,7 @@ const FloorPlansDetailPage = () => {
         }
       } else if (item.type === 'cctv' && prevDevice) {
         updateCctv(item.id, { name: newLabel, x: finalX / 100, y: finalY / 100 })
-          .then((updated) => {
-            setRealCctvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-          })
+          .then(patchCctvCache)
           .catch(() => {
             rollback();
             show({ title: 'CCTV 정보 수정에 실패했습니다.', variant: 'error' });
@@ -4717,7 +4702,9 @@ const FloorPlansDetailPage = () => {
         deleteCctv(item.id)
           .then(() => {
             handleAddedDeviceDelete(item.id);
-            setRealCctvs((prev) => prev.filter((cctv) => cctv.id !== item.id));
+            queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) =>
+              prev?.filter((cctv) => cctv.id !== item.id),
+            );
             setSelectedItem((prev) =>
               prev?.kind === 'device' && prev.data.id === item.id ? null : prev,
             );
