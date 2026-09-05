@@ -17,6 +17,8 @@ export interface MapNode {
   x: number;
   y: number;
   isExitTarget: boolean;
+  /** DOOR 노드를 훈련 시작 후보로 지정했는지 (BE PR #225). START 타입 노드와 함께 시작점 후보로 인정됨 */
+  isStartCandidate: boolean;
 }
 
 export interface MapEdge {
@@ -38,7 +40,18 @@ export const toMapNode = (response: MapNodeResponse): MapNode => {
     throw new Error('노드 응답에 필수 필드가 누락되었습니다.');
   }
 
-  return { id, code, type, name, x, y, isExitTarget: response.isExitTarget ?? false };
+  return {
+    id,
+    code,
+    type,
+    name,
+    x,
+    y,
+    isExitTarget: response.isExitTarget ?? false,
+    // 생성된 타입이 아직 없어 loose하게 읽음(생성기 재실행 전까지)
+    isStartCandidate:
+      (response as MapNodeResponse & { isStartCandidate?: boolean }).isStartCandidate ?? false,
+  };
 };
 
 export const toMapEdge = (response: MapEdgeResponse): MapEdge => {

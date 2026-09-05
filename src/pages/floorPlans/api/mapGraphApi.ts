@@ -31,6 +31,20 @@ export async function deleteMapNode(nodeId: string): Promise<void> {
   });
 }
 
+// DOOR 노드를 훈련 시작 후보로 지정/해제 (BE PR #225). 위치·타입은 안 건드리고 플래그만 토글.
+// DOOR가 아닌 노드에 호출하면 서버가 EVAC012로 거부함.
+export async function updateNodeStartCandidate(
+  nodeId: string,
+  isStartCandidate: boolean,
+): Promise<MapNode> {
+  const node = await apiRequest<MapNodeResponse, { isStartCandidate: boolean }>({
+    method: HTTP_METHOD.PATCH,
+    url: API_ENDPOINTS.MAP_GRAPH.NODE_START_CANDIDATE(nodeId),
+    body: { isStartCandidate },
+  });
+  return toMapNode(node);
+}
+
 export async function createMapEdge(body: CreateMapEdgeRequest): Promise<MapEdge> {
   const edge = await apiRequest<MapEdgeResponse, CreateMapEdgeRequest>({
     method: HTTP_METHOD.POST,

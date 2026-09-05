@@ -122,6 +122,7 @@ export const API_ENDPOINTS = {
     DETAIL: (floorId: string) => `${API_V1}/floors/${floorId}/graph`,
     CREATE_NODE: (floorId: string) => `${API_V1}/floors/${floorId}/nodes`,
     NODE: (nodeId: string) => `${API_V1}/nodes/${nodeId}`,
+    NODE_START_CANDIDATE: (nodeId: string) => `${API_V1}/nodes/${nodeId}/start-candidate`,
     CREATE_EDGE: `${API_V1}/edges`,
     EDGE: (edgeId: string) => `${API_V1}/edges/${edgeId}`,
   },
