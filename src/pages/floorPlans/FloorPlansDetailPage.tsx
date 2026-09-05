@@ -70,6 +70,7 @@ import {
   deleteMapEdge,
   deleteMapNode,
   updateMapNodePosition,
+  updateNodeStartCandidate,
 } from './api/mapGraphApi';
 import { createUserZone, deleteUserZone } from './api/userZoneApi';
 import ReadinessChecklist from './components/ReadinessChecklist';
@@ -245,6 +246,8 @@ type StructureNode = {
   x: number;
   y: number;
   isFinalExit: boolean;
+  // DOOR 노드를 훈련 시작 후보로 지정했는지 (문 카드에서 토글). 그 외 타입은 항상 false
+  isStartCandidate: boolean;
 };
 
 const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
@@ -1498,7 +1501,8 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => (
+          {/* 시작 후보(START)는 새 노드로 만들지 않고, 문·출입구 카드에서 지정한다(BE PR #225) */}
+          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -2759,6 +2763,7 @@ const FloorPlansDetailPage = () => {
           // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
           // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
           isFinalExit: n.type === 'EXIT',
+          isStartCandidate: n.isStartCandidate,
         },
       ];
     });
@@ -3623,6 +3628,30 @@ const FloorPlansDetailPage = () => {
     });
   };
 
+  // 훈련 시작 후보는 문·출입구 노드에서만 지정(BE PR #225). 타입·위치는 안 바뀌고
+  // isStartCandidate 플래그만 토글됨 — 최종 탈출구와 달리 별도 엔드포인트(PATCH
+  // /nodes/{id}/start-candidate). 낙관적으로 캐시를 바꾸고 실패 시 되돌린다.
+  const handleToggleStartCandidate = (id: string) => {
+    const node = structureNodes.find((n) => n.id === id);
+    if (!node) return;
+    const next = !node.isStartCandidate;
+    updateGraphCache((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: next } : n)),
+    }));
+    updateNodeStartCandidate(id, next).catch((error: unknown) => {
+      updateGraphCache((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: !next } : n)),
+      }));
+      const { message: serverMessage } = extractApiError(error);
+      show({
+        title: serverMessage || '시작 후보 지정에 실패했습니다.',
+        variant: 'error',
+      });
+    });
+  };
+
   const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean =>
     !!a && a.kind === b.kind && a.id === b.id;
 
@@ -4080,7 +4109,8 @@ const FloorPlansDetailPage = () => {
   // 이 경로가 없으면 경로 탐색기가 EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 —
   // 시작 노드가 그래프에 아예 연결 안 돼 있어도 여기서 걸림. graphEdges + structureNodes로 BFS.
   const hasRouteFromStartToExit = useMemo(() => {
-    const startNodes = structureNodes.filter((n) => n.type === 'start');
+    // 시작점 후보 = 예전 방식의 START 노드 + 문·출입구 중 시작 후보로 지정된 것
+    const startNodes = structureNodes.filter((n) => n.type === 'start' || n.isStartCandidate);
     const exitIds = new Set(structureNodes.filter((n) => n.isFinalExit).map((n) => n.id));
     if (startNodes.length === 0 || exitIds.size === 0) return false;
 
@@ -4170,6 +4200,19 @@ const FloorPlansDetailPage = () => {
                 }}
               >
                 {n.isFinalExit ? '최종 탈출구' : '탈출구로 지정'}
+              </button>
+            )}
+            {/* 훈련 시작 후보는 문·출입구 노드에서 지정(BE 정책) */}
+            {n.type === 'door' && (
+              <button
+                type="button"
+                className={n.isStartCandidate ? styles.finalExitBadge : styles.finalExitToggle}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStartCandidate(n.id);
+                }}
+              >
+                {n.isStartCandidate ? '시작 후보' : '시작 후보로 지정'}
               </button>
             )}
             <button
@@ -4737,11 +4780,15 @@ const FloorPlansDetailPage = () => {
                 가장 먼저 보이는 자리에 둠 */}
             {currentFloor?.segmentationStatus === 'DONE' && (
               <ReadinessChecklist
-                hasStartNode={structureNodes.some((n) => n.type === 'start')}
+                hasStartNode={structureNodes.some((n) => n.type === 'start' || n.isStartCandidate)}
                 hasFinalExit={structureNodes.some((n) => n.isFinalExit)}
                 hasStair={structureNodes.some((n) => n.type === 'stair')}
                 hasRouteToExit={hasRouteFromStartToExit}
-                onAddStartNode={() => handleOpenNodeAdd('start')}
+                onAddStartNode={() => {
+                  // 시작 후보는 문·출입구 카드에서 지정 — 해당 필터로 이동
+                  setTopFilter('device');
+                  setDeviceTypeFilter(['door']);
+                }}
                 onAddStair={() => handleOpenNodeAdd('stair')}
                 onFocusDeviceCards={() => {
                   setTopFilter('device');
