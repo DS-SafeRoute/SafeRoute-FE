@@ -52,8 +52,8 @@ export const toReportSummary = (report: ReportResponse): ReportSummary => ({
 
 export const toReportScores = (report: ReportResponse): ReportScoreItem[] =>
   [
-    toScoreItem('대피 완료율', '30%', report.survivalRate, 'success'),
-    toScoreItem('평균 대피 시간', '25%', report.evacuationScore, 'primary'),
+    toScoreItem('생존율', '30%', report.survivalRate, 'success'),
+    toScoreItem('평균 대피 시간', '35%', report.evacuationScore, 'primary'),
     toScoreItem('병목 회피율', '20%', report.bottleneckScore, 'primary'),
     toScoreItem('경로 이탈률', '15%', report.deviationScore, 'primary'),
   ].filter(isNotNull);
