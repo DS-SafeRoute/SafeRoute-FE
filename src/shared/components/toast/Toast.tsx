@@ -16,6 +16,8 @@ export interface ToastProps {
   description?: string;
   variant?: ToastVariant;
   duration?: number;
+  actionLabel?: string;
+  onAction?: () => void;
   leaving?: boolean;
   onClose: (id: string) => void;
 }
@@ -35,6 +37,8 @@ const Toast = ({
   description,
   variant = 'default',
   duration = 3000,
+  actionLabel,
+  onAction,
   leaving = false,
   onClose,
 }: ToastProps) => {
@@ -98,6 +102,19 @@ const Toast = ({
       <div className={styles.body}>
         <span className={styles.title({ variant })}>{title}</span>
         {description && <span className={styles.description({ variant })}>{description}</span>}
+        {actionLabel && onAction && (
+          <button
+            type="button"
+            className={styles.actionButton({ variant })}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => {
+              onAction();
+              onClose(id);
+            }}
+          >
+            {actionLabel}
+          </button>
+        )}
       </div>
       <button
         type="button"
