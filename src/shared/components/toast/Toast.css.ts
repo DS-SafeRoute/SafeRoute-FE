@@ -127,6 +127,35 @@ export const description = recipe({
   defaultVariants: { variant: 'default' },
 });
 
+export const actionButton = recipe({
+  base: {
+    alignSelf: 'flex-start',
+    marginTop: vars.space.s1,
+    outline: 'none',
+    border: '1px solid currentColor',
+    borderRadius: vars.radius.md,
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+    padding: `${vars.space.s1} ${vars.space.s3}`,
+    ...vars.typography.captionMedium,
+    selectors: {
+      '&:focus-visible': {
+        outline: '2px solid currentColor',
+        outlineOffset: '2px',
+      },
+    },
+  },
+  variants: {
+    variant: {
+      default: { color: vars.color.textMid },
+      success: { color: vars.color.successText },
+      warning: { color: vars.color.warningText },
+      error: { color: vars.color.dangerText },
+    },
+  },
+  defaultVariants: { variant: 'default' },
+});
+
 export const closeButton = recipe({
   base: {
     display: 'flex',

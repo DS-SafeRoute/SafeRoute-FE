@@ -118,8 +118,9 @@ export const menuItemDanger = style({
 export const stats = style({
   display: 'flex',
   gap: vars.space.s6,
+  // borderBottom은 container의 아래쪽 테두리(+ borderRadius)와 겹쳐서 둥근 모서리 부근이
+  // 깨져 보였음 — stats가 마지막 자식이라 이 선은 불필요하므로 borderTop만 남김
   borderTop: `1px solid ${vars.color.gray100}`,
-  borderBottom: `1px solid ${vars.color.gray100}`,
   padding: `${vars.space.s4} ${vars.space.s6}`,
 });
 

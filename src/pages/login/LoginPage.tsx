@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 
-import LogoIcon from '@assets/icons/logo.svg?react';
+import logoImg from '@assets/icons/logo.webp';
 
 import { Button } from '@components/Button';
 import TextField from '@components/inputField/TextField';
@@ -55,7 +55,7 @@ const LoginPage = () => {
       <section className={styles.content} aria-label="로그인">
         <div className={styles.intro}>
           <Link className={styles.brand} to={ROUTES.LANDING} aria-label="SAFE ROUTE 홈">
-            <LogoIcon className={styles.logoIcon} />
+            <img src={logoImg} className={styles.logoIcon} alt="" aria-hidden="true" />
             <span>SAFE ROUTE</span>
           </Link>
 

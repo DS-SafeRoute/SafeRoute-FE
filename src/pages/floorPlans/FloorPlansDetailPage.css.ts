@@ -2,14 +2,21 @@ import { keyframes, style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
 
-/* 도면 상 구역 의미 색상 — 문·출입구/계단/시작 후보 표시에서 반복 사용되므로 한 곳에서만 정의
-   (코드래빗 리뷰 반영 — 시작 후보 색상도 하드코딩 대신 이 파일 안에서 단일 소스로 관리) */
-const zoneDoorColor = '#2563EB';
-const zoneStairColor = '#F97316';
-const zoneStartColor = '#DB2777';
-const zoneHallwayColor = '#0891B2';
+import { DEVICE_COLOR } from './constants/deviceColors';
+
+/* 도면 상 구역 의미 색상 — 문·출입구/계단/시작 후보 표시에서 반복 사용되므로 한 곳에서만 정의.
+   FloorPlansDetailPage.tsx의 DEVICE_PLACE_CONFIG/STRUCTURE_NODE_COLOR와 값이 어긋나지 않도록
+   같은 공용 상수(deviceColors.ts)를 가져다 씀(코드래빗 리뷰 반영 — 값 중복 제거) */
+const zoneDoorColor = DEVICE_COLOR.door;
+const zoneStairColor = DEVICE_COLOR.stair;
+const zoneStartColor = DEVICE_COLOR.start;
+const zoneHallwayColor = DEVICE_COLOR.hallway;
+const zoneLightColor = DEVICE_COLOR.light;
 
 /* ── 전체 레이아웃 ── */
+// 폭 상한을 뒀었는데 그러면 큰 화면에서 좌우로 회색 여백만 생기고 정작 캔버스는 안 넓어짐
+// (되돌림) — 범례·팝업이 도면과 동떨어져 보이는 문제는 그 둘을 각각 접을 수 있게 하거나
+// 캔버스 밖으로 옮기는 쪽으로 해결함(범례는 인포 아이콘 팝오버로, 팝업은 좌측 사이드바로 이동)
 export const layout = style({
   display: 'flex',
   flex: 1,
@@ -26,6 +33,12 @@ export const sidebar = style({
   backgroundColor: vars.color.white,
   width: '28rem',
   overflowY: 'auto',
+  // 스크롤은 그대로 되지만 막대는 안 보이게(우측 장비 목록 패널과 동일한 처리)
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
 });
 
 export const sidebarInner = style({
@@ -97,13 +110,14 @@ export const floorNavItemActive = style({
 // (코드래빗 리뷰 반영 — 컴포넌트 스타일을 페이지 스타일 파일에 두면 컴포넌트를 다른 위치로
 // 옮길 때 스타일이 따라오지 않음)
 
-/* ── 장비/구역 추가 ── */
-export const canvasActionFloat = style({
+/* ── 캔버스 우상단(장비/구역 추가) ── */
+export const canvasTopRightRow = style({
   position: 'absolute',
   zIndex: 10,
   top: vars.space.s6,
   right: vars.space.s6,
   display: 'flex',
+  alignItems: 'center',
   gap: vars.space.s2,
 });
 
@@ -201,38 +215,30 @@ export const gridSizeSlider = style({
   },
 });
 
+// 예전엔 캔버스 위에 절대 위치로 떠서 도면을 가려 그 밑을 클릭할 수 없었음 — 좌측 사이드바
+// 안 일반 흐름으로 옮겨서, 도면은 항상 그대로 보이고 클릭도 가능하게 함
 export const gridSetupPopup = style({
-  position: 'absolute',
-  zIndex: 15,
-  top: '5.6rem',
-  right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.lg,
+  boxShadow: vars.shadow.md,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
-  width: '25rem',
 });
 
 /* ── 카메라 시야 구역 지정 안내 ── */
 /* ── 장비 추가 팝업 ── */
 export const nodeAddPopup = style({
-  position: 'absolute',
-  zIndex: 15,
-  top: '9.6rem',
-  right: vars.space.s6,
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.lg,
+  boxShadow: vars.shadow.md,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
-  width: '25rem',
 });
 
 export const nodeAddHeader = style({
@@ -262,6 +268,12 @@ export const nodeAddHint = style({
   ...vars.typography.caption,
 });
 
+// 그냥 안내 문구가 아니라 "지금 이대로는 진행이 안 된다"는 경고(예: 연결된 엣지가 없음) — 색으로
+// 구분되게 함
+export const nodeAddHintWarning = style({
+  color: vars.color.danger,
+});
+
 export const nodeAddSubHint = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
@@ -278,6 +290,70 @@ export const nodeAddLabel = style({
   ...vars.typography.caption,
 });
 
+// 갈림길 위치·좌우 통로 라벨 옆에 "캔버스에서 선택" 버튼을 나란히 두기 위함 — 드롭다운에서
+// 같은 이름 노드가 많아 고르기 혼란스럽다는 피드백으로, 도면에서 직접 클릭해 고르는 대안 제공
+export const nodeAddLabelRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+});
+
+export const nodeAddPickBtn = style({
+  flexShrink: 0,
+  border: 'none',
+  background: 'none',
+  cursor: 'pointer',
+  padding: 0,
+  color: vars.color.primary,
+  ...vars.typography.caption,
+  selectors: {
+    '&:hover': { textDecoration: 'underline' },
+    '&:disabled': { cursor: 'not-allowed', color: vars.color.gray300 },
+  },
+});
+
+// 갈림길 위치·좌우 통로는 드롭다운을 없애고 캔버스 클릭으로만 고르게 함(같은 이름의 노드가
+// 많아 드롭다운으로는 뭐가 뭔지 구분이 안 된다는 피드백) — 이 박스는 클릭 대상이 아니라
+// 현재 고른 값을 보여주기만 하는 정적 표시 영역
+export const nodeAddPickDisplay = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: vars.space.s2,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  backgroundColor: vars.color.white,
+  padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const nodeAddPickDisplayEmpty = style({
+  color: vars.color.textLow,
+});
+
+// 지금 이 필드가 "캔버스에서 선택" 중임을 표시 — 드롭다운의 aria-expanded 강조 테두리와 같은 색
+export const nodeAddPickDisplayActive = style({
+  borderColor: vars.color.primary,
+});
+
+export const nodeAddPickClearBtn = style({
+  display: 'inline-flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: vars.radius.pill,
+  background: 'none',
+  cursor: 'pointer',
+  padding: 0,
+  color: vars.color.textMid,
+  selectors: {
+    '&:hover': { backgroundColor: vars.color.gray50, color: vars.color.textHigh },
+  },
+});
+
 export const edgeBidirectionalField = style({
   display: 'flex',
   alignItems: 'center',
@@ -285,6 +361,66 @@ export const edgeBidirectionalField = style({
   cursor: 'pointer',
   color: vars.color.textMid,
   ...vars.typography.body14,
+});
+
+// 순서대로 클릭해 쌓은 경로를 "A → B → C"로 미리 보여주는 텍스트
+export const edgeChainPath = style({
+  wordBreak: 'break-word',
+  color: vars.color.textMid,
+  ...vars.typography.caption,
+});
+
+// 엣지 체인 검토 화면 — 구간이 많아질 수 있어 스크롤 가능한 목록으로 둠
+export const edgeChainList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: vars.space.s2,
+  maxHeight: '24rem',
+  overflowY: 'auto',
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
+});
+
+export const edgeChainRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
+export const edgeChainRowLabel = style({
+  flex: 1,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+});
+
+export const edgeChainDistanceInput = style({
+  flexShrink: 0,
+  outline: 'none',
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.md,
+  padding: `${vars.space.s2} ${vars.space.s3}`,
+  width: '6.4rem',
+  color: vars.color.textHigh,
+  ...vars.typography.body14,
+  selectors: {
+    '&:focus': { borderColor: vars.color.primary },
+  },
+});
+
+// 다른 경로와 겹쳐 이미 존재하는 구간 표시 — 입력창 대신 이 태그만 보여줌
+export const edgeChainExistingTag = style({
+  flexShrink: 0,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray50,
+  padding: `0.2rem ${vars.space.s2}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
 });
 
 export const deviceTypeChips = style({
@@ -352,6 +488,10 @@ export const nodeAddCancelBtn = style({
   backgroundColor: vars.color.white,
   cursor: 'pointer',
   padding: vars.space.s2,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   color: vars.color.textMid,
   ...vars.typography.body14,
   selectors: {
@@ -366,6 +506,10 @@ export const nodeAddSubmitBtn = style({
   backgroundColor: vars.color.primary,
   cursor: 'pointer',
   padding: vars.space.s2,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   color: vars.color.white,
   ...vars.typography.body14,
   selectors: {
@@ -391,21 +535,60 @@ export const zoneLegendLabel = style({
   ...vars.typography.caption,
 });
 
-/* ── 마크 설명(노드/구역 종류) 범례 ── */
-export const nodeTypeLegend = style({
+/* ── 마크 설명(노드/구역 종류) 안내 — 인포 아이콘을 누르면 팝오버로 뜨고 바깥을 클릭하면
+   닫힘(지도 툴에서 흔한 on-demand 패턴). "+ 추가" 메뉴(addMenuContainer/Panel)와 같은
+   click-outside 구조를 그대로 따름 ── */
+export const legendInfoContainer = style({
+  position: 'relative',
+});
+
+// 테두리 없이 동그란 i 아이콘만 보이게 — 아이콘 자체가 이미 원형(ic-info.svg)이라 버튼은
+// 클릭 영역만 잡아주고 시각적으로는 드러나지 않음(hover/열림 상태는 아이콘 색으로만 표시)
+export const legendInfoButton = style({
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  width: '3.4rem',
+  height: '3.4rem',
+  color: vars.color.textLow,
+  selectors: {
+    '&:hover': { color: vars.color.primary },
+    '&[aria-expanded="true"]': {
+      color: vars.color.primary,
+    },
+  },
+});
+
+// 아이콘이 이제 캔버스 우하단(줌 컨트롤 바로 위)에 있어서, 아래로 펼치면 화면 밖으로
+// 잘려나감 — 위로 펼치게 함(translateY 방향도 아래→위로 뒤집음)
+const legendPopoverIn = keyframes({
+  from: { transform: 'translateY(0.4rem)', opacity: 0 },
+  to: { transform: 'translateY(0)', opacity: 1 },
+});
+
+export const legendPopover = style({
   position: 'absolute',
-  zIndex: 10,
-  right: vars.space.s6,
-  bottom: '7.6rem',
+  zIndex: 20,
+  right: 0,
+  // 아이콘이 캔버스 오른쪽 끝 가까이 있어서 왼쪽 기준(left:0)으로 오른쪽으로 펼치면
+  // 캔버스 밖으로 잘려나감 — "+ 추가" 드롭다운(addMenuPanel)과 같은 방식으로 오른쪽
+  // 기준으로 왼쪽으로 펼치게 함
+  bottom: 'calc(100% + 0.4rem)',
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s4,
+  transformOrigin: 'bottom right',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
+  boxShadow: vars.shadow.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s5,
   width: '16rem',
+  animation: `${legendPopoverIn} 0.15s ease`,
 });
 
 export const nodeTypeLegendSection = style({
@@ -429,12 +612,14 @@ export const nodeTypeDotDoor = style({ backgroundColor: zoneDoorColor });
 export const nodeTypeDotStair = style({ backgroundColor: zoneStairColor });
 export const nodeTypeDotHallway = style({ backgroundColor: zoneHallwayColor });
 export const nodeTypeDotStart = style({ backgroundColor: zoneStartColor });
-export const nodeTypeDotLight = style({ backgroundColor: '#d97706' });
+export const nodeTypeDotLight = style({ backgroundColor: zoneLightColor });
 
 export const nodeTypeAreaSwatch = style({
   flexShrink: 0,
   border: '1px solid',
-  borderRadius: vars.radius.sm,
+  // vars.radius.sm(6px)은 1.2rem(12px) 박스에서 정확히 50%라 원으로 보였음 — 모서리만
+  // 둥근 사각형이 되도록 더 작은 값으로 낮춤(테두리·채운색 규칙은 그대로 유지)
+  borderRadius: '0.3rem',
   width: '1.2rem',
   height: '1.2rem',
 });
@@ -678,7 +863,17 @@ export const cctvEnableSwitchThumb = style({
   },
 });
 
+// 기기명(입력창 또는 텍스트) + 삭제 아이콘 버튼을 한 줄에 나란히 둠 — 삭제가 하단 버튼 행에
+// 있던 걸 여기로 옮겨서, 아래는 취소/완료(또는 수정)만 남게 함
+export const deviceCardNameRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: vars.space.s2,
+});
+
 export const deviceCardName = style({
+  flex: 1,
+  minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -687,30 +882,15 @@ export const deviceCardName = style({
 });
 
 export const deviceCardNameInput = style({
+  flex: 1,
   outline: 'none',
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.sm,
   backgroundColor: vars.color.white,
   padding: `${vars.space.s1} ${vars.space.s2}`,
-  width: '100%',
   minWidth: 0,
   color: vars.color.textHigh,
   ...vars.typography.body14Medium,
-  selectors: {
-    '&:focus': { borderColor: vars.color.primary },
-  },
-});
-
-export const deviceCardValueInput = style({
-  outline: 'none',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.white,
-  padding: `0 ${vars.space.s2}`,
-  width: '14rem',
-  textAlign: 'right',
-  color: vars.color.textHigh,
-  ...vars.typography.caption,
   selectors: {
     '&:focus': { borderColor: vars.color.primary },
   },
@@ -750,63 +930,11 @@ export const deviceCardFieldEditBtn = style({
   },
 });
 
-// 유도등 카드 수정 중 필드(설치 위치 입력)를 담당 CCTV·가이던스 Dropdown과 같은 박스 모양으로
-// 맞춤 — 텍스트 입력과 Dropdown이 서로 다른 크기·정렬로 보이던 문제를 셋 다 "라벨 위,
-// 폭 전체 값" 한 가지 모양으로 통일해서 해결함(치수는 Dropdown의 rounded+fullWidth와 동일)
-export const lightFieldFull = style({
-  outline: 'none',
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  padding: `${vars.space.s2} ${vars.space.s3} ${vars.space.s2} ${vars.space.s4}`,
-  width: '100%',
-  color: vars.color.textHigh,
-  ...vars.typography.body14Medium,
-  selectors: {
-    '&:focus': { borderColor: vars.color.primary },
-  },
-});
-
 // 가이던스(판단 노드/좌우 엣지) Dropdown 3개를 세로로 쌓는 영역 — deviceCardRow 밑에 통째로 붙음
 export const lightFieldGroup = style({
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s2,
-});
-
-// 카드 폭에 맞춰 버튼 3개가 한 줄에 다 들어가도록 폭 전체를 씀 — deviceCardRow의
-// space-between 안에 끼워 넣으면 "방향"라벨에 밀려 좁아져서 글자가 줄바꿈되던 문제가 있었음
-export const lightDirectionRow = style({
-  display: 'flex',
-  gap: vars.space.s1,
-});
-
-export const lightDirectionBtn = style({
-  flex: 1,
-  border: `1px solid ${vars.color.gray100}`,
-  borderRadius: vars.radius.sm,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: `${vars.space.s1} 0`,
-  whiteSpace: 'nowrap',
-  color: vars.color.textMid,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: vars.color.gray25 },
-    '&:disabled': {
-      opacity: 0.4,
-      backgroundColor: vars.color.white,
-      cursor: 'not-allowed',
-    },
-  },
-});
-
-// 방향은 서버가 현재 상태를 내려주지 않아 "지금 이 방향임"을 표시할 수 없음 — 대신 "방금 이걸
-// 눌렀다"는 클릭 자체를 눈에 보이게 남겨서, 눌렀는지 안 눌렀는지 헷갈리지 않게 함
-export const lightDirectionBtnActive = style({
-  borderColor: vars.color.primary,
-  backgroundColor: vars.color.primaryLight2,
-  color: vars.color.primary,
 });
 
 export const deviceCardActions = style({
@@ -839,24 +967,11 @@ export const deviceCardDoneBtn = style({
   color: vars.color.white,
   ...vars.typography.caption,
   selectors: {
-    '&:hover': {
+    '&:hover:not(:disabled)': {
       borderColor: vars.color.primaryHover,
       backgroundColor: vars.color.primaryHover,
     },
-  },
-});
-
-export const deviceCardDeleteBtn = style({
-  flex: 1,
-  border: `1px solid ${vars.color.dangerLight}`,
-  borderRadius: vars.radius.md,
-  backgroundColor: vars.color.white,
-  cursor: 'pointer',
-  padding: vars.space.s2,
-  color: vars.color.danger,
-  ...vars.typography.caption,
-  selectors: {
-    '&:hover': { backgroundColor: '#FFF5F5' },
+    '&:disabled': { opacity: 0.5, cursor: 'not-allowed' },
   },
 });
 
@@ -911,12 +1026,19 @@ export const zoneCardIconBtnDelete = style([
   },
 ]);
 
-/* ── 플로팅 줌 컨트롤 ── */
-export const canvasZoomFloat = style({
+/* ── 캔버스 우하단(범례 정보 + 줌 컨트롤을 세로로 쌓음) ── */
+export const canvasBottomRightColumn = style({
   position: 'absolute',
   zIndex: 10,
-  right: '2.4rem',
-  bottom: '2.4rem',
+  right: vars.space.s8,
+  bottom: vars.space.s8,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: vars.space.s1,
+});
+
+export const canvasZoomFloat = style({
   display: 'flex',
   alignItems: 'center',
   gap: '0.4rem',
@@ -1006,23 +1128,38 @@ export const canvasHeaderFloor = style({
   ...vars.typography.body14Medium,
 });
 
+// "+ 추가" 버튼(canvasTopRightRow)이 이 박스 기준으로 절대 위치를 잡음 — 캔버스가 확대돼서
+// 스크롤이 생겨도 그 스크롤은 안쪽 canvasScrollArea에서만 일어나고, 이 박스 자체는 스크롤되지
+// 않아서 버튼이 항상 같은 자리에 고정됨(예전엔 이 박스 자체가 스크롤 컨테이너라 확대 후 스크롤하면
+// 버튼도 같이 밀려 화면 밖으로 나가던 문제가 있었음)
 export const canvasBody = style({
   position: 'relative',
-  display: 'flex',
   flex: 1,
-  alignItems: 'flex-start',
-  justifyContent: 'center',
   margin: vars.space.s4,
   marginTop: 0,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: `0 0 ${vars.radius.lg} ${vars.radius.lg}`,
   backgroundColor: vars.color.white,
   padding: vars.space.s6,
-  overflow: 'auto',
 });
 
 export const canvasBodyWithActions = style({
   paddingTop: '8rem',
+});
+
+// 실제 스크롤이 일어나는 안쪽 영역 — canvasBody의 패딩 박스를 그대로 채움
+export const canvasScrollArea = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'center',
+  width: '100%',
+  height: '100%',
+  overflow: 'auto',
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
+  selectors: {
+    '&::-webkit-scrollbar': { display: 'none' },
+  },
 });
 
 export const mapWrap = style({
@@ -1043,15 +1180,33 @@ export const mapImage = style({
 });
 
 /* ── 마커 공통 ── */
+// 마커 위치의 기준점(0,0)만 잡음 — 크기가 없는 점이라 자식(원 아이콘·라벨)이 뭘 보여주든
+// 이 기준점 자체는 흔들리지 않음
 export const markerWrap = style({
   position: 'absolute',
   zIndex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '0.3rem',
-  transform: 'translate(-50%, -50%)',
   cursor: 'pointer',
+});
+
+// 원 아이콘은 markerWrap의 (0,0)을 기준으로 항상 자기 자신의 고정 크기(2.4rem)만으로
+// -50%/-50% 이동해 중앙 정렬함 — 라벨(선택 시에만 나타남)과 같은 flex 박스에 있지 않아서,
+// 수정 모드 진입으로 라벨이 나타나거나 사라져도 원 아이콘 위치는 안 바뀜(전엔 라벨 유무로
+// markerWrap 전체 높이가 바뀌어 translate(-50%,-50%) 기준도 같이 바뀌면서 수정 시작하자마자
+// 마커가 위로 튀어 보이던 버그의 원인이었음)
+export const markerPin = style({
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  transform: 'translate(-50%, -50%)',
+});
+
+// 라벨도 markerWrap의 (0,0) 기준으로 원 아이콘 반지름(1.2rem) + 기존 간격(0.3rem)만큼
+// 아래로 고정 오프셋 — 원 아이콘 쪽 레이아웃과 완전히 분리돼 있어 서로 영향을 안 줌
+export const markerLabelPin = style({
+  position: 'absolute',
+  top: '1.5rem',
+  left: 0,
+  transform: 'translateX(-50%)',
 });
 
 export const markerCircle = style({

@@ -68,8 +68,11 @@ export const chevron = style({
 });
 
 export const panel = style({
-  // document.body에 포탈로 렌더링되고 top/left/width는 인라인 스타일(뷰포트 좌표)로 정해짐 —
-  // 모달 등 overflow: hidden 조상 안에서 열려도 잘리지 않게 함
+  // document.body에 포탈로 렌더링되고 top/left/width(+maxHeight)는 인라인 스타일(뷰포트 좌표)로
+  // 정해짐 — 모달 등 overflow: hidden 조상 안에서 열려도 잘리지 않게 함.
+  // maxHeight 없이 overflow: hidden만 있으면 옵션이 많을 때 화면 아래로 넘친 항목이 스크롤도
+  // 안 되고 그냥 안 보여서 "목록에 없다"고 오해하기 쉬웠음(코드래빗 아님, 실사용 버그 리포트) —
+  // 세로 공간이 부족하면 트리거 위로 뒤집어 열리도록 이제 JS에서 maxHeight를 계산해 내려줌
   position: 'fixed',
   zIndex: 200,
   borderRadius: vars.radius.lg,
@@ -77,7 +80,7 @@ export const panel = style({
   backgroundColor: vars.color.white,
   padding: 0,
   minWidth: '18rem',
-  overflow: 'hidden',
+  overflowY: 'auto',
 });
 
 export const option = style({

@@ -7,6 +7,8 @@ import UploadIcon from '@assets/icons/ic-upload.svg?react';
 import { Button } from '@components/Button';
 import Modal from '@components/modal';
 
+import { formatFloor } from '@utils/floor';
+
 import * as styles from './FloorUploadModal.css';
 
 interface FloorUploadModalProps {
@@ -21,12 +23,6 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png'] as const;
 
 const isAcceptedImageType = (type: string): boolean =>
   (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(type);
-
-const formatFloor = (floorNum: number) => {
-  if (floorNum > 0) return `${floorNum}층`;
-  if (floorNum < 0) return `B${Math.abs(floorNum)}층`;
-  return '1층';
-};
 
 const FloorUploadModal = ({
   open,

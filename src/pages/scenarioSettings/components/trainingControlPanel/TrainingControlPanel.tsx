@@ -4,6 +4,8 @@ import { LIVE_STATUS } from '@pages/scenarioSettings/constants/scenarioSettings'
 import { sideColumn } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
 import type { PreviewMetric } from '@pages/scenarioSettings/types/scenarioSettings';
 
+import { MAX_TRAINING_DURATION_MS } from '@apis/trainingSessions/trainingSessionConstants';
+
 import PauseIcon from '@assets/icons/ic-pause.svg?react';
 import SparklesIcon from '@assets/icons/ic-sparkles.svg?react';
 
@@ -33,7 +35,9 @@ interface TrainingControlPanelProps {
   currentRoute: string;
   liveMetrics: PreviewMetric[];
   isEnding: boolean;
+  isForceEnding: boolean;
   onEnd: () => void;
+  onForceEnd: () => void;
   routeDecision: RouteDecision;
 }
 
@@ -43,26 +47,41 @@ const TrainingControlPanel = ({
   currentRoute,
   liveMetrics,
   isEnding,
+  isForceEnding,
   onEnd,
+  onForceEnd,
   routeDecision,
 }: TrainingControlPanelProps) => {
   const elapsedTime = useElapsedTrainingTime(startedAt, timerStoppedAt);
+  const isAwaitingServerEnd =
+    timerStoppedAt === null && Date.now() >= startedAt + MAX_TRAINING_DURATION_MS;
   const { proposal, isApplying, isRejecting, onReject, onApply } = routeDecision;
   const isPending = isApplying || isRejecting;
 
   return (
     <aside className={sideColumn}>
-      <Button
-        type="button"
-        variant="danger"
-        size="lg"
-        fullWidth
-        leftIcon={<PauseIcon />}
-        onClick={onEnd}
-        isLoading={isEnding}
-      >
-        종료
-      </Button>
+      <div className={styles.trainingActions}>
+        <Button
+          type="button"
+          variant="danger"
+          size="lg"
+          fullWidth
+          leftIcon={<PauseIcon />}
+          onClick={onEnd}
+          isLoading={isEnding}
+          disabled={isForceEnding}
+        >
+          종료
+        </Button>
+        <button
+          type="button"
+          className={styles.forceEndLink}
+          onClick={onForceEnd}
+          disabled={isEnding || isForceEnding}
+        >
+          {isForceEnding ? '중단 중...' : '훈련 강제 종료'}
+        </button>
+      </div>
 
       <div className={styles.elapsedTimer}>
         <span className={styles.timerLabel}>
@@ -71,8 +90,10 @@ const TrainingControlPanel = ({
         </span>
         <strong className={styles.timerValue}>{elapsedTime}</strong>
       </div>
-      <p className={styles.durationNotice}>
-        훈련은 최대 10분간 진행되며, 종료 후 보고서가 생성됩니다.
+      <p className={styles.durationNotice} role={isAwaitingServerEnd ? 'status' : undefined}>
+        {isAwaitingServerEnd
+          ? '10분이 경과했습니다. 서버에서 훈련 종료 상태를 확인하고 있습니다.'
+          : '훈련은 최대 10분간 진행되며, 서버 처리에 따라 종료까지 잠시 걸릴 수 있습니다.'}
       </p>
 
       <RecommendationCard icon={<SparklesIcon />} title="현재 경로" message={currentRoute} />
@@ -121,7 +142,7 @@ const TrainingControlPanel = ({
         </section>
       )}
 
-      <TrainingPreviewCard title="실시간 도면 상태" status={LIVE_STATUS} metrics={liveMetrics} />
+      <TrainingPreviewCard title="등록된 도면 상태" status={LIVE_STATUS} metrics={liveMetrics} />
 
       <div className={styles.lockNotice}>
         🔒 훈련 진행 중에는 도면의 노드·구역 편집이 제한됩니다

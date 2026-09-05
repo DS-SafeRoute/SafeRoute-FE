@@ -1,15 +1,10 @@
-// 훈련 세션 상태. 훈련관리(scenarioSettings) 쪽 TrainingSessionStatus와 동일한 값셋이지만
-// 아직 이 페이지는 API 연동 전이라 별도로 정의해둠 — API 연동 시 @apis/trainingSessions 쪽 타입으로 교체 예정
-export type TrainingSessionStatus =
-  | 'RUNNING'
-  | 'STOPPED'
-  | 'SCHEDULED'
-  | 'COMPLETED'
-  | 'FAILED'
-  | 'CANCELLED';
+import type { TrainingSessionStatus } from '@apis/trainingSessions/trainingSessionConstants';
+
+export type { TrainingSessionStatus } from '@apis/trainingSessions/trainingSessionConstants';
 
 export interface TrainingSessionSummary {
   sessionId: string;
+  scenarioId?: string;
   scenarioName: string;
   buildingId: string;
   buildingName: string;

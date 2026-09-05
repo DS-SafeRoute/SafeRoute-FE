@@ -42,6 +42,9 @@ export const vars = createGlobalTheme(':root', {
     warningLight: '#FEF3C7',
     warningSurface: '#FEF3E7',
     warningText: '#92400E',
+    orange: '#F97316',
+    orangeLight: '#FFEDD5',
+    orangeText: '#9A3412',
 
     gray25: '#F9FAFB',
     gray50: '#F3F4F6',

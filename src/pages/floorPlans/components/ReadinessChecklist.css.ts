@@ -24,35 +24,6 @@ export const readinessHint = style({
   ...vars.typography.caption,
 });
 
-export const readinessItem = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: vars.space.s2,
-  borderTop: `1px solid ${vars.color.gray50}`,
-  paddingTop: vars.space.s2,
-});
-
-export const readinessItemLabel = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  color: vars.color.textHigh,
-  ...vars.typography.body14,
-});
-
-export const readinessDot = style({
-  flexShrink: 0,
-  borderRadius: '50%',
-  backgroundColor: vars.color.gray300,
-  width: '0.7rem',
-  height: '0.7rem',
-});
-
-export const readinessDotDone = style({
-  backgroundColor: vars.color.success,
-});
-
 export const readinessDoneText = style({
   flexShrink: 0,
   color: vars.color.textLow,
@@ -71,4 +42,29 @@ export const readinessActionBtn = style({
   selectors: {
     '&:hover': { backgroundColor: vars.color.primaryLight2 },
   },
+});
+
+// 앞 단계(시작 노드·최종 탈출구)가 안 끝나 지금은 누를 수 없는 상태 — 항목 자체는 계속
+// 보여주되, 버튼을 회색으로 바꾸고 라벨에 뭘 먼저 해야 하는지 안내함
+export const readinessActionBtnDisabled = style({
+  flexShrink: 0,
+  border: `1px solid ${vars.color.gray100}`,
+  borderRadius: vars.radius.pill,
+  backgroundColor: vars.color.gray50,
+  cursor: 'not-allowed',
+  padding: `0.2rem ${vars.space.s3}`,
+  color: vars.color.textLow,
+  ...vars.typography.caption,
+});
+
+// 비활성 버튼이 왜 눌리지 않는지 설명하는 문구 — title 속성은 비활성 버튼에서 포커스를 못 받아
+// 스크린리더·키보드 사용자에게 일관되게 노출되지 않으므로, aria-describedby로 항상 연결되는
+// 화면에서만 숨긴(시각적으로는 안 보이는) 문구로 대신함
+export const readinessDisabledHint = style({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  clip: 'rect(0, 0, 0, 0)',
 });

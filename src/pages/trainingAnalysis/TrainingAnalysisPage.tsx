@@ -51,7 +51,13 @@ const TrainingAnalysisPage = () => {
     );
   }
 
-  return <Navigate to={getTrainingCamerasPath(sessions[0].sessionId)} replace />;
+  return (
+    <Navigate
+      to={getTrainingCamerasPath(sessions[0].sessionId)}
+      replace
+      state={{ scenarioId: sessions[0].scenarioId }}
+    />
+  );
 };
 
 export default TrainingAnalysisPage;

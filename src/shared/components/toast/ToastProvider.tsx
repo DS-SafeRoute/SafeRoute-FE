@@ -92,14 +92,27 @@ const ToastProvider = ({ children }: ToastProviderProps) => {
   );
 
   const show = useCallback(
-    ({ title, description, variant = 'default', duration = 3000 }: ShowToastOptions) => {
+    ({
+      title,
+      description,
+      variant = 'default',
+      duration = 3000,
+      actionLabel,
+      onAction,
+    }: ShowToastOptions) => {
       const existing = toastsRef.current.find(
         (toast) =>
           toast.title === title &&
+          toast.description === description &&
           toast.variant === variant &&
           !leaveTimersRef.current.has(toast.id),
       );
       if (existing) {
+        syncToasts((prev) =>
+          prev.map((toast) =>
+            toast.id === existing.id ? { ...toast, duration, actionLabel, onAction } : toast,
+          ),
+        );
         scheduleRemoval(existing.id, duration);
         return existing.id;
       }
@@ -110,7 +123,10 @@ const ToastProvider = ({ children }: ToastProviderProps) => {
       }
 
       const id = `toast-${Date.now()}-${Math.random()}`;
-      syncToasts((prev) => [...prev, { id, title, description, variant, duration }]);
+      syncToasts((prev) => [
+        ...prev,
+        { id, title, description, variant, duration, actionLabel, onAction },
+      ]);
       scheduleRemoval(id, duration);
       return id;
     },

@@ -11,7 +11,7 @@ export const SCENARIO_STATUS_FILTER_OPTIONS = [
   { label: '준비완료', value: SCENARIO_STATUS.READY },
   { label: '진행중', value: SCENARIO_STATUS.IN_PROGRESS },
   { label: '완료', value: SCENARIO_STATUS.COMPLETED },
-  { label: '에러', value: SCENARIO_STATUS.ERROR },
+  { label: '오류', value: SCENARIO_STATUS.ERROR },
   { label: '훈련 실패', value: SCENARIO_STATUS.TIMEOUT_FAILED },
 ] as const;
 

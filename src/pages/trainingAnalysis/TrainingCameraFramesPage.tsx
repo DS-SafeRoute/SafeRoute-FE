@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import clsx from 'clsx';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
+import {
+  MAX_TRAINING_DURATION_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 
 import AlertIcon from '@assets/icons/ic-alert.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
@@ -11,7 +15,12 @@ import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 
-import { getTrainingCameraFramesPath, getTrainingCamerasPath, ROUTES } from '@constants/path';
+import {
+  getScenarioDetailPath,
+  getTrainingCameraFramesPath,
+  getTrainingCamerasPath,
+  ROUTES,
+} from '@constants/path';
 
 import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
 
@@ -22,6 +31,7 @@ import { useSessionCamerasQuery } from './api/useSessionCamerasQuery';
 import { useTrainingSessionQuery } from './api/useSessionContextQuery';
 import { useSessionEventsQuery } from './api/useSessionEventsQuery';
 import { useTrainingMonitoringSocket } from './api/useTrainingMonitoringSocket';
+import { useTrainingScenarioId } from './api/useTrainingScenarioId';
 import CameraSidebar from './components/CameraSidebar/CameraSidebar';
 import SessionInfoCard from './components/SessionInfoCard/SessionInfoCard';
 import {
@@ -38,6 +48,7 @@ import {
   formatElapsedFromStart,
   formatSessionStartedClock,
   formatSessionStartedDate,
+  getScenarioIdFromNavigationState,
 } from './utils/trainingAnalysis';
 
 import type { CongestionLevel, TrainingSessionStatus } from './types/trainingAnalysis';
@@ -52,7 +63,9 @@ const PREFETCH_THRESHOLD = 3;
 
 const TrainingCameraFramesPage = () => {
   const { sessionId, cctvId } = useParams<{ sessionId: string; cctvId: string }>();
+  const { state: navigationState } = useLocation();
   const navigate = useNavigate();
+  const routedScenarioId = getScenarioIdFromNavigationState(navigationState);
   // 인덱스가 아니라 frameId로 선택 프레임을 추적함 — 과거 페이지를 더 불러오면 배열 앞쪽에
   // 프레임이 추가되는데(아래 frames 설명 참고), 고정된 숫자 인덱스로 추적하면 그 순간
   // 사용자가 보던 프레임이 페이지 크기만큼 과거로 밀려버림(실측으로 확인한 버그).
@@ -78,6 +91,11 @@ const TrainingCameraFramesPage = () => {
     isError: isSessionError,
     error: sessionError,
   } = useTrainingSessionQuery(sessionId);
+  const { scenarioId, isResolvingScenarioId } = useTrainingScenarioId({
+    sessionId,
+    status: session?.status,
+    routedScenarioId,
+  });
   // 진행 중 훈련이면 카메라·프레임·이벤트를 주기적으로 다시 조회해 최신 프레임을 반영
   const isLive = isLiveSessionStatus(session?.status);
   const {
@@ -129,6 +147,11 @@ const TrainingCameraFramesPage = () => {
 
   // 진행 중일 때만 1초 단위로 이어서 증가시키고, 종료됐으면 서버가 마지막으로 준 값을 그대로 표시
   const tickingElapsed = useElapsedTrainingTime(isLive ? (session?.startedAt ?? null) : null);
+  const isAwaitingServerEnd =
+    isLive &&
+    session?.startedAt !== null &&
+    session?.startedAt !== undefined &&
+    Date.now() >= session.startedAt + MAX_TRAINING_DURATION_MS;
   const elapsedDisplay = isLive ? tickingElapsed : formatDuration(session?.elapsedSeconds ?? 0);
 
   const cameraRefs = useMemo(
@@ -154,6 +177,24 @@ const TrainingCameraFramesPage = () => {
       activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }
   }, [frameIndex]);
+
+  if (session?.status === TRAINING_SESSION_STATUS.FAILED && scenarioId) {
+    return (
+      <Navigate
+        to={getScenarioDetailPath(scenarioId)}
+        replace
+        state={{ timedOutSessionId: session.sessionId }}
+      />
+    );
+  }
+
+  if (session?.status === TRAINING_SESSION_STATUS.FAILED && isResolvingScenarioId) {
+    return (
+      <div className={styles.container}>
+        <LoadingState />
+      </div>
+    );
+  }
 
   if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
@@ -220,12 +261,16 @@ const TrainingCameraFramesPage = () => {
         statusColor={statusView.color}
         meta={`${camera.location} · ${camera.code}`}
         notice={
-          isLive
-            ? `실시간 모니터링 중 · ${session.snapshotIntervalSec}초 간격으로 최신 CCTV 프레임이 수신됩니다.`
-            : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.`
+          isAwaitingServerEnd
+            ? '10분이 경과했습니다. 서버에서 훈련 종료 상태를 확인하고 있습니다.'
+            : isLive
+              ? `실시간 모니터링 중 · ${session.snapshotIntervalSec}초 간격으로 최신 CCTV 프레임이 수신됩니다.`
+              : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.`
         }
         live={isLive}
-        onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
+        onBack={() =>
+          void navigate(getTrainingCamerasPath(session.sessionId), { state: { scenarioId } })
+        }
         stats={[
           { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
           { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
@@ -249,7 +294,9 @@ const TrainingCameraFramesPage = () => {
             cameras={cameras}
             activeCctvId={camera.cctvId}
             onSelect={(c) =>
-              void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId))
+              void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId), {
+                state: { scenarioId },
+              })
             }
           />
 
