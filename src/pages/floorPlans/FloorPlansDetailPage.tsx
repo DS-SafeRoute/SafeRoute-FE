@@ -1327,24 +1327,42 @@ const LightPickField = ({
 // 갈림길 위치에 이어진 엣지가 도면에 하나도 없으면 왼쪽/오른쪽 통로는 캔버스에서 클릭할 대상 자체가
 // 없어 아무것도 고를 수 없음(통로는 이 팝업이 아니라 별도의 "+ 추가 → 엣지 추가"로 미리 그려둬야
 // 하는 데이터라서) — 그 상태에서 그냥 "클릭해주세요"만 보여주면 왜 안 되는지 알 수 없어 안내를 바꿔줌
+interface LightPickHint {
+  text: string;
+  // 그냥 안내가 아니라 "지금 이대로는 진행이 안 된다"는 경고라 색으로도 구분되게 함
+  isWarning: boolean;
+}
+
 const getLightPickHint = (
   pickField: LightPickFieldName | null,
   decisionNodeId: string,
   edgeOptions: readonly { fromNodeId: string; toNodeId: string }[],
-): string => {
+): LightPickHint => {
   if (!pickField) {
-    return '이 유도등이 서 있는 갈림길 위치와, 화재 시 왼쪽·오른쪽 중 어느 통로로 안내할지 정해주세요';
+    return {
+      text: '이 유도등이 서 있는 갈림길 위치와, 화재 시 왼쪽·오른쪽 중 어느 통로로 안내할지 정해주세요',
+      isWarning: false,
+    };
   }
-  if (pickField === 'decisionNode') return '도면에서 갈림길이 될 노드를 클릭해주세요';
+  if (pickField === 'decisionNode') {
+    return { text: '도면에서 갈림길이 될 노드를 클릭해주세요', isWarning: false };
+  }
   const hasConnectedEdge = edgeOptions.some(
     (e) => e.fromNodeId === decisionNodeId || e.toNodeId === decisionNodeId,
   );
   if (!hasConnectedEdge) {
-    return '이 갈림길에 연결된 통로(엣지)가 없어요. "+ 추가 → 엣지 추가"로 통로를 먼저 만들어주세요';
+    return {
+      text: '이 갈림길에 연결된 통로(엣지)가 없어요. "+ 추가 → 엣지 추가"로 통로를 먼저 만들어주세요',
+      isWarning: true,
+    };
   }
-  return pickField === 'leftEdge'
-    ? '도면에서 왼쪽 통로가 될 구간(선)을 클릭해주세요'
-    : '도면에서 오른쪽 통로가 될 구간(선)을 클릭해주세요';
+  return {
+    text:
+      pickField === 'leftEdge'
+        ? '도면에서 왼쪽 통로가 될 구간(선)을 클릭해주세요'
+        : '도면에서 오른쪽 통로가 될 구간(선)을 클릭해주세요',
+    isWarning: false,
+  };
 };
 
 /* ── 장비 추가 팝업 ──
@@ -1500,61 +1518,74 @@ const NodeAddPopup = ({
               등록 직후엔 항상 비어있던 문제(훈련 준비의 guidanceConfigured가 안 채워짐). 도면에
               아직 판단 노드·엣지·CCTV가 없을 수도 있어 필수는 아니고, 비워두면 등록 후 카드에서
               마저 채울 수 있음 */}
-          {isLight && (
-            <>
-              <div className={styles.nodeAddField}>
-                <span className={styles.nodeAddLabel}>담당 CCTV</span>
-                <Dropdown
-                  shape="rounded"
-                  fullWidth
-                  ariaLabel="담당 CCTV"
-                  options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
-                  value={lightCctvId}
-                  onChange={setLightCctvId}
-                  placeholder="미지정"
-                />
-              </div>
-              {/* "판단 노드"·"경로 엣지"란 용어와, 목록에 같은 종류(예: 복도) 노드가 여러 개일 때
-                  뭐가 뭔지 구분이 안 된다는 QA 피드백 — 무엇을 고르는 건지 문장으로 먼저 알려주고,
-                  옵션 라벨도 우측 패널 카드와 같은 번호("복도 1" 등, getGraphNodeLabel)를 쓰게 함.
-                  드롭다운이 여전히 헷갈리면 "캔버스에서 선택" 버튼으로 도면에서 직접 클릭해 고를
-                  수도 있게 함(이 경우 도면 위 강조·클릭은 부모가 처리하고 값만 내려받음) */}
-              <span className={styles.nodeAddHint}>
-                {getLightPickHint(lightPickField, lightDecisionNodeId, lightEdgeOptions)}
-              </span>
-              <LightPickField
-                label="갈림길 위치"
-                fieldName="decisionNode"
-                pickField={lightPickField}
-                displayLabel={lightNodeOptions.find((n) => n.id === lightDecisionNodeId)?.label}
-                emptyText="갈림길 위치 선택"
-                onStartPick={() => onStartLightPick('decisionNode')}
-                onClear={() =>
-                  onLightFieldsChange({ decisionNodeId: '', leftEdgeId: '', rightEdgeId: '' })
-                }
-              />
-              <LightPickField
-                label="왼쪽 통로"
-                fieldName="leftEdge"
-                pickField={lightPickField}
-                disabled={!lightDecisionNodeId}
-                displayLabel={lightEdgeOptions.find((e) => e.id === lightLeftEdgeId)?.label}
-                emptyText={lightDecisionNodeId ? '왼쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
-                onStartPick={() => onStartLightPick('leftEdge')}
-                onClear={() => onLightFieldsChange({ ...lightFields, leftEdgeId: '' })}
-              />
-              <LightPickField
-                label="오른쪽 통로"
-                fieldName="rightEdge"
-                pickField={lightPickField}
-                disabled={!lightDecisionNodeId}
-                displayLabel={lightEdgeOptions.find((e) => e.id === lightRightEdgeId)?.label}
-                emptyText={lightDecisionNodeId ? '오른쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
-                onStartPick={() => onStartLightPick('rightEdge')}
-                onClear={() => onLightFieldsChange({ ...lightFields, rightEdgeId: '' })}
-              />
-            </>
-          )}
+          {isLight &&
+            (() => {
+              const lightPickHint = getLightPickHint(
+                lightPickField,
+                lightDecisionNodeId,
+                lightEdgeOptions,
+              );
+              return (
+                <>
+                  <div className={styles.nodeAddField}>
+                    <span className={styles.nodeAddLabel}>담당 CCTV</span>
+                    <Dropdown
+                      shape="rounded"
+                      fullWidth
+                      ariaLabel="담당 CCTV"
+                      options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
+                      value={lightCctvId}
+                      onChange={setLightCctvId}
+                      placeholder="미지정"
+                    />
+                  </div>
+                  {/* "판단 노드"·"경로 엣지"란 용어와, 목록에 같은 종류(예: 복도) 노드가 여러 개일 때
+                      뭐가 뭔지 구분이 안 된다는 QA 피드백 — 무엇을 고르는 건지 문장으로 먼저 알려주고,
+                      옵션 라벨도 우측 패널 카드와 같은 번호("복도 1" 등, getGraphNodeLabel)를 쓰게 함.
+                      드롭다운이 여전히 헷갈리면 "캔버스에서 선택" 버튼으로 도면에서 직접 클릭해 고를
+                      수도 있게 함(이 경우 도면 위 강조·클릭은 부모가 처리하고 값만 내려받음) */}
+                  <span
+                    className={clsx(
+                      styles.nodeAddHint,
+                      lightPickHint.isWarning && styles.nodeAddHintWarning,
+                    )}
+                  >
+                    {lightPickHint.text}
+                  </span>
+                  <LightPickField
+                    label="갈림길 위치"
+                    fieldName="decisionNode"
+                    pickField={lightPickField}
+                    displayLabel={lightNodeOptions.find((n) => n.id === lightDecisionNodeId)?.label}
+                    emptyText="갈림길 위치 선택"
+                    onStartPick={() => onStartLightPick('decisionNode')}
+                    onClear={() =>
+                      onLightFieldsChange({ decisionNodeId: '', leftEdgeId: '', rightEdgeId: '' })
+                    }
+                  />
+                  <LightPickField
+                    label="왼쪽 통로"
+                    fieldName="leftEdge"
+                    pickField={lightPickField}
+                    disabled={!lightDecisionNodeId}
+                    displayLabel={lightEdgeOptions.find((e) => e.id === lightLeftEdgeId)?.label}
+                    emptyText={lightDecisionNodeId ? '왼쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
+                    onStartPick={() => onStartLightPick('leftEdge')}
+                    onClear={() => onLightFieldsChange({ ...lightFields, leftEdgeId: '' })}
+                  />
+                  <LightPickField
+                    label="오른쪽 통로"
+                    fieldName="rightEdge"
+                    pickField={lightPickField}
+                    disabled={!lightDecisionNodeId}
+                    displayLabel={lightEdgeOptions.find((e) => e.id === lightRightEdgeId)?.label}
+                    emptyText={lightDecisionNodeId ? '오른쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
+                    onStartPick={() => onStartLightPick('rightEdge')}
+                    onClear={() => onLightFieldsChange({ ...lightFields, rightEdgeId: '' })}
+                  />
+                </>
+              );
+            })()}
         </>
       )}
 
@@ -2128,9 +2159,23 @@ const DeviceCard = ({
                   펼쳤을 때 항상 보이는 문장으로 먼저 설명함(hover에만 의존하던 title 문구를 대체).
                   드롭다운에 같은 이름 노드가 많아 헷갈리면 "캔버스에서 선택"으로 도면에서 직접
                   클릭해 고를 수도 있음 */}
-              <span className={styles.nodeAddHint}>
-                {getLightPickHint(lightPickField, editForm.decisionNodeId, lightEdgeOptions)}
-              </span>
+              {(() => {
+                const lightPickHint = getLightPickHint(
+                  lightPickField,
+                  editForm.decisionNodeId,
+                  lightEdgeOptions,
+                );
+                return (
+                  <span
+                    className={clsx(
+                      styles.nodeAddHint,
+                      lightPickHint.isWarning && styles.nodeAddHintWarning,
+                    )}
+                  >
+                    {lightPickHint.text}
+                  </span>
+                );
+              })()}
               <LightPickField
                 label="갈림길 위치"
                 fieldName="decisionNode"
@@ -3611,6 +3656,9 @@ const FloorPlansDetailPage = () => {
   const handleZoneRefSelect = (ref: ZoneRefSelection) => {
     setSelectedItem(null);
     setEditingItemId(null);
+    // 엣지를 선택해둔 채로 다른 노드·구역을 고르면 엣지 강조가 그대로 남아있던 문제 —
+    // 포커스는 하나만 유지되게 함
+    setSelectedEdgeId(null);
     setSelectedZoneRef((prev) => (isSameZoneRef(prev, ref) ? null : ref));
   };
 
@@ -3636,8 +3684,9 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleStructureNodeMoveEnd = (id: string, x: number, y: number) => {
-    updateMapNodePosition(id, { x: x / CANVAS_W, y: y / canvasH }).catch(() => {
-      show({ title: '위치 저장에 실패했습니다.', variant: 'error' });
+    updateMapNodePosition(id, { x: x / CANVAS_W, y: y / canvasH }).catch((error: unknown) => {
+      const { message } = extractApiError(error);
+      show({ title: message || '위치 저장에 실패했습니다.', variant: 'error' });
     });
   };
 
@@ -4656,8 +4705,11 @@ const FloorPlansDetailPage = () => {
             setIotLights((prev) => prev.filter((l) => l.id !== item.id));
             setDeleteConfirmTarget(null);
           })
-          .catch(() => {
-            show({ title: '유도등 삭제에 실패했습니다.', variant: 'error' });
+          .catch((error: unknown) => {
+            // CCTV/구조 노드 삭제와 달리 여기만 서버 메시지를 안 보여줘서, 실패해도 왜 실패했는지
+            // 알 수 없었음(예: 다른 곳에서 참조 중이라 서버가 거부하는 경우) — 실제 사유를 그대로 보여줌
+            const { message } = extractApiError(error);
+            show({ title: message || '유도등 삭제에 실패했습니다.', variant: 'error' });
           })
           .finally(() => setIsDeletingItem(false));
         return;
@@ -4936,78 +4988,84 @@ const FloorPlansDetailPage = () => {
               </div>
             )}
 
-            {loadingFloor ? (
-              <LoadingState message="도면을 불러오는 중..." />
-            ) : currentFloor ? (
-              <FloorCanvas
-                mapWrapRef={mapWrapRef}
-                floor={floor ?? currentFloor}
-                resolvedImageUrl={resolvedMapImageUrl}
-                canvasH={canvasH}
-                selected={selectedItem}
-                zoom={zoom}
-                editingItemId={editingItemId}
-                placingActive={nodeAddOpen}
-                zoneAddActive={
-                  zoneAddOpen ||
-                  (nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
-                  !!editingCctvId
-                }
-                onZoneDraftChange={setZoneDraftRect}
-                onZoneDragEnd={handleZoneDragEnd}
-                isZoneDragging={isZoneDragging}
-                onZoneDraggingChange={setIsZoneDragging}
-                savedZones={zones}
-                structureNodes={structureNodes}
-                editingStructureId={editingStructureId}
-                onStructureNodeMove={handleStructureNodeMove}
-                onStructureNodeMoveEnd={handleStructureNodeMoveEnd}
-                graphNodes={graphNodes}
-                graphEdges={graphEdges}
-                edgeAddActive={edgeAddOpen && !edgeChainReviewOpen}
-                onNodeClickForEdge={handleEdgeNodeClick}
-                edgeChainNodeIds={edgeChainNodeIds}
-                selectedEdgeId={selectedEdgeId}
-                onEdgeSelect={setSelectedEdgeId}
-                onEdgeDelete={handleEdgeDelete}
-                selectedZoneRef={selectedZoneRef}
-                onZoneRefSelect={handleZoneRefSelectFromMap}
-                cctvGridCellsMode={cctvGridCellsMode}
-                floorGridCells={floorGridCells}
-                selectedGridCellIds={selectedGridCellIds}
-                gridCellPxSize={gridCellPxSize}
-                onGridCellToggle={handleGridCellToggle}
-                lightPreviewNodeId={lightPreviewSource?.decisionNodeId}
-                lightPreviewLeftEdgeId={lightPreviewSource?.leftEdgeId}
-                lightPreviewRightEdgeId={lightPreviewSource?.rightEdgeId}
-                lightPickField={currentLightPickField}
-                onLightPick={handleLightCanvasPick}
-                stagedCameraPosition={nodeStagedPosition}
-                onSelectDevice={(d) => {
-                  const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
-                  setSelectedItem(isSame ? null : { kind: 'device', data: d });
-                  setSelectedZoneRef(null);
-                  // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
-                  // (다른 칩은 정리 — 안 그러면 이 종류가 아직 안 켜져 있을 때 여전히 숨어 있음)
-                  setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
-                  const chip = deviceTypeToFilterChip(d.type);
-                  setDeviceTypeFilter(chip ? [chip] : []);
-                }}
-                onMapClick={handleMapClick}
-                onBackgroundClick={() => {
-                  setSelectedItem(null);
-                  setSelectedZoneRef(null);
-                }}
-                devicePositions={devicePositions}
-                onDeviceMoved={handleDeviceMoved}
-                addedDevices={addedDevices}
-                onUpload={() => setUploadModalOpen(true)}
-              />
-            ) : (
-              <div className={styles.canvasPlaceholder}>
-                <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
-              </div>
-            )}
+            <div className={styles.canvasScrollArea}>
+              {loadingFloor ? (
+                <LoadingState message="도면을 불러오는 중..." />
+              ) : currentFloor ? (
+                <FloorCanvas
+                  mapWrapRef={mapWrapRef}
+                  floor={floor ?? currentFloor}
+                  resolvedImageUrl={resolvedMapImageUrl}
+                  canvasH={canvasH}
+                  selected={selectedItem}
+                  zoom={zoom}
+                  editingItemId={editingItemId}
+                  placingActive={nodeAddOpen}
+                  zoneAddActive={
+                    zoneAddOpen ||
+                    (nodeAddType === 'cctv' && nodeAddStage === 'fov') ||
+                    !!editingCctvId
+                  }
+                  onZoneDraftChange={setZoneDraftRect}
+                  onZoneDragEnd={handleZoneDragEnd}
+                  isZoneDragging={isZoneDragging}
+                  onZoneDraggingChange={setIsZoneDragging}
+                  savedZones={zones}
+                  structureNodes={structureNodes}
+                  editingStructureId={editingStructureId}
+                  onStructureNodeMove={handleStructureNodeMove}
+                  onStructureNodeMoveEnd={handleStructureNodeMoveEnd}
+                  graphNodes={graphNodes}
+                  graphEdges={graphEdges}
+                  edgeAddActive={edgeAddOpen && !edgeChainReviewOpen}
+                  onNodeClickForEdge={handleEdgeNodeClick}
+                  edgeChainNodeIds={edgeChainNodeIds}
+                  selectedEdgeId={selectedEdgeId}
+                  onEdgeSelect={setSelectedEdgeId}
+                  onEdgeDelete={handleEdgeDelete}
+                  selectedZoneRef={selectedZoneRef}
+                  onZoneRefSelect={handleZoneRefSelectFromMap}
+                  cctvGridCellsMode={cctvGridCellsMode}
+                  floorGridCells={floorGridCells}
+                  selectedGridCellIds={selectedGridCellIds}
+                  gridCellPxSize={gridCellPxSize}
+                  onGridCellToggle={handleGridCellToggle}
+                  lightPreviewNodeId={lightPreviewSource?.decisionNodeId}
+                  lightPreviewLeftEdgeId={lightPreviewSource?.leftEdgeId}
+                  lightPreviewRightEdgeId={lightPreviewSource?.rightEdgeId}
+                  lightPickField={currentLightPickField}
+                  onLightPick={handleLightCanvasPick}
+                  stagedCameraPosition={nodeStagedPosition}
+                  onSelectDevice={(d) => {
+                    const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
+                    setSelectedItem(isSame ? null : { kind: 'device', data: d });
+                    setSelectedZoneRef(null);
+                    // 엣지를 선택해둔 채로 장비를 고르면 엣지 강조가 그대로 남아있던 문제 —
+                    // 포커스는 하나만 유지되게 함
+                    setSelectedEdgeId(null);
+                    // 지금 하위 필터에 가려져 있어도 이 장비 카드가 패널에 드러나도록 그 종류로 이동
+                    // (다른 칩은 정리 — 안 그러면 이 종류가 아직 안 켜져 있을 때 여전히 숨어 있음)
+                    setTopFilter((prev) => (prev === 'zone' ? 'all' : prev));
+                    const chip = deviceTypeToFilterChip(d.type);
+                    setDeviceTypeFilter(chip ? [chip] : []);
+                  }}
+                  onMapClick={handleMapClick}
+                  onBackgroundClick={() => {
+                    setSelectedItem(null);
+                    setSelectedZoneRef(null);
+                    setSelectedEdgeId(null);
+                  }}
+                  devicePositions={devicePositions}
+                  onDeviceMoved={handleDeviceMoved}
+                  addedDevices={addedDevices}
+                  onUpload={() => setUploadModalOpen(true)}
+                />
+              ) : (
+                <div className={styles.canvasPlaceholder}>
+                  <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 캔버스 우하단 — 범례 정보 아이콘을 줌 컨트롤 바로 위에 세로로 쌓음 */}

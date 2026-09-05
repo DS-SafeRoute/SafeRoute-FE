@@ -268,6 +268,12 @@ export const nodeAddHint = style({
   ...vars.typography.caption,
 });
 
+// 그냥 안내 문구가 아니라 "지금 이대로는 진행이 안 된다"는 경고(예: 연결된 엣지가 없음) — 색으로
+// 구분되게 함
+export const nodeAddHintWarning = style({
+  color: vars.color.danger,
+});
+
 export const nodeAddSubHint = style({
   color: vars.color.textLow,
   ...vars.typography.caption,
@@ -1122,28 +1128,38 @@ export const canvasHeaderFloor = style({
   ...vars.typography.body14Medium,
 });
 
+// "+ 추가" 버튼(canvasTopRightRow)이 이 박스 기준으로 절대 위치를 잡음 — 캔버스가 확대돼서
+// 스크롤이 생겨도 그 스크롤은 안쪽 canvasScrollArea에서만 일어나고, 이 박스 자체는 스크롤되지
+// 않아서 버튼이 항상 같은 자리에 고정됨(예전엔 이 박스 자체가 스크롤 컨테이너라 확대 후 스크롤하면
+// 버튼도 같이 밀려 화면 밖으로 나가던 문제가 있었음)
 export const canvasBody = style({
   position: 'relative',
-  display: 'flex',
   flex: 1,
-  alignItems: 'flex-start',
-  justifyContent: 'center',
   margin: vars.space.s4,
   marginTop: 0,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: `0 0 ${vars.radius.lg} ${vars.radius.lg}`,
   backgroundColor: vars.color.white,
   padding: vars.space.s6,
+});
+
+export const canvasBodyWithActions = style({
+  paddingTop: '8rem',
+});
+
+// 실제 스크롤이 일어나는 안쪽 영역 — canvasBody의 패딩 박스를 그대로 채움
+export const canvasScrollArea = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'center',
+  width: '100%',
+  height: '100%',
   overflow: 'auto',
   scrollbarWidth: 'none',
   msOverflowStyle: 'none',
   selectors: {
     '&::-webkit-scrollbar': { display: 'none' },
   },
-});
-
-export const canvasBodyWithActions = style({
-  paddingTop: '8rem',
 });
 
 export const mapWrap = style({
