@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import clsx from 'clsx';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
 
@@ -11,7 +11,12 @@ import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 
-import { getTrainingCameraFramesPath, getTrainingCamerasPath, ROUTES } from '@constants/path';
+import {
+  getScenarioDetailPath,
+  getTrainingCameraFramesPath,
+  getTrainingCamerasPath,
+  ROUTES,
+} from '@constants/path';
 
 import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
 
@@ -38,6 +43,7 @@ import {
   formatElapsedFromStart,
   formatSessionStartedClock,
   formatSessionStartedDate,
+  getScenarioIdFromNavigationState,
 } from './utils/trainingAnalysis';
 
 import type { CongestionLevel, TrainingSessionStatus } from './types/trainingAnalysis';
@@ -52,7 +58,9 @@ const PREFETCH_THRESHOLD = 3;
 
 const TrainingCameraFramesPage = () => {
   const { sessionId, cctvId } = useParams<{ sessionId: string; cctvId: string }>();
+  const { state: navigationState } = useLocation();
   const navigate = useNavigate();
+  const scenarioId = getScenarioIdFromNavigationState(navigationState);
   // 인덱스가 아니라 frameId로 선택 프레임을 추적함 — 과거 페이지를 더 불러오면 배열 앞쪽에
   // 프레임이 추가되는데(아래 frames 설명 참고), 고정된 숫자 인덱스로 추적하면 그 순간
   // 사용자가 보던 프레임이 페이지 크기만큼 과거로 밀려버림(실측으로 확인한 버그).
@@ -155,6 +163,16 @@ const TrainingCameraFramesPage = () => {
     }
   }, [frameIndex]);
 
+  if (session?.status === 'FAILED' && scenarioId) {
+    return (
+      <Navigate
+        to={getScenarioDetailPath(scenarioId)}
+        replace
+        state={{ timedOutSessionId: session.sessionId }}
+      />
+    );
+  }
+
   if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
   }
@@ -225,7 +243,9 @@ const TrainingCameraFramesPage = () => {
             : `훈련 중 ${session.snapshotIntervalSec}초 간격으로 수집된 CCTV 프레임 기록입니다. 프레임 사이 구간은 기록되지 않습니다.`
         }
         live={isLive}
-        onBack={() => void navigate(getTrainingCamerasPath(session.sessionId))}
+        onBack={() =>
+          void navigate(getTrainingCamerasPath(session.sessionId), { state: { scenarioId } })
+        }
         stats={[
           { label: '날짜', value: formatSessionStartedDate(session.startedAt) },
           { label: '시작 시간', value: formatSessionStartedClock(session.startedAt) },
@@ -249,7 +269,9 @@ const TrainingCameraFramesPage = () => {
             cameras={cameras}
             activeCctvId={camera.cctvId}
             onSelect={(c) =>
-              void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId))
+              void navigate(getTrainingCameraFramesPath(session.sessionId, c.cctvId), {
+                state: { scenarioId },
+              })
             }
           />
 

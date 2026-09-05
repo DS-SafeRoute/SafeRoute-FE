@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
 
 import { extractApiError } from '@apis/errors/apiError';
 
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 
-import { getTrainingCameraFramesPath, ROUTES } from '@constants/path';
+import { getScenarioDetailPath, getTrainingCameraFramesPath, ROUTES } from '@constants/path';
 
 import useElapsedTrainingTime from '@hooks/useElapsedTrainingTime';
 
@@ -28,6 +28,7 @@ import * as styles from './TrainingCamerasPage.css';
 import {
   formatSessionStartedClock,
   formatSessionStartedDate,
+  getScenarioIdFromNavigationState,
   groupCamerasByFloor,
 } from './utils/trainingAnalysis';
 
@@ -38,7 +39,9 @@ const isViewable = (status: TrainingSessionStatus) =>
 
 const TrainingCamerasPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const { state: navigationState } = useLocation();
   const navigate = useNavigate();
+  const scenarioId = getScenarioIdFromNavigationState(navigationState);
 
   const {
     session,
@@ -71,6 +74,16 @@ const TrainingCamerasPage = () => {
 
   const floorGroups = useMemo(() => groupCamerasByFloor(cameras), [cameras]);
 
+  if (session?.status === 'FAILED' && scenarioId) {
+    return (
+      <Navigate
+        to={getScenarioDetailPath(scenarioId)}
+        replace
+        state={{ timedOutSessionId: session.sessionId }}
+      />
+    );
+  }
+
   if (!isSessionLoading && !isSessionError && (!session || !isViewable(session.status))) {
     return <Navigate to={ROUTES.TRAINING_ANALYSIS} replace />;
   }
@@ -97,7 +110,9 @@ const TrainingCamerasPage = () => {
   const statusView = TRAINING_SESSION_STATUS_VIEW[session.status];
 
   const handleSelect = (camera: MonitoringCamera) => {
-    void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId));
+    void navigate(getTrainingCameraFramesPath(session.sessionId, camera.cctvId), {
+      state: { scenarioId },
+    });
   };
 
   return (

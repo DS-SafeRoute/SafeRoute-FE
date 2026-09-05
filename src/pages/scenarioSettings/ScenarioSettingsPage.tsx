@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 
 import type { GenerateReportRequest } from '@apis/__generated__/data-contracts';
 import { useGetBuildingsQuery } from '@apis/buildings/useBuildingsQuery';
@@ -88,6 +88,7 @@ const getActionErrorMessage = (error: unknown, fallback: string) => {
 // 시나리오 작성·대피 설정·훈련 제어의 순서를 조정하는 화면 컨테이너
 const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => {
   const navigate = useNavigate();
+  const { state: navigationState } = useLocation();
   const { show } = useToast();
 
   // 폼 선택지와 세션 등록에 필요한 사용자·건물 정보
@@ -241,7 +242,14 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  const timeLimitSessionId = training.timedOutSessionId;
+  const routedTimedOutSessionId =
+    navigationState &&
+    typeof navigationState === 'object' &&
+    'timedOutSessionId' in navigationState &&
+    typeof navigationState.timedOutSessionId === 'string'
+      ? navigationState.timedOutSessionId
+      : null;
+  const timeLimitSessionId = training.timedOutSessionId ?? routedTimedOutSessionId;
 
   // 서버에서 시간 초과 종료가 확인된 경우에만 결과 입력 모달을 표시
   useEffect(() => {
@@ -269,18 +277,18 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     show({ title: '오류로 인해 훈련이 종료되었습니다.', variant: 'error' });
   }, [scenario?.status, show]);
 
-  // TIMEOUT_FAILED와 세션 실패 종료가 확인되면 종료 API를 중복 호출하지 않음
+  // 페이지 내부 수신 또는 다른 페이지에서 전달된 실패 세션은 종료 API를 중복 호출하지 않음
   useEffect(() => {
-    if (!training.timedOutSessionId) return;
+    if (!timeLimitSessionId) return;
     setHasEndedSession(true);
-  }, [training.timedOutSessionId]);
+  }, [timeLimitSessionId]);
 
   // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
   const handleCompleteTraining = async (values: GenerateReportRequest) => {
     if (scenario?.status === SCENARIO_STATUS.ERROR) return;
     const sessionId = training.sessionId ?? timeLimitSessionId;
     if (!sessionId) return;
-    let sessionEnded = hasEndedSession || Boolean(training.timedOutSessionId);
+    let sessionEnded = hasEndedSession || Boolean(timeLimitSessionId);
 
     try {
       if (!sessionEnded) {

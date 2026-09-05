@@ -10,6 +10,7 @@ export type TrainingSessionStatus =
 
 export interface TrainingSessionSummary {
   sessionId: string;
+  scenarioId: string;
   scenarioName: string;
   buildingId: string;
   buildingName: string;

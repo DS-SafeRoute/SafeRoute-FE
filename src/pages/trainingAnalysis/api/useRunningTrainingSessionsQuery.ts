@@ -15,11 +15,20 @@ import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi'
 const toTrainingSessionSummary = (
   response: TrainingSessionSummaryResponse,
 ): TrainingSessionSummary | null => {
-  const { sessionId, scenarioName, buildingId, buildingName, status, startedAt } = response;
-  if (!sessionId || !scenarioName || !buildingId || !buildingName || !status || !startedAt) {
+  const { sessionId, scenarioId, scenarioName, buildingId, buildingName, status, startedAt } =
+    response;
+  if (
+    !sessionId ||
+    !scenarioId ||
+    !scenarioName ||
+    !buildingId ||
+    !buildingName ||
+    !status ||
+    !startedAt
+  ) {
     return null;
   }
-  return { sessionId, scenarioName, buildingId, buildingName, status, startedAt };
+  return { sessionId, scenarioId, scenarioName, buildingId, buildingName, status, startedAt };
 };
 
 // 훈련분석 첫 화면(목록)에서만 쓰는, 진행 중(RUNNING) 훈련만 보는 쿼리.
@@ -34,8 +43,9 @@ export const useRunningTrainingSessionsQuery = () => {
   const { data, isLoading, isError } = useQuery({
     queryKey: trainingSessionQueryKeys.list(TRAINING_SESSION_STATUS.RUNNING),
     queryFn: ({ signal }) => getTrainingSessions(TRAINING_SESSION_STATUS.RUNNING, signal),
-    // 훈련이 새로 시작되면 목록에 알아서 나타나도록 계속 지켜봄
-    refetchInterval: LIVE_SESSION_POLL_INTERVAL_MS,
+    // 실행 세션이 모두 종료되면 빈 목록을 받은 시점부터 불필요한 폴링을 중지한다.
+    // 새 훈련 시작 mutation이 이 쿼리를 무효화하면 다시 조회되고 폴링도 재개된다.
+    refetchInterval: (query) => (query.state.data?.length ? LIVE_SESSION_POLL_INTERVAL_MS : false),
     // 기본값(false)이면 창이 포커스를 잃는 순간 폴링이 멈춤 — 관제 화면처럼 띄워만 두는 경우
     // "자동 갱신"이라고 안내해놓고 실제로는 멈춰 있게 되어서 백그라운드에서도 계속 돌게 함
     refetchIntervalInBackground: true,
