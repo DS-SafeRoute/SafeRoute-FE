@@ -11,6 +11,7 @@ import {
   floorQueryKeys,
   useBuildingFloorsQuery,
   useFloorCctvsQuery,
+  useFloorGridCellsQuery,
   useFloorLightsQuery,
 } from '@apis/floors/floorQueries';
 
@@ -340,6 +341,7 @@ const DEFAULT_CANVAS_H = 420;
 // 새 배열을 만들면 그 값을 의존성으로 쓰는 effect가 로딩 중에 계속 재실행돼버림
 const EMPTY_CCTVS: Cctv[] = [];
 const EMPTY_LIGHTS: IoTLight[] = [];
+const EMPTY_GRID_CELLS: FloorGridCell[] = [];
 
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
@@ -2547,7 +2549,7 @@ const FloorPlansDetailPage = () => {
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loadingFloor, setLoadingFloor] = useState(false);
   const [resolvedMapImageUrl, setResolvedMapImageUrl] = useState<string | null>(null);
-  const [floorGridCells, setFloorGridCells] = useState<FloorGridCell[]>([]);
+  const { data: floorGridCells = EMPTY_GRID_CELLS } = useFloorGridCellsQuery(floorId);
   // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
   const [imageAspect, setImageAspect] = useState<number | null>(null);
 
@@ -2598,7 +2600,6 @@ const FloorPlansDetailPage = () => {
     // id가 겹칠 때 엉뚱한 위치가 그대로 보일 수 있음
     setDevicePositions({});
     setZones([]);
-    setFloorGridCells([]);
     setSelectedItem(null);
     setSelectedZoneRef(null);
     setSelectedEdgeId(null);
@@ -2689,16 +2690,6 @@ const FloorPlansDetailPage = () => {
     };
   }, [resolvedMapImageUrl]);
 
-  // 그리드는 더 이상 토글로 켜야만 보이는 게 아니라 항상 표시함 — 층이 준비되면 바로
-  // 조회해둠(floorGridCells가 비어있을 때만 실제로 요청함, ensureFloorGridCells 내부 참고)
-  useEffect(() => {
-    if (!isFloorReady) return;
-    void ensureFloorGridCells();
-    // ensureFloorGridCells는 매 렌더 새로 만들어지는 함수라 의존성에 넣으면 무한 재실행됨.
-    // floorId/isFloorReady가 바뀔 때만 재조회하면 됨
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floorId, isFloorReady]);
-
   // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
   // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
   useEffect(() => {
@@ -2710,7 +2701,7 @@ const FloorPlansDetailPage = () => {
       .then(() => getFloorGridCells(floorId))
       .then((cells) => {
         if (cancelled) return;
-        setFloorGridCells(cells);
+        queryClient.setQueryData(floorQueryKeys.grid(floorId), cells);
         rememberGridSize(floorId, cellSizeMeter);
         show({
           title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
@@ -2731,7 +2722,7 @@ const FloorPlansDetailPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [floorId, isFloorReady, show]);
+  }, [floorId, isFloorReady, show, queryClient]);
 
   // canvasH(그리드/이미지 로드가 끝나야 확정)는 구조 노드의 비율 좌표를 픽셀로 바꾸는 데만
   // 쓰이고 그래프 데이터 자체와는 무관한데, 예전엔 이 값이 fetch effect의 의존성에 들어있어서
@@ -2867,22 +2858,6 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
     return () => {
       cancelled = true;
-    };
-  }, [floorId]);
-
-  // 층 그리드 셀 조회 — CCTV 시야구역 선택에 사용.
-  // 층을 빠르게 옮기거나 화면을 벗어나면(언마운트) 응답을 무시하는 것뿐 아니라 실제로 요청도
-  // 중단해야, 배율이 작아 페이지가 많은 층에서 안 쓸 응답까지 끝까지 받아오는 낭비가 없음
-  useEffect(() => {
-    if (!floorId) return;
-    const controller = new AbortController();
-    getFloorGridCells(floorId, controller.signal)
-      .then((cells) => {
-        setFloorGridCells(cells);
-      })
-      .catch(() => {});
-    return () => {
-      controller.abort();
     };
   }, [floorId]);
 
@@ -3195,7 +3170,10 @@ const FloorPlansDetailPage = () => {
         rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
         try {
           await setFloorGrid(newFloor.id, params.cellSizeMeter);
-          setFloorGridCells(await getFloorGridCells(newFloor.id));
+          queryClient.setQueryData(
+            floorQueryKeys.grid(newFloor.id),
+            await getFloorGridCells(newFloor.id),
+          );
         } catch {
           show({
             title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',
@@ -3345,7 +3323,7 @@ const FloorPlansDetailPage = () => {
     if (!currentFloor) return Promise.resolve([]);
     return getFloorGridCells(currentFloor.id)
       .then((cells) => {
-        setFloorGridCells(cells);
+        queryClient.setQueryData(floorQueryKeys.grid(currentFloor.id), cells);
         return cells;
       })
       .catch(() => []);
@@ -3406,7 +3384,7 @@ const FloorPlansDetailPage = () => {
         setFloorGrid(floorIdForGrid, knownSize)
           .then(() => getFloorGridCells(floorIdForGrid))
           .then((refreshed) => {
-            setFloorGridCells(refreshed);
+            queryClient.setQueryData(floorQueryKeys.grid(floorIdForGrid), refreshed);
             rememberGridSize(floorIdForGrid, knownSize);
             setNodeAddStage('fov');
           })
@@ -3452,7 +3430,7 @@ const FloorPlansDetailPage = () => {
     setFloorGrid(floorIdForGrid, cellSizeMeter)
       .then(() => getFloorGridCells(floorIdForGrid))
       .then((cells) => {
-        setFloorGridCells(cells);
+        queryClient.setQueryData(floorQueryKeys.grid(floorIdForGrid), cells);
         rememberGridSize(floorIdForGrid, cellSizeMeter);
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
@@ -3556,7 +3534,7 @@ const FloorPlansDetailPage = () => {
           setFloorGrid(currentFloor.id, knownSize)
             .then(() => getFloorGridCells(currentFloor.id))
             .then((refreshed) => {
-              setFloorGridCells(refreshed);
+              queryClient.setQueryData(floorQueryKeys.grid(currentFloor.id), refreshed);
               // gridCellPxSize는 재적용 전 floorGridCells 기준으로 계산된 memo라 그대로 쓰면
               // 안 됨 — 재생성된 그리드는 행·열 수가 달라질 수 있어(코드래빗 리뷰로 발견),
               // 새로 조회한 refreshed 기준으로 다시 계산해서 넘김
