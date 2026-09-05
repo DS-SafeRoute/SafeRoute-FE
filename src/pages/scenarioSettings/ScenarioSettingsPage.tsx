@@ -26,6 +26,7 @@ import ScenarioActionPanel from './components/scenarioActionPanel/ScenarioAction
 import ScenarioSetupForm from './components/scenarioSetupForm/ScenarioSetupForm';
 import TrainingControlPanel from './components/trainingControlPanel/TrainingControlPanel';
 import TrainingEndModal from './components/trainingEndModal/TrainingEndModal';
+import TrainingForceEndModal from './components/trainingForceEndModal/TrainingForceEndModal';
 import { useScenarioFloorView } from './hooks/useScenarioFloorView';
 import { useScenarioForm } from './hooks/useScenarioForm';
 import { useScenarioTraining } from './hooks/useScenarioTraining';
@@ -102,6 +103,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
   // 기본 정보 편집과 훈련 종료 모달은 독립적인 화면 상태
   const [isEditing, setIsEditing] = useState(false);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+  const [isForceEndModalOpen, setIsForceEndModalOpen] = useState(false);
   const [trainingTimerStoppedAt, setTrainingTimerStoppedAt] = useState<number | null>(null);
   const [hasEndedSession, setHasEndedSession] = useState(false);
   const [isTrainingCompleted, setIsTrainingCompleted] = useState(false);
@@ -239,12 +241,11 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     }
   };
 
-  const timeLimitSessionId = training.timedOutSessionId ?? training.timeLimitReachedSessionId;
+  const timeLimitSessionId = training.timedOutSessionId;
 
-  // 시작 시각 기준 10분이 지나거나 서버가 FAILED를 알리면 결과 입력 모달을 표시
+  // 서버에서 시간 초과 종료가 확인된 경우에만 결과 입력 모달을 표시
   useEffect(() => {
     if (!timeLimitSessionId) return;
-    setTrainingTimerStoppedAt(Date.now());
     setIsEndModalOpen(true);
     show({
       title: '최대 훈련 시간이 초과되었습니다.',
@@ -253,7 +254,22 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     });
   }, [show, timeLimitSessionId]);
 
-  // 서버 FAILED 이벤트를 받은 경우에는 종료 API를 중복 호출하지 않음
+  useEffect(() => {
+    if (training.endedAt === null) return;
+    setTrainingTimerStoppedAt(training.endedAt);
+    setIsForceEndModalOpen(false);
+  }, [training.endedAt]);
+
+  // 일반 오류는 시간 초과 결과 입력과 구분한다.
+  useEffect(() => {
+    if (scenario?.status !== SCENARIO_STATUS.ERROR) return;
+    setTrainingTimerStoppedAt((stoppedAt) => stoppedAt ?? Date.now());
+    setIsEndModalOpen(false);
+    setIsForceEndModalOpen(false);
+    show({ title: '오류로 인해 훈련이 종료되었습니다.', variant: 'error' });
+  }, [scenario?.status, show]);
+
+  // TIMEOUT_FAILED와 세션 실패 종료가 확인되면 종료 API를 중복 호출하지 않음
   useEffect(() => {
     if (!training.timedOutSessionId) return;
     setHasEndedSession(true);
@@ -261,13 +277,15 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
 
   // 입력받은 결과로 훈련을 종료한 뒤 분석 보고서 생성
   const handleCompleteTraining = async (values: GenerateReportRequest) => {
+    if (scenario?.status === SCENARIO_STATUS.ERROR) return;
     const sessionId = training.sessionId ?? timeLimitSessionId;
     if (!sessionId) return;
     let sessionEnded = hasEndedSession || Boolean(training.timedOutSessionId);
 
     try {
       if (!sessionEnded) {
-        await training.endTraining();
+        const endStatus = await training.endTraining();
+        if (endStatus === SCENARIO_STATUS.ERROR) return;
         sessionEnded = true;
         setHasEndedSession(true);
       }
@@ -280,11 +298,25 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
 
       setGeneratedReportId(report.reportId);
       setIsTrainingCompleted(true);
-    } catch {
+    } catch (error) {
       show({
         title: sessionEnded
           ? '분석 보고서 생성에 실패했습니다. 다시 시도해 주세요.'
-          : '훈련 종료에 실패했습니다.',
+          : getActionErrorMessage(error, '훈련 종료에 실패했습니다.'),
+        variant: 'error',
+      });
+    }
+  };
+
+  const handleForceEndTraining = async () => {
+    try {
+      await training.forceEndTraining();
+      setIsForceEndModalOpen(false);
+      setIsEndModalOpen(false);
+    } catch (error) {
+      show({
+        title: '훈련 중단에 실패했습니다.',
+        description: getActionErrorMessage(error, '잠시 후 다시 시도해 주세요.'),
         variant: 'error',
       });
     }
@@ -344,10 +376,9 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
             currentRoute={training.route.currentRouteMessage}
             liveMetrics={floorView.previewMetrics}
             isEnding={training.isEnding}
-            onEnd={() => {
-              setTrainingTimerStoppedAt(Date.now());
-              setIsEndModalOpen(true);
-            }}
+            isForceEnding={training.isForceEnding}
+            onEnd={() => setIsEndModalOpen(true)}
+            onForceEnd={() => setIsForceEndModalOpen(true)}
             routeDecision={{
               proposal: training.route.routeProposal,
               isApplying: training.route.isApplyingRouteProposal,
@@ -400,6 +431,12 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
           if (!generatedReportId) return;
           void navigate(getReportPath(generatedReportId));
         }}
+      />
+      <TrainingForceEndModal
+        open={isForceEndModalOpen}
+        isSubmitting={training.isForceEnding}
+        onClose={() => setIsForceEndModalOpen(false)}
+        onConfirm={() => void handleForceEndTraining()}
       />
     </div>
   );
