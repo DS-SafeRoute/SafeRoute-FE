@@ -53,7 +53,7 @@ import {
   enableCctv,
   updateCctv,
 } from './api/cctvApi';
-import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
+import { getFloorGridCells, getFloorGridScale, setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorDetail, toFloor, uploadFloor } from './api/floorPlansApi';
 import {
   assignLightCctv,
@@ -2649,35 +2649,35 @@ const FloorPlansDetailPage = () => {
     };
   }, [resolvedMapImageUrl]);
 
-  // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
-  // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
+  // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후 확정한다.
+  // 다만 서버가 이미 배율을 갖고 있으면(대부분) PUT /grid를 다시 호출하지 않는다 — 큰 층에선
+  // 그리드 재생성이 느려 503으로 실패하고, 그때마다 겁주는 실패 토스트가 떴었음. 배율은
+  // GRID_SIZE_KEY에도 저장돼 있어 CCTV·구역 등록 시 필요하면 조용히 재적용된다.
   useEffect(() => {
     if (!floorId || !isFloorReady) return;
-    const cellSizeMeter = readStoredNumber(PENDING_GRID_SIZE_KEY(floorId));
-    if (!cellSizeMeter) return;
+    const pending = readStoredNumber(PENDING_GRID_SIZE_KEY(floorId));
+    if (!pending) return;
     let cancelled = false;
-    setFloorGrid(floorId, cellSizeMeter)
-      .then(() => getFloorGridCells(floorId))
-      .then((cells) => {
+    void (async () => {
+      try {
+        const serverScale = await getFloorGridScale(floorId);
         if (cancelled) return;
-        queryClient.setQueryData(floorQueryKeys.grid(floorId), cells);
-        rememberGridSize(floorId, cellSizeMeter);
-        show({
-          title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
-          variant: 'success',
-        });
-      })
-      .catch((error: unknown) => {
+        if (serverScale) {
+          // 서버가 이미 배율을 갖고 있음 — 재생성 없이 확정만 하고 끝(pending 키 정리)
+          rememberGridSize(floorId, serverScale);
+          return;
+        }
+        // 서버에 배율이 없을 때만(분석이 지운 경우) 다시 PUT
+        await setFloorGrid(floorId, pending);
         if (cancelled) return;
-        const msg = isAxiosError<{ message?: string }>(error)
-          ? (error.response?.data?.message ?? '')
-          : '';
-        show({
-          title: `그리드 배율 자동 적용 실패${msg ? ` (${msg})` : ''} — 그리드 설정에서 직접 지정해주세요.`,
-          variant: 'error',
-          duration: 8000,
-        });
-      });
+        queryClient.setQueryData(floorQueryKeys.grid(floorId), await getFloorGridCells(floorId));
+        rememberGridSize(floorId, pending);
+        show({ title: `그리드 배율(${pending}m)이 자동 적용되었습니다.`, variant: 'success' });
+      } catch (error) {
+        if (cancelled) return;
+        if (import.meta.env.DEV) console.warn('[그리드 배율 자동 적용 건너뜀]', error);
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -2855,27 +2855,6 @@ const FloorPlansDetailPage = () => {
   } | null>(null);
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
-
-  // 최종 탈출구는 시나리오 재생에 필수인데(좌측 훈련 준비 카드 참고) 지정을 깜빡하기 쉬워서
-  // 한 번은 눈에 띄게 토스트로 알려줌. 문/계단이 아직 하나도 없으면(설정 초반) 안 띄움 —
-  // 그 경우는 체크리스트가 "문 추가하기"부터 안내하므로 아직 최종 탈출구를 물을 단계가 아님.
-  // 층당 한 번만 뜨게 ref로 기억(재조회로 structureNodes가 여러 번 갱신돼도 반복 알림 방지)
-  const finalExitWarnedFloorRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!floorId || structureNodes.length === 0) return;
-    if (finalExitWarnedFloorRef.current === floorId) return;
-    const hasDoorOrStair = structureNodes.some((n) => n.type === 'door' || n.type === 'stair');
-    const hasFinalExit = structureNodes.some((n) => n.isFinalExit);
-    if (!hasDoorOrStair || hasFinalExit) return;
-    finalExitWarnedFloorRef.current = floorId;
-    show({
-      title: '최종 탈출구가 지정되지 않았습니다.',
-      description:
-        '훈련 시나리오를 실행하려면 문/계단 카드에서 최종 탈출구를 하나 이상 지정해주세요.',
-      variant: 'warning',
-      duration: 8000,
-    });
-  }, [floorId, structureNodes, show]);
 
   // 문/계단 등 구조 노드가 아닌 나머지 그래프 노드 — graphData(위 graphQuery)에서 조회 전용으로만 씀
   const graphNodes = useMemo(
@@ -3161,7 +3140,16 @@ const FloorPlansDetailPage = () => {
         void queryClient.invalidateQueries({
           queryKey: floorQueryKeys.list(selectedBuildingId),
         });
+        // 이미지가 바로 보이도록 상세 캐시에 새 도면을 먼저 반영하고,
+        // 곧바로 무효화해 재조회를 태운다 — setQueryData만으로는 segmentationStatus 폴링
+        // (floorDetailQuery의 refetchInterval)이 다시 시작되지 않아, 분석이 끝나도(DONE)
+        // 화면을 새로고침해야 새 노드가 보이던 문제가 있었음. 그래프 캐시도 재업로드 전
+        // 노드가 남아있으므로 같이 무효화한다(분석 완료 후 새 노드로 자동 갱신됨).
         queryClient.setQueryData(floorQueryKeys.detail(buildingId, floorId), newFloor);
+        void queryClient.invalidateQueries({
+          queryKey: floorQueryKeys.detail(buildingId, floorId),
+        });
+        void queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
