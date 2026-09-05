@@ -35,6 +35,10 @@ export const badge = recipe({
         backgroundColor: vars.color.warningLight,
         color: vars.color.warningText,
       },
+      orange: {
+        backgroundColor: vars.color.orangeLight,
+        color: vars.color.orangeText,
+      },
       red: {
         backgroundColor: vars.color.dangerLight,
         color: vars.color.dangerText,

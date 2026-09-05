@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router';
 
 import ArrowRightIcon from '@assets/icons/ic-arrow-right.svg?react';
 import PlayIcon from '@assets/icons/ic-play.svg?react';
-import LogoIcon from '@assets/icons/logo.svg?react';
+import logoImg from '@assets/icons/logo.webp';
 
 import { Button } from '@components/Button';
 
@@ -18,7 +18,7 @@ const LandingPage = () => {
     <div className={styles.page}>
       <header className={styles.header}>
         <Link className={styles.brand} to={ROUTES.LANDING} aria-label="SAFE ROUTE 홈">
-          <LogoIcon className={styles.logoIcon} />
+          <img src={logoImg} className={styles.logoIcon} alt="" aria-hidden="true" />
           <span>SAFE ROUTE</span>
         </Link>
 

@@ -4,7 +4,14 @@ import clsx from 'clsx';
 
 import * as styles from './StatusBadge.css';
 
-export type StatusBadgeColor = 'neutral' | 'blue' | 'green' | 'yellow' | 'red' | 'purple';
+export type StatusBadgeColor =
+  | 'neutral'
+  | 'blue'
+  | 'green'
+  | 'yellow'
+  | 'orange'
+  | 'red'
+  | 'purple';
 
 export type StatusBadgeProps = {
   label: string;

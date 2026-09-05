@@ -2,6 +2,14 @@ import type { MonitoringCamera } from '../types/trainingAnalysis';
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
+export const getScenarioIdFromNavigationState = (state: unknown) =>
+  state &&
+  typeof state === 'object' &&
+  'scenarioId' in state &&
+  typeof state.scenarioId === 'string'
+    ? state.scenarioId
+    : null;
+
 // 층별로 묶어서 보여주기 위한 그룹핑 — 카메라 목록 카드 그리드, 프레임 상세 사이드바 둘 다에서
 // 씀. Map은 key가 처음 등장한 순서를 유지하므로 카메라 목록 응답 순서(대개 층 순)를 그대로 따라감
 export const groupCamerasByFloor = (cameras: MonitoringCamera[]) => {

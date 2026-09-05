@@ -3,7 +3,7 @@ import type * as React from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import LogoutIcon from '@assets/icons/ic-logout.svg?react';
-import LogoIcon from '@assets/icons/logo.svg?react';
+import logoImg from '@assets/icons/logo.webp';
 
 import { ROUTES } from '@constants/path';
 
@@ -39,7 +39,7 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
     <aside className={styles.container}>
       <button onClick={() => handleNavigate(ROUTES.HOME)} aria-label="홈으로 이동">
         <header className={styles.header}>
-          <LogoIcon className={styles.logo} aria-hidden="true" focusable="false" />
+          <img src={logoImg} className={styles.logo} alt="" aria-hidden="true" />
           <strong className={styles.brand}>{brand}</strong>
         </header>
       </button>

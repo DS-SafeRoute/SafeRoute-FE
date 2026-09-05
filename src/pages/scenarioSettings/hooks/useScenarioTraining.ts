@@ -1,18 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
 import type { TrainingSessionSummaryResponse } from '@apis/__generated__/data-contracts';
 import { scenarioQueryKeys } from '@apis/scenarios/scenarioQueryKeys';
+import { getScenario } from '@apis/scenarios/scenariosApi';
 import { SCENARIO_STATUS } from '@apis/scenarios/scenarioTypes';
 import type { Scenario } from '@apis/scenarios/scenarioTypes';
-import { TRAINING_SESSION_STATUS } from '@apis/trainingSessions/trainingSessionConstants';
+import {
+  MAX_TRAINING_DURATION_MS,
+  TRAINING_SESSION_STATUS,
+} from '@apis/trainingSessions/trainingSessionConstants';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
+import { getTrainingSessions } from '@apis/trainingSessions/trainingSessionsApi';
 import { currentTrainingRouteQueryOptions } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { useGetTrainingSessionsQuery } from '@apis/trainingSessions/useGetTrainingSessionsQuery';
 import {
   useCreateTrainingSessionMutation,
   useEndTrainingSessionMutation,
+  useForceEndTrainingSessionMutation,
   useStartTrainingSessionMutation,
 } from '@apis/trainingSessions/useTrainingSessionMutations';
 import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
@@ -29,7 +35,10 @@ interface UseScenarioTrainingParams {
   adminId?: string;
 }
 
-const MAX_TRAINING_DURATION_MS = 10 * 60 * 1000;
+const getSessionEndedAt = (endedAt?: string | null) => {
+  const parsedEndedAt = endedAt ? Date.parse(endedAt) : Number.NaN;
+  return Number.isNaN(parsedEndedAt) ? Date.now() : parsedEndedAt;
+};
 
 export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingParams) => {
   const queryClient = useQueryClient();
@@ -40,30 +49,26 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   } | null>(null);
   // 대피 설정 직후 생성한 SCHEDULED 세션을 목록 재조회 전에도 경로 미리보기에 사용
   const [preparedSessionId, setPreparedSessionId] = useState<string | null>(null);
-  // 타임아웃으로 종료된 세션 ID를 보고서 생성 요청까지 유지
-  const [timedOutSessionId, setTimedOutSessionId] = useState<string | null>(null);
-  // 서버 이벤트가 지연돼도 시작 시각 기준 10분에 결과 입력 모달을 열기 위한 세션 ID
-  const [timeLimitReachedSessionId, setTimeLimitReachedSessionId] = useState<string | null>(null);
-  const confirmedRunningSessionIdRef = useRef<string | null>(null);
+  // 서버에서 실패 종료가 확인된 세션 ID를 유지하고, 실패 원인은 시나리오 상태로 구분
+  const [confirmedFailedSessionId, setConfirmedFailedSessionId] = useState<string | null>(null);
+  const [sessionEndedAt, setSessionEndedAt] = useState<number | null>(null);
 
   // 훈련 세션 예약·시작·종료
   const createSessionMutation = useCreateTrainingSessionMutation();
   const startSessionMutation = useStartTrainingSessionMutation();
   const endSessionMutation = useEndTrainingSessionMutation();
+  const forceEndSessionMutation = useForceEndTrainingSessionMutation();
 
   // 시작 가능한 시나리오에서만 실행 중·예약 세션 조회
   const shouldQuerySessions =
     scenario?.status === SCENARIO_STATUS.READY || scenario?.status === SCENARIO_STATUS.IN_PROGRESS;
   const shouldPollRunningSessions =
     scenario?.status === SCENARIO_STATUS.IN_PROGRESS || startedSession !== null;
-  const {
-    data: runningSessions = [],
-    isPending: isRunningSessionsPending,
-    isFetching: isRunningSessionsFetching,
-  } = useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, {
-    enabled: shouldQuerySessions,
-    shouldPoll: shouldPollRunningSessions,
-  });
+  const { data: runningSessions = [], isPending: isRunningSessionsPending } =
+    useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.RUNNING, {
+      enabled: shouldQuerySessions,
+      shouldPoll: shouldPollRunningSessions,
+    });
   const { data: scheduledSessions = [], isPending: isScheduledSessionsPending } =
     useGetTrainingSessionsQuery(TRAINING_SESSION_STATUS.SCHEDULED, {
       enabled: shouldQuerySessions,
@@ -80,31 +85,6 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
   const activeStartedAt = startedSession?.startedAt ?? runningSession?.startedAt ?? null;
   const startedAt = activeStartedAt ? Date.parse(activeStartedAt) : null;
   const isRunning = activeSessionId !== null && startedAt !== null && !Number.isNaN(startedAt);
-
-  useEffect(() => {
-    if (!activeSessionId || startedAt === null || Number.isNaN(startedAt)) {
-      setTimeLimitReachedSessionId(null);
-      return;
-    }
-
-    const deadline = startedAt + MAX_TRAINING_DURATION_MS;
-    const markTimeLimitReached = () => {
-      if (Date.now() >= deadline) setTimeLimitReachedSessionId(activeSessionId);
-    };
-    const remainingTime = deadline - Date.now();
-    markTimeLimitReached();
-
-    const timeoutId =
-      remainingTime > 0 ? window.setTimeout(markTimeLimitReached, remainingTime) : undefined;
-    document.addEventListener('visibilitychange', markTimeLimitReached);
-    window.addEventListener('focus', markTimeLimitReached);
-
-    return () => {
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      document.removeEventListener('visibilitychange', markTimeLimitReached);
-      window.removeEventListener('focus', markTimeLimitReached);
-    };
-  }, [activeSessionId, startedAt]);
 
   // SCHEDULED부터 현재 경로를 조회하고, 실시간 이벤트는 RUNNING일 때만 연결
   const route = useTrainingRouteData({
@@ -137,38 +117,40 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     [queryClient],
   );
 
-  const markSessionTimedOut = useCallback(
-    (sessionId: string) => {
+  const markSessionFailed = useCallback(
+    (sessionId: string, endedAt?: string | null) => {
       removeSessionFromActiveCaches(sessionId);
       clearLocalSessionState();
-      confirmedRunningSessionIdRef.current = null;
-      setTimedOutSessionId(sessionId);
+      setConfirmedFailedSessionId(sessionId);
+      setSessionEndedAt(getSessionEndedAt(endedAt));
       void queryClient.invalidateQueries({ queryKey: scenarioQueryKeys.all });
     },
     [clearLocalSessionState, queryClient, removeSessionFromActiveCaches],
   );
 
-  // WebSocket 종료 이벤트를 놓쳐도, 한 번 확인된 RUNNING 세션이 폴링 결과에서 사라지면 종료 처리
+  // WebSocket이나 세션 목록 반영이 늦어도 서버의 시나리오 종료 상태로 화면을 정리한다.
   useEffect(() => {
-    if (!activeSessionId) {
-      confirmedRunningSessionIdRef.current = null;
+    if (!activeSessionId) return;
+    if (scenario?.status === SCENARIO_STATUS.COMPLETED) {
+      removeSessionFromActiveCaches(activeSessionId);
+      clearLocalSessionState();
+      setSessionEndedAt(Date.now());
       return;
     }
-
-    const isActiveSessionRunning = runningSessions.some(
-      (session) => session.sessionId === activeSessionId,
-    );
-    if (isActiveSessionRunning) {
-      confirmedRunningSessionIdRef.current = activeSessionId;
+    if (
+      scenario?.status !== SCENARIO_STATUS.TIMEOUT_FAILED &&
+      scenario?.status !== SCENARIO_STATUS.ERROR
+    ) {
       return;
     }
-
-    if (isRunningSessionsFetching || confirmedRunningSessionIdRef.current !== activeSessionId) {
-      return;
-    }
-
-    markSessionTimedOut(activeSessionId);
-  }, [activeSessionId, isRunningSessionsFetching, markSessionTimedOut, runningSessions]);
+    markSessionFailed(activeSessionId);
+  }, [
+    activeSessionId,
+    clearLocalSessionState,
+    markSessionFailed,
+    removeSessionFromActiveCaches,
+    scenario?.status,
+  ]);
 
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
@@ -176,20 +158,26 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
       if (event.eventType !== TRAINING_EVENT_TYPE.STATUS_UPDATED) return;
 
       const statusEvent = event as TrainingSessionEvent<TrainingStatusEventData>;
-      if (statusEvent.data.status === TRAINING_SESSION_STATUS.COMPLETED) {
-        removeSessionFromActiveCaches(event.sessionId);
-        clearLocalSessionState();
+      if (
+        statusEvent.data.status === TRAINING_SESSION_STATUS.RUNNING ||
+        statusEvent.data.status === TRAINING_SESSION_STATUS.SCHEDULED
+      ) {
         return;
       }
 
-      if (statusEvent.data.status !== TRAINING_SESSION_STATUS.FAILED) return;
+      if (statusEvent.data.status !== TRAINING_SESSION_STATUS.FAILED) {
+        removeSessionFromActiveCaches(event.sessionId);
+        clearLocalSessionState();
+        setSessionEndedAt(getSessionEndedAt(statusEvent.data.endedAt));
+        return;
+      }
 
-      markSessionTimedOut(event.sessionId);
+      markSessionFailed(event.sessionId, statusEvent.data.endedAt);
     },
     [
       clearLocalSessionState,
       handleRouteTrainingEvent,
-      markSessionTimedOut,
+      markSessionFailed,
       removeSessionFromActiveCaches,
     ],
   );
@@ -238,32 +226,76 @@ export const useScenarioTraining = ({ scenario, adminId }: UseScenarioTrainingPa
     }
 
     setStartedSession({ id: session.id, startedAt: session.startedAt });
-    confirmedRunningSessionIdRef.current = null;
-    setTimedOutSessionId(null);
-    setTimeLimitReachedSessionId(null);
+    setConfirmedFailedSessionId(null);
+    setSessionEndedAt(null);
   };
 
   // 현재 실행 중인 훈련 종료
   const endTraining = async () => {
+    if (scenario?.status === SCENARIO_STATUS.ERROR) {
+      throw new Error('오류로 종료된 훈련은 분석 보고서를 생성할 수 없습니다.');
+    }
     if (!activeSessionId) throw new Error('종료할 훈련 세션 ID가 없습니다.');
-    await endSessionMutation.mutateAsync(activeSessionId);
+    if (startedAt !== null && Date.now() >= startedAt + MAX_TRAINING_DURATION_MS) {
+      if (!scenario) throw new Error('시나리오 정보를 확인할 수 없습니다.');
+
+      const [endedScenario, failedSessions] = await Promise.all([
+        getScenario(scenario.id),
+        getTrainingSessions(TRAINING_SESSION_STATUS.FAILED),
+      ]);
+      queryClient.setQueryData(scenarioQueryKeys.detail(scenario.id), endedScenario);
+
+      if (
+        endedScenario.status === SCENARIO_STATUS.ERROR ||
+        endedScenario.status === SCENARIO_STATUS.TIMEOUT_FAILED
+      ) {
+        markSessionFailed(activeSessionId);
+      }
+      if (endedScenario.status === SCENARIO_STATUS.ERROR) {
+        return SCENARIO_STATUS.ERROR;
+      }
+      if (endedScenario.status === SCENARIO_STATUS.TIMEOUT_FAILED) {
+        return SCENARIO_STATUS.TIMEOUT_FAILED;
+      }
+      if (failedSessions.some((session) => session.sessionId === activeSessionId)) {
+        markSessionFailed(activeSessionId);
+        return SCENARIO_STATUS.TIMEOUT_FAILED;
+      }
+
+      throw new Error('10분 초과 자동 종료가 서버에 아직 반영되지 않았습니다.');
+    }
+    const endedSession = await endSessionMutation.mutateAsync(activeSessionId);
+    setSessionEndedAt(getSessionEndedAt(endedSession.endedAt));
     clearLocalSessionState();
+    return SCENARIO_STATUS.COMPLETED;
+  };
+
+  // 장비·서버 오류로 정상 종료할 수 없을 때만 관리자가 수동으로 중단
+  const forceEndTraining = async () => {
+    if (!activeSessionId) throw new Error('중단할 훈련 세션 ID가 없습니다.');
+
+    const endedSession = await forceEndSessionMutation.mutateAsync(activeSessionId);
+    removeSessionFromActiveCaches(activeSessionId);
+    clearLocalSessionState();
+    setSessionEndedAt(getSessionEndedAt(endedSession.endedAt));
   };
 
   return {
     route,
     sessionId: activeSessionId,
     startedAt,
+    endedAt: sessionEndedAt,
     isRunning,
     areSessionsPending:
       shouldQuerySessions && (isRunningSessionsPending || isScheduledSessionsPending),
     isScheduling: createSessionMutation.isPending,
     isStarting: createSessionMutation.isPending || startSessionMutation.isPending,
     isEnding: endSessionMutation.isPending,
-    timedOutSessionId,
-    timeLimitReachedSessionId,
+    isForceEnding: forceEndSessionMutation.isPending,
+    timedOutSessionId: scenario?.status === SCENARIO_STATUS.ERROR ? null : confirmedFailedSessionId,
     ensureScheduledSession,
     startTraining,
     endTraining,
+    forceEndTraining,
   };
 };
