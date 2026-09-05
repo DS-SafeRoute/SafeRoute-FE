@@ -2781,14 +2781,17 @@ const FloorPlansDetailPage = () => {
     [userZones],
   );
 
-  const [selectedBuildingId] = useState(buildingId ?? '');
+  // 라우트 파라미터를 그대로 씀 — useState로 복제해두면 뒤로가기/외부 링크처럼 handleFloorChange를
+  // 거치지 않고 URL만 바뀌는 경우 값이 낡아, 실제 조회(floorId 기반 쿼리)와 currentFloor 메타데이터가
+  // 서로 다른 층을 가리키게 됨
+  const selectedBuildingId = buildingId ?? '';
+  const selectedFloorId = floorId ?? '';
   // 이 화면엔 건물 하나(이름)와 그 건물의 층 목록만 필요한데, 예전엔 getFloorBuildings()가
   // 전체 건물 목록 + 건물마다 층 목록을 다 조회했음(건물 N개면 요청 N+1개, 건물이 늘수록
   // 이 화면이 계속 느려지는 구조였음) — 건물 이름은 이미 캐시돼 있을 가능성이 높은 건물
   // 목록 조회 1번, 층 목록은 이 건물 것만 조회 1번으로 나눔
   const { data: buildingsForName } = useGetBuildingsQuery();
   const { data: buildingFloors } = useBuildingFloorsQuery(selectedBuildingId);
-  const [selectedFloorId, setSelectedFloorId] = useState(floorId ?? '');
   const [zoom, setZoom] = useState(100);
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [selectedZoneRef, setSelectedZoneRef] = useState<ZoneRefSelection | null>(null);
@@ -2921,6 +2924,39 @@ const FloorPlansDetailPage = () => {
     queryClient.setQueryData<IoTLight[]>(floorQueryKeys.light(floorId), (prev) =>
       prev?.map((l) => (l.id === updated.id ? updated : l)),
     );
+  };
+
+  // configureLightGuidance와 assignLightCctv는 같은 IoTLight를 건드리는데, 각자 응답으로
+  // patchLightCache를 부르면 나중에 도착한 응답이 다른 mutation의 변경분을 덮어쓸 수 있음
+  // (코드래빗 리뷰). 둘을 병렬로 보내되 에러만 각자 알리고, 모두 끝난 뒤 캐시를 한 번
+  // 무효화해서 서버 기준 최신 상태로 맞춤
+  const runLightFollowups = async (
+    lightId: string,
+    opts: {
+      guidance?: { decisionNodeId: string; leftEdgeId: string; rightEdgeId: string };
+      cctvId?: string;
+    },
+  ) => {
+    const tasks: Promise<unknown>[] = [];
+    if (opts.guidance) {
+      tasks.push(
+        configureLightGuidance(lightId, opts.guidance).catch((error: unknown) => {
+          const { message } = extractApiError(error);
+          show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
+        }),
+      );
+    }
+    if (opts.cctvId) {
+      tasks.push(
+        assignLightCctv(lightId, opts.cctvId).catch((error: unknown) => {
+          const { message } = extractApiError(error);
+          show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
+        }),
+      );
+    }
+    if (tasks.length === 0) return;
+    await Promise.allSettled(tasks);
+    void queryClient.invalidateQueries({ queryKey: floorQueryKeys.light(floorId) });
   };
 
   // zones(위 useMemo)도 useFloorUserZonesQuery 캐시에서 파생된 값이라 로컬 setState 대신
@@ -3067,7 +3103,7 @@ const FloorPlansDetailPage = () => {
   const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
 
   const handleFloorChange = (newId: string) => {
-    setSelectedFloorId(newId);
+    // selectedFloorId는 아래 navigate로 URL이 바뀌면 useParams를 통해 자동으로 갱신됨
     setSelectedItem(null);
     setDeleteConfirmTarget(null);
     setNodeAddOpen(false);
@@ -3220,22 +3256,13 @@ const FloorPlansDetailPage = () => {
             // 때만 등록 직후 이어서 저장함 — 등록 시점에 판단 노드·엣지가 아직 없으면
             // 비워둔 채로 넘어가고 나중에 카드에서 채워도 됨
             const { decisionNodeId, leftEdgeId, rightEdgeId, cctvId } = lightFields;
-            if (decisionNodeId && leftEdgeId && rightEdgeId) {
-              configureLightGuidance(newLight.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-                .then(patchLightCache)
-                .catch((error: unknown) => {
-                  const { message } = extractApiError(error);
-                  show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
-                });
-            }
-            if (cctvId) {
-              assignLightCctv(newLight.id, cctvId)
-                .then(patchLightCache)
-                .catch((error: unknown) => {
-                  const { message } = extractApiError(error);
-                  show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
-                });
-            }
+            void runLightFollowups(newLight.id, {
+              guidance:
+                decisionNodeId && leftEdgeId && rightEdgeId
+                  ? { decisionNodeId, leftEdgeId, rightEdgeId }
+                  : undefined,
+              cctvId: cctvId || undefined,
+            });
           })
           .catch(() => {
             show({ title: '유도등 등록에 실패했습니다. 다시 시도해주세요.', variant: 'error' });
@@ -3615,6 +3642,10 @@ const FloorPlansDetailPage = () => {
     updateMapNodePosition(id, { x: x / CANVAS_W, y: y / canvasH }).catch((error: unknown) => {
       const { message } = extractApiError(error);
       show({ title: message || '위치 저장에 실패했습니다.', variant: 'error' });
+      // 드래그 미리보기가 캐시에 이미 새 좌표를 써둔 상태 — 저장이 실패했는데 그래프가 비어있지
+      // 않으면 폴링도 멈춰서, 그대로 두면 저장 안 된 좌표가 화면·엣지 거리 계산에 계속 쓰임.
+      // 서버 기준으로 다시 받아와 되돌림
+      void queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
     });
   };
 
@@ -4524,23 +4555,14 @@ const FloorPlansDetailPage = () => {
           decisionNodeId !== (prevLight?.decisionNodeId ?? '') ||
           leftEdgeId !== (prevLight?.leftEdgeId ?? '') ||
           rightEdgeId !== (prevLight?.rightEdgeId ?? '');
-        if (decisionNodeId && leftEdgeId && rightEdgeId && guidanceChanged) {
-          configureLightGuidance(item.id, { decisionNodeId, leftEdgeId, rightEdgeId })
-            .then(patchLightCache)
-            .catch((error: unknown) => {
-              const { message } = extractApiError(error);
-              show({ title: message || '경로 저장에 실패했습니다.', variant: 'error' });
-            });
-        }
-
-        if (editForm.cctvId && editForm.cctvId !== (prevLight?.cctvId ?? '')) {
-          assignLightCctv(item.id, editForm.cctvId)
-            .then(patchLightCache)
-            .catch((error: unknown) => {
-              const { message } = extractApiError(error);
-              show({ title: message || '담당 CCTV 배정에 실패했습니다.', variant: 'error' });
-            });
-        }
+        const cctvChanged = !!editForm.cctvId && editForm.cctvId !== (prevLight?.cctvId ?? '');
+        void runLightFollowups(item.id, {
+          guidance:
+            decisionNodeId && leftEdgeId && rightEdgeId && guidanceChanged
+              ? { decisionNodeId, leftEdgeId, rightEdgeId }
+              : undefined,
+          cctvId: cctvChanged ? editForm.cctvId : undefined,
+        });
       } else if (item.type === 'cctv' && prevDevice) {
         updateCctv(item.id, { name: newLabel, x: finalX / 100, y: finalY / 100 })
           .then(patchCctvCache)
