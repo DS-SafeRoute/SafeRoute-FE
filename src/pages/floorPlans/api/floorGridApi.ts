@@ -1,5 +1,6 @@
 import type {
   CreateOrUpdateFloorGridRequest,
+  FloorGridCellPageResponse,
   FloorGridResponse,
 } from '@apis/__generated__/data-contracts';
 import { request as apiRequest, HTTP_METHOD } from '@apis/config/request';
@@ -14,6 +15,21 @@ export interface FloorGrid {
 
 export { getFloorGridCells } from '@apis/floors/floorGridApi';
 export type { FloorGridCell } from '@apis/floors/floorGridApi';
+
+// 서버에 저장된 현재 그리드 배율(m). 별도 GET /grid가 없어서, 셀 목록 응답에 함께 실려 오는
+// cellSizeMeter를 최소 payload(size=1)로 읽어온다. 값이 없으면(미설정/분석이 지움) null.
+export async function getFloorGridScale(
+  floorId: string,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  const res = await apiRequest<FloorGridCellPageResponse>({
+    method: HTTP_METHOD.GET,
+    url: API_ENDPOINTS.FLOOR_GRID.CELLS(floorId),
+    query: { page: 0, size: 1 },
+    signal,
+  });
+  return res.cellSizeMeter && res.cellSizeMeter > 0 ? res.cellSizeMeter : null;
+}
 
 // 그리드 배율 설정(생성/수정 겸용). 요청이 200으로 돌아왔다면 서버에는 이미 반영된 것이므로,
 // 응답 바디에 일부 필드가 없더라도 실패로 취급하지 않는다 — 예전에는 여기서 throw해서

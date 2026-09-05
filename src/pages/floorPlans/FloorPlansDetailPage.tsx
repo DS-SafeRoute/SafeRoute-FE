@@ -53,7 +53,7 @@ import {
   enableCctv,
   updateCctv,
 } from './api/cctvApi';
-import { getFloorGridCells, setFloorGrid } from './api/floorGridApi';
+import { getFloorGridCells, getFloorGridScale, setFloorGrid } from './api/floorGridApi';
 import { analyzeFloor, getFloorDetail, toFloor, uploadFloor } from './api/floorPlansApi';
 import {
   assignLightCctv,
@@ -70,6 +70,7 @@ import {
   deleteMapEdge,
   deleteMapNode,
   updateMapNodePosition,
+  updateNodeStartCandidate,
 } from './api/mapGraphApi';
 import { createUserZone, deleteUserZone } from './api/userZoneApi';
 import ReadinessChecklist from './components/ReadinessChecklist';
@@ -245,6 +246,8 @@ type StructureNode = {
   x: number;
   y: number;
   isFinalExit: boolean;
+  // DOOR 노드를 훈련 시작 후보로 지정했는지 (문 카드에서 토글). 그 외 타입은 항상 false
+  isStartCandidate: boolean;
 };
 
 const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
@@ -340,6 +343,13 @@ const EMPTY_GRAPH: FloorGraph = { nodes: [], edges: [] };
 // AI 분석이 DONE으로 바뀐 직후엔 노드가 아직 생성 중일 수 있어 그래프가 비어 올 수 있음 — 재조회 설정
 const GRAPH_RETRY_LIMIT = 5;
 const GRAPH_RETRY_INTERVAL_MS = 2000;
+
+// DONE 전환 후에도 서버가 문/계단 노드를 순차 생성하는 동안(방만 먼저 오는 경우가 많음)
+// 그래프를 계속 다시 받아온다. 전환 시점부터 GRAPH_SETTLE_WINDOW_MS 동안, 노드 수가
+// GRAPH_SETTLE_STABLE_TICKS번 연속(=실제 재조회 기준) 같아지면 생성이 끝난 것으로 보고 멈춘다.
+const GRAPH_SETTLE_WINDOW_MS = 180_000;
+const GRAPH_SETTLE_POLL_MS = 3000;
+const GRAPH_SETTLE_STABLE_TICKS = 3;
 
 // 드래그 사각형(캔버스 좌표)과 영역이 조금이라도 겹치는 셀들의 id — 셀 중심이 아니라 셀 면적 기준.
 // 드래그 미리보기와 실제 잡히는 셀이 일치하도록 드래그 중/드래그 종료 양쪽에서 같은 로직을 씀
@@ -926,10 +936,12 @@ const MockFloorMap3F = ({
             <circle
               cx={n.x}
               cy={n.y}
-              r={n.isFinalExit ? 7 : isEditingThis ? 6 : isStair ? 5 : 4}
-              fill={n.isFinalExit ? '#16a34a' : baseColor}
-              stroke={isEditingThis ? '#f59e0b' : n.isFinalExit ? 'white' : 'none'}
-              strokeWidth={isEditingThis ? 3 : n.isFinalExit ? 2 : 0}
+              r={n.isFinalExit ? 7 : n.isStartCandidate ? 6 : isEditingThis ? 6 : isStair ? 5 : 4}
+              fill={n.isFinalExit ? '#16a34a' : n.isStartCandidate ? DEVICE_COLOR.start : baseColor}
+              stroke={
+                isEditingThis ? '#f59e0b' : n.isFinalExit || n.isStartCandidate ? 'white' : 'none'
+              }
+              strokeWidth={isEditingThis ? 3 : n.isFinalExit || n.isStartCandidate ? 2 : 0}
             />
             {isStair && (
               <text
@@ -957,6 +969,20 @@ const MockFloorMap3F = ({
                 style={{ pointerEvents: 'none' }}
               >
                 최종 탈출구
+              </text>
+            )}
+            {n.isStartCandidate && !n.isFinalExit && (
+              <text
+                x={n.x}
+                y={n.y - 14}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill={DEVICE_COLOR.start}
+                fontFamily="sans-serif"
+                style={{ pointerEvents: 'none' }}
+              >
+                시작 후보
               </text>
             )}
           </g>
@@ -1498,7 +1524,8 @@ const NodeAddPopup = ({
       <div className={styles.nodeAddField}>
         <span className={styles.nodeAddLabel}>노드 종류</span>
         <div className={styles.deviceTypeChips}>
-          {(['cctv', 'light', 'door', 'stair', 'hallway', 'start'] as const).map((t) => (
+          {/* 시작 후보(START)는 새 노드로 만들지 않고, 문·출입구 카드에서 지정한다(BE PR #225) */}
+          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -2542,6 +2569,12 @@ const FloorPlansDetailPage = () => {
 
   const { data: floorGridCells = EMPTY_GRID_CELLS } = useFloorGridCellsQuery(floorId);
 
+  // 업로드 직후 백엔드가 mapImageKey를 아직 안 채워 보낼 수 있는데(한두 사이클), 예전엔 키가
+  // 비면 "분석 중"이 아니라고 보고 상세 폴링을 멈춰서 — 이후 상태가 DONE으로 바뀌어도, 실제
+  // 이미지 URL을 발급받게 해주는 mapImageKey가 채워져도 — 화면을 새로고침해야 반영되던 문제.
+  // 업로드→분석 요청을 우리가 방금 걸었으면 키가 잠깐 비어도 계속 폴링하도록 이 플래그를 본다.
+  const awaitingUploadAnalysisRef = useRef(false);
+
   // 현재 층 상세 — 세그멘테이션이 끝날 때까지(isAnalyzing) 짧은 간격으로 다시 조회해 상태 전환을
   // 감지해야 해서, 폴링 여부를 방금 받은 데이터 기준으로 매번 다시 판단하는 refetchInterval에 맡김
   const floorDetailQuery = useQuery({
@@ -2555,12 +2588,15 @@ const FloorPlansDetailPage = () => {
       const data = query.state.data;
       if (!data) return false;
       const settled = data.segmentationStatus === 'DONE' || data.segmentationStatus === 'FAILED';
-      const analyzing = Boolean(data.mapImageUrl) && !settled;
+      const analyzing =
+        !settled &&
+        (data.segmentationStatus === 'PROCESSING' ||
+          Boolean(data.mapImageUrl) ||
+          awaitingUploadAnalysisRef.current);
       return analyzing ? 4000 : false;
     },
   });
   const floor = floorDetailQuery.data ?? null;
-  const loadingFloor = floorDetailQuery.isLoading;
 
   // 도면 이미지의 원본 가로/세로 비율 — viewBox 높이(canvasH)를 여기에 맞춰 이미지 왜곡을 없앰
   const [imageAspect, setImageAspect] = useState<number | null>(null);
@@ -2624,11 +2660,14 @@ const FloorPlansDetailPage = () => {
   // 분석이 끝나면(DONE) 노드·엣지는 아래 맵그래프 effect가 isFloorReady 전환으로 자동 재조회하고,
   // 그리드 셀은 배율 재적용 effect가 다시 받아온다 — 별도의 페이지 새로고침은 필요 없음
 
-  // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면이 있는 층일 때만, 그 층 하나에 대해서만 조회
+  // 캔버스에 실제로 그릴 도면 이미지의 presigned URL — 도면 키가 잡혔거나(대부분) 분석이
+  // 끝난 층이면 조회. 분석 완료 직후 상세 응답에 mapImageKey가 한두 사이클 늦게 실려도
+  // (isFloorReady로) 곧바로 URL을 받으러 가도록 함 — 이 엔드포인트는 서버가 층 기준으로
+  // 현재 이미지를 돌려줘서 키를 클라이언트가 몰라도 됨.
   const { data: floorImageData } = useFloorImageUrlQuery(
     buildingId,
     floorId,
-    Boolean(floor?.mapImageUrl),
+    Boolean(floor?.mapImageUrl) || isFloorReady,
   );
   const resolvedMapImageUrl = floorImageData?.imageUrl ?? null;
 
@@ -2649,52 +2688,95 @@ const FloorPlansDetailPage = () => {
     };
   }, [resolvedMapImageUrl]);
 
-  // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후
-  // sessionStorage에 남겨둔 값으로 PUT /grid를 한 번 더 호출해 배율을 확정함
+  // 업로드 시 정한 그리드 배율이 AI 분석 과정에서 사라질 수 있어, 분석 완료(DONE) 후 확정한다.
+  // 다만 서버가 이미 배율을 갖고 있으면(대부분) PUT /grid를 다시 호출하지 않는다 — 큰 층에선
+  // 그리드 재생성이 느려 503으로 실패하고, 그때마다 겁주는 실패 토스트가 떴었음. 배율은
+  // GRID_SIZE_KEY에도 저장돼 있어 CCTV·구역 등록 시 필요하면 조용히 재적용된다.
   useEffect(() => {
     if (!floorId || !isFloorReady) return;
-    const cellSizeMeter = readStoredNumber(PENDING_GRID_SIZE_KEY(floorId));
-    if (!cellSizeMeter) return;
+    const pending = readStoredNumber(PENDING_GRID_SIZE_KEY(floorId));
+    if (!pending) return;
     let cancelled = false;
-    setFloorGrid(floorId, cellSizeMeter)
-      .then(() => getFloorGridCells(floorId))
-      .then((cells) => {
+    void (async () => {
+      try {
+        const serverScale = await getFloorGridScale(floorId);
         if (cancelled) return;
-        queryClient.setQueryData(floorQueryKeys.grid(floorId), cells);
-        rememberGridSize(floorId, cellSizeMeter);
-        show({
-          title: `그리드 배율(${cellSizeMeter}m)이 자동 적용되었습니다.`,
-          variant: 'success',
-        });
-      })
-      .catch((error: unknown) => {
+        if (serverScale) {
+          // 서버가 이미 배율을 갖고 있음 — 재생성 없이 확정만 하고 끝(pending 키 정리)
+          rememberGridSize(floorId, serverScale);
+          return;
+        }
+        // 서버에 배율이 없을 때만(분석이 지운 경우) 다시 PUT
+        await setFloorGrid(floorId, pending);
         if (cancelled) return;
-        const msg = isAxiosError<{ message?: string }>(error)
-          ? (error.response?.data?.message ?? '')
-          : '';
-        show({
-          title: `그리드 배율 자동 적용 실패${msg ? ` (${msg})` : ''} — 그리드 설정에서 직접 지정해주세요.`,
-          variant: 'error',
-          duration: 8000,
-        });
-      });
+        queryClient.setQueryData(floorQueryKeys.grid(floorId), await getFloorGridCells(floorId));
+        rememberGridSize(floorId, pending);
+        show({ title: `그리드 배율(${pending}m)이 자동 적용되었습니다.`, variant: 'success' });
+      } catch (error) {
+        if (cancelled) return;
+        if (import.meta.env.DEV) console.warn('[그리드 배율 자동 적용 건너뜀]', error);
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, [floorId, isFloorReady, show, queryClient]);
 
-  // 맵그래프(노드/엣지) 조회 — 세그멘테이션 상태가 DONE으로 바뀌어도 서버가 노드를 다 만들기
-  // 전이라 빈 그래프가 올 수 있어서, 비어 있으면 짧은 간격으로 몇 번 더 조회한다(최대
-  // GRAPH_RETRY_LIMIT회 — dataUpdateCount로 세서 floorId가 바뀌면 자동으로 초기화됨)
+  // 세그멘테이션이 방금 끝났을 때(PENDING/PROCESSING → DONE) 서버가 노드를 순차 생성 중이라
+  // 그래프가 비었거나 방(ROOM)만 오고 문/계단은 아직 없는 상태로 올 수 있음. 그 전환 시점부터
+  // GRAPH_SETTLE_WINDOW_MS 동안 아래 graphQuery.refetchInterval이 그래프를 계속 다시 받아온다.
+  // 이미 DONE인 층을 그냥 열 때(undefined → DONE)는 창을 안 열어 불필요한 폴링을 막고,
+  // 재업로드로 DONE이 잠깐 풀렸다가(PENDING) 다시 붙으면 창을 새로 연다.
+  const graphSettleUntilRef = useRef<number>(0);
+  const graphNodeStreakRef = useRef<{ count: number; streak: number; updateCount: number }>({
+    count: -1,
+    streak: 0,
+    updateCount: -1,
+  });
+  const prevSegStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevSegStatusRef.current;
+    const curr = floor?.segmentationStatus;
+    prevSegStatusRef.current = curr;
+    if (curr === 'DONE' || curr === 'FAILED') awaitingUploadAnalysisRef.current = false;
+    const justFinished = (prev === 'PENDING' || prev === 'PROCESSING') && curr === 'DONE';
+    if (justFinished) {
+      graphSettleUntilRef.current = Date.now() + GRAPH_SETTLE_WINDOW_MS;
+      graphNodeStreakRef.current = { count: -1, streak: 0, updateCount: -1 };
+      // 분석이 끝나면 이 층에 걸린 모든 조회(이미지 URL·그래프·그리드·CCTV·유도등·구역·목록)를
+      // 한 번에 무효화한다. 캐시마다 갱신 트리거(폴링/enabled 전환/staleTime)가 제각각이라
+      // 업로드마다 어떤 건 뜨고 어떤 건 새로고침해야 뜨는 문제가 반복됐음 — 완료 시점에
+      // 서버는 이미 일관된 상태이므로, 통째로 다시 받아오는 게 가장 확실하다.
+      void queryClient.invalidateQueries({ queryKey: floorQueryKeys.all });
+    } else if (curr && curr !== 'DONE') {
+      graphSettleUntilRef.current = 0;
+      graphNodeStreakRef.current = { count: -1, streak: 0, updateCount: -1 };
+    }
+  }, [floor?.segmentationStatus, queryClient]);
+
+  // 맵그래프(노드/엣지) 조회. 노드가 아예 안 온 상태면 GRAPH_RETRY_LIMIT회까지 빠르게 재시도하고,
+  // 노드가 오기 시작했으면 위 settle 창이 살아있는 동안 노드 수가 GRAPH_SETTLE_STABLE_TICKS번
+  // 연속(실제 재조회 기준 — dataUpdateCount로 셈) 같아질 때까지 GRAPH_SETTLE_POLL_MS 간격으로 폴링.
   const graphQuery = useQuery({
     ...floorGraphQueryOptions(floorId),
     enabled: Boolean(floorId) && isFloorReady,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
-      return data.nodes.length === 0 && query.state.dataUpdateCount <= GRAPH_RETRY_LIMIT
-        ? GRAPH_RETRY_INTERVAL_MS
-        : false;
+      if (data.nodes.length === 0) {
+        return query.state.dataUpdateCount <= GRAPH_RETRY_LIMIT ? GRAPH_RETRY_INTERVAL_MS : false;
+      }
+      if (Date.now() >= graphSettleUntilRef.current) return false;
+      const s = graphNodeStreakRef.current;
+      if (query.state.dataUpdateCount !== s.updateCount) {
+        s.updateCount = query.state.dataUpdateCount;
+        if (data.nodes.length === s.count) s.streak += 1;
+        else {
+          s.count = data.nodes.length;
+          s.streak = 1;
+        }
+      }
+      return s.streak >= GRAPH_SETTLE_STABLE_TICKS ? false : GRAPH_SETTLE_POLL_MS;
     },
   });
   const graphData = graphQuery.data ?? EMPTY_GRAPH;
@@ -2723,6 +2805,7 @@ const FloorPlansDetailPage = () => {
           // 경로 탐색기가 인정하는 최종 탈출구는 type === 'EXIT'뿐 — 예전 코드로 isExitTarget만
           // 붙은 계단은 '탈출구로 지정'을 다시 눌러 EXIT로 승격해야 함(배지 아직 안 붙음)
           isFinalExit: n.type === 'EXIT',
+          isStartCandidate: n.isStartCandidate,
         },
       ];
     });
@@ -2856,27 +2939,6 @@ const FloorPlansDetailPage = () => {
   const [addedDevices, setAddedDevices] = useState<AddedDevice[]>([]);
   const [structureNodes, setStructureNodes] = useState<StructureNode[]>([]);
 
-  // 최종 탈출구는 시나리오 재생에 필수인데(좌측 훈련 준비 카드 참고) 지정을 깜빡하기 쉬워서
-  // 한 번은 눈에 띄게 토스트로 알려줌. 문/계단이 아직 하나도 없으면(설정 초반) 안 띄움 —
-  // 그 경우는 체크리스트가 "문 추가하기"부터 안내하므로 아직 최종 탈출구를 물을 단계가 아님.
-  // 층당 한 번만 뜨게 ref로 기억(재조회로 structureNodes가 여러 번 갱신돼도 반복 알림 방지)
-  const finalExitWarnedFloorRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!floorId || structureNodes.length === 0) return;
-    if (finalExitWarnedFloorRef.current === floorId) return;
-    const hasDoorOrStair = structureNodes.some((n) => n.type === 'door' || n.type === 'stair');
-    const hasFinalExit = structureNodes.some((n) => n.isFinalExit);
-    if (!hasDoorOrStair || hasFinalExit) return;
-    finalExitWarnedFloorRef.current = floorId;
-    show({
-      title: '최종 탈출구가 지정되지 않았습니다.',
-      description:
-        '훈련 시나리오를 실행하려면 문/계단 카드에서 최종 탈출구를 하나 이상 지정해주세요.',
-      variant: 'warning',
-      duration: 8000,
-    });
-  }, [floorId, structureNodes, show]);
-
   // 문/계단 등 구조 노드가 아닌 나머지 그래프 노드 — graphData(위 graphQuery)에서 조회 전용으로만 씀
   const graphNodes = useMemo(
     () => graphData.nodes.filter((n) => !API_TYPE_TO_STRUCTURE[n.type]),
@@ -2885,6 +2947,11 @@ const FloorPlansDetailPage = () => {
   const graphEdges = graphData.edges;
   const [editingCctvId, setEditingCctvId] = useState<string | null>(null);
   const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
+  // 시작 후보 PATCH가 진행 중인 노드 id — 같은 노드를 응답 전에 다시 토글하면 요청이
+  // 뒤바뀐 순서로 끝나며 롤백이 최신 값을 덮어쓸 수 있어, 노드 단위로 버튼을 잠근다.
+  const [startCandidatePendingIds, setStartCandidatePendingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneEditLabel, setZoneEditLabel] = useState('');
   const [nodeAddStage, setNodeAddStage] = useState<'entry' | 'fov'>('entry');
@@ -3101,6 +3168,8 @@ const FloorPlansDetailPage = () => {
       }
     : null;
   const currentFloor = currentBuilding?.floors.find((f) => f.id === selectedFloorId) ?? null;
+  // 실시간 상세 조회(floor)를 우선, 없으면 목록 캐시(currentFloor)로 폴백 — 캔버스·체크리스트 공통
+  const resolvedFloor = floor ?? currentFloor;
 
   const handleFloorChange = (newId: string) => {
     // selectedFloorId는 아래 navigate로 URL이 바뀌면 useParams를 통해 자동으로 갱신됨
@@ -3161,7 +3230,24 @@ const FloorPlansDetailPage = () => {
         void queryClient.invalidateQueries({
           queryKey: floorQueryKeys.list(selectedBuildingId),
         });
+        // 방금 업로드→분석을 걸었으니, mapImageKey가 한두 사이클 비어 와도 상세 폴링이
+        // 끊기지 않게 한다(refetchInterval이 이 플래그를 봄). DONE/FAILED에서 해제됨.
+        awaitingUploadAnalysisRef.current = true;
+        // 이미지가 바로 보이도록 상세 캐시에 새 도면을 먼저 반영하고,
+        // 곧바로 무효화해 재조회를 태운다 — setQueryData만으로는 segmentationStatus 폴링
+        // (floorDetailQuery의 refetchInterval)이 다시 시작되지 않아, 분석이 끝나도(DONE)
+        // 화면을 새로고침해야 새 노드가 보이던 문제가 있었음. 그래프 캐시도 재업로드 전
+        // 노드가 남아있으므로 같이 무효화한다(분석 완료 후 새 노드로 자동 갱신됨).
         queryClient.setQueryData(floorQueryKeys.detail(buildingId, floorId), newFloor);
+        void queryClient.invalidateQueries({
+          queryKey: floorQueryKeys.detail(buildingId, floorId),
+        });
+        void queryClient.invalidateQueries({ queryKey: floorQueryKeys.graph(floorId) });
+        // presigned 이미지 URL 캐시는 이전 도면 것을 그대로 들고 있어(staleTime 5분) 무효화하지
+        // 않으면 새 도면이 새로고침 전엔 안 보였음
+        void queryClient.invalidateQueries({
+          queryKey: floorQueryKeys.image(buildingId, floorId),
+        });
         URL.revokeObjectURL(previewUrl);
         setPendingUpload(null);
         setIsReuploading(false);
@@ -3597,6 +3683,49 @@ const FloorPlansDetailPage = () => {
         variant: 'error',
       });
     });
+  };
+
+  // 훈련 시작 후보는 문·출입구 노드에서만 지정(BE PR #225). 타입·위치는 안 바뀌고
+  // isStartCandidate 플래그만 토글됨 — 최종 탈출구와 달리 별도 엔드포인트(PATCH
+  // /nodes/{id}/start-candidate). 낙관적으로 캐시를 바꾸고 실패 시 되돌린다.
+  const handleToggleStartCandidate = (id: string) => {
+    if (startCandidatePendingIds.has(id)) return;
+    const node = structureNodes.find((n) => n.id === id);
+    if (!node) return;
+    const next = !node.isStartCandidate;
+    setStartCandidatePendingIds((prev) => new Set(prev).add(id));
+    updateGraphCache((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: next } : n)),
+    }));
+    updateNodeStartCandidate(id, next)
+      .then((updated) => {
+        // 서버가 확정한 값으로 캐시를 맞춘다 — 낙관적 값과 어긋났을 때를 대비
+        updateGraphCache((prev) => ({
+          ...prev,
+          nodes: prev.nodes.map((n) =>
+            n.id === id ? { ...n, isStartCandidate: updated.isStartCandidate } : n,
+          ),
+        }));
+      })
+      .catch((error: unknown) => {
+        updateGraphCache((prev) => ({
+          ...prev,
+          nodes: prev.nodes.map((n) => (n.id === id ? { ...n, isStartCandidate: !next } : n)),
+        }));
+        const { message: serverMessage } = extractApiError(error);
+        show({
+          title: serverMessage || '시작 후보 지정에 실패했습니다.',
+          variant: 'error',
+        });
+      })
+      .finally(() => {
+        setStartCandidatePendingIds((prev) => {
+          const nextSet = new Set(prev);
+          nextSet.delete(id);
+          return nextSet;
+        });
+      });
   };
 
   const isSameZoneRef = (a: ZoneRefSelection | null, b: ZoneRefSelection): boolean =>
@@ -4056,7 +4185,8 @@ const FloorPlansDetailPage = () => {
   // 이 경로가 없으면 경로 탐색기가 EVAC005("도달 가능한 EXIT 노드가 없습니다")로 실패함 —
   // 시작 노드가 그래프에 아예 연결 안 돼 있어도 여기서 걸림. graphEdges + structureNodes로 BFS.
   const hasRouteFromStartToExit = useMemo(() => {
-    const startNodes = structureNodes.filter((n) => n.type === 'start');
+    // 시작점 후보 = 예전 방식의 START 노드 + 문·출입구 중 시작 후보로 지정된 것
+    const startNodes = structureNodes.filter((n) => n.type === 'start' || n.isStartCandidate);
     const exitIds = new Set(structureNodes.filter((n) => n.isFinalExit).map((n) => n.id));
     if (startNodes.length === 0 || exitIds.size === 0) return false;
 
@@ -4129,7 +4259,14 @@ const FloorPlansDetailPage = () => {
       >
         <div className={styles.zoneCardHeader}>
           <span className={styles.zoneCardTitleGroup}>
-            <span className={clsx(styles.zoneCardDot, ZONE_CARD_DOT_CLASS[n.type])} />
+            <span
+              className={clsx(
+                styles.zoneCardDot,
+                n.type === 'door' && n.isStartCandidate
+                  ? ZONE_CARD_DOT_CLASS.start
+                  : ZONE_CARD_DOT_CLASS[n.type],
+              )}
+            />
             <span className={styles.deviceCardName}>
               {STRUCTURE_NODE_LABEL[n.type]} {sameTypeIndex + 1}
             </span>
@@ -4146,6 +4283,20 @@ const FloorPlansDetailPage = () => {
                 }}
               >
                 {n.isFinalExit ? '최종 탈출구' : '탈출구로 지정'}
+              </button>
+            )}
+            {/* 훈련 시작 후보는 문·출입구 노드에서 지정(BE 정책) */}
+            {n.type === 'door' && (
+              <button
+                type="button"
+                className={n.isStartCandidate ? styles.finalExitBadge : styles.finalExitToggle}
+                disabled={startCandidatePendingIds.has(n.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStartCandidate(n.id);
+                }}
+              >
+                {n.isStartCandidate ? '시작 후보' : '시작 후보로 지정'}
               </button>
             )}
             <button
@@ -4710,14 +4861,21 @@ const FloorPlansDetailPage = () => {
 
             {/* 훈련 준비 체크리스트 — 시작 노드·최종 탈출구가 없으면 시나리오 재생이 안 되는데
                 그동안 눈에 띄는 안내가 없었음. 층 목록 바로 아래, 도면 편집을 시작하기 전에
-                가장 먼저 보이는 자리에 둠 */}
-            {currentFloor?.segmentationStatus === 'DONE' && (
+                가장 먼저 보이는 자리에 둠.
+                상태는 currentFloor(목록 캐시)가 아니라 실시간으로 폴링되는 상세 조회(floor)를
+                우선으로 봄 — 업로드 후 분석이 끝나도 목록 캐시는 안 갱신돼서 체크리스트만
+                새로고침 전엔 안 뜨던 문제. 캔버스도 아래에서 resolvedFloor로 판단함 */}
+            {resolvedFloor?.segmentationStatus === 'DONE' && (
               <ReadinessChecklist
-                hasStartNode={structureNodes.some((n) => n.type === 'start')}
+                hasStartNode={structureNodes.some((n) => n.type === 'start' || n.isStartCandidate)}
                 hasFinalExit={structureNodes.some((n) => n.isFinalExit)}
                 hasStair={structureNodes.some((n) => n.type === 'stair')}
                 hasRouteToExit={hasRouteFromStartToExit}
-                onAddStartNode={() => handleOpenNodeAdd('start')}
+                onAddStartNode={() => {
+                  // 시작 후보는 문·출입구 카드에서 지정 — 해당 필터로 이동
+                  setTopFilter('device');
+                  setDeviceTypeFilter(['door']);
+                }}
                 onAddStair={() => handleOpenNodeAdd('stair')}
                 onFocusDeviceCards={() => {
                   setTopFilter('device');
@@ -4937,12 +5095,16 @@ const FloorPlansDetailPage = () => {
             )}
 
             <div className={styles.canvasScrollArea}>
-              {loadingFloor ? (
-                <LoadingState message="도면을 불러오는 중..." />
-              ) : currentFloor ? (
+              {floorDetailQuery.isError && !currentFloor ? (
+                // 실제로 없는 층(404 등)일 때만 안내. 목록 캐시에 아직 안 들어온 층을 직접
+                // 열었거나 방금 만든 직후엔 잠깐 둘 다 비어 있을 수 있어, 그 사이엔 로딩만 보여줌
+                <div className={styles.canvasPlaceholder}>
+                  <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
+                </div>
+              ) : resolvedFloor ? (
                 <FloorCanvas
                   mapWrapRef={mapWrapRef}
-                  floor={floor ?? currentFloor}
+                  floor={resolvedFloor}
                   resolvedImageUrl={resolvedMapImageUrl}
                   canvasH={canvasH}
                   selected={selectedItem}
@@ -5009,9 +5171,7 @@ const FloorPlansDetailPage = () => {
                   onUpload={() => setUploadModalOpen(true)}
                 />
               ) : (
-                <div className={styles.canvasPlaceholder}>
-                  <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
-                </div>
+                <LoadingState message="도면을 불러오는 중..." />
               )}
             </div>
           </div>

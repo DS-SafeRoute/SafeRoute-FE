@@ -154,12 +154,14 @@ const FloorCard = ({ floor, buildingId, buildingName, onUpload, onReupload }: Fl
           <span className={styles.metaKey}>AI 분석</span>
           <AiStatusText status={isNone ? null : floor.segmentationStatus} />
         </div>
-        {isDone && (
-          <div className={styles.metaRow}>
-            <span className={styles.metaKey}>등록 요건</span>
+        <div className={styles.metaRow}>
+          <span className={styles.metaKey}>등록 요건</span>
+          {isDone ? (
             <ReadinessProgress readiness={readiness} />
-          </div>
-        )}
+          ) : (
+            <span className={styles.metaValue}>—</span>
+          )}
+        </div>
       </div>
 
       {isNone ? (
