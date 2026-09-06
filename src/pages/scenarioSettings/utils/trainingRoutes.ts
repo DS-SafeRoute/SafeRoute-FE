@@ -22,7 +22,8 @@ const formatRouteSegment = (segment?: RouteSegment) => {
 export const formatRouteProposal = (detail: RouteRecalculationDetailResponse | undefined) => {
   if (!detail) return null;
 
-  const density = detail.density === undefined ? null : `${detail.density}명/㎡ 밀집도 감지`;
+  const density =
+    detail.density === undefined ? null : `${Math.round(detail.density)}명/㎡ 밀집도 감지`;
   const source = detail.cctvCode ?? null;
   const reason = [source, density].filter(Boolean).join(' · ');
   const previousRoute = formatRouteSegment(detail.previousRoute);

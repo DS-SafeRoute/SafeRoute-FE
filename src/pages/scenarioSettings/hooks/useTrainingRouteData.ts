@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -16,13 +16,20 @@ import {
   getLatestRecalculation,
 } from '@pages/scenarioSettings/utils/trainingRoutes';
 
-import type { CurrentRouteResponse } from '@apis/__generated__/data-contracts';
+import type {
+  CurrentRouteResponse,
+  RouteRecalculationSummaryResponse,
+} from '@apis/__generated__/data-contracts';
 import { floorQueryKeys } from '@apis/floors/floorQueries';
 import { fireZoneQueryKeys } from '@apis/scenarios/fireZoneQueries';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { useGetCurrentTrainingRouteQuery } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
-import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trainingSessionEvents';
+import type {
+  RouteRecalculationEventData,
+  TrainingSessionEvent,
+  TrainingEventType,
+} from '@apis/trainingSessions/websocket/trainingSessionEvents';
 
 interface UseTrainingRouteDataParams {
   sessionId?: string | null;
@@ -43,19 +50,70 @@ const getCurrentRouteMessage = (
 const hasRouteCoordinates = (point: { x?: number; y?: number }): point is RoutePoint =>
   point.x !== undefined && point.y !== undefined;
 
+const ROUTE_RECALCULATION_EVENT_TYPES: readonly TrainingEventType[] = [
+  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REQUESTED,
+  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_APPROVED,
+  TRAINING_EVENT_TYPE.EVACUATION_ROUTE_UPDATED,
+  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REJECTED,
+  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_CANCELLED,
+];
+
+const getRouteEventStatus = (
+  event: TrainingSessionEvent<RouteRecalculationEventData>,
+): RouteRecalculationEventData['status'] => {
+  if (
+    event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_APPROVED ||
+    event.eventType === TRAINING_EVENT_TYPE.EVACUATION_ROUTE_UPDATED
+  ) {
+    return 'APPROVED';
+  }
+  if (event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REJECTED) return 'REJECTED';
+  if (event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_CANCELLED) return 'CANCELLED';
+  return event.data?.status ?? 'PENDING';
+};
+
+const getRouteEventKeys = (
+  event: TrainingSessionEvent<RouteRecalculationEventData>,
+  status: RouteRecalculationEventData['status'],
+) => {
+  const keys: string[] = [];
+  if (event.data?.eventId) keys.push(`event:${event.data.eventId}`);
+  if (event.data?.recalculationId) {
+    keys.push(`recalculation:${event.data.recalculationId}:${status}`);
+  }
+  return keys;
+};
+
 export const useTrainingRouteData = ({
   sessionId,
   enabled,
   liveUpdatesEnabled,
 }: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
+  const eventStateRef = useRef({
+    sessionId,
+    processedEventKeys: new Set<string>(),
+    resolvedRecalculationIds: new Set<string>(),
+  });
+  if (eventStateRef.current.sessionId !== sessionId) {
+    eventStateRef.current = {
+      sessionId,
+      processedEventKeys: new Set<string>(),
+      resolvedRecalculationIds: new Set<string>(),
+    };
+  }
+
   const shouldFetch = enabled && Boolean(sessionId);
   const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId, shouldFetch);
   const recalculationsQuery = useRouteRecalculationsQuery(
     sessionId ? { trainingSessionId: sessionId } : undefined,
     shouldFetch && liveUpdatesEnabled,
   );
-  const recalculations = recalculationsQuery.data ?? [];
+  const recalculations = (recalculationsQuery.data ?? []).filter(
+    (item) =>
+      !item.recalculationId ||
+      !eventStateRef.current.resolvedRecalculationIds.has(item.recalculationId),
+  );
   const pendingRecalculation = getLatestRecalculation(
     recalculations.filter((item) => item.status === 'PENDING'),
   );
@@ -72,21 +130,52 @@ export const useTrainingRouteData = ({
     currentRouteQuery.isError,
   );
 
+  const removeResolvedRecalculation = useCallback(
+    (recalculationId: string) => {
+      eventStateRef.current.resolvedRecalculationIds.add(recalculationId);
+      if (!sessionId) return;
+
+      queryClient.setQueryData<RouteRecalculationSummaryResponse[]>(
+        routeRecalculationQueryKeys.list({ trainingSessionId: sessionId }),
+        (items) => items?.filter((item) => item.recalculationId !== recalculationId),
+      );
+      queryClient.removeQueries({
+        queryKey: routeRecalculationQueryKeys.detail(recalculationId),
+        exact: true,
+      });
+    },
+    [queryClient, sessionId],
+  );
+
+  const restoreRecalculationAfterMutationError = useCallback(
+    (recalculationId: string) => {
+      eventStateRef.current.resolvedRecalculationIds.delete(recalculationId);
+      void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
+    },
+    [queryClient],
+  );
+
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
-      if (
-        event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REQUESTED ||
-        event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REJECTED ||
-        event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_CANCELLED
-      ) {
-        void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
-      }
+      if (ROUTE_RECALCULATION_EVENT_TYPES.includes(event.eventType)) {
+        const routeEvent = event as TrainingSessionEvent<RouteRecalculationEventData>;
+        const status = getRouteEventStatus(routeEvent);
+        const eventKeys = getRouteEventKeys(routeEvent, status);
+        if (eventKeys.some((key) => eventStateRef.current.processedEventKeys.has(key))) return;
+        eventKeys.forEach((key) => eventStateRef.current.processedEventKeys.add(key));
 
-      if (event.eventType === TRAINING_EVENT_TYPE.EVACUATION_ROUTE_UPDATED) {
-        void Promise.all([
-          queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all }),
-          queryClient.invalidateQueries({ queryKey: trainingSessionQueryKeys.currentRoutes() }),
-        ]);
+        if (status !== 'PENDING') {
+          const resolvedId =
+            routeEvent.data?.recalculationId ?? pendingRecalculation?.recalculationId;
+          if (resolvedId) removeResolvedRecalculation(resolvedId);
+        }
+
+        void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
+        if (status === 'APPROVED') {
+          void queryClient.invalidateQueries({
+            queryKey: trainingSessionQueryKeys.currentRoute(sessionId ?? undefined),
+          });
+        }
       }
 
       if (event.eventType === TRAINING_EVENT_TYPE.FIRE_SPREAD_UPDATED) {
@@ -97,7 +186,7 @@ export const useTrainingRouteData = ({
         void queryClient.invalidateQueries({ queryKey: floorQueryKeys.lights() });
       }
     },
-    [queryClient],
+    [pendingRecalculation?.recalculationId, queryClient, removeResolvedRecalculation, sessionId],
   );
 
   return {
@@ -108,15 +197,27 @@ export const useTrainingRouteData = ({
     routeProposal,
     isApplyingRouteProposal: approveMutation.isPending,
     isRejectingRouteProposal: rejectMutation.isPending,
-    approveRouteProposal: () => {
+    approveRouteProposal: async () => {
       if (!pendingRecalculation?.recalculationId) return Promise.resolve(undefined);
-      return approveMutation.mutateAsync(pendingRecalculation.recalculationId);
+      const recalculationId = pendingRecalculation.recalculationId;
+      removeResolvedRecalculation(recalculationId);
+      try {
+        return await approveMutation.mutateAsync(recalculationId);
+      } catch (error) {
+        restoreRecalculationAfterMutationError(recalculationId);
+        throw error;
+      }
     },
-    rejectRouteProposal: () => {
+    rejectRouteProposal: async () => {
       if (!pendingRecalculation?.recalculationId) return Promise.resolve(undefined);
-      return rejectMutation.mutateAsync({
-        recalculationId: pendingRecalculation.recalculationId,
-      });
+      const recalculationId = pendingRecalculation.recalculationId;
+      removeResolvedRecalculation(recalculationId);
+      try {
+        return await rejectMutation.mutateAsync({ recalculationId });
+      } catch (error) {
+        restoreRecalculationAfterMutationError(recalculationId);
+        throw error;
+      }
     },
     handleTrainingEvent,
   };
