@@ -9,7 +9,7 @@ interface GridAreaSettingModalProps {
   open: boolean;
   onClose: () => void;
   mapImageUrl: string | null;
-  onConfirm: (params: { realWidth: number; realHeight: number; cellSizeMeter: number }) => void;
+  onConfirm: (params: { realWidth: number; realHeight: number; cellSizeCm: number }) => void;
   isSubmitting?: boolean;
 }
 
@@ -50,7 +50,7 @@ const GridAreaSettingModal = ({
     onConfirm({
       realWidth: Number(realWidth),
       realHeight: Number(realHeight),
-      cellSizeMeter: cellSizeCm / 100,
+      cellSizeCm,
     });
   };
 

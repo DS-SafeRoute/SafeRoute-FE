@@ -15,9 +15,9 @@ export const readStoredNumber = (key: string): number | null => {
 };
 
 // 확정된 배율을 기록하고, 더는 필요 없는 pending 값은 지움
-export const rememberGridSize = (floorId: string, cellSizeMeter: number) => {
+export const rememberGridSize = (floorId: string, cellSizeCm: number) => {
   try {
-    localStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeMeter));
+    localStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeCm));
     localStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
     sessionStorage.removeItem(PENDING_GRID_SIZE_KEY(floorId));
   } catch {
@@ -26,10 +26,10 @@ export const rememberGridSize = (floorId: string, cellSizeMeter: number) => {
 };
 
 // 업로드 직후 — AI 분석이 배율을 지우더라도 복원할 수 있도록 먼저 pending과 확정 값을 함께 기록
-export const rememberPendingGridSize = (floorId: string, cellSizeMeter: number) => {
+export const rememberPendingGridSize = (floorId: string, cellSizeCm: number) => {
   try {
-    localStorage.setItem(PENDING_GRID_SIZE_KEY(floorId), String(cellSizeMeter));
-    localStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeMeter));
+    localStorage.setItem(PENDING_GRID_SIZE_KEY(floorId), String(cellSizeCm));
+    localStorage.setItem(GRID_SIZE_KEY(floorId), String(cellSizeCm));
   } catch {
     /* 스토리지 사용 불가 환경 — 기록만 생략 */
   }

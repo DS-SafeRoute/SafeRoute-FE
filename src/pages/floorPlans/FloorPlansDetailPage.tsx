@@ -2711,7 +2711,7 @@ const FloorPlansDetailPage = () => {
         if (cancelled) return;
         queryClient.setQueryData(floorQueryKeys.grid(floorId), await getFloorGridCells(floorId));
         rememberGridSize(floorId, pending);
-        show({ title: `그리드 배율(${pending}m)이 자동 적용되었습니다.`, variant: 'success' });
+        show({ title: `그리드 배율(${pending}cm)이 자동 적용되었습니다.`, variant: 'success' });
       } catch (error) {
         if (cancelled) return;
         if (import.meta.env.DEV) console.warn('[그리드 배율 자동 적용 건너뜀]', error);
@@ -2959,7 +2959,7 @@ const FloorPlansDetailPage = () => {
   // 확인 버튼을 눌렀을 때 어느 쪽으로 돌아가야 하는지 구분하기 위한 값
   const [gridSetupPromptOpen, setGridSetupPromptOpen] = useState(false);
   const [gridSetupIntent, setGridSetupIntent] = useState<'cctv' | 'zone' | null>(null);
-  const [gridSizeMeterInput, setGridSizeMeterInput] = useState('1');
+  const [gridSizeCmInput, setGridSizeCmInput] = useState('100');
   const [cctvDraftCellIds, setCctvDraftCellIds] = useState<string[]>([]);
   const [zoneDraftCellIds, setZoneDraftCellIds] = useState<string[]>([]);
   const [zoneDeleteTarget, setZoneDeleteTarget] = useState<ZoneEntry | null>(null);
@@ -3194,7 +3194,7 @@ const FloorPlansDetailPage = () => {
   const handleUploadDimensionsConfirm = (params: {
     realWidth: number;
     realHeight: number;
-    cellSizeMeter: number;
+    cellSizeCm: number;
   }) => {
     if (!currentFloor || !pendingUpload || isReuploading) return;
     const { file, previewUrl } = pendingUpload;
@@ -3211,9 +3211,9 @@ const FloorPlansDetailPage = () => {
         // 화면에서 먼저 비우고, AI 재분석이 끝나면 각 조회 effect가 새 데이터로 채운다
         resetFloorScopedState();
         // 초기 업로드 경로와 동일하게, AI 분석이 배율을 지우더라도 복원할 수 있도록 먼저 기록해둠
-        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
+        rememberPendingGridSize(newFloor.id, params.cellSizeCm);
         try {
-          await setFloorGrid(newFloor.id, params.cellSizeMeter);
+          await setFloorGrid(newFloor.id, params.cellSizeCm);
           queryClient.setQueryData(
             floorQueryKeys.grid(newFloor.id),
             await getFloorGridCells(newFloor.id),
@@ -3383,7 +3383,7 @@ const FloorPlansDetailPage = () => {
       ? (readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
         readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)))
       : null;
-    setGridSizeMeterInput(String(remembered ?? 1));
+    setGridSizeCmInput(String(remembered ?? 100));
     setGridSetupPromptOpen(true);
   };
 
@@ -3471,14 +3471,14 @@ const FloorPlansDetailPage = () => {
 
   const handleGridSetupPromptConfirm = () => {
     if (!currentFloor) return;
-    const cellSizeMeter = Number(gridSizeMeterInput);
-    if (!(cellSizeMeter > 0)) return;
+    const cellSizeCm = Number(gridSizeCmInput);
+    if (!(cellSizeCm > 0 && cellSizeCm < 500)) return;
     const floorIdForGrid = currentFloor.id;
-    setFloorGrid(floorIdForGrid, cellSizeMeter)
+    setFloorGrid(floorIdForGrid, cellSizeCm)
       .then(() => getFloorGridCells(floorIdForGrid))
       .then((cells) => {
         queryClient.setQueryData(floorQueryKeys.grid(floorIdForGrid), cells);
-        rememberGridSize(floorIdForGrid, cellSizeMeter);
+        rememberGridSize(floorIdForGrid, cellSizeCm);
         setGridSetupPromptOpen(false);
         if (gridSetupIntent === 'cctv') {
           setNodeAddStage('fov');
@@ -3571,7 +3571,7 @@ const FloorPlansDetailPage = () => {
             openGridSetupPrompt('cctv');
             show({
               title:
-                '이 층의 그리드 배율(m)을 먼저 설정해야 합니다. 설정 후 감시 구역을 다시 드래그해주세요.',
+                '이 층의 그리드 배율(cm)을 먼저 설정해야 합니다. 설정 후 감시 구역을 다시 드래그해주세요.',
               variant: 'warning',
               duration: 7000,
             });
@@ -3596,7 +3596,7 @@ const FloorPlansDetailPage = () => {
               if (retryCellIds.length === 0) {
                 setCctvDraftCellIds([]);
                 show({
-                  title: `그리드 배율(${knownSize}m)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
+                  title: `그리드 배율(${knownSize}cm)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
                   variant: 'warning',
                   duration: 7000,
                 });
@@ -3613,7 +3613,7 @@ const FloorPlansDetailPage = () => {
                 .catch(() => {
                   setCctvDraftCellIds([]);
                   show({
-                    title: `그리드 배율(${knownSize}m)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
+                    title: `그리드 배율(${knownSize}cm)을 다시 적용했습니다. 감시 구역을 다시 드래그해주세요.`,
                     variant: 'warning',
                     duration: 7000,
                   });
@@ -3834,18 +3834,18 @@ const FloorPlansDetailPage = () => {
     setEdgeAddOpen(false);
   };
 
-  // 두 노드 사이 거리(m) 추정 — 정규화 좌표(0~1) 차이를 칸 수로 환산한 뒤 그리드 배율(m/칸)을
-  // 곱한다. 배율(GRID_SIZE_KEY→PENDING→등록된 CCTV 순으로 탐색)이나 그리드 정보가 없으면 null이라
+  // 두 노드 사이 거리(m) 추정 — 정규화 좌표(0~1) 차이를 칸 수로 환산한 뒤 그리드 배율(cm/칸)을
+  // 곱하고 m로 변환한다. 배율(GRID_SIZE_KEY→PENDING→등록된 CCTV 순으로 탐색)이나 그리드 정보가 없으면 null이라
   // 검토 화면에서 그 구간만 수동 입력으로 폴백한다.
   const estimateEdgeDistanceM = (fromId: string, toId: string): number | null => {
     if (!currentFloor) return null;
-    const cellSizeMeter =
+    const cellSizeCm =
       readStoredNumber(GRID_SIZE_KEY(currentFloor.id)) ??
       readStoredNumber(PENDING_GRID_SIZE_KEY(currentFloor.id)) ??
       realCctvs.find((c) => c.floorId === currentFloor.id && c.gridCellSizeMeter)
         ?.gridCellSizeMeter ??
       null;
-    if (!cellSizeMeter) return null;
+    if (!cellSizeCm) return null;
     const { cols, rows } = getGridDimensions(floorGridCells);
     if (!cols || !rows) return null;
     const normalizedPos = (id: string): { x: number; y: number } | null => {
@@ -3857,7 +3857,7 @@ const FloorPlansDetailPage = () => {
     const from = normalizedPos(fromId);
     const to = normalizedPos(toId);
     if (!from || !to) return null;
-    const meters = Math.hypot((from.x - to.x) * cols, (from.y - to.y) * rows) * cellSizeMeter;
+    const meters = (Math.hypot((from.x - to.x) * cols, (from.y - to.y) * rows) * cellSizeCm) / 100;
     return Math.max(0.1, Math.round(meters * 10) / 10);
   };
 
@@ -4897,18 +4897,16 @@ const FloorPlansDetailPage = () => {
                 <div className={styles.nodeAddField}>
                   <div className={styles.gridSizeLabelRow}>
                     <span className={styles.nodeAddLabel}>셀 크기</span>
-                    <span className={styles.gridSizeValue}>
-                      {Number(gridSizeMeterInput || 1).toFixed(1)}m
-                    </span>
+                    <span className={styles.gridSizeValue}>{Number(gridSizeCmInput || 1)}cm</span>
                   </div>
                   <input
                     type="range"
                     className={styles.gridSizeSlider}
-                    min={0.1}
-                    max={5}
-                    step={0.1}
-                    value={Number(gridSizeMeterInput || 1)}
-                    onChange={(e) => setGridSizeMeterInput(e.target.value)}
+                    min={1}
+                    max={499}
+                    step={1}
+                    value={Number(gridSizeCmInput || 1)}
+                    onChange={(e) => setGridSizeCmInput(e.target.value)}
                   />
                 </div>
                 <div className={styles.nodeAddActions}>
@@ -4922,7 +4920,7 @@ const FloorPlansDetailPage = () => {
                   <button
                     type="button"
                     className={styles.nodeAddSubmitBtn}
-                    disabled={!(Number(gridSizeMeterInput) > 0)}
+                    disabled={!(Number(gridSizeCmInput) > 0 && Number(gridSizeCmInput) < 500)}
                     onClick={handleGridSetupPromptConfirm}
                   >
                     설정

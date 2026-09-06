@@ -19,7 +19,7 @@ export interface Cctv {
   x: number;
   y: number;
   enabled: boolean;
-  /** 이 CCTV가 등록될 때 층에 설정돼 있던 그리드 배율(m). 층 배율 조회 API가 없어서 이 값으로 역추적함 */
+  /** 이 CCTV가 등록될 때 층에 설정돼 있던 그리드 배율(cm). 층 배율 조회 API가 없어서 이 값으로 역추적함 */
   gridCellSizeMeter: number | null;
   monitoredGridCellCount: number;
   monitoredAreaM2: number;
