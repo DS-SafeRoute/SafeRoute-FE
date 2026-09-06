@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -11,18 +11,32 @@ import {
 } from '@pages/scenarioSettings/api/routeRecalculations/routeRecalculationQueries';
 import type { RoutePoint } from '@pages/scenarioSettings/types/scenarioSettings';
 import {
+  createRouteEventState,
+  getResolvedRecalculationId,
+  getRouteEventKeys,
+  getRouteEventStatus,
+  isResolvedRecalculation,
+  ROUTE_RECALCULATION_EVENT_TYPES,
+} from '@pages/scenarioSettings/utils/trainingRouteEvents';
+import {
   formatCurrentRoute,
   formatRouteProposal,
   getLatestRecalculation,
 } from '@pages/scenarioSettings/utils/trainingRoutes';
 
-import type { CurrentRouteResponse } from '@apis/__generated__/data-contracts';
+import type {
+  CurrentRouteResponse,
+  RouteRecalculationSummaryResponse,
+} from '@apis/__generated__/data-contracts';
 import { floorQueryKeys } from '@apis/floors/floorQueries';
 import { fireZoneQueryKeys } from '@apis/scenarios/fireZoneQueries';
 import { trainingSessionQueryKeys } from '@apis/trainingSessions/trainingSessionQueryKeys';
 import { useGetCurrentTrainingRouteQuery } from '@apis/trainingSessions/useGetCurrentTrainingRouteQuery';
 import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSessionEvents';
-import type { TrainingSessionEvent } from '@apis/trainingSessions/websocket/trainingSessionEvents';
+import type {
+  RouteRecalculationEventData,
+  TrainingSessionEvent,
+} from '@apis/trainingSessions/websocket/trainingSessionEvents';
 
 interface UseTrainingRouteDataParams {
   sessionId?: string | null;
@@ -49,13 +63,28 @@ export const useTrainingRouteData = ({
   liveUpdatesEnabled,
 }: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
+  const eventStateRef = useRef(createRouteEventState(sessionId));
+
+  useEffect(() => {
+    if (eventStateRef.current.sessionId === sessionId) return;
+    eventStateRef.current = createRouteEventState(sessionId);
+  }, [sessionId]);
+
   const shouldFetch = enabled && Boolean(sessionId);
   const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId, shouldFetch);
   const recalculationsQuery = useRouteRecalculationsQuery(
     sessionId ? { trainingSessionId: sessionId } : undefined,
     shouldFetch && liveUpdatesEnabled,
   );
-  const recalculations = recalculationsQuery.data ?? [];
+  const fetchedRecalculations = useMemo(
+    () => recalculationsQuery.data ?? [],
+    [recalculationsQuery.data],
+  );
+  const recalculations = fetchedRecalculations.filter(
+    (item) =>
+      !item.recalculationId ||
+      !isResolvedRecalculation(eventStateRef.current, sessionId, item.recalculationId),
+  );
   const pendingRecalculation = getLatestRecalculation(
     recalculations.filter((item) => item.status === 'PENDING'),
   );
@@ -72,21 +101,55 @@ export const useTrainingRouteData = ({
     currentRouteQuery.isError,
   );
 
+  const removeResolvedRecalculation = useCallback(
+    (recalculationId: string) => {
+      if (eventStateRef.current.sessionId !== sessionId) return;
+      eventStateRef.current.resolvedRecalculationIds.add(recalculationId);
+      if (!sessionId) return;
+
+      queryClient.setQueryData<RouteRecalculationSummaryResponse[]>(
+        routeRecalculationQueryKeys.list({ trainingSessionId: sessionId }),
+        (items) => items?.filter((item) => item.recalculationId !== recalculationId),
+      );
+      queryClient.removeQueries({
+        queryKey: routeRecalculationQueryKeys.detail(recalculationId),
+        exact: true,
+      });
+    },
+    [queryClient, sessionId],
+  );
+
+  const restoreRecalculationAfterMutationError = useCallback(
+    (recalculationId: string) => {
+      if (eventStateRef.current.sessionId !== sessionId) return;
+      eventStateRef.current.resolvedRecalculationIds.delete(recalculationId);
+      void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
+    },
+    [queryClient, sessionId],
+  );
+
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
-      if (
-        event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REQUESTED ||
-        event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REJECTED ||
-        event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_CANCELLED
-      ) {
-        void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
-      }
+      if (event.sessionId !== sessionId || eventStateRef.current.sessionId !== sessionId) return;
 
-      if (event.eventType === TRAINING_EVENT_TYPE.EVACUATION_ROUTE_UPDATED) {
-        void Promise.all([
-          queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all }),
-          queryClient.invalidateQueries({ queryKey: trainingSessionQueryKeys.currentRoutes() }),
-        ]);
+      if (ROUTE_RECALCULATION_EVENT_TYPES.includes(event.eventType)) {
+        const routeEvent = event as TrainingSessionEvent<RouteRecalculationEventData>;
+        const status = getRouteEventStatus(routeEvent);
+        const eventKeys = getRouteEventKeys(routeEvent, status);
+        if (eventKeys.some((key) => eventStateRef.current.processedEventKeys.has(key))) return;
+        eventKeys.forEach((key) => eventStateRef.current.processedEventKeys.add(key));
+
+        if (status !== 'PENDING') {
+          const resolvedId = getResolvedRecalculationId(routeEvent.data, fetchedRecalculations);
+          if (resolvedId) removeResolvedRecalculation(resolvedId);
+        }
+
+        void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
+        if (status === 'APPROVED') {
+          void queryClient.invalidateQueries({
+            queryKey: trainingSessionQueryKeys.currentRoute(sessionId ?? undefined),
+          });
+        }
       }
 
       if (event.eventType === TRAINING_EVENT_TYPE.FIRE_SPREAD_UPDATED) {
@@ -97,7 +160,7 @@ export const useTrainingRouteData = ({
         void queryClient.invalidateQueries({ queryKey: floorQueryKeys.lights() });
       }
     },
-    [queryClient],
+    [fetchedRecalculations, queryClient, removeResolvedRecalculation, sessionId],
   );
 
   return {
@@ -108,15 +171,27 @@ export const useTrainingRouteData = ({
     routeProposal,
     isApplyingRouteProposal: approveMutation.isPending,
     isRejectingRouteProposal: rejectMutation.isPending,
-    approveRouteProposal: () => {
+    approveRouteProposal: async () => {
       if (!pendingRecalculation?.recalculationId) return Promise.resolve(undefined);
-      return approveMutation.mutateAsync(pendingRecalculation.recalculationId);
+      const recalculationId = pendingRecalculation.recalculationId;
+      removeResolvedRecalculation(recalculationId);
+      try {
+        return await approveMutation.mutateAsync(recalculationId);
+      } catch (error) {
+        restoreRecalculationAfterMutationError(recalculationId);
+        throw error;
+      }
     },
-    rejectRouteProposal: () => {
+    rejectRouteProposal: async () => {
       if (!pendingRecalculation?.recalculationId) return Promise.resolve(undefined);
-      return rejectMutation.mutateAsync({
-        recalculationId: pendingRecalculation.recalculationId,
-      });
+      const recalculationId = pendingRecalculation.recalculationId;
+      removeResolvedRecalculation(recalculationId);
+      try {
+        return await rejectMutation.mutateAsync({ recalculationId });
+      } catch (error) {
+        restoreRecalculationAfterMutationError(recalculationId);
+        throw error;
+      }
     },
     handleTrainingEvent,
   };

@@ -21,10 +21,6 @@ const CONGESTION_BADGE_COLOR: Record<
   VERY_CROWDED: 'red',
 };
 
-// [촬영용] '갱신 지연' 배지를 띄우기 전까지 허용하는 마지막 관측 이후 경과 시간.
-// 서버 stateStaleAfterSec(기본 15초)보다 널널하게 잡아 5초 주기 깜빡임을 없앤다.
-const STALE_BADGE_GRACE_MS = 45_000;
-
 interface CameraCardProps {
   camera: MonitoringCamera;
   currentState?: CctvCurrentState;
@@ -46,24 +42,15 @@ const CameraCard = ({ camera, currentState, onClick }: CameraCardProps) => {
   const hasThumbnail = camera.capturedAt !== null;
   const capturedTime = formatCapturedTime(camera.capturedAt);
 
-  // [촬영용] 서버 stale 플래그는 stateStaleAfterSec(기본 15초) 기준이라, 관측이 5초 주기로
-  // 지터를 두고 들어오면 폴링/WS가 엇갈리며 '갱신 지연' ↔ 혼잡 배지가 5초마다 깜빡인다.
-  // 서버 stale 대신 lastDetectedAt 기준의 더 널널한 자체 임계값으로 판정해 깜빡임을 없앤다.
-  // 원복: STALE_BADGE_GRACE_MS 블록을 지우고 아래 주석 원본으로 되돌릴 것.
-  const lastSeenAgoMs = currentState?.lastDetectedAt
-    ? Date.now() - currentState.lastDetectedAt
-    : Number.POSITIVE_INFINITY;
-  const isStale = lastSeenAgoMs > STALE_BADGE_GRACE_MS;
-
-  // stale이거나 아직 혼잡 상태 자체가 없으면(congestionLevel=null) 절대 "정상"으로
-  // 임의 표시하지 않음 — 지연/정보 없음 상태를 별도로 보여줌
-  const congestionBadge =
-    isStale || !currentState?.congestionLevel
-      ? { label: isStale ? '갱신 지연' : '정보 없음', color: 'neutral' as const }
-      : {
-          label: CONGESTION_LEVEL_LABEL[currentState.congestionLevel],
-          color: CONGESTION_BADGE_COLOR[currentState.congestionLevel],
-        };
+  // [촬영용] stale(갱신 지연) 판정만 무시 — 서버 stale/lastDetectedAt이 REST 폴링과 WS 사이에서
+  // 계속 엇갈려 '갱신 지연' ↔ 혼잡 배지가 5초 주기로 깜빡였음. 혼잡 단계 값이 오면 그대로 보여주고,
+  // 아직 값이 없을 때만 '정보 없음'을 표시한다. 원복: 아래 주석 처리된 원본 로직(stale 조건 포함)으로.
+  const congestionBadge = !currentState?.congestionLevel
+    ? { label: '정보 없음', color: 'neutral' as const }
+    : {
+        label: CONGESTION_LEVEL_LABEL[currentState.congestionLevel],
+        color: CONGESTION_BADGE_COLOR[currentState.congestionLevel],
+      };
   // 원본:
   // const congestionBadge =
   //   currentState?.stale || !currentState?.congestionLevel
