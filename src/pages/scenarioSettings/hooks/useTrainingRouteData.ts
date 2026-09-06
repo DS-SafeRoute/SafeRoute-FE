@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -10,6 +10,14 @@ import {
   useRouteRecalculationsQuery,
 } from '@pages/scenarioSettings/api/routeRecalculations/routeRecalculationQueries';
 import type { RoutePoint } from '@pages/scenarioSettings/types/scenarioSettings';
+import {
+  createRouteEventState,
+  getResolvedRecalculationId,
+  getRouteEventKeys,
+  getRouteEventStatus,
+  isResolvedRecalculation,
+  ROUTE_RECALCULATION_EVENT_TYPES,
+} from '@pages/scenarioSettings/utils/trainingRouteEvents';
 import {
   formatCurrentRoute,
   formatRouteProposal,
@@ -28,7 +36,6 @@ import { TRAINING_EVENT_TYPE } from '@apis/trainingSessions/websocket/trainingSe
 import type {
   RouteRecalculationEventData,
   TrainingSessionEvent,
-  TrainingEventType,
 } from '@apis/trainingSessions/websocket/trainingSessionEvents';
 
 interface UseTrainingRouteDataParams {
@@ -50,58 +57,18 @@ const getCurrentRouteMessage = (
 const hasRouteCoordinates = (point: { x?: number; y?: number }): point is RoutePoint =>
   point.x !== undefined && point.y !== undefined;
 
-const ROUTE_RECALCULATION_EVENT_TYPES: readonly TrainingEventType[] = [
-  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REQUESTED,
-  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_APPROVED,
-  TRAINING_EVENT_TYPE.EVACUATION_ROUTE_UPDATED,
-  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REJECTED,
-  TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_CANCELLED,
-];
-
-const getRouteEventStatus = (
-  event: TrainingSessionEvent<RouteRecalculationEventData>,
-): RouteRecalculationEventData['status'] => {
-  if (
-    event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_APPROVED ||
-    event.eventType === TRAINING_EVENT_TYPE.EVACUATION_ROUTE_UPDATED
-  ) {
-    return 'APPROVED';
-  }
-  if (event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_REJECTED) return 'REJECTED';
-  if (event.eventType === TRAINING_EVENT_TYPE.ROUTE_RECALCULATION_CANCELLED) return 'CANCELLED';
-  return event.data?.status ?? 'PENDING';
-};
-
-const getRouteEventKeys = (
-  event: TrainingSessionEvent<RouteRecalculationEventData>,
-  status: RouteRecalculationEventData['status'],
-) => {
-  const keys: string[] = [];
-  if (event.data?.eventId) keys.push(`event:${event.data.eventId}`);
-  if (event.data?.recalculationId) {
-    keys.push(`recalculation:${event.data.recalculationId}:${status}`);
-  }
-  return keys;
-};
-
 export const useTrainingRouteData = ({
   sessionId,
   enabled,
   liveUpdatesEnabled,
 }: UseTrainingRouteDataParams) => {
   const queryClient = useQueryClient();
-  const eventStateRef = useRef({
-    sessionId,
-    processedEventKeys: new Set<string>(),
-    resolvedRecalculationIds: new Set<string>(),
-  });
-  if (eventStateRef.current.sessionId !== sessionId) {
-    eventStateRef.current = {
-      sessionId,
-      processedEventKeys: new Set<string>(),
-      resolvedRecalculationIds: new Set<string>(),
-    };
-  }
+  const eventStateRef = useRef(createRouteEventState(sessionId));
+
+  useEffect(() => {
+    if (eventStateRef.current.sessionId === sessionId) return;
+    eventStateRef.current = createRouteEventState(sessionId);
+  }, [sessionId]);
 
   const shouldFetch = enabled && Boolean(sessionId);
   const currentRouteQuery = useGetCurrentTrainingRouteQuery(sessionId, shouldFetch);
@@ -109,10 +76,14 @@ export const useTrainingRouteData = ({
     sessionId ? { trainingSessionId: sessionId } : undefined,
     shouldFetch && liveUpdatesEnabled,
   );
-  const recalculations = (recalculationsQuery.data ?? []).filter(
+  const fetchedRecalculations = useMemo(
+    () => recalculationsQuery.data ?? [],
+    [recalculationsQuery.data],
+  );
+  const recalculations = fetchedRecalculations.filter(
     (item) =>
       !item.recalculationId ||
-      !eventStateRef.current.resolvedRecalculationIds.has(item.recalculationId),
+      !isResolvedRecalculation(eventStateRef.current, sessionId, item.recalculationId),
   );
   const pendingRecalculation = getLatestRecalculation(
     recalculations.filter((item) => item.status === 'PENDING'),
@@ -132,6 +103,7 @@ export const useTrainingRouteData = ({
 
   const removeResolvedRecalculation = useCallback(
     (recalculationId: string) => {
+      if (eventStateRef.current.sessionId !== sessionId) return;
       eventStateRef.current.resolvedRecalculationIds.add(recalculationId);
       if (!sessionId) return;
 
@@ -149,14 +121,17 @@ export const useTrainingRouteData = ({
 
   const restoreRecalculationAfterMutationError = useCallback(
     (recalculationId: string) => {
+      if (eventStateRef.current.sessionId !== sessionId) return;
       eventStateRef.current.resolvedRecalculationIds.delete(recalculationId);
       void queryClient.invalidateQueries({ queryKey: routeRecalculationQueryKeys.all });
     },
-    [queryClient],
+    [queryClient, sessionId],
   );
 
   const handleTrainingEvent = useCallback(
     (event: TrainingSessionEvent) => {
+      if (event.sessionId !== sessionId || eventStateRef.current.sessionId !== sessionId) return;
+
       if (ROUTE_RECALCULATION_EVENT_TYPES.includes(event.eventType)) {
         const routeEvent = event as TrainingSessionEvent<RouteRecalculationEventData>;
         const status = getRouteEventStatus(routeEvent);
@@ -165,8 +140,7 @@ export const useTrainingRouteData = ({
         eventKeys.forEach((key) => eventStateRef.current.processedEventKeys.add(key));
 
         if (status !== 'PENDING') {
-          const resolvedId =
-            routeEvent.data?.recalculationId ?? pendingRecalculation?.recalculationId;
+          const resolvedId = getResolvedRecalculationId(routeEvent.data, fetchedRecalculations);
           if (resolvedId) removeResolvedRecalculation(resolvedId);
         }
 
@@ -186,7 +160,7 @@ export const useTrainingRouteData = ({
         void queryClient.invalidateQueries({ queryKey: floorQueryKeys.lights() });
       }
     },
-    [pendingRecalculation?.recalculationId, queryClient, removeResolvedRecalculation, sessionId],
+    [fetchedRecalculations, queryClient, removeResolvedRecalculation, sessionId],
   );
 
   return {

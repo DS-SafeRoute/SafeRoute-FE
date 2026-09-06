@@ -1,3 +1,4 @@
+import type { RouteRecalculationSummaryResponse } from '@apis/__generated__/data-contracts';
 import type { TrainingSessionStatus } from '@apis/trainingSessions/trainingSessionConstants';
 
 // 훈련 세션 WebSocket에서 수신하는 이벤트 종류
@@ -61,7 +62,7 @@ export interface MonitoringEventCreatedData {
 export interface RouteRecalculationEventData {
   eventId?: string;
   recalculationId?: string;
-  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  status?: RouteRecalculationSummaryResponse['status'];
 }
 
 // 훈련 세션 WebSocket 이벤트의 공통 응답 형식
