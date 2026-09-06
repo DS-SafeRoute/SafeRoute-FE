@@ -79,13 +79,13 @@ export async function uploadFloor(
   buildingId: string,
   floorNum: number,
   file: File,
-  realWidth: number,
-  realHeight: number,
+  realWidthCm: number,
+  realHeightCm: number,
 ): Promise<Floor> {
   const form = new FormData();
   form.append('floorNum', String(floorNum));
-  form.append('realWidth', String(realWidth));
-  form.append('realHeight', String(realHeight));
+  form.append('realWidth', String(realWidthCm));
+  form.append('realHeight', String(realHeightCm));
   form.append('file', file);
   const floor = await apiRequest<FloorResponse, FormData>({
     method: HTTP_METHOD.POST,

@@ -261,23 +261,23 @@ const FloorPlansPage = () => {
   };
 
   const handleUploadDimensionsConfirm = (params: {
-    realWidth: number;
-    realHeight: number;
-    cellSizeMeter: number;
+    realWidthCm: number;
+    realHeightCm: number;
+    cellSizeCm: number;
   }) => {
     if (!pendingUpload || isUploading) return;
     const { buildingId, buildingName, floorNum, file, previewUrl } = pendingUpload;
     setIsUploading(true);
-    uploadFloor(buildingId, floorNum, file, params.realWidth, params.realHeight)
+    uploadFloor(buildingId, floorNum, file, params.realWidthCm, params.realHeightCm)
       .then(async (newFloor) => {
         // 그리드 배율을 지금 설정해도, 뒤이어 실행되는 AI 분석이 그리드 셀을 재생성하면서
         // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 남겨두고(새로고침에도 살아남음)
         // 상세 화면에서 분석 완료 후 한 번 더 PUT 하게 함 — pending으로 남기고 값 자체도
         // 기억해둬서 이후 CCTV 등록 때 사용자에게 다시 묻지 않게 함
-        rememberPendingGridSize(newFloor.id, params.cellSizeMeter);
+        rememberPendingGridSize(newFloor.id, params.cellSizeCm);
         // 상세 화면의 1회성 그리드 조회가 빈 결과를 캐싱하지 않도록, 이동 전에 한 번은 설정 시도
         try {
-          await setFloorGrid(newFloor.id, params.cellSizeMeter);
+          await setFloorGrid(newFloor.id, params.cellSizeCm);
         } catch {
           show({
             title: '그리드 설정에 실패했습니다. 분석 완료 후 자동으로 다시 시도합니다.',

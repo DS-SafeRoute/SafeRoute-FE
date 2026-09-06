@@ -16,7 +16,7 @@ export interface FloorGrid {
 export { getFloorGridCells } from '@apis/floors/floorGridApi';
 export type { FloorGridCell } from '@apis/floors/floorGridApi';
 
-// 서버에 저장된 현재 그리드 배율(m). 별도 GET /grid가 없어서, 셀 목록 응답에 함께 실려 오는
+// 서버에 저장된 현재 그리드 배율(cm). 별도 GET /grid가 없어서, 셀 목록 응답에 함께 실려 오는
 // cellSizeMeter를 최소 payload(size=1)로 읽어온다. 값이 없으면(미설정/분석이 지움) null.
 export async function getFloorGridScale(
   floorId: string,
@@ -34,18 +34,18 @@ export async function getFloorGridScale(
 // 그리드 배율 설정(생성/수정 겸용). 요청이 200으로 돌아왔다면 서버에는 이미 반영된 것이므로,
 // 응답 바디에 일부 필드가 없더라도 실패로 취급하지 않는다 — 예전에는 여기서 throw해서
 // 성공한 설정을 실패로 만들고 뒤따르는 셀 재조회까지 건너뛰는 문제가 있었음
-export async function setFloorGrid(floorId: string, cellSizeMeter: number): Promise<FloorGrid> {
+export async function setFloorGrid(floorId: string, cellSizeCm: number): Promise<FloorGrid> {
   const grid = await apiRequest<FloorGridResponse, CreateOrUpdateFloorGridRequest>({
     method: HTTP_METHOD.PUT,
     url: API_ENDPOINTS.FLOOR_GRID.ROOT(floorId),
-    body: { cellSizeMeter },
+    body: { cellSizeMeter: cellSizeCm },
   });
   if (import.meta.env.DEV) {
     console.warn('[그리드 배율 설정] 응답:', grid);
   }
   return {
     floorId: grid?.floorId ?? floorId,
-    cellSizeMeter: grid?.cellSizeMeter ?? cellSizeMeter,
+    cellSizeMeter: grid?.cellSizeMeter ?? cellSizeCm,
     rows: grid?.rows ?? 0,
     columns: grid?.columns ?? 0,
   };
