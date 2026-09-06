@@ -1101,6 +1101,7 @@ export interface MapNodeResponse {
   /** @format uuid */
   id?: string;
   isExitTarget?: boolean;
+  isStartCandidate?: boolean;
   name?: string;
   type?: "STAIR" | "ROOM" | "HALLWAY" | "DOOR" | "EXIT" | "START" | "CUSTOM";
   /** @format double */
@@ -1423,12 +1424,12 @@ export interface MonitoringFrameResponse {
    */
   capturedAt?: number;
   /**
-   * 프레임 시점의 혼잡 단계
+   * 이미지 Snapshot 밀집도 기준 혼잡 단계
    * @example "CROWDED"
    */
   congestionLevel?: "NORMAL" | "CAUTION" | "CROWDED" | "VERY_CROWDED";
   /**
-   * 프레임 시점의 밀집도
+   * 이미지 Snapshot 인원수 기준 밀집도
    * @format double
    * @example 0.42
    */
@@ -1439,7 +1440,7 @@ export interface MonitoringFrameResponse {
    */
   frameId?: string;
   /**
-   * 프레임 시점의 최대 인원수
+   * 이미지 Snapshot의 인원수
    * @format int32
    * @example 12
    */
@@ -1605,6 +1606,9 @@ export interface ReportObservationRequest {
   configVersion: number;
   /** @format uuid */
   eventId: string;
+  /** @format int32 */
+  frameHeadcount?: number;
+  frameHeadcountValid?: boolean;
   headcountValid?: boolean;
   monitoringImageKey?: string;
   /** @format int32 */
@@ -2037,6 +2041,10 @@ export interface UpdateMapNodePositionRequest {
   y: number;
 }
 
+export interface UpdateMapNodeStartCandidateRequest {
+  isStartCandidate: boolean;
+}
+
 export type UpdateMyProfileData = ApiResponseUserProfileResponse;
 
 export type UpdateNodePositionData = ApiResponseMapNodeResponse;
@@ -2061,6 +2069,8 @@ export interface UpdateScenarioRequest {
   /** @format date-time */
   scheduledAt?: string;
 }
+
+export type UpdateStartCandidateData = ApiResponseMapNodeResponse;
 
 export interface UpdateUserProfileRequest {
   /**

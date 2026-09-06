@@ -1,3 +1,4 @@
+import type { RouteRecalculationSummaryResponse } from '@apis/__generated__/data-contracts';
 import type { TrainingSessionStatus } from '@apis/trainingSessions/trainingSessionConstants';
 
 // 훈련 세션 WebSocket에서 수신하는 이벤트 종류
@@ -10,6 +11,7 @@ export const TRAINING_EVENT_TYPE = {
   // AI_ANALYSIS_STARTED·ROUTE_DEVIATION_DETECTED 등 이벤트 타임라인용 이벤트가 이 봉투로 옴
   MONITORING_EVENT_CREATED: 'MONITORING_EVENT_CREATED',
   ROUTE_RECALCULATION_REQUESTED: 'ROUTE_RECALCULATION_REQUESTED',
+  ROUTE_RECALCULATION_APPROVED: 'ROUTE_RECALCULATION_APPROVED',
   EVACUATION_ROUTE_UPDATED: 'EVACUATION_ROUTE_UPDATED',
   ROUTE_RECALCULATION_REJECTED: 'ROUTE_RECALCULATION_REJECTED',
   ROUTE_RECALCULATION_CANCELLED: 'ROUTE_RECALCULATION_CANCELLED',
@@ -54,6 +56,13 @@ export interface MonitoringEventCreatedData {
   cctvCode: string;
   congestionLevel: string;
   message: string;
+}
+
+// 경로 재탐색 이벤트는 서버 버전에 따라 eventId 또는 recalculationId를 식별자로 전달함
+export interface RouteRecalculationEventData {
+  eventId?: string;
+  recalculationId?: string;
+  status?: RouteRecalculationSummaryResponse['status'];
 }
 
 // 훈련 세션 WebSocket 이벤트의 공통 응답 형식

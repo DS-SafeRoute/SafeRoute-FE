@@ -92,8 +92,8 @@ const TrainingControlPanel = ({
       </div>
       <p className={styles.durationNotice} role={isAwaitingServerEnd ? 'status' : undefined}>
         {isAwaitingServerEnd
-          ? '10분이 경과했습니다. 서버에서 훈련 종료 상태를 확인하고 있습니다.'
-          : '훈련은 최대 10분간 진행되며, 서버 처리에 따라 종료까지 잠시 걸릴 수 있습니다.'}
+          ? '10분 경과 · 서버 종료 상태를 확인 중입니다.'
+          : '훈련은 최대 10분이며, 종료까지 잠시 걸릴 수 있습니다.'}
       </p>
 
       <RecommendationCard icon={<SparklesIcon />} title="현재 경로" message={currentRoute} />
