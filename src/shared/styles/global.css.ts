@@ -239,7 +239,9 @@ globalStyle('body', {
   backgroundColor: vars.color.white,
   overflowX: 'hidden',
   overflowY: 'auto',
+  overflowWrap: 'break-word',
   scrollBehavior: 'smooth',
+  wordBreak: 'keep-all',
   color: vars.color.textHigh,
   fontFamily: vars.fontFamily.base,
 });
