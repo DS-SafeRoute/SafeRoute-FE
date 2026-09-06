@@ -26,6 +26,8 @@ const GridAreaSettingModal = ({
   const widthInputId = useId();
   const heightInputId = useId();
   const cellSizeInputId = useId();
+  const realWidthCmValue = Number(realWidthCm);
+  const realHeightCmValue = Number(realHeightCm);
 
   const makeDimensionChangeHandler =
     (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,14 +44,19 @@ const GridAreaSettingModal = ({
   };
 
   const isDimensionsValid =
-    Number(realWidthCm) > 0 && Number(realHeightCm) > 0 && cellSizeCm > 0 && cellSizeCm < 500;
+    Number.isFinite(realWidthCmValue) &&
+    realWidthCmValue > 0 &&
+    Number.isFinite(realHeightCmValue) &&
+    realHeightCmValue > 0 &&
+    cellSizeCm > 0 &&
+    cellSizeCm < 500;
 
   const handleSubmit = () => {
     if (!isDimensionsValid || isSubmitting) return;
     // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
     onConfirm({
-      realWidthCm: Number(realWidthCm),
-      realHeightCm: Number(realHeightCm),
+      realWidthCm: realWidthCmValue,
+      realHeightCm: realHeightCmValue,
       cellSizeCm,
     });
   };

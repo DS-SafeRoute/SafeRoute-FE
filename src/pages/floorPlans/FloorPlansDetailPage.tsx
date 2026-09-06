@@ -4902,6 +4902,7 @@ const FloorPlansDetailPage = () => {
                   <input
                     type="range"
                     className={styles.gridSizeSlider}
+                    aria-label="그리드 셀 크기(cm)"
                     min={1}
                     max={499}
                     step={1}
