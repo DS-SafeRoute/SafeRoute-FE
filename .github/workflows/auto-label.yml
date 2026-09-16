@@ -1,0 +1,28 @@
+name: Issue and Pull Request Labeler
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
+  issues:
+    types: [opened, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: srvaroa/labeler@v1.13.0
+        with:
+          config_path: .github/labeler.yml
+          fail_on_error: true
+          use_local_config: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
