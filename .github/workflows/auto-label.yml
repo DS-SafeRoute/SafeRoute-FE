@@ -1,6 +1,8 @@
 name: Issue and Pull Request Labeler
 
 on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
   pull_request_target:
     types: [opened, reopened, edited, synchronize, ready_for_review]
   issues:
@@ -17,12 +19,21 @@ permissions:
 
 jobs:
   labeler:
+    if: >-
+      github.event_name == 'issues' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+
       - uses: srvaroa/labeler@v1.13.0
         with:
           config_path: .github/labeler.yml
           fail_on_error: true
-          use_local_config: false
+          use_local_config: ${{ github.event_name == 'pull_request' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
