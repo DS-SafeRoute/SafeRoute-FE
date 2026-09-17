@@ -149,7 +149,7 @@ const SessionNotification = ({ session, onEnded }: SessionNotificationProps) => 
             ? '오류로 인해 훈련이 종료되었습니다.'
             : '훈련이 완료되었습니다.',
         description: timedOut
-          ? `${session.scenarioName ?? '훈련'} 훈련이 종료되었습니다. 생존 인원을 입력해 분석 보고서를 생성해 주세요.`
+          ? `${session.scenarioName ?? '훈련'} 훈련이 종료되었습니다. 대피 완료 인원을 입력해 분석 보고서를 생성해 주세요.`
           : `${session.scenarioName ?? '훈련'}의 시나리오 화면에서 결과를 확인해 주세요.`,
         variant: timedOut ? 'warning' : interrupted ? 'error' : 'success',
         duration: 10000,

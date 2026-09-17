@@ -58,7 +58,7 @@ export const toHomeMetrics = (stats: DashboardStatsResponse): HomeMetric[] => [
   },
   {
     id: 'survival-rate',
-    title: '평균 생존율',
+    title: '평균 대피 성공률',
     value: (stats.avgSurvivalRate ?? 0).toFixed(1),
     valueSuffix: '%',
     iconTone: 'green',
