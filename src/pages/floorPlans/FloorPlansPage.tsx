@@ -261,14 +261,14 @@ const FloorPlansPage = () => {
   };
 
   const handleUploadDimensionsConfirm = (params: {
-    realWidthCm: number;
-    realHeightCm: number;
+    realWidthM: number;
+    realHeightM: number;
     cellSizeCm: number;
   }) => {
     if (!pendingUpload || isUploading) return;
     const { buildingId, buildingName, floorNum, file, previewUrl } = pendingUpload;
     setIsUploading(true);
-    uploadFloor(buildingId, floorNum, file, params.realWidthCm, params.realHeightCm)
+    uploadFloor(buildingId, floorNum, file, params.realWidthM, params.realHeightM)
       .then(async (newFloor) => {
         // 그리드 배율을 지금 설정해도, 뒤이어 실행되는 AI 분석이 그리드 셀을 재생성하면서
         // cellSizeMeter가 사라지는 경우가 있음. 그래서 값을 남겨두고(새로고침에도 살아남음)
