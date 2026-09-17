@@ -9,7 +9,7 @@ interface GridAreaSettingModalProps {
   open: boolean;
   onClose: () => void;
   mapImageUrl: string | null;
-  onConfirm: (params: { realWidthCm: number; realHeightCm: number; cellSizeCm: number }) => void;
+  onConfirm: (params: { realWidthM: number; realHeightM: number; cellSizeCm: number }) => void;
   isSubmitting?: boolean;
 }
 
@@ -20,14 +20,14 @@ const GridAreaSettingModal = ({
   onConfirm,
   isSubmitting = false,
 }: GridAreaSettingModalProps) => {
-  const [realWidthCm, setRealWidthCm] = useState('');
-  const [realHeightCm, setRealHeightCm] = useState('');
+  const [realWidthM, setRealWidthM] = useState('');
+  const [realHeightM, setRealHeightM] = useState('');
   const [cellSizeCm, setCellSizeCm] = useState(100);
   const widthInputId = useId();
   const heightInputId = useId();
   const cellSizeInputId = useId();
-  const realWidthCmValue = Number(realWidthCm);
-  const realHeightCmValue = Number(realHeightCm);
+  const realWidthMValue = Number(realWidthM);
+  const realHeightMValue = Number(realHeightM);
 
   const makeDimensionChangeHandler =
     (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,17 +37,17 @@ const GridAreaSettingModal = ({
     };
 
   const handleClose = () => {
-    setRealWidthCm('');
-    setRealHeightCm('');
+    setRealWidthM('');
+    setRealHeightM('');
     setCellSizeCm(100);
     onClose();
   };
 
   const isDimensionsValid =
-    Number.isFinite(realWidthCmValue) &&
-    realWidthCmValue > 0 &&
-    Number.isFinite(realHeightCmValue) &&
-    realHeightCmValue > 0 &&
+    Number.isFinite(realWidthMValue) &&
+    realWidthMValue > 0 &&
+    Number.isFinite(realHeightMValue) &&
+    realHeightMValue > 0 &&
     cellSizeCm > 0 &&
     cellSizeCm < 500;
 
@@ -55,8 +55,8 @@ const GridAreaSettingModal = ({
     if (!isDimensionsValid || isSubmitting) return;
     // 요청이 실패해도 모달이 닫히지 않을 수 있으므로(부모가 open을 유지) 값은 리셋하지 않고 재시도할 수 있게 둠
     onConfirm({
-      realWidthCm: realWidthCmValue,
-      realHeightCm: realHeightCmValue,
+      realWidthM: realWidthMValue,
+      realHeightM: realHeightMValue,
       cellSizeCm,
     });
   };
@@ -114,7 +114,7 @@ const GridAreaSettingModal = ({
         <div className={styles.dimensionFields}>
           <div className={styles.areaField}>
             <label className={styles.fieldLabel} htmlFor={widthInputId}>
-              가로 (cm)
+              가로 (m)
             </label>
             <div className={styles.areaInputShell}>
               <input
@@ -122,17 +122,17 @@ const GridAreaSettingModal = ({
                 className={styles.areaInput}
                 type="text"
                 inputMode="decimal"
-                placeholder="2000"
-                value={realWidthCm}
-                onChange={makeDimensionChangeHandler(setRealWidthCm)}
+                placeholder="20"
+                value={realWidthM}
+                onChange={makeDimensionChangeHandler(setRealWidthM)}
               />
-              <span className={styles.areaUnit}>cm</span>
+              <span className={styles.areaUnit}>m</span>
             </div>
           </div>
 
           <div className={styles.areaField}>
             <label className={styles.fieldLabel} htmlFor={heightInputId}>
-              세로 (cm)
+              세로 (m)
             </label>
             <div className={styles.areaInputShell}>
               <input
@@ -140,11 +140,11 @@ const GridAreaSettingModal = ({
                 className={styles.areaInput}
                 type="text"
                 inputMode="decimal"
-                placeholder="1500"
-                value={realHeightCm}
-                onChange={makeDimensionChangeHandler(setRealHeightCm)}
+                placeholder="15"
+                value={realHeightM}
+                onChange={makeDimensionChangeHandler(setRealHeightM)}
               />
-              <span className={styles.areaUnit}>cm</span>
+              <span className={styles.areaUnit}>m</span>
             </div>
           </div>
         </div>

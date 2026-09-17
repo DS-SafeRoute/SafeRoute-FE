@@ -3192,8 +3192,8 @@ const FloorPlansDetailPage = () => {
   };
 
   const handleUploadDimensionsConfirm = (params: {
-    realWidthCm: number;
-    realHeightCm: number;
+    realWidthM: number;
+    realHeightM: number;
     cellSizeCm: number;
   }) => {
     if (!currentFloor || !pendingUpload || isReuploading) return;
@@ -3203,8 +3203,8 @@ const FloorPlansDetailPage = () => {
       selectedBuildingId,
       currentFloor.floorNum,
       file,
-      params.realWidthCm,
-      params.realHeightCm,
+      params.realWidthM,
+      params.realHeightM,
     )
       .then(async (newFloor) => {
         // 도면이 바뀌면 이전 도면 기준으로 만들어진 노드·엣지·장비·구역은 더 이상 유효하지 않으므로

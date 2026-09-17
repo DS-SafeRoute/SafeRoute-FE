@@ -265,7 +265,9 @@ const ScenarioSetupForm = ({
 
             {evacuationSetup.configured && (
               <p className={styles.setupNotice}>
-                설정이 저장되었습니다. 변경하려면 새 시나리오를 만들어 주세요.
+                설정이 저장되었습니다.
+                <br />
+                변경하려면 새 시나리오를 만들어 주세요.
               </p>
             )}
             {evacuationSetup.editable && !evacuationSetup.configured && (
