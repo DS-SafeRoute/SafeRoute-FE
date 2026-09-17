@@ -298,7 +298,7 @@ const FloorPlansPage = () => {
         );
         show({
           title: '도면이 업로드되었습니다.',
-          description: `${buildingName} · ${formatFloor(floorNum)} AI 분석이 진행 중입니다. 완료되면 상세 화면에 자동으로 반영됩니다.`,
+          description: `${buildingName} · ${formatFloor(floorNum)} AI 분석이 진행 중입니다.\n완료되면 상세 화면에 자동으로 반영됩니다.`,
           variant: 'success',
         });
         URL.revokeObjectURL(previewUrl);
