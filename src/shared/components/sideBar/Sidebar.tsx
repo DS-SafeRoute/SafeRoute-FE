@@ -34,9 +34,13 @@ interface SidebarProps {
 const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(
-    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true',
-  );
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const handleNavigate = (path: string) => {
     if (location.pathname !== path) {
@@ -46,8 +50,12 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
 
   const handleToggle = () => {
     const nextIsCollapsed = !isCollapsed;
-    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(nextIsCollapsed));
     setIsCollapsed(nextIsCollapsed);
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(nextIsCollapsed));
+    } catch {
+      // 저장소를 사용할 수 없어도 현재 화면에서는 접기·펼치기가 동작합니다.
+    }
   };
 
   return (
@@ -64,7 +72,12 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
             <strong className={styles.brand}>{brand}</strong>
           </button>
         )}
-        <Tooltip content="사이드바 펼치기" placement="right" enabled={isCollapsed}>
+        <Tooltip
+          content="사이드바 펼치기"
+          placement="right"
+          enabled={isCollapsed}
+          describeTrigger={false}
+        >
           <button
             type="button"
             onClick={handleToggle}
@@ -121,6 +134,7 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
                             placement="right"
                             enabled={isCollapsed}
                             fullWidth
+                            describeTrigger={false}
                           >
                             <button
                               type="button"
@@ -153,7 +167,13 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
 
             return (
               <li key={item.label}>
-                <Tooltip content={item.label} placement="right" enabled={isCollapsed} fullWidth>
+                <Tooltip
+                  content={item.label}
+                  placement="right"
+                  enabled={isCollapsed}
+                  fullWidth
+                  describeTrigger={false}
+                >
                   <button
                     type="button"
                     onClick={() => {
@@ -176,7 +196,13 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
       </nav>
 
       <footer className={styles.footer({ collapsed: isCollapsed })}>
-        <Tooltip content="로그아웃" placement="right" enabled={isCollapsed} fullWidth>
+        <Tooltip
+          content="로그아웃"
+          placement="right"
+          enabled={isCollapsed}
+          fullWidth
+          describeTrigger={false}
+        >
           <button
             type="button"
             onClick={onLogout}

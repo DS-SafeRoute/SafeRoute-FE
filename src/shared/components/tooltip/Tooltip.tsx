@@ -8,6 +8,7 @@ interface TooltipProps {
   placement?: 'top' | 'right';
   enabled?: boolean;
   fullWidth?: boolean;
+  describeTrigger?: boolean;
 }
 
 const Tooltip = ({
@@ -16,6 +17,7 @@ const Tooltip = ({
   placement = 'top',
   enabled = true,
   fullWidth = false,
+  describeTrigger = true,
 }: TooltipProps) => {
   const tooltipId = useId();
 
@@ -23,7 +25,13 @@ const Tooltip = ({
 
   return (
     <span className={`${styles.trigger} ${fullWidth ? styles.fullWidthTrigger : ''}`}>
-      {cloneElement(children, { 'aria-describedby': tooltipId })}
+      {describeTrigger
+        ? cloneElement(children, {
+            'aria-describedby': [children.props['aria-describedby'], tooltipId]
+              .filter(Boolean)
+              .join(' '),
+          })
+        : children}
       <span id={tooltipId} className={styles.content({ placement })} role="tooltip">
         {content}
       </span>
