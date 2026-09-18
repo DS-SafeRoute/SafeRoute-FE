@@ -81,6 +81,34 @@ export const logo = style({
   height: '2.8rem',
 });
 
+export const toggleLogo = style([
+  logo,
+  {
+    gridArea: '1 / 1',
+    transition: 'opacity 160ms ease',
+    selectors: {
+      [`${collapseButton}:hover &`]: { opacity: 0 },
+      [`${collapseButton}:focus-visible &`]: { opacity: 0 },
+    },
+    '@media': {
+      '(prefers-reduced-motion: reduce)': { transition: 'none' },
+    },
+  },
+]);
+
+export const togglePanelIcon = style({
+  gridArea: '1 / 1',
+  transition: 'opacity 160ms ease',
+  opacity: 0,
+  selectors: {
+    [`${collapseButton}:hover &`]: { opacity: 1 },
+    [`${collapseButton}:focus-visible &`]: { opacity: 1 },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
+});
+
 export const brand = style({
   whiteSpace: 'nowrap',
   color: vars.color.textHigh,

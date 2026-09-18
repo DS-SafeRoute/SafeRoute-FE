@@ -64,7 +64,7 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
             <strong className={styles.brand}>{brand}</strong>
           </button>
         )}
-        <Tooltip content="펼치기" placement="right" enabled={isCollapsed}>
+        <Tooltip content="사이드바 펼치기" placement="right" enabled={isCollapsed}>
           <button
             type="button"
             onClick={handleToggle}
@@ -73,7 +73,14 @@ const Sidebar = ({ brand, menuItems, onLogout, isLoggingOut = false }: SidebarPr
             aria-expanded={!isCollapsed}
           >
             {isCollapsed ? (
-              <img src={logoImg} className={styles.logo} alt="" aria-hidden="true" />
+              <>
+                <img src={logoImg} className={styles.toggleLogo} alt="" aria-hidden="true" />
+                <PanelLeftIcon
+                  className={styles.togglePanelIcon}
+                  aria-hidden="true"
+                  focusable="false"
+                />
+              </>
             ) : (
               <PanelLeftIcon aria-hidden="true" focusable="false" />
             )}
