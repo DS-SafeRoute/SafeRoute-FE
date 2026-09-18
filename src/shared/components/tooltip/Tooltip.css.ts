@@ -36,7 +36,7 @@ export const content = recipe({
         visibility: 'visible',
         opacity: 1,
       },
-      [`${trigger}:focus-within &`]: {
+      [`${trigger} > :focus-visible + &`]: {
         transform: 'translate(0, 0)',
         visibility: 'visible',
         opacity: 1,
@@ -58,7 +58,7 @@ export const content = recipe({
         transform: 'translate(-0.4rem, -50%)',
         selectors: {
           [`${trigger}:hover &`]: { transform: 'translate(0, -50%)' },
-          [`${trigger}:focus-within &`]: { transform: 'translate(0, -50%)' },
+          [`${trigger} > :focus-visible + &`]: { transform: 'translate(0, -50%)' },
         },
       },
     },
