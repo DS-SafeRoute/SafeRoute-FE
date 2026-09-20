@@ -42,9 +42,6 @@ export const contentGrid = style({
 });
 
 export const sideColumn = style({
-  display: 'flex',
-  flexDirection: 'column',
   gridArea: 'schedule',
-  gap: vars.space.s4,
   minWidth: 0,
 });

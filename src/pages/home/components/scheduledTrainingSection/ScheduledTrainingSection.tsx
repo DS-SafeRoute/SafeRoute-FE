@@ -40,11 +40,9 @@ const ScheduledTrainingSection = ({
 
   return (
     <section className={styles.scheduledCard}>
-      <div className={styles.sectionHeader}>
-        <div className={styles.sectionTitleRow}>
-          {sectionIcon ? <span className={styles.titleIcon}>{sectionIcon}</span> : null}
-          <h2 className={styles.sectionTitle}>{sectionTitle}</h2>
-        </div>
+      <div className={styles.sectionTitleRow}>
+        {sectionIcon ? <span className={styles.titleIcon}>{sectionIcon}</span> : null}
+        <h2 className={styles.sectionTitle}>{sectionTitle}</h2>
       </div>
 
       <div className={styles.scheduleInfoPanel}>
