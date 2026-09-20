@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
-import { cardGrid, pageContent } from '@styles/responsive.css';
+import { pageContent } from '@styles/responsive.css';
 
 export const container = style([
   pageContent,
@@ -66,16 +66,22 @@ export const buildingCount = style({
   ...vars.typography.caption,
 });
 
-export const floorGrid = cardGrid;
+export const floorGrid = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: vars.layout.panelGap,
+});
 
 export const floorCard = style({
   display: 'flex',
+  flex: '0 1 36rem',
   flexDirection: 'column',
   gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
+  maxWidth: '100%',
 });
 
 export const cardTop = style({
