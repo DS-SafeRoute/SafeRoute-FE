@@ -48,21 +48,6 @@ export const sidebarInner = style({
   minHeight: 'min-content',
 });
 
-export const section = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-});
-
-export const sectionLabel = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const divider = style({
-  borderTop: `1px solid ${vars.color.gray100}`,
-});
-
 /* ── 층 목록 ── */
 export const floorNavCard = style({
   border: `1px solid ${vars.color.gray100}`,
@@ -272,11 +257,6 @@ export const nodeAddHint = style({
 // 구분되게 함
 export const nodeAddHintWarning = style({
   color: vars.color.danger,
-});
-
-export const nodeAddSubHint = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
 });
 
 export const nodeAddField = style({
@@ -624,10 +604,6 @@ export const nodeTypeAreaSwatch = style({
   height: '1.2rem',
 });
 
-export const nodeTypeAreaSwatchStair = style({
-  borderColor: zoneStairColor,
-  backgroundColor: 'rgba(249,115,22,0.25)',
-});
 export const nodeTypeAreaSwatchGeneral = style({
   borderColor: vars.color.gray500,
   backgroundColor: 'rgba(107,114,128,0.15)',
@@ -1201,14 +1177,6 @@ export const mapWrap = style({
   transformOrigin: 'top center',
   transition: 'transform 0.15s ease',
   overflow: 'visible',
-});
-
-export const mapImage = style({
-  display: 'block',
-  objectFit: 'contain',
-  maxWidth: '100%',
-  maxHeight: '100%',
-  userSelect: 'none',
 });
 
 /* ── 마커 공통 ── */

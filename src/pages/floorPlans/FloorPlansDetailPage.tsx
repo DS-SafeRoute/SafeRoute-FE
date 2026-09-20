@@ -4722,8 +4722,7 @@ const FloorPlansDetailPage = () => {
         // 가이던스·담당 CCTV는 예전 설정 모달의 "저장" 버튼들이 하던 일을 그대로 옮긴 것 —
         // 바뀐 값이 있을 때만, 각자 독립된 PATCH로 보냄. Pi 엔드포인트는 스웨거 확인 결과
         // "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 쓰이지 않는다"고 명시되어 있어
-        // 카드에서 뺌(연동에 필요한 값이 아님) — 필요해지면 api/iotLightsApi.ts의
-        // updateLightPiEndpoint를 그대로 다시 쓰면 됨
+        // 카드에서 뺌(연동에 필요한 값이 아님). 필요해지면 별도 연동한다.
         const { decisionNodeId, leftEdgeId, rightEdgeId } = editForm;
         const guidanceChanged =
           decisionNodeId !== (prevLight?.decisionNodeId ?? '') ||

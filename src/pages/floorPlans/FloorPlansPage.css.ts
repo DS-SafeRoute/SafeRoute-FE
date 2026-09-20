@@ -22,12 +22,6 @@ export const container = style([
   },
 ]);
 
-export const stateMessage = style({
-  padding: `${vars.space.s5} 0`,
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
-
 export const emptyState = style({
   flex: 1,
   border: `1px dashed ${vars.color.gray200}`,
