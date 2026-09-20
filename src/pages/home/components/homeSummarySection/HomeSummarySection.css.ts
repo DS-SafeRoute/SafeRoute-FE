@@ -1,6 +1,7 @@
 import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
+import { cardGrid } from '@styles/responsive.css';
 
 import { sectionCardBase } from '../../HomePage.css';
 
@@ -11,11 +12,7 @@ const summaryCardBase = style([
   },
 ]);
 
-export const summaryGrid = style({
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: vars.space.s4,
-});
+export const summaryGrid = cardGrid;
 
 export const metricCard = style([
   summaryCardBase,

@@ -18,6 +18,9 @@ export const recordsSection = style([
   },
 ]);
 
+// 좁은 본문에서는 표의 열 폭을 희생하지 않고 카드 내부만 가로 스크롤
+export const tableScroll = style({ minWidth: 0, overflowX: 'auto' });
+
 export const sectionHeader = style({
   display: 'flex',
   alignItems: 'center',
@@ -60,6 +63,7 @@ export const headerActionButton = style([
 
 export const recordsTable = style({
   width: '100%',
+  minWidth: '72rem',
   tableLayout: 'fixed',
   borderCollapse: 'collapse',
 });

@@ -20,7 +20,7 @@ export const container = recipe({
     boxShadow: vars.shadow.card,
     backgroundColor: vars.color.white,
     padding: '2rem 1.6rem',
-    width: '24rem',
+    width: vars.layout.sidebarWidth,
     height: '100vh',
     '@media': {
       '(prefers-reduced-motion: reduce)': { transition: 'none' },
@@ -29,7 +29,7 @@ export const container = recipe({
   variants: {
     collapsed: {
       false: {},
-      true: { padding: '2rem 1.2rem', width: '7.2rem' },
+      true: { padding: '2rem 1.2rem', width: vars.layout.sidebarCollapsedWidth },
     },
   },
 });
