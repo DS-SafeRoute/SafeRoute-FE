@@ -48,21 +48,6 @@ export const sidebarInner = style({
   minHeight: 'min-content',
 });
 
-export const section = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-});
-
-export const sectionLabel = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const divider = style({
-  borderTop: `1px solid ${vars.color.gray100}`,
-});
-
 /* ── 층 목록 ── */
 export const floorNavCard = style({
   border: `1px solid ${vars.color.gray100}`,
@@ -272,11 +257,6 @@ export const nodeAddHint = style({
 // 구분되게 함
 export const nodeAddHintWarning = style({
   color: vars.color.danger,
-});
-
-export const nodeAddSubHint = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
 });
 
 export const nodeAddField = style({
@@ -624,10 +604,6 @@ export const nodeTypeAreaSwatch = style({
   height: '1.2rem',
 });
 
-export const nodeTypeAreaSwatchStair = style({
-  borderColor: zoneStairColor,
-  backgroundColor: 'rgba(249,115,22,0.25)',
-});
 export const nodeTypeAreaSwatchGeneral = style({
   borderColor: vars.color.gray500,
   backgroundColor: 'rgba(107,114,128,0.15)',
@@ -667,6 +643,34 @@ export const devicePanel = style({
   },
 });
 
+export const devicePanelCollapsed = style({
+  width: '4.8rem',
+});
+
+export const devicePanelHeader = style({
+  position: 'sticky',
+  zIndex: 3,
+  top: 0,
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s2,
+  minHeight: '4.8rem',
+});
+
+export const devicePanelHeading = style({
+  paddingLeft: vars.space.s2,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const devicePanelToggleExpand = style({
+  transform: 'rotate(180deg)',
+});
+
 export const devicePanelInner = style({
   display: 'flex',
   flexDirection: 'column',
@@ -676,10 +680,14 @@ export const devicePanelInner = style({
   paddingLeft: vars.space.s5,
 });
 
+export const devicePanelInnerHidden = style({
+  display: 'none',
+});
+
 export const devicePanelSticky = style({
   position: 'sticky',
   zIndex: 2,
-  top: 0,
+  top: '4.8rem',
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
@@ -1169,14 +1177,6 @@ export const mapWrap = style({
   transformOrigin: 'top center',
   transition: 'transform 0.15s ease',
   overflow: 'visible',
-});
-
-export const mapImage = style({
-  display: 'block',
-  objectFit: 'contain',
-  maxWidth: '100%',
-  maxHeight: '100%',
-  userSelect: 'none',
 });
 
 /* ── 마커 공통 ── */

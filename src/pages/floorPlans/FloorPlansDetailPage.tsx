@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -35,6 +35,8 @@ import StatusBadge from '@components/chip/StatusBadge';
 import Dropdown from '@components/dropdown';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
+
+import { interactivePanelBreakpoints } from '@styles/responsive.css';
 
 import { formatFloor, hasFloorPlan } from '@utils/floor';
 import {
@@ -2566,6 +2568,26 @@ const FloorPlansDetailPage = () => {
   const queryClient = useQueryClient();
   const { buildingId, floorId } = useParams<{ buildingId: string; floorId: string }>();
   const { show } = useToast();
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
+  const [devicePanelOpenOverride, setDevicePanelOpenOverride] = useState<boolean | null>(null);
+  const isDevicePanelOpen = devicePanelOpenOverride ?? !isCompactLayout;
+
+  useLayoutEffect(() => {
+    const layout = layoutRef.current;
+    if (!layout) return;
+
+    const updateLayoutWidth = (width: number) => {
+      setIsCompactLayout(width < interactivePanelBreakpoints.floorEditorCollapse);
+    };
+    updateLayoutWidth(layout.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) updateLayoutWidth(entry.contentRect.width);
+    });
+    observer.observe(layout);
+    return () => observer.disconnect();
+  }, []);
 
   const { data: floorGridCells = EMPTY_GRID_CELLS } = useFloorGridCellsQuery(floorId);
 
@@ -3132,10 +3154,10 @@ const FloorPlansDetailPage = () => {
     selectedItem?.kind === 'device' ? selectedItem.data.id : (selectedZoneRef?.id ?? null);
 
   useEffect(() => {
-    if (!focusedPanelId) return;
+    if (!isDevicePanelOpen || !focusedPanelId) return;
     const target = devicePanelRef.current?.querySelector(`[data-panel-id="${focusedPanelId}"]`);
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [focusedPanelId]);
+  }, [focusedPanelId, isDevicePanelOpen]);
 
   // 장비 추가 팝업이 닫히면 배치 진행 상태 초기화
   useEffect(() => {
@@ -3744,6 +3766,7 @@ const FloorPlansDetailPage = () => {
   // 도면에서 항목을 클릭하면, 그 카드가 지금 필터에 가려져 있어도 우측 패널에 드러나서
   // 포커싱(스크롤)되도록 상위/하위 필터를 그 항목에 맞게 이동시킴
   const handleZoneRefSelectFromMap = (ref: ZoneRefSelection) => {
+    if (!isSameZoneRef(selectedZoneRef, ref)) setDevicePanelOpenOverride(true);
     handleZoneRefSelect(ref);
     if (ref.kind === 'zone') {
       setTopFilter((prev) => (prev === 'device' ? 'all' : prev));
@@ -4699,8 +4722,7 @@ const FloorPlansDetailPage = () => {
         // 가이던스·담당 CCTV는 예전 설정 모달의 "저장" 버튼들이 하던 일을 그대로 옮긴 것 —
         // 바뀐 값이 있을 때만, 각자 독립된 PATCH로 보냄. Pi 엔드포인트는 스웨거 확인 결과
         // "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 쓰이지 않는다"고 명시되어 있어
-        // 카드에서 뺌(연동에 필요한 값이 아님) — 필요해지면 api/iotLightsApi.ts의
-        // updateLightPiEndpoint를 그대로 다시 쓰면 됨
+        // 카드에서 뺌(연동에 필요한 값이 아님). 필요해지면 별도 연동한다.
         const { decisionNodeId, leftEdgeId, rightEdgeId } = editForm;
         const guidanceChanged =
           decisionNodeId !== (prevLight?.decisionNodeId ?? '') ||
@@ -4828,7 +4850,7 @@ const FloorPlansDetailPage = () => {
 
   return (
     <>
-      <div className={styles.layout}>
+      <div ref={layoutRef} className={styles.layout}>
         {/* ── 좌측 사이드바 ── */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner} style={{ padding: '2rem 2rem 2.4rem' }}>
@@ -5147,6 +5169,7 @@ const FloorPlansDetailPage = () => {
                   stagedCameraPosition={nodeStagedPosition}
                   onSelectDevice={(d) => {
                     const isSame = selectedItem?.kind === 'device' && selectedItem.data.id === d.id;
+                    if (!isSame) setDevicePanelOpenOverride(true);
                     setSelectedItem(isSame ? null : { kind: 'device', data: d });
                     setSelectedZoneRef(null);
                     // 엣지를 선택해둔 채로 장비를 고르면 엣지 강조가 그대로 남아있던 문제 —
@@ -5210,8 +5233,34 @@ const FloorPlansDetailPage = () => {
         </div>
 
         {/* ── 우측 장비 목록 패널 ── */}
-        <aside ref={devicePanelRef} className={styles.devicePanel}>
-          <div className={styles.devicePanelInner}>
+        <aside
+          ref={devicePanelRef}
+          className={clsx(styles.devicePanel, !isDevicePanelOpen && styles.devicePanelCollapsed)}
+          aria-label="장비 목록"
+        >
+          <div className={styles.devicePanelHeader}>
+            {isDevicePanelOpen && <span className={styles.devicePanelHeading}>장비 목록</span>}
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
+              aria-label={isDevicePanelOpen ? '장비 목록 접기' : '장비 목록 펼치기'}
+              aria-expanded={isDevicePanelOpen}
+              aria-controls="floor-device-panel-content"
+              onClick={() => setDevicePanelOpenOverride(!isDevicePanelOpen)}
+            >
+              <ChevronRightIcon
+                className={isDevicePanelOpen ? undefined : styles.devicePanelToggleExpand}
+              />
+            </Button>
+          </div>
+          <div
+            id="floor-device-panel-content"
+            className={clsx(
+              styles.devicePanelInner,
+              !isDevicePanelOpen && styles.devicePanelInnerHidden,
+            )}
+          >
             <div className={styles.devicePanelSticky}>
               <div className={styles.filterTabs}>
                 {(

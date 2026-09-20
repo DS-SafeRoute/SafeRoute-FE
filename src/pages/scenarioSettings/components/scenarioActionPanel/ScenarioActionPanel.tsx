@@ -3,6 +3,7 @@ import { PREVIEW_STATUS } from '@pages/scenarioSettings/constants/scenarioSettin
 import {
   draftButton,
   sideColumn,
+  startActionPanel,
   startRestrictionNotice,
   trainingDurationNotice,
 } from '@pages/scenarioSettings/ScenarioSettingsPage.css';
@@ -81,7 +82,7 @@ const ScenarioActionPanel = ({
   }
 
   return (
-    <aside className={sideColumn}>
+    <aside className={startActionPanel}>
       <Button
         type="button"
         size="lg"

@@ -1,28 +1,26 @@
 import { style } from '@vanilla-extract/css';
 
 import { vars } from '@styles/global.css';
+import { pageContent } from '@styles/responsive.css';
 
-export const container = style({
-  display: 'flex',
-  flex: 1,
-  flexDirection: 'column',
-  gap: vars.space.s8,
-  padding: vars.space.s8,
-  minHeight: '100%',
-  overflowY: 'auto',
-  // 스크롤은 그대로 되지만 막대는 안 보이게(도면 관리 상세 페이지와 동일한 처리)
-  scrollbarWidth: 'none',
-  msOverflowStyle: 'none',
-  selectors: {
-    '&::-webkit-scrollbar': { display: 'none' },
+export const container = style([
+  pageContent,
+  {
+    display: 'flex',
+    flex: 1,
+    flexDirection: 'column',
+    gap: vars.space.s8,
+    paddingBlock: vars.layout.pageGutter,
+    minHeight: '100%',
+    overflowY: 'auto',
+    // 스크롤은 그대로 되지만 막대는 안 보이게(도면 관리 상세 페이지와 동일한 처리)
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    selectors: {
+      '&::-webkit-scrollbar': { display: 'none' },
+    },
   },
-});
-
-export const stateMessage = style({
-  padding: `${vars.space.s5} 0`,
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
+]);
 
 export const emptyState = style({
   flex: 1,
@@ -63,19 +61,21 @@ export const buildingCount = style({
 });
 
 export const floorGrid = style({
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, 1fr)',
-  gap: vars.space.s4,
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: vars.layout.panelGap,
 });
 
 export const floorCard = style({
   display: 'flex',
+  flex: '0 1 36rem',
   flexDirection: 'column',
   gap: vars.space.s3,
   border: `1px solid ${vars.color.gray100}`,
   borderRadius: vars.radius.lg,
   backgroundColor: vars.color.white,
   padding: vars.space.s4,
+  maxWidth: '100%',
 });
 
 export const cardTop = style({
