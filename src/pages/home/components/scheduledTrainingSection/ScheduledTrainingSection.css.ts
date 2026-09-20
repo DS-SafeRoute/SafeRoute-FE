@@ -45,6 +45,7 @@ export const scheduleInfoPanel = style({
   borderRadius: '1.8rem',
   backgroundColor: vars.color.primaryLight2,
   padding: '1.8rem',
+  minWidth: 0,
 });
 
 export const subtleLabel = style({

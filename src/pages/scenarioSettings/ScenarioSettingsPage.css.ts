@@ -81,6 +81,17 @@ export const sideColumn = style({
   minWidth: 0,
 });
 
+export const startActionPanel = style([
+  sideColumn,
+  {
+    '@container': {
+      [`(max-width: ${contentBreakpoints.twoPanel})`]: {
+        paddingBottom: vars.space.s6,
+      },
+    },
+  },
+]);
+
 export const draftButton = style({
   borderColor: vars.color.gray100,
   backgroundColor: vars.color.gray200,

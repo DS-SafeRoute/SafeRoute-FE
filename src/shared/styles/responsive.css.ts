@@ -5,6 +5,7 @@ import { vars } from './global.css';
 // 컨테이너(사이드바와 좌우 여백을 뺀 본문) 기준
 export const contentBreakpoints = {
   compact: '80rem',
+  tableWithSidebar: '90rem',
   twoPanel: '96rem',
   wide: '112rem',
   threePanel: '140rem',

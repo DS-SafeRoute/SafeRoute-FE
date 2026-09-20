@@ -28,18 +28,23 @@ export const sectionCardBase = style({
 
 export const contentGrid = style({
   display: 'grid',
+  gridTemplateAreas: '"records schedule"',
   gridTemplateColumns: 'minmax(0, 1fr) 35rem',
   alignItems: 'start',
   gap: vars.space.s4,
   minWidth: 0,
   '@container': {
-    [`(max-width: ${contentBreakpoints.wide})`]: { gridTemplateColumns: 'minmax(0, 1fr)' },
+    [`(max-width: ${contentBreakpoints.tableWithSidebar})`]: {
+      gridTemplateAreas: '"schedule" "records"',
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
   },
 });
 
 export const sideColumn = style({
   display: 'flex',
   flexDirection: 'column',
+  gridArea: 'schedule',
   gap: vars.space.s4,
   minWidth: 0,
 });

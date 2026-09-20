@@ -10,6 +10,7 @@ export const recordsSection = style([
   {
     display: 'flex',
     flexDirection: 'column',
+    gridArea: 'records',
     borderRadius: '2rem',
     padding: 0,
     minWidth: 0,
