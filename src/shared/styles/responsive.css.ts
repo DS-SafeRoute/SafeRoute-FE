@@ -11,6 +11,11 @@ export const contentBreakpoints = {
   threePanel: '140rem',
 } as const;
 
+// ResizeObserver로 실제 작업 영역 너비를 비교해야 하는 인터랙티브 패널용 기준
+export const interactivePanelBreakpoints = {
+  floorEditorCollapse: 1300,
+} as const;
+
 export const pageContent = style({
   marginInline: 'auto',
   paddingInline: vars.layout.pageGutter,

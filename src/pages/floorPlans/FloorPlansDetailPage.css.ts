@@ -667,6 +667,34 @@ export const devicePanel = style({
   },
 });
 
+export const devicePanelCollapsed = style({
+  width: '4.8rem',
+});
+
+export const devicePanelHeader = style({
+  position: 'sticky',
+  zIndex: 3,
+  top: 0,
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s2,
+  minHeight: '4.8rem',
+});
+
+export const devicePanelHeading = style({
+  paddingLeft: vars.space.s2,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const devicePanelToggleExpand = style({
+  transform: 'rotate(180deg)',
+});
+
 export const devicePanelInner = style({
   display: 'flex',
   flexDirection: 'column',
@@ -676,10 +704,14 @@ export const devicePanelInner = style({
   paddingLeft: vars.space.s5,
 });
 
+export const devicePanelInnerHidden = style({
+  display: 'none',
+});
+
 export const devicePanelSticky = style({
   position: 'sticky',
   zIndex: 2,
-  top: 0,
+  top: '4.8rem',
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
