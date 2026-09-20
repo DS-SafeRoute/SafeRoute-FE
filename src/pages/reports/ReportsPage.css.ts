@@ -30,7 +30,7 @@ export const reportContent = style({
 
 export const reportHeader = style({
   display: 'flex',
-  alignItems: 'flex-end',
+  alignItems: 'flex-start',
   justifyContent: 'space-between',
   gap: vars.space.s8,
   border: `1px solid ${vars.color.gray100}`,
@@ -73,11 +73,6 @@ export const reportMetaGrid = style({
 export const reportMetaItem = style({
   borderLeft: `1px solid ${vars.color.gray100}`,
   padding: `0 ${vars.space.s4}`,
-  selectors: {
-    '&:first-child': {
-      borderLeft: 0,
-    },
-  },
 });
 
 export const reportMetaLabel = style({
