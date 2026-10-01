@@ -1501,20 +1501,32 @@ const FloorPlansDetailPage = () => {
     return Math.max(0.1, Math.round(meters * 10) / 10);
   };
 
-  // 클릭한 순서(A→B→C→D)를 연속 구간(A-B, B-C, C-D)으로 풀어 검토 화면에 넘길 목록을 만듦
-  const edgeChainSegments = edgeChainNodeIds.slice(0, -1).map((fromId, i) => {
-    const toId = edgeChainNodeIds[i + 1];
-    return {
-      fromId,
-      toId,
-      fromLabel: getGraphNodeLabel(fromId),
-      toLabel: getGraphNodeLabel(toId),
-      suggestedDistanceM: estimateEdgeDistanceM(fromId, toId),
-      // 다른 경로를 잇다 겹친 구간 — 이미 있는 엣지라 다시 만들 필요가 없어서 검토 화면에서
-      // 자동으로 제외함(사용자가 일일이 안 겹치게 클릭할 필요 없게)
-      alreadyExists: hasExistingEdge(graphEdges, fromId, toId),
-    };
-  });
+  // 클릭한 순서(A→B→C→D)를 연속 구간(A-B, B-C, C-D)으로 풀어 검토 화면에 넘길 목록을 만듦.
+  // handleEdgeNodeClick은 "바로 직전 노드"를 다시 누른 경우만 취소시켜서, A→B→C→A→B처럼
+  // 더 앞 노드를 다시 밟으면 같은 구간(A-B)이 두 번 생길 수 있음 — 검토 화면 key 충돌과
+  // createMapEdge 중복 호출을 막기 위해 같은 쌍(방향 무관)은 처음 나온 것만 남김
+  const seenEdgeChainPairs = new Set<string>();
+  const edgeChainSegments = edgeChainNodeIds
+    .slice(0, -1)
+    .map((fromId, i) => {
+      const toId = edgeChainNodeIds[i + 1];
+      return {
+        fromId,
+        toId,
+        fromLabel: getGraphNodeLabel(fromId),
+        toLabel: getGraphNodeLabel(toId),
+        suggestedDistanceM: estimateEdgeDistanceM(fromId, toId),
+        // 다른 경로를 잇다 겹친 구간 — 이미 있는 엣지라 다시 만들 필요가 없어서 검토 화면에서
+        // 자동으로 제외함(사용자가 일일이 안 겹치게 클릭할 필요 없게)
+        alreadyExists: hasExistingEdge(graphEdges, fromId, toId),
+      };
+    })
+    .filter(({ fromId, toId }) => {
+      const pairKey = [fromId, toId].sort().join('|');
+      if (seenEdgeChainPairs.has(pairKey)) return false;
+      seenEdgeChainPairs.add(pairKey);
+      return true;
+    });
 
   const handleProceedToEdgeChainReview = () => {
     if (edgeChainNodeIds.length < 2) return;

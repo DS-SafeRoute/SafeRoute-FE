@@ -11,6 +11,16 @@ import { rafThrottle } from '../utils/rafThrottle';
 
 import type { AddedDevice } from '../constants/devicePlacement';
 
+interface AddedDevicePinProps {
+  device: AddedDevice;
+  posX: number;
+  posY: number;
+  selected: boolean;
+  draggable: boolean;
+  onClick: () => void;
+  onDragEnd: (id: string, x: number, y: number) => void;
+}
+
 /* ── 사용자가 추가한 장치 마커 (위치 드래그 지원) ── */
 const AddedDevicePin = ({
   device,
@@ -20,15 +30,7 @@ const AddedDevicePin = ({
   draggable,
   onClick,
   onDragEnd,
-}: {
-  device: AddedDevice;
-  posX: number;
-  posY: number;
-  selected: boolean;
-  draggable: boolean;
-  onClick: () => void;
-  onDragEnd: (id: string, x: number, y: number) => void;
-}) => {
+}: AddedDevicePinProps) => {
   const isDragging = useRef(false);
   const didMove = useRef(false);
   const color = DEVICE_PLACE_CONFIG[device.placeType].color;

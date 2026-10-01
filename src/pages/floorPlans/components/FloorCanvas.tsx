@@ -9,12 +9,62 @@ import DevicePin from './DevicePin';
 import FloorCanvasSvg from './FloorCanvasSvg';
 import * as styles from '../FloorPlansDetailPage.css';
 
+import type { LightPickFieldName } from './LightPickField';
 import type { FloorGridCell } from '../api/floorGridApi';
 import type { MapEdge, MapNode } from '../api/mapGraphApi';
 import type { AddedDevice } from '../constants/devicePlacement';
 import type { StructureNode } from '../constants/structureNode';
 import type { SelectedItem, ZoneEntry, ZoneRect, ZoneRefSelection } from '../types/canvasSelection';
 import type { DeviceMarker, Floor } from '../types/floorPlans';
+
+interface FloorCanvasProps {
+  mapWrapRef: React.RefObject<HTMLDivElement>;
+  floor: Floor;
+  resolvedImageUrl: string | null;
+  canvasH: number;
+  selected: SelectedItem | null;
+  zoom: number;
+  editingItemId: string | null;
+  placingActive: boolean;
+  zoneAddActive: boolean;
+  onZoneDraftChange: (rect: ZoneRect | null) => void;
+  onZoneDragEnd: () => void;
+  isZoneDragging: boolean;
+  onZoneDraggingChange: (dragging: boolean) => void;
+  savedZones: ZoneEntry[];
+  structureNodes: StructureNode[];
+  editingStructureId: string | null;
+  onStructureNodeMove: (id: string, x: number, y: number) => void;
+  onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
+  graphNodes: MapNode[];
+  graphEdges: MapEdge[];
+  edgeAddActive: boolean;
+  onNodeClickForEdge: (id: string) => void;
+  edgeChainNodeIds: string[];
+  selectedEdgeId: string | null;
+  onEdgeSelect: (id: string) => void;
+  onEdgeDelete: (id: string) => void;
+  selectedZoneRef: ZoneRefSelection | null;
+  onZoneRefSelect: (ref: ZoneRefSelection) => void;
+  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing';
+  floorGridCells: FloorGridCell[];
+  selectedGridCellIds: string[];
+  gridCellPxSize: { w: number; h: number };
+  onGridCellToggle: (cellId: string) => void;
+  stagedCameraPosition: { x: number; y: number } | null;
+  devicePositions: Record<string, { x: number; y: number }>;
+  addedDevices: AddedDevice[];
+  onSelectDevice: (d: DeviceMarker) => void;
+  onMapClick: (x: number, y: number) => void;
+  onDeviceMoved: (id: string, x: number, y: number) => void;
+  onUpload: () => void;
+  onBackgroundClick: () => void;
+  lightPreviewNodeId?: string;
+  lightPreviewLeftEdgeId?: string;
+  lightPreviewRightEdgeId?: string;
+  lightPickField?: LightPickFieldName | null;
+  onLightPick?: (id: string) => void;
+}
 
 /* ── 도면 캔버스 ── */
 const FloorCanvas = ({
@@ -64,54 +114,7 @@ const FloorCanvas = ({
   lightPreviewRightEdgeId,
   lightPickField,
   onLightPick,
-}: {
-  mapWrapRef: React.RefObject<HTMLDivElement>;
-  floor: Floor;
-  resolvedImageUrl: string | null;
-  canvasH: number;
-  selected: SelectedItem | null;
-  zoom: number;
-  editingItemId: string | null;
-  placingActive: boolean;
-  zoneAddActive: boolean;
-  onZoneDraftChange: (rect: ZoneRect | null) => void;
-  onZoneDragEnd: () => void;
-  isZoneDragging: boolean;
-  onZoneDraggingChange: (dragging: boolean) => void;
-  savedZones: ZoneEntry[];
-  structureNodes: StructureNode[];
-  editingStructureId: string | null;
-  onStructureNodeMove: (id: string, x: number, y: number) => void;
-  onStructureNodeMoveEnd: (id: string, x: number, y: number) => void;
-  graphNodes: MapNode[];
-  graphEdges: MapEdge[];
-  edgeAddActive: boolean;
-  onNodeClickForEdge: (id: string) => void;
-  edgeChainNodeIds: string[];
-  selectedEdgeId: string | null;
-  onEdgeSelect: (id: string) => void;
-  onEdgeDelete: (id: string) => void;
-  selectedZoneRef: ZoneRefSelection | null;
-  onZoneRefSelect: (ref: ZoneRefSelection) => void;
-  cctvGridCellsMode: 'hidden' | 'selecting' | 'viewing' | 'browsing';
-  floorGridCells: FloorGridCell[];
-  selectedGridCellIds: string[];
-  gridCellPxSize: { w: number; h: number };
-  onGridCellToggle: (cellId: string) => void;
-  stagedCameraPosition: { x: number; y: number } | null;
-  devicePositions: Record<string, { x: number; y: number }>;
-  addedDevices: AddedDevice[];
-  onSelectDevice: (d: DeviceMarker) => void;
-  onMapClick: (x: number, y: number) => void;
-  onDeviceMoved: (id: string, x: number, y: number) => void;
-  onUpload: () => void;
-  onBackgroundClick: () => void;
-  lightPreviewNodeId?: string;
-  lightPreviewLeftEdgeId?: string;
-  lightPreviewRightEdgeId?: string;
-  lightPickField?: 'decisionNode' | 'leftEdge' | 'rightEdge' | null;
-  onLightPick?: (id: string) => void;
-}) => {
+}: FloorCanvasProps) => {
   const hasFloorPlan = floor.segmentationStatus === 'DONE';
 
   if (!hasFloorPlan) {
@@ -239,7 +242,7 @@ const FloorCanvas = ({
               posY={pos.y}
               selected={selected?.kind === 'device' && selected.data.id === d.id}
               draggable={editingItemId === d.id}
-              onClick={() => onSelectDevice(d as unknown as DeviceMarker)}
+              onClick={() => onSelectDevice(d)}
               onDragEnd={onDeviceMoved}
             />
           );

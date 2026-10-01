@@ -2,14 +2,7 @@ import { useState } from 'react';
 
 import * as styles from '../FloorPlansDetailPage.css';
 
-/* ── 엣지 체인 검토 팝업 — 순서대로 고른 노드들 사이 구간을 한 번에 검토·확정.
-   구간이 1개(노드 2개)여도 같은 화면을 씀 — 별도 "한 쌍짜리" 경로를 둘 필요가 없음 ── */
-const EdgeChainReviewPopup = ({
-  containerRef,
-  segments,
-  onBack,
-  onSubmit,
-}: {
+interface EdgeChainReviewPopupProps {
   containerRef: React.RefObject<HTMLDivElement>;
   segments: {
     fromId: string;
@@ -32,7 +25,16 @@ const EdgeChainReviewPopup = ({
       bidirectional: boolean;
     }[],
   ) => void;
-}) => {
+}
+
+/* ── 엣지 체인 검토 팝업 — 순서대로 고른 노드들 사이 구간을 한 번에 검토·확정.
+   구간이 1개(노드 2개)여도 같은 화면을 씀 — 별도 "한 쌍짜리" 경로를 둘 필요가 없음 ── */
+const EdgeChainReviewPopup = ({
+  containerRef,
+  segments,
+  onBack,
+  onSubmit,
+}: EdgeChainReviewPopupProps) => {
   // 실내 노드 간 거리는 1m 미만도 흔해서 cm로 입력받음(정수로 편하게 입력, 저장은 m로 환산)
   const [distancesCm, setDistancesCm] = useState(() =>
     segments.map((s) =>
@@ -93,7 +95,7 @@ const EdgeChainReviewPopup = ({
 
       <div className={styles.edgeChainList}>
         {segments.map((s, i) => (
-          <div key={`${s.fromId}-${s.toId}`} className={styles.edgeChainRow}>
+          <div key={`${s.fromId}-${s.toId}-${i}`} className={styles.edgeChainRow}>
             <span className={styles.edgeChainRowLabel}>
               {s.fromLabel} → {s.toLabel}
             </span>

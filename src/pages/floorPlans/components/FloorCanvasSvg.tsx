@@ -8,6 +8,7 @@ import { STRUCTURE_NODE_COLOR } from '../constants/structureNode';
 import { hasExistingEdge } from '../utils/hasExistingEdge';
 import { rafThrottle } from '../utils/rafThrottle';
 
+import type { LightPickFieldName } from './LightPickField';
 import type { FloorGridCell } from '../api/floorGridApi';
 import type { MapEdge, MapNode } from '../api/mapGraphApi';
 import type { StructureNode } from '../constants/structureNode';
@@ -21,43 +22,7 @@ const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> =
   CUSTOM: '#7c3aed',
 };
 
-// 실제 데이터를 그리는 도면 캔버스 SVG — 이름은 초기 프로토타입 시절("3층 목업")에서 남은 것
-const FloorCanvasSvg = ({
-  mapImageUrl,
-  canvasH,
-  placingActive,
-  zoneAddActive,
-  onZoneDraftChange,
-  onZoneDragEnd,
-  onZoneDraggingChange,
-  savedZones,
-  structureNodes,
-  editingStructureId,
-  onStructureNodeMove,
-  onStructureNodeMoveEnd,
-  graphNodes,
-  graphEdges,
-  edgeAddActive,
-  onNodeClickForEdge,
-  edgeChainNodeIds,
-  selectedEdgeId,
-  onEdgeSelect,
-  onEdgeDelete,
-  selectedZoneRef,
-  onZoneRefSelect,
-  cctvGridCellsMode,
-  floorGridCells,
-  selectedGridCellIds,
-  gridCellPxSize,
-  onGridCellToggle,
-  onMapClick,
-  onBackgroundClick,
-  lightPreviewNodeId,
-  lightPreviewLeftEdgeId,
-  lightPreviewRightEdgeId,
-  lightPickField,
-  onLightPick,
-}: {
+interface FloorCanvasSvgProps {
   mapImageUrl: string | null;
   canvasH: number;
   placingActive: boolean;
@@ -95,9 +60,47 @@ const FloorCanvasSvg = ({
   lightPreviewRightEdgeId?: string;
   // "캔버스에서 선택" 모드 — 켜져 있으면 노드/엣지 클릭이 평소 동작(선택·삭제·엣지연결 등) 대신
   // 유도등 갈림길 위치·좌우 통로 지정으로 대체됨
-  lightPickField?: 'decisionNode' | 'leftEdge' | 'rightEdge' | null;
+  lightPickField?: LightPickFieldName | null;
   onLightPick?: (id: string) => void;
-}) => {
+}
+
+// 실제 데이터를 그리는 도면 캔버스 SVG — 이름은 초기 프로토타입 시절("3층 목업")에서 남은 것
+const FloorCanvasSvg = ({
+  mapImageUrl,
+  canvasH,
+  placingActive,
+  zoneAddActive,
+  onZoneDraftChange,
+  onZoneDragEnd,
+  onZoneDraggingChange,
+  savedZones,
+  structureNodes,
+  editingStructureId,
+  onStructureNodeMove,
+  onStructureNodeMoveEnd,
+  graphNodes,
+  graphEdges,
+  edgeAddActive,
+  onNodeClickForEdge,
+  edgeChainNodeIds,
+  selectedEdgeId,
+  onEdgeSelect,
+  onEdgeDelete,
+  selectedZoneRef,
+  onZoneRefSelect,
+  cctvGridCellsMode,
+  floorGridCells,
+  selectedGridCellIds,
+  gridCellPxSize,
+  onGridCellToggle,
+  onMapClick,
+  onBackgroundClick,
+  lightPreviewNodeId,
+  lightPreviewLeftEdgeId,
+  lightPreviewRightEdgeId,
+  lightPickField,
+  onLightPick,
+}: FloorCanvasSvgProps) => {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const structureDragMovedRef = useRef(false);
   // 구역 드래그 중엔 포인터가 격자 셀·구조 노드 위를 지나가도 그 위에 걸린 개별 커서(pointer 등)로

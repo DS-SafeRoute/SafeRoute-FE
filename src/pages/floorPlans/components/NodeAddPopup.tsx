@@ -9,6 +9,7 @@ import { DEVICE_PLACE_CONFIG } from '../constants/devicePlacement';
 import { isStructureNodeType } from '../constants/structureNode';
 import * as styles from '../FloorPlansDetailPage.css';
 
+import type { LightPickFieldName } from './LightPickField';
 import type { PlacingDeviceType } from '../constants/devicePlacement';
 
 // 유도등 추가 팝업에서 같이 받는 담당 CCTV·가이던스 값 — DeviceEditForm과 필드 구성은 같지만
@@ -19,6 +20,32 @@ export type LightAddFields = {
   leftEdgeId: string;
   rightEdgeId: string;
 };
+
+// 갈림길 위치·좌우 통로만 다루는 곳(캔버스 미리보기·DeviceCard 등)에서 공유하는 부분 집합
+type LightGuidanceFields = Omit<LightAddFields, 'cctvId'>;
+
+interface NodeAddPopupProps {
+  containerRef: React.RefObject<HTMLDivElement>;
+  type: PlacingDeviceType;
+  onTypeChange: (type: PlacingDeviceType) => void;
+  stage: 'entry' | 'fov';
+  hasPosition: boolean;
+  selectedCellCount: number;
+  onCancel: () => void;
+  onBack: () => void;
+  onSubmitEntry: (type: PlacingDeviceType, deviceId: string, lightFields: LightAddFields) => void;
+  onFinalize: (deviceId: string) => void;
+  lightNodeOptions: { id: string; label: string }[];
+  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
+  lightCctvOptions: { id: string; label: string }[];
+  // 갈림길 위치·좌우 통로 값은 부모가 갖고 있음(캔버스 클릭으로도 같은 값을 채울 수 있어야
+  // 해서 이 팝업 로컬 state로 두면 캔버스↔팝업 양방향 동기화가 번거로워짐 — DeviceCard의
+  // editForm과 같은 방식으로 통일). 담당 CCTV는 캔버스에서 고를 대상이 아니라 포함하지 않음
+  lightFields: LightGuidanceFields;
+  onLightFieldsChange: (fields: LightGuidanceFields) => void;
+  lightPickField: LightPickFieldName | null;
+  onStartLightPick: (field: LightPickFieldName) => void;
+}
 
 /* ── 장비 추가 팝업 ──
  * 정보 입력과 위치 지정을 같은 화면(입력 단계)에서 함께 진행 — 도면을 클릭하면 위치가 잡히고,
@@ -44,32 +71,7 @@ const NodeAddPopup = ({
   onLightFieldsChange,
   lightPickField,
   onStartLightPick,
-}: {
-  containerRef: React.RefObject<HTMLDivElement>;
-  type: PlacingDeviceType;
-  onTypeChange: (type: PlacingDeviceType) => void;
-  stage: 'entry' | 'fov';
-  hasPosition: boolean;
-  selectedCellCount: number;
-  onCancel: () => void;
-  onBack: () => void;
-  onSubmitEntry: (type: PlacingDeviceType, deviceId: string, lightFields: LightAddFields) => void;
-  onFinalize: (deviceId: string) => void;
-  lightNodeOptions: { id: string; label: string }[];
-  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
-  lightCctvOptions: { id: string; label: string }[];
-  // 갈림길 위치·좌우 통로 값은 부모가 갖고 있음(캔버스 클릭으로도 같은 값을 채울 수 있어야
-  // 해서 이 팝업 로컬 state로 두면 캔버스↔팝업 양방향 동기화가 번거로워짐 — DeviceCard의
-  // editForm과 같은 방식으로 통일). 담당 CCTV는 캔버스에서 고를 대상이 아니라 포함하지 않음
-  lightFields: { decisionNodeId: string; leftEdgeId: string; rightEdgeId: string };
-  onLightFieldsChange: (fields: {
-    decisionNodeId: string;
-    leftEdgeId: string;
-    rightEdgeId: string;
-  }) => void;
-  lightPickField: 'decisionNode' | 'leftEdge' | 'rightEdge' | null;
-  onStartLightPick: (field: 'decisionNode' | 'leftEdge' | 'rightEdge') => void;
-}) => {
+}: NodeAddPopupProps) => {
   const [deviceId, setDeviceId] = useState('');
   // 담당 CCTV는 캔버스에서 고를 대상이 아니라(그래프 노드/엣지가 아님) 계속 이 팝업 로컬
   // state로 둠 — 수정 카드(DeviceCard)와 채워야 하는 값이 서로 달라 등록 직후엔 "훈련 준비"에

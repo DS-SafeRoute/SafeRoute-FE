@@ -6,8 +6,9 @@ import type { MapNodeType } from '../api/mapGraphApi';
 /* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
    isFinalExit은 계단에서만 의미 있음(문/출입구는 층 사이를 잇는 탈출 경로가 아니라 최종
    탈출구로 지정할 수 없음. 복도·시작 후보도 항상 false — 시작 후보는 서버가
-   isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
-   에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
+   isExitTarget=false로 강제 저장함). 'start' 타입은 서버에 남아있을 수 있는 기존 START
+   노드를 표시하기 위한 값이고, 새 시작 후보는 문·출입구 노드의 isStartCandidate 플래그만
+   토글해서 지정한다(BE PR #225) — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
    시작점" 확정은 시나리오 설정에서 발화점 셀과 함께 처리함) */
 export type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
 

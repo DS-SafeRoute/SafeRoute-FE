@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import clsx from 'clsx';
 
 import InfoIcon from '@assets/icons/ic-info.svg?react';
+
+import useClickOutside from '@hooks/useClickOutside';
 
 import * as styles from '../FloorPlansDetailPage.css';
 
@@ -12,17 +14,11 @@ import * as styles from '../FloorPlansDetailPage.css';
 const NodeTypeLegendInfo = () => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
+  useClickOutside(
+    containerRef,
+    open,
+    useCallback(() => setOpen(false), []),
+  );
 
   return (
     <div ref={containerRef} className={styles.legendInfoContainer}>

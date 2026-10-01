@@ -1,33 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 
+import useClickOutside from '@hooks/useClickOutside';
+
 import * as styles from '../FloorPlansDetailPage.css';
 
-/* ── 툴바 "+ 추가" 메뉴 — 노드/구역/엣지 추가를 각각 버튼으로 늘어놓지 않고 하나로 묶음 ── */
-const AddActionMenu = ({
-  onAddNode,
-  onAddZone,
-  onAddEdge,
-}: {
+interface AddActionMenuProps {
   onAddNode: () => void;
   onAddZone: () => void;
   onAddEdge: () => void;
-}) => {
+}
+
+/* ── 툴바 "+ 추가" 메뉴 — 노드/구역/엣지 추가를 각각 버튼으로 늘어놓지 않고 하나로 묶음 ── */
+const AddActionMenu = ({ onAddNode, onAddZone, onAddEdge }: AddActionMenuProps) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
+  useClickOutside(
+    containerRef,
+    open,
+    useCallback(() => setOpen(false), []),
+  );
 
   const items = [
     { label: '노드 추가', onClick: onAddNode },

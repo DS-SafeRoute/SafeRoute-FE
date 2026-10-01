@@ -1,10 +1,9 @@
 import { DEVICE_COLOR } from './deviceColors';
 
 // 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-// 시작 후보(START) 노드 생성은 이 화면(도면편집) 몫이 맞음 — 스웨거 재확인 결과 START는
-// "특정 시나리오에 귀속되지 않는, 층 단위로 등록해두는 훈련 시작점 후보"라 도면을 다루는
-// 이 화면에서 다른 구조 노드(문/계단/복도)와 똑같이 만든다. 실제 훈련 시작점 선택은
-// 시나리오 설정 화면에서 발화점 셀과 함께 확정한다.
+// 'start'는 서버에 남아있을 수 있는 기존 START 타입 노드를 표시하기 위한 값이고, 새 시작
+// 후보는 이 타입으로 생성하지 않음 — 문·출입구 노드의 isStartCandidate 플래그만 토글해서
+// 지정한다(BE PR #225). 실제 훈련 시작점 선택은 시나리오 설정 화면에서 발화점 셀과 함께 확정한다.
 export type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
 export type PlacingEquipmentType = Exclude<
   PlacingDeviceType,

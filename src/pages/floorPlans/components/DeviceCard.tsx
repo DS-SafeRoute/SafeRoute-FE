@@ -12,7 +12,31 @@ import { formatAreaM2 } from '@utils/format';
 import LightPickField, { getLightPickHint } from './LightPickField';
 import * as styles from '../FloorPlansDetailPage.css';
 
+import type { LightPickFieldName } from './LightPickField';
 import type { DeviceEditForm, PanelItem } from '../types/panelItem';
+
+interface DeviceCardProps {
+  item: PanelItem;
+  selected: boolean;
+  editing: boolean;
+  editForm: DeviceEditForm;
+  // 폼이 원본과 달라졌는지 — "완료" 버튼을 실제로 바뀐 게 있을 때만 눌리게 하는 데 씀
+  hasChanges: boolean;
+  onEditFormChange: (form: DeviceEditForm) => void;
+  onSelect: (item: PanelItem) => void;
+  onStartEdit: (item: PanelItem) => void;
+  onSaveEdit: (item: PanelItem) => void;
+  onCancelEdit: (item: PanelItem) => void;
+  onDelete: (item: PanelItem) => void;
+  onToggleEnabled: (item: PanelItem) => void;
+  onEditCctvCells: (item: PanelItem) => void;
+  lightNodeOptions: { id: string; label: string }[];
+  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
+  lightCctvOptions: { id: string; label: string }[];
+  // "캔버스에서 선택" — 드롭다운 대신 도면에서 직접 클릭해 갈림길 위치·좌우 통로를 고르는 대안
+  lightPickField: LightPickFieldName | null;
+  onStartLightPick: (field: LightPickFieldName) => void;
+}
 
 /* ── 장비 카드 ── */
 const DeviceCard = ({
@@ -34,28 +58,7 @@ const DeviceCard = ({
   lightCctvOptions,
   lightPickField,
   onStartLightPick,
-}: {
-  item: PanelItem;
-  selected: boolean;
-  editing: boolean;
-  editForm: DeviceEditForm;
-  // 폼이 원본과 달라졌는지 — "완료" 버튼을 실제로 바뀐 게 있을 때만 눌리게 하는 데 씀
-  hasChanges: boolean;
-  onEditFormChange: (form: DeviceEditForm) => void;
-  onSelect: (item: PanelItem) => void;
-  onStartEdit: (item: PanelItem) => void;
-  onSaveEdit: (item: PanelItem) => void;
-  onCancelEdit: (item: PanelItem) => void;
-  onDelete: (item: PanelItem) => void;
-  onToggleEnabled: (item: PanelItem) => void;
-  onEditCctvCells: (item: PanelItem) => void;
-  lightNodeOptions: { id: string; label: string }[];
-  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
-  lightCctvOptions: { id: string; label: string }[];
-  // "캔버스에서 선택" — 드롭다운 대신 도면에서 직접 클릭해 갈림길 위치·좌우 통로를 고르는 대안
-  lightPickField: 'decisionNode' | 'leftEdge' | 'rightEdge' | null;
-  onStartLightPick: (field: 'decisionNode' | 'leftEdge' | 'rightEdge') => void;
-}) => {
+}: DeviceCardProps) => {
   // 가이던스·방향처럼 자주 안 건드리는 항목은 접어둬서, 수정 모드로 들어갈 때 카드가
   // 일반 모드보다 과하게 길어지는 걸 줄임
   const [detailsOpen, setDetailsOpen] = useState(false);

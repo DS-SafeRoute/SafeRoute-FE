@@ -2,6 +2,16 @@ import { useState } from 'react';
 
 import * as styles from '../FloorPlansDetailPage.css';
 
+interface ZoneAddPopupProps {
+  containerRef: React.RefObject<HTMLDivElement>;
+  selectedCellCount: number;
+  initialName?: string;
+  title?: string;
+  submitLabel?: string;
+  onCancel: () => void;
+  onSave: (label: string) => void;
+}
+
 /* ── 구역 설정 팝업 — 백엔드 저장 단위가 그리드 셀 집합이라 드래그는 겹치는 셀을 고르는 용도로 씀.
    구역 재설정(재드래그)에도 그대로 재사용함 — 구역은 수정 API가 없어 새로 만들고 기존 걸
    지우는 방식으로만 "재설정"할 수 있는데, 이 팝업이 이름+셀 선택을 같이 받는 유일한 곳이라
@@ -14,15 +24,7 @@ const ZoneAddPopup = ({
   submitLabel = '추가',
   onCancel,
   onSave,
-}: {
-  containerRef: React.RefObject<HTMLDivElement>;
-  selectedCellCount: number;
-  initialName?: string;
-  title?: string;
-  submitLabel?: string;
-  onCancel: () => void;
-  onSave: (label: string) => void;
-}) => {
+}: ZoneAddPopupProps) => {
   const [zoneName, setZoneName] = useState(initialName);
   const hasSelectedCells = selectedCellCount > 0;
 

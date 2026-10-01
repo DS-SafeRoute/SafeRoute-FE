@@ -10,6 +10,16 @@ import { rafThrottle } from '../utils/rafThrottle';
 
 import type { DeviceMarker } from '../types/floorPlans';
 
+interface DevicePinProps {
+  device: DeviceMarker;
+  posX: number;
+  posY: number;
+  selected: boolean;
+  draggable: boolean;
+  onClick: () => void;
+  onDragEnd: (id: string, x: number, y: number) => void;
+}
+
 const DevicePin = ({
   device,
   posX,
@@ -18,15 +28,7 @@ const DevicePin = ({
   draggable,
   onClick,
   onDragEnd,
-}: {
-  device: DeviceMarker;
-  posX: number;
-  posY: number;
-  selected: boolean;
-  draggable: boolean;
-  onClick: () => void;
-  onDragEnd: (id: string, x: number, y: number) => void;
-}) => {
+}: DevicePinProps) => {
   const isDragging = useRef(false);
   const didMove = useRef(false);
 

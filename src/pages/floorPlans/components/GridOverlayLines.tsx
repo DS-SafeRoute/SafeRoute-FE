@@ -2,18 +2,16 @@ import { CANVAS_W } from '@utils/floorCanvas';
 
 import type { FloorGridCell } from '../api/floorGridApi';
 
-// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 캔버스(560x420) 전체를
-// 가로지르는 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰.
-// 선 위치는 실제 그리드 원점에 위상만 맞추고, 셀 범위를 넘어 캔버스 가장자리까지 채움
-const GridOverlayLines = ({
-  cells,
-  size,
-  canvasH,
-}: {
+interface GridOverlayLinesProps {
   cells: FloorGridCell[];
   size: { w: number; h: number };
   canvasH: number;
-}) => {
+}
+
+// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 캔버스(560x420) 전체를
+// 가로지르는 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰.
+// 선 위치는 실제 그리드 원점에 위상만 맞추고, 셀 범위를 넘어 캔버스 가장자리까지 채움
+const GridOverlayLines = ({ cells, size, canvasH }: GridOverlayLinesProps) => {
   if (cells.length === 0) return null;
   const CANVAS_H = canvasH;
 
