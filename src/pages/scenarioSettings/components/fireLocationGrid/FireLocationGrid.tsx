@@ -154,7 +154,8 @@ const FireLocationGrid = ({
         })}
 
         {graph?.nodes
-          .filter((node) => node.type === 'START')
+          // START 타입(레거시) + isStartCandidate(BE PR #225, DOOR 등을 시작 후보로 지정) 둘 다 표시
+          .filter((node) => node.type === 'START' || node.isStartCandidate)
           .map((node) => {
             const isSelectedStart = node.id === activeStartNodeId;
             const isStartNodeSelectable = canSelectStartNode;
