@@ -73,11 +73,6 @@ export const viewerImg = style({
   height: '100%',
 });
 
-export const viewerEmpty = style({
-  color: 'rgba(255,255,255,0.5)',
-  ...vars.typography.body14,
-});
-
 export const liveBadge = style({
   position: 'absolute',
   bottom: vars.space.s3,
@@ -334,11 +329,6 @@ export const infoKey = style({
 export const infoValue = style({
   color: vars.color.textHigh,
   ...vars.typography.body14Bold,
-});
-
-export const emptyEvents = style({
-  color: vars.color.textLow,
-  ...vars.typography.body14,
 });
 
 // 이벤트가 쌓일수록 패널이 끝없이 길어져 페이지 전체가 늘어지던 문제 — 높이를 고정하고

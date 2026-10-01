@@ -302,10 +302,8 @@ const TrainingCameraFramesPage = () => {
 
           <div className={styles.viewerCol}>
             {frames.length === 0 || !currentFrame ? (
-              // EmptyState는 밝은 화면 기준 색이라(짙은 글자) 어두운 뷰어 위에서는 거의 안 보임 —
-              // 뷰어와 같은 어두운 박스 안에 옅은 색 글자로 직접 띄움
               <div className={styles.viewer}>
-                <span className={styles.viewerEmpty}>저장된 프레임이 없습니다</span>
+                <EmptyState size="compact" tone="dark" title="저장된 프레임이 없습니다" />
               </div>
             ) : (
               <>
@@ -317,7 +315,7 @@ const TrainingCameraFramesPage = () => {
                       alt={`${camera.code} ${formatCapturedTime(currentFrame.capturedAt)} 프레임`}
                     />
                   ) : (
-                    <span className={styles.viewerEmpty}>이미지 준비 중…</span>
+                    <EmptyState size="compact" tone="dark" title="이미지 준비 중…" />
                   )}
 
                   <span className={styles.viewerTime}>
@@ -457,7 +455,7 @@ const TrainingCameraFramesPage = () => {
             <div className={styles.panel}>
               <span className={styles.panelTitle}>이벤트 타임라인</span>
               {events.length === 0 ? (
-                <span className={styles.emptyEvents}>기록된 이벤트가 없습니다</span>
+                <EmptyState size="compact" title="기록된 이벤트가 없습니다" />
               ) : (
                 <ul className={styles.timelineList}>
                   {events.map((event) => (

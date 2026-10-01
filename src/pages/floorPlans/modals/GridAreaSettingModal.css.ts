@@ -38,8 +38,6 @@ export const previewEmpty = style({
   alignItems: 'center',
   justifyContent: 'center',
   height: '100%',
-  color: vars.color.textLow,
-  ...vars.typography.body14,
 });
 
 export const gridOverlay = style({

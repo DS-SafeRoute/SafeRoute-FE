@@ -756,12 +756,6 @@ export const subFilterChipActive = style({
   color: vars.color.primary,
 });
 
-export const devicePanelEmpty = style({
-  margin: 0,
-  color: vars.color.textLow,
-  ...vars.typography.body14,
-});
-
 export const deviceCard = style({
   display: 'flex',
   flexDirection: 'column',
@@ -1281,11 +1275,6 @@ export const canvasPlaceholder = style({
   height: '100%',
   color: vars.color.textLow,
   ...vars.typography.body14,
-});
-
-export const canvasPlaceholderTitle = style({
-  color: vars.color.textMid,
-  ...vars.typography.body14Medium,
 });
 
 export const canvasPlaceholderText = style({
