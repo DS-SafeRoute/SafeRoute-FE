@@ -27,7 +27,6 @@ import TrashIcon from '@assets/icons/ic-trash.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
-import Dropdown from '@components/dropdown';
 import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
@@ -73,10 +72,10 @@ import {
 import { createUserZone, deleteUserZone } from './api/userZoneApi';
 import AddActionMenu from './components/AddActionMenu';
 import AddedDevicePin from './components/AddedDevicePin';
+import DeviceCard from './components/DeviceCard';
 import DevicePin from './components/DevicePin';
 import EdgeChainReviewPopup from './components/EdgeChainReviewPopup';
 import GridOverlayLines from './components/GridOverlayLines';
-import LightPickField, { getLightPickHint } from './components/LightPickField';
 import NodeAddPopup from './components/NodeAddPopup';
 import NodeTypeLegendInfo from './components/NodeTypeLegendInfo';
 import ReadinessChecklist from './components/ReadinessChecklist';
@@ -95,6 +94,7 @@ import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
 import GridAreaSettingModal from './modals/GridAreaSettingModal';
+import { EMPTY_DEVICE_EDIT_FORM } from './types/panelItem';
 import {
   GRID_SIZE_KEY,
   PENDING_GRID_SIZE_KEY,
@@ -112,51 +112,9 @@ import type { LightAddFields } from './components/NodeAddPopup';
 import type { AddedDevice, PlacingDeviceType } from './constants/devicePlacement';
 import type { StructureNode } from './constants/structureNode';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
+import type { DeviceEditForm, PanelItem } from './types/panelItem';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
-
-type PanelItem = {
-  id: string;
-  kind: 'device';
-  /** 우측 패널 필터 기준 — AddedDevice.placeType과 같은 체계(유도등은 'light') */
-  type: 'cctv' | 'light' | 'general';
-  label: string;
-  statusText: string;
-  statusOnline: boolean;
-  zone: string;
-  source: 'floor' | 'added';
-  // CCTV 카드에서 감시 영역 현황을 바로 보여주기 위한 값 — CCTV가 아니면 없음
-  monitoredArea?: { cellCount: number; areaM2: number };
-  // 서버가 자동 채번하는 장치 코드(예: CCTV_001) — id(내부 UUID)와 다른, 사람이 보는 식별자.
-  // 수정 API로도 바꿀 수 없는 값이라 CCTV가 아니면 없음
-  code?: string;
-  // 유도등 카드의 가이던스 현황 표시용 — 유도등이 아니면 없음
-  guidanceConfigured?: boolean;
-  // 유도등 카드에서 담당 CCTV를 바로 보여주기 위한 값 — 유도등이 아니거나 미배정이면 없음
-  cctvName?: string;
-};
-
-// 장비 카드의 "수정" 편집 폼 — CCTV는 label만 쓰고, 유도등은 설정 모달에 있던
-// 가이던스·담당 CCTV까지 전부 이 폼으로 흡수함(모달 없이 카드 안에서 편집). Pi 엔드포인트는
-// 스웨거상 "참고용 메타데이터일 뿐 실제 명령 전달 경로에는 안 쓰인다"고 명시되어 있어 뺐음.
-// "설치 위치"(zone)는 백엔드에 저장 필드가 없어(요청 스키마에 name/x/y뿐) 텍스트로 입력받아도
-// 저장 API로 안 나가고 새로고침하면 사라지는 값이었음 — 편집 항목에서 아예 빼고, 카드엔 실제
-// 좌표(formatInstallLocation)를 읽기 전용으로 보여줌(CCTV는 감시영역 문구를 그대로 씀)
-interface DeviceEditForm {
-  label: string;
-  decisionNodeId: string;
-  leftEdgeId: string;
-  rightEdgeId: string;
-  cctvId: string;
-}
-
-const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
-  label: '',
-  decisionNodeId: '',
-  leftEdgeId: '',
-  rightEdgeId: '',
-  cctvId: '',
-};
 
 // CCTV 등록·시야 재선택·수정 세 곳에서 카드에 보여줄 "모니터링 N칸 · M㎡" 문구를 각자 다시
 // 조립하면 한 줄이 100자를 넘기기 쉽고 표현도 어긋나기 쉬워 하나로 합침
@@ -917,337 +875,6 @@ const MockFloorMap3F = ({
         </>
       )}
     </svg>
-  );
-};
-
-/* ── 장비 카드 ── */
-const DeviceCard = ({
-  item,
-  selected,
-  editing,
-  editForm,
-  hasChanges,
-  onEditFormChange,
-  onSelect,
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onDelete,
-  onToggleEnabled,
-  onEditCctvCells,
-  lightNodeOptions,
-  lightEdgeOptions,
-  lightCctvOptions,
-  lightPickField,
-  onStartLightPick,
-}: {
-  item: PanelItem;
-  selected: boolean;
-  editing: boolean;
-  editForm: DeviceEditForm;
-  // 폼이 원본과 달라졌는지 — "완료" 버튼을 실제로 바뀐 게 있을 때만 눌리게 하는 데 씀
-  hasChanges: boolean;
-  onEditFormChange: (form: DeviceEditForm) => void;
-  onSelect: (item: PanelItem) => void;
-  onStartEdit: (item: PanelItem) => void;
-  onSaveEdit: (item: PanelItem) => void;
-  onCancelEdit: (item: PanelItem) => void;
-  onDelete: (item: PanelItem) => void;
-  onToggleEnabled: (item: PanelItem) => void;
-  onEditCctvCells: (item: PanelItem) => void;
-  lightNodeOptions: { id: string; label: string }[];
-  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
-  lightCctvOptions: { id: string; label: string }[];
-  // "캔버스에서 선택" — 드롭다운 대신 도면에서 직접 클릭해 갈림길 위치·좌우 통로를 고르는 대안
-  lightPickField: 'decisionNode' | 'leftEdge' | 'rightEdge' | null;
-  onStartLightPick: (field: 'decisionNode' | 'leftEdge' | 'rightEdge') => void;
-}) => {
-  // 가이던스·방향처럼 자주 안 건드리는 항목은 접어둬서, 수정 모드로 들어갈 때 카드가
-  // 일반 모드보다 과하게 길어지는 걸 줄임
-  const [detailsOpen, setDetailsOpen] = useState(false);
-
-  return (
-    <div
-      data-panel-id={item.id}
-      role="button"
-      tabIndex={0}
-      className={clsx(styles.deviceCard, selected && styles.deviceCardSelected)}
-      // 수정 중엔 카드 배경 클릭이 선택 토글로 이어져서, 이미 선택된 카드를 다시 누르면
-      // editingItemId까지 같이 풀려버렸음(완료를 누른 것처럼 보이는 버그) — 수정 중엔 무시함
-      onClick={() => {
-        if (!editing) onSelect(item);
-      }}
-      // 카드 자체가 role="button"이라 키보드로도 선택할 수 있어야 함 — 다만 안쪽 입력·버튼이
-      // 이벤트를 버블링시킨 경우(e.target !== e.currentTarget)는 그쪽 자체 키 처리에 맡기고 무시
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        if (e.target !== e.currentTarget) return;
-        e.preventDefault();
-        if (!editing) onSelect(item);
-      }}
-    >
-      <div className={styles.deviceCardNameRow}>
-        {editing ? (
-          <input
-            className={styles.deviceCardNameInput}
-            aria-label="장치 이름"
-            value={editForm.label}
-            onChange={(e) => onEditFormChange({ ...editForm, label: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span className={styles.deviceCardName}>{item.label}</span>
-        )}
-        <button
-          type="button"
-          aria-label="삭제"
-          className={styles.zoneCardIconBtnDelete}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(item);
-          }}
-        >
-          <TrashIcon width={14} height={14} />
-        </button>
-      </div>
-      <div className={styles.deviceCardRow}>
-        <span className={styles.deviceCardKey}>장치 코드</span>
-        <span
-          className={styles.deviceCardValue}
-          title={item.code ? '서버가 자동으로 부여하는 값이라 수정할 수 없어요' : undefined}
-        >
-          {item.code ?? item.id.toUpperCase()}
-        </span>
-      </div>
-      <div className={styles.deviceCardRow}>
-        <span className={styles.deviceCardKey}>상태</span>
-        {item.type === 'cctv' || item.type === 'light' ? (
-          <span className={styles.cctvEnableRow}>
-            <span className={styles.deviceCardValue}>
-              {item.statusOnline ? '활성화' : '비활성화'}
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={item.statusOnline}
-              aria-label={
-                item.statusOnline
-                  ? '활성화됨 — 클릭하면 비활성화로 전환'
-                  : '비활성화됨 — 클릭하면 활성화로 전환'
-              }
-              className={clsx(
-                styles.cctvEnableSwitch,
-                item.statusOnline && styles.cctvEnableSwitchOn,
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleEnabled(item);
-              }}
-            >
-              <span className={styles.cctvEnableSwitchThumb} />
-            </button>
-          </span>
-        ) : (
-          <StatusBadge
-            label={item.statusText}
-            color={item.statusOnline ? 'green' : 'neutral'}
-            dot
-          />
-        )}
-      </div>
-      <div className={styles.deviceCardRow}>
-        <span className={styles.deviceCardKey}>설치 위치</span>
-        <span
-          className={styles.deviceCardValue}
-          title={
-            item.type === 'cctv'
-              ? '감시 영역에서 자동으로 계산돼요'
-              : '도면 위 실제 좌표예요 — 캔버스에서 위치를 옮기면 여기도 함께 바뀌어요'
-          }
-        >
-          {item.zone}
-        </span>
-      </div>
-      {item.type === 'light' && (
-        <>
-          <div className={styles.deviceCardRow}>
-            <span className={styles.deviceCardKey}>담당 CCTV</span>
-            {!editing && (
-              <span className={styles.deviceCardValue}>{item.cctvName ?? '미지정'}</span>
-            )}
-          </div>
-          {editing && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Dropdown
-                shape="rounded"
-                fullWidth
-                ariaLabel="담당 CCTV"
-                options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
-                value={editForm.cctvId}
-                onChange={(v) => onEditFormChange({ ...editForm, cctvId: v })}
-                placeholder="미지정"
-              />
-            </div>
-          )}
-          <div
-            className={styles.deviceCardRow}
-            title="화재 시 이 유도등이 서 있는 갈림길에서 왼쪽/오른쪽 중 어느 통로로 사람들을 안내할지 정해요"
-          >
-            <span className={styles.deviceCardKey}>경로 · 방향</span>
-            {editing ? (
-              <button
-                type="button"
-                className={styles.deviceCardFieldEditBtn}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDetailsOpen((v) => !v);
-                }}
-              >
-                {item.guidanceConfigured ? '설정됨' : '미설정'} · {detailsOpen ? '접기' : '펼치기'}
-              </button>
-            ) : (
-              <span className={styles.deviceCardValue}>
-                {item.guidanceConfigured ? '설정됨' : '미설정'}
-              </span>
-            )}
-          </div>
-          {editing && detailsOpen && (
-            <div className={styles.lightFieldGroup} onClick={(e) => e.stopPropagation()}>
-              {/* "판단 노드"·"경로 엣지"란 용어가 무엇을 고르는 건지 안 와닿는다는 QA 피드백 —
-                  펼쳤을 때 항상 보이는 문장으로 먼저 설명함(hover에만 의존하던 title 문구를 대체).
-                  드롭다운에 같은 이름 노드가 많아 헷갈리면 "캔버스에서 선택"으로 도면에서 직접
-                  클릭해 고를 수도 있음 */}
-              {(() => {
-                const lightPickHint = getLightPickHint(
-                  lightPickField,
-                  editForm.decisionNodeId,
-                  lightEdgeOptions,
-                );
-                return (
-                  <span
-                    className={clsx(
-                      styles.nodeAddHint,
-                      lightPickHint.isWarning && styles.nodeAddHintWarning,
-                    )}
-                  >
-                    {lightPickHint.text}
-                  </span>
-                );
-              })()}
-              <LightPickField
-                label="갈림길 위치"
-                fieldName="decisionNode"
-                pickField={lightPickField}
-                displayLabel={lightNodeOptions.find((n) => n.id === editForm.decisionNodeId)?.label}
-                emptyText="갈림길 위치 선택"
-                onStartPick={() => onStartLightPick('decisionNode')}
-                onClear={() =>
-                  // 갈림길 위치(판단 노드)를 바꾸면 이전 노드에 연결돼 있던 좌/우 통로 선택은
-                  // 더 이상 유효하지 않을 수 있어(연결 안 된 엣지를 저장 시점에야 서버가
-                  // 거부하던 문제의 원인이었음) 같이 비움
-                  onEditFormChange({
-                    ...editForm,
-                    decisionNodeId: '',
-                    leftEdgeId: '',
-                    rightEdgeId: '',
-                  })
-                }
-              />
-              {/* 갈림길 위치에 실제로 연결된 통로(엣지)만 후보로 보여줌 — 그 외를 고르면 저장할 때
-                  서버가 거부해서(leftEdgeId/rightEdgeId는 decisionNodeId에 연결돼 있어야 함)
-                  헷갈리던 문제를 아예 고를 수 없게 만들어 없앰 */}
-              <LightPickField
-                label="왼쪽 통로"
-                fieldName="leftEdge"
-                pickField={lightPickField}
-                disabled={!editForm.decisionNodeId}
-                displayLabel={lightEdgeOptions.find((e) => e.id === editForm.leftEdgeId)?.label}
-                emptyText={editForm.decisionNodeId ? '왼쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
-                onStartPick={() => onStartLightPick('leftEdge')}
-                onClear={() => onEditFormChange({ ...editForm, leftEdgeId: '' })}
-              />
-              <LightPickField
-                label="오른쪽 통로"
-                fieldName="rightEdge"
-                pickField={lightPickField}
-                disabled={!editForm.decisionNodeId}
-                displayLabel={lightEdgeOptions.find((e) => e.id === editForm.rightEdgeId)?.label}
-                emptyText={editForm.decisionNodeId ? '오른쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
-                onStartPick={() => onStartLightPick('rightEdge')}
-                onClear={() => onEditFormChange({ ...editForm, rightEdgeId: '' })}
-              />
-            </div>
-          )}
-        </>
-      )}
-      {item.type === 'cctv' && (
-        <div className={styles.deviceCardRow}>
-          <span className={styles.deviceCardKey}>감시 영역</span>
-          {editing ? (
-            // 버튼 3개가 난잡해 보인다는 피드백으로, 별도 액션 버튼 대신 이 값 자체를
-            // 눌러서 재선택하도록 함 — "설치 위치"가 수정 중엔 입력창으로 바뀌는 것과 같은 결
-            <button
-              type="button"
-              className={styles.deviceCardFieldEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditCctvCells(item);
-              }}
-            >
-              {item.monitoredArea
-                ? `${item.monitoredArea.cellCount}칸 · ${formatAreaM2(item.monitoredArea.areaM2)}㎡`
-                : '미지정'}{' '}
-              · 재선택
-            </button>
-          ) : (
-            <span className={styles.deviceCardValue}>
-              {item.monitoredArea
-                ? `${item.monitoredArea.cellCount}칸 · ${formatAreaM2(item.monitoredArea.areaM2)}㎡`
-                : '미지정'}
-            </span>
-          )}
-        </div>
-      )}
-      <div className={styles.deviceCardActions}>
-        {editing ? (
-          <>
-            <button
-              type="button"
-              className={styles.deviceCardEditBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                onCancelEdit(item);
-              }}
-            >
-              취소
-            </button>
-            <button
-              type="button"
-              className={styles.deviceCardDoneBtn}
-              disabled={!hasChanges}
-              title={hasChanges ? undefined : '변경된 내용이 없어요'}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSaveEdit(item);
-              }}
-            >
-              완료
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className={styles.deviceCardEditBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartEdit(item);
-            }}
-          >
-            수정
-          </button>
-        )}
-      </div>
-    </div>
   );
 };
 
