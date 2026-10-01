@@ -4799,8 +4799,11 @@ const FloorPlansDetailPage = () => {
     if (item.source === 'added') {
       if (item.type === 'cctv') {
         setIsDeletingItem(true);
+        // CCTV 등록 시 함께 생성되는 CUSTOM 노드는 서버가 cascade로 안 지워줘서(유도등과 다름)
+        // 보라색 점으로 도면에 영구히 남음 — 삭제 전에 미리 알아두고 CCTV 삭제 성공 후 직접 정리
+        const customNodeId = realCctvs.find((cctv) => cctv.id === item.id)?.customNodeId;
         deleteCctv(item.id)
-          .then(() => {
+          .then(async () => {
             handleAddedDeviceDelete(item.id);
             queryClient.setQueryData<Cctv[]>(floorQueryKeys.cctv(floorId), (prev) =>
               prev?.filter((cctv) => cctv.id !== item.id),
@@ -4811,6 +4814,22 @@ const FloorPlansDetailPage = () => {
             if (editingCctvId === item.id) handleCancelEditCctvCells();
             setDeleteConfirmTarget(null);
             void queryClient.invalidateQueries({ queryKey: floorQueryKeys.cctv(floorId) });
+
+            if (customNodeId) {
+              try {
+                await deleteMapNode(customNodeId);
+                updateGraphCache((prev) => ({
+                  nodes: prev.nodes.filter((n) => n.id !== customNodeId),
+                  edges: prev.edges.filter(
+                    (edge) => edge.fromNodeId !== customNodeId && edge.toNodeId !== customNodeId,
+                  ),
+                }));
+              } catch (error) {
+                // CCTV 자체는 이미 삭제됐으니 이 실패로 사용자 흐름을 막지는 않음 — 다만 CUSTOM 노드는
+                // 캔버스에 보여주기만 하고 삭제 UI가 따로 없어서, 여기서 실패하면 고아로 남는다
+                if (import.meta.env.DEV) console.warn('[CCTV 연결 노드 정리 실패]', error);
+              }
+            }
           })
           .catch((error: unknown) => {
             const { message } = extractApiError(error);
