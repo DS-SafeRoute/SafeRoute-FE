@@ -1,6 +1,9 @@
 import { useId, useState } from 'react';
 
+import MapIcon from '@assets/icons/ic-map.svg?react';
+
 import { Button } from '@components/Button';
+import EmptyState from '@components/empty';
 import Modal from '@components/modal';
 
 import * as styles from './GridAreaSettingModal.css';
@@ -106,7 +109,13 @@ const GridAreaSettingModal = ({
             }}
           />
         ) : (
-          <span className={styles.previewEmpty}>도면 이미지를 불러올 수 없습니다</span>
+          <div className={styles.previewEmpty}>
+            <EmptyState
+              size="compact"
+              icon={<MapIcon />}
+              title="도면 이미지를 불러올 수 없습니다"
+            />
+          </div>
         )}
       </div>
 
