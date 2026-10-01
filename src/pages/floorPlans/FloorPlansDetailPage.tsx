@@ -3135,23 +3135,11 @@ const FloorPlansDetailPage = () => {
       .catch(() => {});
   };
 
-  const [toastMsg] = useState<string | null>(null);
-  const [toastFading] = useState(false);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nodePopupRef = useRef<HTMLDivElement>(null);
   const zonePopupRef = useRef<HTMLDivElement>(null);
   const edgePopupRef = useRef<HTMLDivElement>(null);
   const mapWrapRef = useRef<HTMLDivElement>(null);
   const devicePanelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(
-    () => () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      if (toastFadeRef.current) clearTimeout(toastFadeRef.current);
-    },
-    [],
-  );
 
   // 선택된 카드를 상단에 고정하지 않는 대신, 리스트 안에서 스크롤로 한 번 보여줌 (하이퍼링크 이동과 동일한 느낌)
   const focusedPanelId =
@@ -5101,11 +5089,6 @@ const FloorPlansDetailPage = () => {
 
         {/* ── 중앙 캔버스 ── */}
         <div className={styles.canvasArea}>
-          {/* 모드 안내 토스트 */}
-          {toastMsg && (
-            <div className={clsx(styles.toast, toastFading && styles.toastFading)}>{toastMsg}</div>
-          )}
-
           {currentFloor && (
             <div className={styles.canvasHeader}>
               <button
