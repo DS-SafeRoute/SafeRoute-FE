@@ -19,17 +19,13 @@ import {
 } from '@apis/floors/floorQueries';
 import type { UserZoneWithCells } from '@apis/floors/floorQueries';
 
-import CameraIcon from '@assets/icons/ic-camera.svg?react';
 import CheckIcon from '@assets/icons/ic-check.svg?react';
 import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
-import InfoIcon from '@assets/icons/ic-info.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
-import WifiIcon from '@assets/icons/ic-wifi.svg?react';
-import XIcon from '@assets/icons/ic-x.svg?react';
 
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
@@ -77,8 +73,14 @@ import {
   updateNodeStartCandidate,
 } from './api/mapGraphApi';
 import { createUserZone, deleteUserZone } from './api/userZoneApi';
+import AddedDevicePin from './components/AddedDevicePin';
+import DevicePin from './components/DevicePin';
+import GridOverlayLines from './components/GridOverlayLines';
+import LightPickField, { getLightPickHint } from './components/LightPickField';
+import NodeTypeLegendInfo from './components/NodeTypeLegendInfo';
 import ReadinessChecklist from './components/ReadinessChecklist';
 import { DEVICE_COLOR } from './constants/deviceColors';
+import { DEVICE_PLACE_CONFIG } from './constants/devicePlacement';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -90,11 +92,13 @@ import {
   rememberGridSize,
   rememberPendingGridSize,
 } from './utils/gridStorage';
+import { rafThrottle } from './utils/rafThrottle';
 
 import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
 import type { FloorGraph, MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
+import type { AddedDevice, PlacingDeviceType } from './constants/devicePlacement';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
@@ -177,56 +181,6 @@ const deviceTypeToPlaceType = (type: DeviceType): PanelItem['type'] => {
 const deviceTypeToFilterChip = (type: DeviceType): 'cctv' | 'light' | null => {
   const placeType = deviceTypeToPlaceType(type);
   return placeType === 'general' ? null : placeType;
-};
-
-// 브라우저는 mousemove를 초당 수백 번까지도 쏘는데, 드래그 중 매번 상태를 갱신하면 프레임마다
-// 전체 도면(SVG 그래프·그리드·패널)이 재렌더됨 — 프레임당 최신 좌표 한 번만 반영되도록 묶어줌
-const rafThrottle = <A extends unknown[]>(fn: (...args: A) => void) => {
-  let rafId: number | null = null;
-  let latestArgs: A | null = null;
-  const flush = () => {
-    rafId = null;
-    if (latestArgs) fn(...latestArgs);
-  };
-  const throttled = (...args: A) => {
-    latestArgs = args;
-    if (rafId === null) rafId = requestAnimationFrame(flush);
-  };
-  throttled.cancel = () => {
-    if (rafId !== null) cancelAnimationFrame(rafId);
-    rafId = null;
-    latestArgs = null;
-  };
-  return throttled;
-};
-
-// 'iot'는 API 없이 화면에만 찍히는 더미 노드였어서 제거함 — 실제 장비는 CCTV와 유도등뿐
-// 시작 후보(START) 노드 생성은 이 화면(도면편집) 몫이 맞음 — 스웨거 재확인 결과 START는
-// "특정 시나리오에 귀속되지 않는, 층 단위로 등록해두는 훈련 시작점 후보"라 도면을 다루는
-// 이 화면에서 다른 구조 노드(문/계단/복도)와 똑같이 만든다. 실제 훈련 시작점 선택은
-// 시나리오 설정 화면에서 발화점 셀과 함께 확정한다.
-type PlacingDeviceType = 'cctv' | 'light' | 'door' | 'stair' | 'hallway' | 'start';
-type PlacingEquipmentType = Exclude<PlacingDeviceType, 'door' | 'stair' | 'hallway' | 'start'>;
-
-const DEVICE_PLACE_CONFIG: Record<PlacingDeviceType, { label: string; color: string }> = {
-  cctv: { label: 'CCTV', color: DEVICE_COLOR.cctv },
-  light: { label: '유도등', color: DEVICE_COLOR.light },
-  door: { label: '문 · 출입구', color: DEVICE_COLOR.door },
-  stair: { label: '계단', color: DEVICE_COLOR.stair },
-  hallway: { label: '복도', color: DEVICE_COLOR.hallway },
-  // "시작 노드"가 아니라 "시작 후보"로 부름 — 실제 훈련 시작점 확정은 시나리오설정에서 함
-  start: { label: '시작 후보', color: DEVICE_COLOR.start },
-};
-
-type AddedDevice = {
-  id: string;
-  type: 'cctv' | 'iot';
-  placeType: PlacingEquipmentType;
-  label: string;
-  x: number; // %
-  y: number; // %
-  status: 'online';
-  zone: string;
 };
 
 type ZoneType = 'general';
@@ -375,73 +329,6 @@ const cellIdsIntersectingRect = (
       );
     })
     .map((cell) => cell.id);
-
-// 그리드 표시 토글용 균일 격자선(모눈종이). 셀별 rect 대신 캔버스(560x420) 전체를
-// 가로지르는 직선만 그어서, 공유 변이 두 번 그려져 자리표처럼 보이던 문제를 없앰.
-// 선 위치는 실제 그리드 원점에 위상만 맞추고, 셀 범위를 넘어 캔버스 가장자리까지 채움
-const GridOverlayLines = ({
-  cells,
-  size,
-  canvasH,
-}: {
-  cells: FloorGridCell[];
-  size: { w: number; h: number };
-  canvasH: number;
-}) => {
-  if (cells.length === 0) return null;
-  const CANVAS_H = canvasH;
-
-  // 위상(offset)은 각 셀 왼쪽/위쪽 변을 셀 크기로 나눈 나머지의 중앙값으로 구함 —
-  // 특정 셀 하나의 부동소수 오차에 흔들리지 않고, 격자선이 실제 셀 경계에 맞음.
-  // 그 위상에서 0부터 캔버스 끝까지 셀 간격으로 선을 반복해 전체를 덮음
-  const median = (values: number[]) => {
-    const sorted = [...values].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)] ?? 0;
-  };
-  const phaseX = median(
-    cells.map((c) => {
-      const left = c.centerX * CANVAS_W - size.w / 2;
-      return ((left % size.w) + size.w) % size.w;
-    }),
-  );
-  const phaseY = median(
-    cells.map((c) => {
-      const top = c.centerY * CANVAS_H - size.h / 2;
-      return ((top % size.h) + size.h) % size.h;
-    }),
-  );
-  const verticalXs: number[] = [];
-  for (let x = phaseX; x <= CANVAS_W + 0.001; x += size.w) verticalXs.push(x);
-  const horizontalYs: number[] = [];
-  for (let y = phaseY; y <= CANVAS_H + 0.001; y += size.h) horizontalYs.push(y);
-
-  return (
-    <g style={{ pointerEvents: 'none' }}>
-      {verticalXs.map((x) => (
-        <line
-          key={`v${x}`}
-          x1={x}
-          y1={0}
-          x2={x}
-          y2={CANVAS_H}
-          stroke="rgba(107,114,128,0.22)"
-          strokeWidth="0.6"
-        />
-      ))}
-      {horizontalYs.map((y) => (
-        <line
-          key={`h${y}`}
-          x1={0}
-          y1={y}
-          x2={CANVAS_W}
-          y2={y}
-          stroke="rgba(107,114,128,0.22)"
-          strokeWidth="0.6"
-        />
-      ))}
-    </g>
-  );
-};
 
 const MockFloorMap3F = ({
   mapImageUrl,
@@ -1093,317 +980,6 @@ const MockFloorMap3F = ({
   );
 };
 
-/* ── CCTV/IoT 마커 ── */
-const DevicePin = ({
-  device,
-  posX,
-  posY,
-  selected,
-  draggable,
-  onClick,
-  onDragEnd,
-}: {
-  device: DeviceMarker;
-  posX: number;
-  posY: number;
-  selected: boolean;
-  draggable: boolean;
-  onClick: () => void;
-  onDragEnd: (id: string, x: number, y: number) => void;
-}) => {
-  const isDragging = useRef(false);
-  const didMove = useRef(false);
-
-  const isOffline = device.status === 'offline';
-  const markerClass = clsx(
-    styles.markerCircle,
-    device.type === 'cctv'
-      ? isOffline
-        ? styles.markerCctvOffline
-        : styles.markerCctv
-      : styles.markerIot,
-    selected && styles.markerSelected,
-  );
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!draggable) return;
-    e.preventDefault();
-    e.stopPropagation();
-    isDragging.current = true;
-    didMove.current = false;
-
-    // 마커의 바로 위 부모(구역 드래그 중 포인터 이벤트만 끄는 레이어)는 일부러 position을
-    // 안 걸어둬서 자식이 전부 absolute면 높이가 0으로 찌그러짐 — 그 부모 기준으로 %를 계산하면
-    // rect.height가 0이라 세로 좌표가 전부 위/아래 끝으로 튐(수정 중 위치를 옮기면 마커가
-    // 캔버스 맨 위로 튀던 버그의 원인). 실제 좌표 기준인 mapWrap(그 부모의 부모)을 써야 함
-    const container = (e.currentTarget as HTMLElement).parentElement?.parentElement;
-    if (!container) return;
-    let lastPoint: { x: number; y: number } | null = null;
-    const applyMove = rafThrottle((x: number, y: number) => onDragEnd(device.id, x, y));
-
-    const onMove = (mv: MouseEvent) => {
-      if (!isDragging.current) return;
-      didMove.current = true;
-      const rect = container.getBoundingClientRect();
-      const rawX = ((mv.clientX - rect.left) / rect.width) * 100;
-      const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
-      const clampedX = Math.max(0, Math.min(100, rawX));
-      const clampedY = Math.max(0, Math.min(100, rawY));
-      lastPoint = { x: clampedX, y: clampedY };
-      applyMove(clampedX, clampedY);
-    };
-
-    const onUp = () => {
-      isDragging.current = false;
-      // 마지막 프레임이 아직 예약된 상태로 끊기지 않도록, 대기 중이던 갱신은 취소하고
-      // 마지막 좌표를 바로 반영해 마우스를 뗀 위치와 어긋나지 않게 함
-      applyMove.cancel();
-      if (lastPoint) onDragEnd(device.id, lastPoint.x, lastPoint.y);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={device.label}
-      className={styles.markerWrap}
-      style={{
-        left: `${posX}%`,
-        top: `${posY}%`,
-        cursor: draggable ? 'grab' : 'pointer',
-      }}
-      onMouseDown={handleMouseDown}
-      onClick={(e) => {
-        if (didMove.current) {
-          e.stopPropagation();
-          return;
-        }
-        e.stopPropagation();
-        onClick();
-      }}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
-    >
-      <div className={styles.markerPin}>
-        <div className={markerClass}>
-          {device.type === 'cctv' ? (
-            <CameraIcon width={12} height={12} aria-hidden="true" />
-          ) : (
-            <WifiIcon width={12} height={12} aria-hidden="true" />
-          )}
-        </div>
-      </div>
-      {selected && (
-        <span className={clsx(styles.markerLabel, styles.markerLabelPin)}>{device.label}</span>
-      )}
-    </div>
-  );
-};
-
-/* ── 사용자가 추가한 장치 마커 (위치 드래그 지원) ── */
-const AddedDevicePin = ({
-  device,
-  posX,
-  posY,
-  selected,
-  draggable,
-  onClick,
-  onDragEnd,
-}: {
-  device: AddedDevice;
-  posX: number;
-  posY: number;
-  selected: boolean;
-  draggable: boolean;
-  onClick: () => void;
-  onDragEnd: (id: string, x: number, y: number) => void;
-}) => {
-  const isDragging = useRef(false);
-  const didMove = useRef(false);
-  const color = DEVICE_PLACE_CONFIG[device.placeType].color;
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!draggable) return;
-    e.preventDefault();
-    e.stopPropagation();
-    isDragging.current = true;
-    didMove.current = false;
-
-    // 마커의 바로 위 부모(구역 드래그 중 포인터 이벤트만 끄는 레이어)는 일부러 position을
-    // 안 걸어둬서 자식이 전부 absolute면 높이가 0으로 찌그러짐 — 그 부모 기준으로 %를 계산하면
-    // rect.height가 0이라 세로 좌표가 전부 위/아래 끝으로 튐(수정 중 위치를 옮기면 마커가
-    // 캔버스 맨 위로 튀던 버그의 원인). 실제 좌표 기준인 mapWrap(그 부모의 부모)을 써야 함
-    const container = (e.currentTarget as HTMLElement).parentElement?.parentElement;
-    if (!container) return;
-    let lastPoint: { x: number; y: number } | null = null;
-    const applyMove = rafThrottle((x: number, y: number) => onDragEnd(device.id, x, y));
-
-    const onMove = (mv: MouseEvent) => {
-      if (!isDragging.current) return;
-      didMove.current = true;
-      const rect = container.getBoundingClientRect();
-      const rawX = ((mv.clientX - rect.left) / rect.width) * 100;
-      const rawY = ((mv.clientY - rect.top) / rect.height) * 100;
-      const point = { x: Math.max(0, Math.min(100, rawX)), y: Math.max(0, Math.min(100, rawY)) };
-      lastPoint = point;
-      applyMove(point.x, point.y);
-    };
-    const onUp = () => {
-      isDragging.current = false;
-      applyMove.cancel();
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (lastPoint) onDragEnd(device.id, lastPoint.x, lastPoint.y);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={device.label}
-      className={styles.markerWrap}
-      style={{ left: `${posX}%`, top: `${posY}%`, cursor: draggable ? 'grab' : 'pointer' }}
-      onMouseDown={handleMouseDown}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (didMove.current) return;
-        onClick();
-      }}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
-    >
-      <div className={styles.markerPin}>
-        <div
-          className={styles.markerCircle}
-          style={{ backgroundColor: color, border: '2px dashed white' }}
-          title={device.label}
-        >
-          {device.type === 'cctv' ? (
-            <CameraIcon width={12} height={12} aria-hidden="true" />
-          ) : (
-            <WifiIcon width={12} height={12} aria-hidden="true" />
-          )}
-        </div>
-      </div>
-      {selected && (
-        <span className={clsx(styles.markerLabel, styles.markerLabelPin)}>{device.label}</span>
-      )}
-    </div>
-  );
-};
-
-type LightPickFieldName = 'decisionNode' | 'leftEdge' | 'rightEdge';
-
-interface LightPickFieldProps {
-  label: string;
-  fieldName: LightPickFieldName;
-  pickField: LightPickFieldName | null;
-  disabled?: boolean;
-  // 옵션 목록에서 찾은 현재 값의 표시용 라벨 — undefined면 아직 선택 안 된 상태
-  displayLabel?: string;
-  emptyText: string;
-  onStartPick: () => void;
-  onClear: () => void;
-}
-
-// 갈림길 위치·왼쪽 통로·오른쪽 통로 — 같은 이름 노드가 많아 드롭다운으로는 뭐가 뭔지 구분이
-// 안 된다는 QA 피드백으로 드롭다운 자체를 없애고 도면(캔버스) 클릭으로만 고르게 함. 이 컴포넌트는
-// 값을 고르는 UI가 아니라 "캔버스에서 선택" 버튼 + 현재 값 표시 + 지우기 버튼만 담당함
-const LightPickField = ({
-  label,
-  fieldName,
-  pickField,
-  disabled = false,
-  displayLabel,
-  emptyText,
-  onStartPick,
-  onClear,
-}: LightPickFieldProps) => {
-  const picking = pickField === fieldName;
-  return (
-    <div className={styles.nodeAddField}>
-      <div className={styles.nodeAddLabelRow}>
-        <span className={styles.nodeAddLabel}>{label}</span>
-        <button
-          type="button"
-          className={styles.nodeAddPickBtn}
-          disabled={disabled}
-          onClick={onStartPick}
-        >
-          {picking ? '선택 취소' : '캔버스에서 선택'}
-        </button>
-      </div>
-      <div
-        className={clsx(
-          styles.nodeAddPickDisplay,
-          !displayLabel && styles.nodeAddPickDisplayEmpty,
-          picking && styles.nodeAddPickDisplayActive,
-        )}
-      >
-        {displayLabel ?? emptyText}
-        {displayLabel && (
-          <button
-            type="button"
-            aria-label={`${label} 선택 해제`}
-            className={styles.nodeAddPickClearBtn}
-            onClick={onClear}
-          >
-            <XIcon width={14} height={14} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// 갈림길 위치에 이어진 엣지가 도면에 하나도 없으면 왼쪽/오른쪽 통로는 캔버스에서 클릭할 대상 자체가
-// 없어 아무것도 고를 수 없음(통로는 이 팝업이 아니라 별도의 "+ 추가 → 엣지 추가"로 미리 그려둬야
-// 하는 데이터라서) — 그 상태에서 그냥 "클릭해주세요"만 보여주면 왜 안 되는지 알 수 없어 안내를 바꿔줌
-interface LightPickHint {
-  text: string;
-  // 그냥 안내가 아니라 "지금 이대로는 진행이 안 된다"는 경고라 색으로도 구분되게 함
-  isWarning: boolean;
-}
-
-const getLightPickHint = (
-  pickField: LightPickFieldName | null,
-  decisionNodeId: string,
-  edgeOptions: readonly { fromNodeId: string; toNodeId: string }[],
-): LightPickHint => {
-  if (!pickField) {
-    return {
-      text: '이 유도등이 서 있는 갈림길 위치와, 화재 시 왼쪽·오른쪽 중 어느 통로로 안내할지 정해주세요',
-      isWarning: false,
-    };
-  }
-  if (pickField === 'decisionNode') {
-    return { text: '도면에서 갈림길이 될 노드를 클릭해주세요', isWarning: false };
-  }
-  const hasConnectedEdge = edgeOptions.some(
-    (e) => e.fromNodeId === decisionNodeId || e.toNodeId === decisionNodeId,
-  );
-  if (!hasConnectedEdge) {
-    return {
-      text: '이 갈림길에 연결된 통로(엣지)가 없어요. "+ 추가 → 엣지 추가"로 통로를 먼저 만들어주세요',
-      isWarning: true,
-    };
-  }
-  return {
-    text:
-      pickField === 'leftEdge'
-        ? '도면에서 왼쪽 통로가 될 구간(선)을 클릭해주세요'
-        : '도면에서 오른쪽 통로가 될 구간(선)을 클릭해주세요',
-    isWarning: false,
-  };
-};
-
 /* ── 장비 추가 팝업 ──
  * 정보 입력과 위치 지정을 같은 화면(입력 단계)에서 함께 진행 — 도면을 클릭하면 위치가 잡히고,
  * 다시 클릭하면 위치를 옮길 수 있음. CCTV만 이후 시야 범위 지정 단계가 추가로 붙어 총 2단계.
@@ -1916,86 +1492,6 @@ const AddActionMenu = ({
               {item.label}
             </button>
           ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ── 노드/구역 종류 안내 — 인포 아이콘을 눌렀을 때만 팝오버로 보여주고 바깥을 클릭하면 닫힘
-   (항상 떠 있는 범례가 도면을 가린다는 피드백을 받아 지도 툴들에서 흔한 "on-demand 팝오버"
-   패턴으로 바꿈) ── */
-const NodeTypeLegendInfo = () => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className={styles.legendInfoContainer}>
-      <button
-        type="button"
-        className={styles.legendInfoButton}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label="노드·구역 표시 안내"
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        <InfoIcon width={18} height={18} />
-      </button>
-
-      {open && (
-        <div className={styles.legendPopover} role="dialog" aria-label="노드·구역 표시 안내">
-          <div className={styles.nodeTypeLegendSection}>
-            <span className={styles.zoneLegendTitle}>노드 종류</span>
-            <div className={styles.zoneLegendItem}>
-              <span className={styles.nodeTypeCctvBadge}>CC</span>
-              <span className={styles.zoneLegendLabel}>CCTV</span>
-            </div>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotLight)} />
-              <span className={styles.zoneLegendLabel}>유도등</span>
-            </div>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotDoor)} />
-              <span className={styles.zoneLegendLabel}>문 · 출입구</span>
-            </div>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStair)} />
-              <span className={styles.zoneLegendLabel}>계단</span>
-            </div>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotHallway)} />
-              <span className={styles.zoneLegendLabel}>복도</span>
-            </div>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeDot, styles.nodeTypeDotStart)} />
-              <span className={styles.zoneLegendLabel}>시작 후보</span>
-            </div>
-          </div>
-
-          <div className={styles.nodeTypeLegendDivider} />
-
-          <div className={styles.nodeTypeLegendSection}>
-            <span className={styles.zoneLegendTitle}>구역 종류</span>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchGeneral)} />
-              <span className={styles.zoneLegendLabel}>일반 구역</span>
-            </div>
-            <div className={styles.zoneLegendItem}>
-              <span className={clsx(styles.nodeTypeAreaSwatch, styles.nodeTypeAreaSwatchCamera)} />
-              <span className={styles.zoneLegendLabel}>카메라 시야</span>
-            </div>
-          </div>
         </div>
       )}
     </div>
