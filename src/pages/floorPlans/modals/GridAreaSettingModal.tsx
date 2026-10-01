@@ -64,8 +64,16 @@ const GridAreaSettingModal = ({
     });
   };
 
-  // 실제 축척과 무관한 미리보기 전용 근사치 — 정확한 격자는 업로드 후 실제 캔버스에서 확인 가능
-  const cellSize = Math.max(6, Math.min(120, cellSizeCm / 5));
+  // 가로/세로(m)가 입력되면 그 실측 비율대로 %로 그려서 도면관리 상세의 실제 그리드 배율과
+  // 맞게 보여줌 — background-size %는 요소 자신의 박스 기준으로 계산되므로 미리보기 박스의
+  // 실제 px 너비를 몰라도 됨. 아직 입력 전(0 또는 빈 값)에는 셀 크기만으로 대략치를 보여줌
+  const hasRealSize = realWidthMValue > 0 && realHeightMValue > 0;
+  // background-size에 값을 하나만 주면 height는 'auto'(그라디언트는 intrinsic 크기가 없어 100%로
+  // 처리됨)가 되어 세로선이 통째로 한 번만 그려짐(가로선 없이 줄무늬로 보임) — 가로/세로 둘 다 명시
+  const approxCellPx = Math.max(6, Math.min(120, cellSizeCm / 5));
+  const gridBackgroundSize = hasRealSize
+    ? `${cellSizeCm / realWidthMValue}% ${cellSizeCm / realHeightMValue}%`
+    : `${approxCellPx}px ${approxCellPx}px`;
 
   return (
     <Modal
@@ -105,7 +113,7 @@ const GridAreaSettingModal = ({
             style={{
               backgroundImage:
                 'linear-gradient(to right, rgba(37,99,235,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(37,99,235,0.25) 1px, transparent 1px)',
-              backgroundSize: `${cellSize}px ${cellSize}px`,
+              backgroundSize: gridBackgroundSize,
             }}
           />
         ) : (
