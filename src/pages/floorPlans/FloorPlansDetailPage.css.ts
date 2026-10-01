@@ -1295,38 +1295,3 @@ export const zoomValueClickable = style({
     '&:hover': { backgroundColor: vars.color.primaryLight2 },
   },
 });
-
-/* ── 토스트 ── */
-const toastIn = keyframes({
-  from: { transform: 'translateY(8px)', opacity: 0 },
-  to: { transform: 'translateY(0)', opacity: 1 },
-});
-
-const toastOut = keyframes({
-  from: { opacity: 1 },
-  to: { opacity: 0 },
-});
-
-export const toast = style({
-  position: 'absolute',
-  zIndex: 20,
-  top: vars.space.s4,
-  left: '50%',
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  transform: 'translateX(-50%)',
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: '#1e1e2e',
-  pointerEvents: 'none',
-  padding: `${vars.space.s2} ${vars.space.s4}`,
-  animation: `${toastIn} 0.2s ease forwards`,
-  whiteSpace: 'nowrap',
-  color: '#fff',
-  ...vars.typography.body14,
-});
-
-export const toastFading = style({
-  animation: `${toastOut} 0.3s ease forwards`,
-});
