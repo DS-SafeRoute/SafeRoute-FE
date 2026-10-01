@@ -32,9 +32,3 @@ export const emptyState = style({
   backgroundColor: vars.color.white,
   minHeight: '36rem',
 });
-
-export const errorMessage = style({
-  padding: `${vars.space.s5} 0`,
-  color: vars.color.danger,
-  ...vars.typography.body14,
-});
