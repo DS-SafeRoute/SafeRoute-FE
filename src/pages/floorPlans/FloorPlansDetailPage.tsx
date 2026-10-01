@@ -20,11 +20,9 @@ import {
 import type { UserZoneWithCells } from '@apis/floors/floorQueries';
 
 import CheckIcon from '@assets/icons/ic-check.svg?react';
-import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
 import MapIcon from '@assets/icons/ic-map.svg?react';
-import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 
 import { Button } from '@components/Button';
@@ -73,14 +71,26 @@ import {
   updateNodeStartCandidate,
 } from './api/mapGraphApi';
 import { createUserZone, deleteUserZone } from './api/userZoneApi';
+import AddActionMenu from './components/AddActionMenu';
 import AddedDevicePin from './components/AddedDevicePin';
 import DevicePin from './components/DevicePin';
+import EdgeChainReviewPopup from './components/EdgeChainReviewPopup';
 import GridOverlayLines from './components/GridOverlayLines';
 import LightPickField, { getLightPickHint } from './components/LightPickField';
+import NodeAddPopup from './components/NodeAddPopup';
 import NodeTypeLegendInfo from './components/NodeTypeLegendInfo';
 import ReadinessChecklist from './components/ReadinessChecklist';
+import ZoneAddPopup from './components/ZoneAddPopup';
 import { DEVICE_COLOR } from './constants/deviceColors';
 import { DEVICE_PLACE_CONFIG } from './constants/devicePlacement';
+import {
+  API_TYPE_TO_STRUCTURE,
+  isStructureNodeType,
+  STRUCTURE_NODE_API_TYPE,
+  STRUCTURE_NODE_COLOR,
+  STRUCTURE_NODE_LABEL,
+  ZONE_CARD_DOT_CLASS,
+} from './constants/structureNode';
 import * as styles from './FloorPlansDetailPage.css';
 import EquipmentDeleteConfirmModal from './modals/EquipmentDeleteConfirmModal';
 import FloorUploadModal from './modals/FloorUploadModal';
@@ -98,7 +108,9 @@ import type { Cctv } from './api/cctvApi';
 import type { FloorGridCell } from './api/floorGridApi';
 import type { IoTLight } from './api/iotLightsApi';
 import type { FloorGraph, MapEdge, MapNode, MapNodeType } from './api/mapGraphApi';
+import type { LightAddFields } from './components/NodeAddPopup';
 import type { AddedDevice, PlacingDeviceType } from './constants/devicePlacement';
+import type { StructureNode } from './constants/structureNode';
 import type { DeviceMarker, DeviceType, Floor, FloorBuilding } from './types/floorPlans';
 
 type SelectedItem = { kind: 'device'; data: DeviceMarker };
@@ -146,15 +158,6 @@ const EMPTY_DEVICE_EDIT_FORM: DeviceEditForm = {
   cctvId: '',
 };
 
-// 유도등 추가 팝업에서 같이 받는 담당 CCTV·가이던스 값 — DeviceEditForm과 필드 구성은 같지만
-// label이 없고(장치 ID 입력이 대신함) 전부 빈 문자열이면 "아직 안 정함"으로 취급해 생략 가능함
-type LightAddFields = {
-  cctvId: string;
-  decisionNodeId: string;
-  leftEdgeId: string;
-  rightEdgeId: string;
-};
-
 // CCTV 등록·시야 재선택·수정 세 곳에서 카드에 보여줄 "모니터링 N칸 · M㎡" 문구를 각자 다시
 // 조립하면 한 줄이 100자를 넘기기 쉽고 표현도 어긋나기 쉬워 하나로 합침
 const formatMonitoredZone = (cctv: Pick<Cctv, 'monitoredGridCellCount' | 'monitoredAreaM2'>) =>
@@ -189,69 +192,6 @@ type ZoneRect = { x: number; y: number; w: number; h: number };
 
 // cellIds가 실제 저장 단위(백엔드 UserZone은 그리드 셀 집합) — rect는 드래그 중 임시 표시에만 씀
 type ZoneEntry = { id: string; type: ZoneType; label: string; cellIds: string[] };
-
-/* 도면 위 구조 노드 — 실제 API의 MapNodeResponse.type(DOOR/STAIR 등)과 대응되는 점 좌표 노드.
-   isFinalExit은 계단에서만 의미 있음(문/출입구는 층 사이를 잇는 탈출 경로가 아니라 최종
-   탈출구로 지정할 수 없음. 복도·시작 후보도 항상 false — 시작 후보는 서버가
-   isExitTarget=false로 강제 저장함). 시작 후보(START)는 스웨거 재확인 결과 이 화면(도면편집)
-   에서 만드는 게 맞는 걸로 정정함 — 층 단위로 등록해두는 후보일 뿐, 실제 "이 시나리오의
-   시작점" 확정은 시나리오 설정에서 발화점 셀과 함께 처리함) */
-type StructureNodeType = 'door' | 'stair' | 'hallway' | 'start';
-
-type StructureNode = {
-  id: string;
-  type: StructureNodeType;
-  x: number;
-  y: number;
-  isFinalExit: boolean;
-  // DOOR 노드를 훈련 시작 후보로 지정했는지 (문 카드에서 토글). 그 외 타입은 항상 false
-  isStartCandidate: boolean;
-};
-
-const STRUCTURE_NODE_LABEL: Record<StructureNodeType, string> = {
-  door: '문 · 출입구',
-  stair: '계단',
-  hallway: '복도',
-  start: '시작 후보',
-};
-
-// 구조 노드 여부 판정 — STRUCTURE_NODE_LABEL을 단일 소스로 삼아, 새 구조 노드 타입이 추가될 때
-// 이 판정만 따로 놓쳐서 어긋나는 일이 없게 함
-const isStructureNodeType = (type: string): type is StructureNodeType =>
-  type in STRUCTURE_NODE_LABEL;
-
-// 구조 노드 ↔ 맵그래프 노드 타입 매핑 (API MapNodeResponse.type)
-const STRUCTURE_NODE_API_TYPE = {
-  door: 'DOOR',
-  stair: 'STAIR',
-  hallway: 'HALLWAY',
-  start: 'START',
-} as const satisfies Record<StructureNodeType, MapNodeType>;
-
-const API_TYPE_TO_STRUCTURE: Partial<Record<MapNodeType, StructureNodeType>> = {
-  DOOR: 'door',
-  STAIR: 'stair',
-  HALLWAY: 'hallway',
-  START: 'start',
-  // 최종 탈출구로 지정하면 서버 노드 타입이 EXIT로 올라옴 — 편집기에선 계속 계단 카드로 다뤄
-  // '최종 탈출구' 배지·해제 토글이 유지되게 함(해제 시 STAIR로 복원)
-  EXIT: 'stair',
-};
-
-const STRUCTURE_NODE_COLOR: Record<StructureNodeType, string> = {
-  door: DEVICE_COLOR.door,
-  stair: DEVICE_COLOR.stair,
-  hallway: DEVICE_COLOR.hallway,
-  start: DEVICE_COLOR.start,
-};
-
-// 우측 패널 구조 노드 카드의 점 색상 클래스 — 위 색상표를 그대로 벡터-엑스트랙트 클래스로 옮긴 것
-const ZONE_CARD_DOT_CLASS: Record<StructureNodeType, string> = {
-  door: styles.zoneCardDotDoor,
-  stair: styles.zoneCardDotStair,
-  hallway: styles.zoneCardDotHallway,
-  start: styles.zoneCardDotStart,
-};
 
 // 맵그래프 노드 중 문/계단이 아닌 나머지(ROOM/HALLWAY/EXIT/CUSTOM) — 조회 전용, 아직 편집 대상 아님
 const GRAPH_NODE_COLOR: Record<'ROOM' | 'HALLWAY' | 'EXIT' | 'CUSTOM', string> = {
@@ -977,524 +917,6 @@ const MockFloorMap3F = ({
         </>
       )}
     </svg>
-  );
-};
-
-/* ── 장비 추가 팝업 ──
- * 정보 입력과 위치 지정을 같은 화면(입력 단계)에서 함께 진행 — 도면을 클릭하면 위치가 잡히고,
- * 다시 클릭하면 위치를 옮길 수 있음. CCTV만 이후 시야 범위 지정 단계가 추가로 붙어 총 2단계.
- * 종료 버튼 규칙: 아직 생성되지 않는 중간 단계는 "다음", 실제로 저장되는 마지막 클릭만 "추가"로 통일
- * (구역추가 팝업과도 동일한 규칙 — 툴바의 "+ 노드 추가"/"+ 구역 추가"와 같은 동사로 시작·종료되게 함).
- */
-const NodeAddPopup = ({
-  containerRef,
-  type,
-  onTypeChange,
-  stage,
-  hasPosition,
-  selectedCellCount,
-  onCancel,
-  onBack,
-  onSubmitEntry,
-  onFinalize,
-  lightNodeOptions,
-  lightEdgeOptions,
-  lightCctvOptions,
-  lightFields,
-  onLightFieldsChange,
-  lightPickField,
-  onStartLightPick,
-}: {
-  containerRef: React.RefObject<HTMLDivElement>;
-  type: PlacingDeviceType;
-  onTypeChange: (type: PlacingDeviceType) => void;
-  stage: 'entry' | 'fov';
-  hasPosition: boolean;
-  selectedCellCount: number;
-  onCancel: () => void;
-  onBack: () => void;
-  onSubmitEntry: (type: PlacingDeviceType, deviceId: string, lightFields: LightAddFields) => void;
-  onFinalize: (deviceId: string) => void;
-  lightNodeOptions: { id: string; label: string }[];
-  lightEdgeOptions: { id: string; label: string; fromNodeId: string; toNodeId: string }[];
-  lightCctvOptions: { id: string; label: string }[];
-  // 갈림길 위치·좌우 통로 값은 부모가 갖고 있음(캔버스 클릭으로도 같은 값을 채울 수 있어야
-  // 해서 이 팝업 로컬 state로 두면 캔버스↔팝업 양방향 동기화가 번거로워짐 — DeviceCard의
-  // editForm과 같은 방식으로 통일). 담당 CCTV는 캔버스에서 고를 대상이 아니라 포함하지 않음
-  lightFields: { decisionNodeId: string; leftEdgeId: string; rightEdgeId: string };
-  onLightFieldsChange: (fields: {
-    decisionNodeId: string;
-    leftEdgeId: string;
-    rightEdgeId: string;
-  }) => void;
-  lightPickField: 'decisionNode' | 'leftEdge' | 'rightEdge' | null;
-  onStartLightPick: (field: 'decisionNode' | 'leftEdge' | 'rightEdge') => void;
-}) => {
-  const [deviceId, setDeviceId] = useState('');
-  // 담당 CCTV는 캔버스에서 고를 대상이 아니라(그래프 노드/엣지가 아님) 계속 이 팝업 로컬
-  // state로 둠 — 수정 카드(DeviceCard)와 채워야 하는 값이 서로 달라 등록 직후엔 "훈련 준비"에
-  // 필요한 guidanceConfigured/cctvId가 항상 비어있던 문제. 도면에 아직 판단 노드·엣지·CCTV가
-  // 없을 수도 있어 필수로 막지는 않음(비워두면 등록 후 카드에서 마저 채움)
-  const [lightCctvId, setLightCctvId] = useState('');
-  const {
-    decisionNodeId: lightDecisionNodeId,
-    leftEdgeId: lightLeftEdgeId,
-    rightEdgeId: lightRightEdgeId,
-  } = lightFields;
-
-  const isStructureNode = isStructureNodeType(type);
-  const isCctv = type === 'cctv';
-  const isLight = type === 'light';
-  const totalSteps = isCctv ? 2 : 1;
-  const stepNumber = stage === 'entry' ? 1 : totalSteps;
-
-  if (stage === 'fov') {
-    return (
-      <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.nodeAddHeader}>
-          <span className={styles.nodeAddTitle}>
-            {DEVICE_PLACE_CONFIG[type].label} 시야 범위 지정
-          </span>
-          <span className={styles.nodeAddStepBadge}>
-            {stepNumber}/{totalSteps}
-          </span>
-        </div>
-        <span className={styles.nodeAddHint}>
-          {selectedCellCount > 0
-            ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡히고, 칸을 클릭하면 하나씩 켜고 끌 수 있어요.`
-            : '도면을 드래그해서 카메라 시야 구역에 해당하는 칸을 선택해주세요'}
-        </span>
-
-        <div className={styles.nodeAddActions}>
-          <button type="button" className={styles.nodeAddBackBtn} onClick={onBack}>
-            이전
-          </button>
-          <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
-            취소
-          </button>
-          <button
-            type="button"
-            className={styles.nodeAddSubmitBtn}
-            disabled={selectedCellCount === 0}
-            onClick={() => onFinalize(deviceId)}
-          >
-            추가
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const canSubmit = hasPosition && (isStructureNode || !!deviceId.trim());
-
-  return (
-    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
-      <div className={styles.nodeAddHeader}>
-        <span className={styles.nodeAddTitle}>노드 추가</span>
-        <span className={styles.nodeAddStepBadge}>
-          {stepNumber}/{totalSteps}
-        </span>
-      </div>
-      <span className={styles.nodeAddHint}>
-        {hasPosition
-          ? '위치가 지정됐어요. 다른 곳을 클릭하면 위치를 옮길 수 있어요.'
-          : '도면을 클릭해서 위치를 지정해주세요'}
-      </span>
-
-      <div className={styles.nodeAddField}>
-        <span className={styles.nodeAddLabel}>노드 종류</span>
-        <div className={styles.deviceTypeChips}>
-          {/* 시작 후보(START)는 새 노드로 만들지 않고, 문·출입구 카드에서 지정한다(BE PR #225) */}
-          {(['cctv', 'light', 'door', 'stair', 'hallway'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={clsx(styles.deviceTypeChip, type === t && styles.deviceTypeChipActive)}
-              onClick={() => onTypeChange(t)}
-            >
-              {DEVICE_PLACE_CONFIG[t].label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {!isStructureNode && (
-        <>
-          <div className={styles.nodeAddField}>
-            <span className={styles.nodeAddLabel}>장치 ID</span>
-            <input
-              className={styles.nodeAddInput}
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              placeholder={isCctv ? 'CCTV-A3-05' : 'IOT-A3-05'}
-            />
-          </div>
-
-          {/* 담당 CCTV·가이던스(판단 노드/좌우 엣지) — 장비 카드 수정에서만 채울 수 있던 값이라
-              등록 직후엔 항상 비어있던 문제(훈련 준비의 guidanceConfigured가 안 채워짐). 도면에
-              아직 판단 노드·엣지·CCTV가 없을 수도 있어 필수는 아니고, 비워두면 등록 후 카드에서
-              마저 채울 수 있음 */}
-          {isLight &&
-            (() => {
-              const lightPickHint = getLightPickHint(
-                lightPickField,
-                lightDecisionNodeId,
-                lightEdgeOptions,
-              );
-              return (
-                <>
-                  <div className={styles.nodeAddField}>
-                    <span className={styles.nodeAddLabel}>담당 CCTV</span>
-                    <Dropdown
-                      shape="rounded"
-                      fullWidth
-                      ariaLabel="담당 CCTV"
-                      options={lightCctvOptions.map((c) => ({ value: c.id, label: c.label }))}
-                      value={lightCctvId}
-                      onChange={setLightCctvId}
-                      placeholder="미지정"
-                    />
-                  </div>
-                  {/* "판단 노드"·"경로 엣지"란 용어와, 목록에 같은 종류(예: 복도) 노드가 여러 개일 때
-                      뭐가 뭔지 구분이 안 된다는 QA 피드백 — 무엇을 고르는 건지 문장으로 먼저 알려주고,
-                      옵션 라벨도 우측 패널 카드와 같은 번호("복도 1" 등, getGraphNodeLabel)를 쓰게 함.
-                      드롭다운이 여전히 헷갈리면 "캔버스에서 선택" 버튼으로 도면에서 직접 클릭해 고를
-                      수도 있게 함(이 경우 도면 위 강조·클릭은 부모가 처리하고 값만 내려받음) */}
-                  <span
-                    className={clsx(
-                      styles.nodeAddHint,
-                      lightPickHint.isWarning && styles.nodeAddHintWarning,
-                    )}
-                  >
-                    {lightPickHint.text}
-                  </span>
-                  <LightPickField
-                    label="갈림길 위치"
-                    fieldName="decisionNode"
-                    pickField={lightPickField}
-                    displayLabel={lightNodeOptions.find((n) => n.id === lightDecisionNodeId)?.label}
-                    emptyText="갈림길 위치 선택"
-                    onStartPick={() => onStartLightPick('decisionNode')}
-                    onClear={() =>
-                      onLightFieldsChange({ decisionNodeId: '', leftEdgeId: '', rightEdgeId: '' })
-                    }
-                  />
-                  <LightPickField
-                    label="왼쪽 통로"
-                    fieldName="leftEdge"
-                    pickField={lightPickField}
-                    disabled={!lightDecisionNodeId}
-                    displayLabel={lightEdgeOptions.find((e) => e.id === lightLeftEdgeId)?.label}
-                    emptyText={lightDecisionNodeId ? '왼쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
-                    onStartPick={() => onStartLightPick('leftEdge')}
-                    onClear={() => onLightFieldsChange({ ...lightFields, leftEdgeId: '' })}
-                  />
-                  <LightPickField
-                    label="오른쪽 통로"
-                    fieldName="rightEdge"
-                    pickField={lightPickField}
-                    disabled={!lightDecisionNodeId}
-                    displayLabel={lightEdgeOptions.find((e) => e.id === lightRightEdgeId)?.label}
-                    emptyText={lightDecisionNodeId ? '오른쪽 통로 선택' : '갈림길 위치를 먼저 선택'}
-                    onStartPick={() => onStartLightPick('rightEdge')}
-                    onClear={() => onLightFieldsChange({ ...lightFields, rightEdgeId: '' })}
-                  />
-                </>
-              );
-            })()}
-        </>
-      )}
-
-      <div className={styles.nodeAddActions}>
-        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
-          취소
-        </button>
-        <button
-          type="button"
-          className={styles.nodeAddSubmitBtn}
-          disabled={!canSubmit}
-          onClick={() =>
-            onSubmitEntry(type, deviceId.trim(), {
-              cctvId: lightCctvId,
-              decisionNodeId: lightDecisionNodeId,
-              leftEdgeId: lightLeftEdgeId,
-              rightEdgeId: lightRightEdgeId,
-            })
-          }
-        >
-          {isCctv ? '다음' : '추가'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* ── 구역 설정 팝업 — 백엔드 저장 단위가 그리드 셀 집합이라 드래그는 겹치는 셀을 고르는 용도로 씀.
-   구역 재설정(재드래그)에도 그대로 재사용함 — 구역은 수정 API가 없어 새로 만들고 기존 걸
-   지우는 방식으로만 "재설정"할 수 있는데, 이 팝업이 이름+셀 선택을 같이 받는 유일한 곳이라
-   재설정 흐름도 다시 "새 구역 만들기"와 같은 절차를 타면 됨 ── */
-const ZoneAddPopup = ({
-  containerRef,
-  selectedCellCount,
-  initialName = '',
-  title = '구역 설정',
-  submitLabel = '추가',
-  onCancel,
-  onSave,
-}: {
-  containerRef: React.RefObject<HTMLDivElement>;
-  selectedCellCount: number;
-  initialName?: string;
-  title?: string;
-  submitLabel?: string;
-  onCancel: () => void;
-  onSave: (label: string) => void;
-}) => {
-  const [zoneName, setZoneName] = useState(initialName);
-  const hasSelectedCells = selectedCellCount > 0;
-
-  const handleSave = () => {
-    onSave(zoneName.trim());
-  };
-
-  return (
-    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
-      <div className={styles.nodeAddHeader}>
-        <span className={styles.nodeAddTitle}>{title}</span>
-        <span className={styles.nodeAddStepBadge}>{hasSelectedCells ? '2/2' : '1/2'}</span>
-      </div>
-      <span className={styles.nodeAddHint}>
-        {hasSelectedCells
-          ? `${selectedCellCount}칸 선택됨. 다시 드래그하면 그 영역으로 새로 잡혀요. 이름을 입력하고 ${submitLabel} 버튼을 누르면 저장됩니다.`
-          : '이름을 입력하거나 도면을 드래그해서 영역에 해당하는 칸을 선택해주세요. 어느 쪽을 먼저 하셔도 괜찮아요.'}
-      </span>
-
-      <div className={styles.nodeAddField}>
-        <span className={styles.nodeAddLabel}>구역 이름</span>
-        <input
-          className={styles.nodeAddInput}
-          value={zoneName}
-          onChange={(e) => setZoneName(e.target.value)}
-          placeholder="3층 앞 복도 구역"
-        />
-      </div>
-
-      <div className={styles.nodeAddActions}>
-        <button type="button" className={styles.nodeAddCancelBtn} onClick={onCancel}>
-          취소
-        </button>
-        <button
-          type="button"
-          className={styles.nodeAddSubmitBtn}
-          disabled={!zoneName.trim() || !hasSelectedCells}
-          onClick={handleSave}
-        >
-          {submitLabel}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* ── 엣지 체인 검토 팝업 — 순서대로 고른 노드들 사이 구간을 한 번에 검토·확정.
-   구간이 1개(노드 2개)여도 같은 화면을 씀 — 별도 "한 쌍짜리" 경로를 둘 필요가 없음 ── */
-const EdgeChainReviewPopup = ({
-  containerRef,
-  segments,
-  onBack,
-  onSubmit,
-}: {
-  containerRef: React.RefObject<HTMLDivElement>;
-  segments: {
-    fromId: string;
-    toId: string;
-    fromLabel: string;
-    toLabel: string;
-    // 두 노드 좌표 + 그리드 배율로 계산한 추정 거리(m). 없으면 수동 입력
-    suggestedDistanceM: number | null;
-    // 다른 경로와 겹쳐서 이미 존재하는 구간 — 입력 없이 생성 대상에서만 제외함
-    alreadyExists: boolean;
-  }[];
-  onBack: () => void;
-  onSubmit: (
-    rows: {
-      fromId: string;
-      toId: string;
-      fromLabel: string;
-      toLabel: string;
-      distanceM: number;
-      bidirectional: boolean;
-    }[],
-  ) => void;
-}) => {
-  // 실내 노드 간 거리는 1m 미만도 흔해서 cm로 입력받음(정수로 편하게 입력, 저장은 m로 환산)
-  const [distancesCm, setDistancesCm] = useState(() =>
-    segments.map((s) =>
-      s.suggestedDistanceM !== null ? String(Math.round(s.suggestedDistanceM * 100)) : '',
-    ),
-  );
-  const [bidirectional, setBidirectional] = useState(true);
-
-  const handleDistanceChange = (index: number, raw: string) => {
-    // 완성된 숫자만 허용하면 편집 중간 상태(끝자리 삭제 등)가 거부돼 편집이 막히던 문제 —
-    // 타이핑 도중 상태(끝에 점만 있거나 소수부가 빈 경우)도 허용
-    if (raw !== '' && !/^\d*\.?\d*$/.test(raw)) return;
-    setDistancesCm((prev) => prev.map((v, i) => (i === index ? raw : v)));
-  };
-
-  const newSegmentCount = segments.filter((s) => !s.alreadyExists).length;
-  const allValid =
-    newSegmentCount > 0 && segments.every((s, i) => s.alreadyExists || Number(distancesCm[i]) > 0);
-
-  const handleSubmit = () => {
-    const rows: {
-      fromId: string;
-      toId: string;
-      fromLabel: string;
-      toLabel: string;
-      distanceM: number;
-      bidirectional: boolean;
-    }[] = [];
-    segments.forEach((s, i) => {
-      if (s.alreadyExists) return;
-      rows.push({
-        fromId: s.fromId,
-        toId: s.toId,
-        fromLabel: s.fromLabel,
-        toLabel: s.toLabel,
-        distanceM: Number(distancesCm[i]) / 100,
-        bidirectional,
-      });
-    });
-    onSubmit(rows);
-  };
-
-  return (
-    <div ref={containerRef} className={styles.nodeAddPopup} onClick={(e) => e.stopPropagation()}>
-      <div className={styles.nodeAddHeader}>
-        <span className={styles.nodeAddTitle}>연결 구간 확인</span>
-        <span className={styles.nodeAddStepBadge}>
-          {newSegmentCount < segments.length
-            ? `신규 ${newSegmentCount}개 · 기존 ${segments.length - newSegmentCount}개`
-            : `${segments.length}개 구간`}
-        </span>
-      </div>
-      <span className={styles.nodeAddHint}>
-        {newSegmentCount === 0
-          ? '선택한 구간이 모두 이미 연결되어 있어요'
-          : '새로 만들 구간의 거리(cm)를 확인하고, 필요하면 고쳐주세요'}
-      </span>
-
-      <div className={styles.edgeChainList}>
-        {segments.map((s, i) => (
-          <div key={`${s.fromId}-${s.toId}`} className={styles.edgeChainRow}>
-            <span className={styles.edgeChainRowLabel}>
-              {s.fromLabel} → {s.toLabel}
-            </span>
-            {s.alreadyExists ? (
-              <span className={styles.edgeChainExistingTag}>이미 연결됨</span>
-            ) : (
-              <input
-                className={styles.edgeChainDistanceInput}
-                type="text"
-                inputMode="decimal"
-                value={distancesCm[i]}
-                onChange={(e) => handleDistanceChange(i, e.target.value)}
-                placeholder="350"
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      <label className={styles.edgeBidirectionalField}>
-        <input
-          type="checkbox"
-          checked={bidirectional}
-          onChange={(e) => setBidirectional(e.target.checked)}
-        />
-        전체 양방향 통행 가능
-      </label>
-
-      <div className={styles.nodeAddActions}>
-        <button type="button" className={styles.nodeAddCancelBtn} onClick={onBack}>
-          이전
-        </button>
-        <button
-          type="button"
-          className={styles.nodeAddSubmitBtn}
-          disabled={!allValid}
-          onClick={handleSubmit}
-        >
-          {newSegmentCount}개 연결 추가
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* ── 툴바 "+ 추가" 메뉴 — 노드/구역/엣지 추가를 각각 버튼으로 늘어놓지 않고 하나로 묶음 ── */
-const AddActionMenu = ({
-  onAddNode,
-  onAddZone,
-  onAddEdge,
-}: {
-  onAddNode: () => void;
-  onAddZone: () => void;
-  onAddEdge: () => void;
-}) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open]);
-
-  const items = [
-    { label: '노드 추가', onClick: onAddNode },
-    { label: '구역 추가', onClick: onAddZone },
-    { label: '엣지 연결', onClick: onAddEdge },
-  ];
-
-  return (
-    <div ref={containerRef} className={styles.addMenuContainer}>
-      <button
-        type="button"
-        className={styles.canvasActionButton}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <PlusIcon width={14} height={14} />
-        추가
-        <ChevronDownIcon width={14} height={14} className={styles.addMenuChevron} />
-      </button>
-      {open && (
-        <div className={styles.addMenuPanel} role="menu">
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              className={styles.addMenuItem}
-              onClick={() => {
-                item.onClick();
-                setOpen(false);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 };
 
