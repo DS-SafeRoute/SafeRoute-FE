@@ -25,6 +25,7 @@ import ChevronDownIcon from '@assets/icons/ic-chevron-down.svg?react';
 import ChevronRightIcon from '@assets/icons/ic-chevron-right.svg?react';
 import EditIcon from '@assets/icons/ic-edit.svg?react';
 import InfoIcon from '@assets/icons/ic-info.svg?react';
+import MapIcon from '@assets/icons/ic-map.svg?react';
 import PlusIcon from '@assets/icons/ic-plus.svg?react';
 import TrashIcon from '@assets/icons/ic-trash.svg?react';
 import WifiIcon from '@assets/icons/ic-wifi.svg?react';
@@ -33,6 +34,7 @@ import XIcon from '@assets/icons/ic-x.svg?react';
 import { Button } from '@components/Button';
 import StatusBadge from '@components/chip/StatusBadge';
 import Dropdown from '@components/dropdown';
+import EmptyState from '@components/empty';
 import LoadingState from '@components/loadingState';
 import useToast from '@components/toast/useToast';
 
@@ -2446,19 +2448,21 @@ const FloorCanvas = ({
             </p>
           </>
         ) : (
-          <>
-            <span className={styles.canvasPlaceholderTitle}>
-              {isAnalysisFailed ? '도면 분석에 실패했습니다' : '등록된 도면이 없습니다'}
-            </span>
-            <p className={styles.canvasPlaceholderText}>
-              {isAnalysisFailed
+          <EmptyState
+            size="compact"
+            icon={<MapIcon />}
+            title={isAnalysisFailed ? '도면 분석에 실패했습니다' : '등록된 도면이 없습니다'}
+            description={
+              isAnalysisFailed
                 ? '도면을 다시 업로드해 주세요'
-                : '도면을 업로드하거나 AI 영역 분할을 실행해 주세요'}
-            </p>
-            <Button variant="primary" size="sm" onClick={onUpload}>
-              도면 {isAnalysisFailed ? '다시 ' : ''}업로드
-            </Button>
-          </>
+                : '도면을 업로드하거나 AI 영역 분할을 실행해 주세요'
+            }
+            action={
+              <Button variant="primary" size="sm" onClick={onUpload}>
+                도면 {isAnalysisFailed ? '다시 ' : ''}업로드
+              </Button>
+            }
+          />
         )}
       </div>
     );
@@ -5119,9 +5123,12 @@ const FloorPlansDetailPage = () => {
               {floorDetailQuery.isError && !currentFloor ? (
                 // 실제로 없는 층(404 등)일 때만 안내. 목록 캐시에 아직 안 들어온 층을 직접
                 // 열었거나 방금 만든 직후엔 잠깐 둘 다 비어 있을 수 있어, 그 사이엔 로딩만 보여줌
-                <div className={styles.canvasPlaceholder}>
-                  <span className={styles.canvasPlaceholderTitle}>층 정보를 찾을 수 없습니다</span>
-                </div>
+                <EmptyState
+                  className={styles.canvasPlaceholder}
+                  size="compact"
+                  icon={<MapIcon />}
+                  title="층 정보를 찾을 수 없습니다"
+                />
               ) : resolvedFloor ? (
                 <FloorCanvas
                   mapWrapRef={mapWrapRef}
@@ -5351,7 +5358,7 @@ const FloorPlansDetailPage = () => {
                   {panelItems.length === 0 &&
                     visibleStructureNodes.length === 0 &&
                     topFilter === 'device' && (
-                      <p className={styles.devicePanelEmpty}>표시할 노드가 없습니다</p>
+                      <EmptyState size="compact" title="표시할 노드가 없습니다" />
                     )}
                 </>
               )}
