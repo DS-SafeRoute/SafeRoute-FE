@@ -48,21 +48,6 @@ export const sidebarInner = style({
   minHeight: 'min-content',
 });
 
-export const section = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: vars.space.s2,
-});
-
-export const sectionLabel = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
-});
-
-export const divider = style({
-  borderTop: `1px solid ${vars.color.gray100}`,
-});
-
 /* ── 층 목록 ── */
 export const floorNavCard = style({
   border: `1px solid ${vars.color.gray100}`,
@@ -272,11 +257,6 @@ export const nodeAddHint = style({
 // 구분되게 함
 export const nodeAddHintWarning = style({
   color: vars.color.danger,
-});
-
-export const nodeAddSubHint = style({
-  color: vars.color.textLow,
-  ...vars.typography.caption,
 });
 
 export const nodeAddField = style({
@@ -624,10 +604,6 @@ export const nodeTypeAreaSwatch = style({
   height: '1.2rem',
 });
 
-export const nodeTypeAreaSwatchStair = style({
-  borderColor: zoneStairColor,
-  backgroundColor: 'rgba(249,115,22,0.25)',
-});
 export const nodeTypeAreaSwatchGeneral = style({
   borderColor: vars.color.gray500,
   backgroundColor: 'rgba(107,114,128,0.15)',
@@ -667,6 +643,34 @@ export const devicePanel = style({
   },
 });
 
+export const devicePanelCollapsed = style({
+  width: '4.8rem',
+});
+
+export const devicePanelHeader = style({
+  position: 'sticky',
+  zIndex: 3,
+  top: 0,
+  display: 'flex',
+  flexShrink: 0,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  borderBottom: `1px solid ${vars.color.gray100}`,
+  backgroundColor: vars.color.white,
+  padding: vars.space.s2,
+  minHeight: '4.8rem',
+});
+
+export const devicePanelHeading = style({
+  paddingLeft: vars.space.s2,
+  color: vars.color.textHigh,
+  ...vars.typography.body14Medium,
+});
+
+export const devicePanelToggleExpand = style({
+  transform: 'rotate(180deg)',
+});
+
 export const devicePanelInner = style({
   display: 'flex',
   flexDirection: 'column',
@@ -676,10 +680,14 @@ export const devicePanelInner = style({
   paddingLeft: vars.space.s5,
 });
 
+export const devicePanelInnerHidden = style({
+  display: 'none',
+});
+
 export const devicePanelSticky = style({
   position: 'sticky',
   zIndex: 2,
-  top: 0,
+  top: '4.8rem',
   display: 'flex',
   flexDirection: 'column',
   gap: vars.space.s3,
@@ -746,12 +754,6 @@ export const subFilterChipActive = style({
   borderColor: vars.color.primary,
   backgroundColor: vars.color.primaryLight2,
   color: vars.color.primary,
-});
-
-export const devicePanelEmpty = style({
-  margin: 0,
-  color: vars.color.textLow,
-  ...vars.typography.body14,
 });
 
 export const deviceCard = style({
@@ -1171,14 +1173,6 @@ export const mapWrap = style({
   overflow: 'visible',
 });
 
-export const mapImage = style({
-  display: 'block',
-  objectFit: 'contain',
-  maxWidth: '100%',
-  maxHeight: '100%',
-  userSelect: 'none',
-});
-
 /* ── 마커 공통 ── */
 // 마커 위치의 기준점(0,0)만 잡음 — 크기가 없는 점이라 자식(원 아이콘·라벨)이 뭘 보여주든
 // 이 기준점 자체는 흔들리지 않음
@@ -1283,11 +1277,6 @@ export const canvasPlaceholder = style({
   ...vars.typography.body14,
 });
 
-export const canvasPlaceholderTitle = style({
-  color: vars.color.textMid,
-  ...vars.typography.body14Medium,
-});
-
 export const canvasPlaceholderText = style({
   margin: 0,
   color: 'inherit',
@@ -1305,39 +1294,4 @@ export const zoomValueClickable = style({
   selectors: {
     '&:hover': { backgroundColor: vars.color.primaryLight2 },
   },
-});
-
-/* ── 토스트 ── */
-const toastIn = keyframes({
-  from: { transform: 'translateY(8px)', opacity: 0 },
-  to: { transform: 'translateY(0)', opacity: 1 },
-});
-
-const toastOut = keyframes({
-  from: { opacity: 1 },
-  to: { opacity: 0 },
-});
-
-export const toast = style({
-  position: 'absolute',
-  zIndex: 20,
-  top: vars.space.s4,
-  left: '50%',
-  display: 'flex',
-  alignItems: 'center',
-  gap: vars.space.s2,
-  transform: 'translateX(-50%)',
-  borderRadius: vars.radius.lg,
-  boxShadow: vars.shadow.md,
-  backgroundColor: '#1e1e2e',
-  pointerEvents: 'none',
-  padding: `${vars.space.s2} ${vars.space.s4}`,
-  animation: `${toastIn} 0.2s ease forwards`,
-  whiteSpace: 'nowrap',
-  color: '#fff',
-  ...vars.typography.body14,
-});
-
-export const toastFading = style({
-  animation: `${toastOut} 0.3s ease forwards`,
 });

@@ -257,7 +257,7 @@ const ScenarioSettingsContent = ({ scenario }: ScenarioSettingsContentProps) => 
     setIsEndModalOpen(true);
     show({
       title: '최대 훈련 시간이 초과되었습니다.',
-      description: '생존 인원을 입력해 분석 보고서를 생성해 주세요.',
+      description: '대피 완료 인원을 입력해 분석 보고서를 생성해 주세요.',
       variant: 'default',
     });
   }, [show, timeLimitSessionId]);
